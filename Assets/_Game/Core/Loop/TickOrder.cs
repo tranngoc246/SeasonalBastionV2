@@ -1,0 +1,15 @@
+// PATCH v0.1.3 — TickOrder uses runtime GameServices container
+namespace SeasonalBastion
+{
+    public static class TickOrder
+    {
+        public static void TickAll(GameServices s, float dt)
+        {
+            if (s.RunClock is ITickable clockTick) clockTick.Tick(dt);
+            if (s.JobScheduler is ITickable jobTick) jobTick.Tick(dt);
+            if (s.ResourceFlowService is ITickable flowTick) flowTick.Tick(dt);
+            if (s.CombatService is ITickable combatTick) combatTick.Tick(dt);
+            if (s.RunOutcomeService is ITickable outcomeTick) outcomeTick.Tick(dt);
+        }
+    }
+}

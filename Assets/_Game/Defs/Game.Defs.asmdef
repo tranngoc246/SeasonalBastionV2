@@ -1,0 +1,16 @@
+{
+  "name": "Game.Defs",
+  "rootNamespace": "SeasonalBastion",
+  "references": [
+    "Game.Contracts"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

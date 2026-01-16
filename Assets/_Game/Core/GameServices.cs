@@ -1,0 +1,47 @@
+// PATCH v0.1.3 — Runtime service container (lives in Game.Core assembly)
+using SeasonalBastion.Contracts;
+
+namespace SeasonalBastion
+{
+    /// <summary>
+    /// Runtime service container (composition root fills these references).
+    /// IMPORTANT: This is NOT a contracts type. It lives in runtime (Game.Core).
+    /// </summary>
+    public sealed class GameServices
+    {
+        // Core
+        public IEventBus EventBus;
+        public IDataRegistry DataRegistry;
+        public IDataValidator DataValidator;
+        public IRunClock RunClock;
+        public INotificationService NotificationService;
+
+        // World/Grid
+        public IWorldState WorldState;
+        public IWorldOps WorldOps;
+        public IWorldIndex WorldIndex;
+        public IGridMap GridMap;
+        public IPlacementService PlacementService;
+
+        // Economy/Jobs
+        public IStorageService StorageService;
+        public IResourceFlowService ResourceFlowService;
+        public IClaimService ClaimService;
+        public IJobBoard JobBoard;
+        public IJobScheduler JobScheduler;
+
+        // Build/Ammo/Combat
+        public IBuildOrderService BuildOrderService;
+        public IAmmoService AmmoService;
+        public ICombatService CombatService;
+
+        // Rewards/Save
+        public IRewardService RewardService;
+        public IRunOutcomeService RunOutcomeService;
+        public ISaveService SaveService;
+
+        // Optional
+        public IAudioService AudioService;
+        public IFXService FXService;
+    }
+}

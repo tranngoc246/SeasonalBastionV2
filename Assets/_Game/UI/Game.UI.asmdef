@@ -1,3 +1,23 @@
 {
-	"name": "Game.UI"
+"name": "Game.UI",
+"rootNamespace": "SeasonalBastion",
+"references": [
+  "Game.Contracts",
+  "Game.Core",
+  "Game.World",
+  "Game.Grid",
+  "Game.Economy",
+  "Game.Jobs",
+  "Game.Combat",
+  "Game.Rewards"
+],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
 }

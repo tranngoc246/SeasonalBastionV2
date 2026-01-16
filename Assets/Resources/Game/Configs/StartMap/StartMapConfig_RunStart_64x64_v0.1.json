@@ -1,0 +1,376 @@
+{
+  "schemaVersion": 1,
+  "coordSystem": {
+    "origin": "bottom-left",
+    "indexing": "0-based",
+    "notes": "All gameplay uses CellPos. World position is derived from cell."
+  },
+  "map": {
+    "width": 64,
+    "height": 64,
+    "buildableRect": {
+      "xMin": 12,
+      "yMin": 12,
+      "xMax": 51,
+      "yMax": 51
+    }
+  },
+  "roads": [
+    {
+      "x": 32,
+      "y": 22
+    },
+    {
+      "x": 32,
+      "y": 23
+    },
+    {
+      "x": 32,
+      "y": 24
+    },
+    {
+      "x": 32,
+      "y": 25
+    },
+    {
+      "x": 32,
+      "y": 26
+    },
+    {
+      "x": 32,
+      "y": 27
+    },
+    {
+      "x": 32,
+      "y": 28
+    },
+    {
+      "x": 32,
+      "y": 29
+    },
+    {
+      "x": 32,
+      "y": 30
+    },
+    {
+      "x": 33,
+      "y": 30
+    },
+    {
+      "x": 34,
+      "y": 30
+    },
+    {
+      "x": 35,
+      "y": 30
+    },
+    {
+      "x": 36,
+      "y": 30
+    },
+    {
+      "x": 32,
+      "y": 31
+    },
+    {
+      "x": 22,
+      "y": 32
+    },
+    {
+      "x": 23,
+      "y": 32
+    },
+    {
+      "x": 24,
+      "y": 32
+    },
+    {
+      "x": 25,
+      "y": 32
+    },
+    {
+      "x": 26,
+      "y": 32
+    },
+    {
+      "x": 27,
+      "y": 32
+    },
+    {
+      "x": 28,
+      "y": 32
+    },
+    {
+      "x": 29,
+      "y": 32
+    },
+    {
+      "x": 30,
+      "y": 32
+    },
+    {
+      "x": 31,
+      "y": 32
+    },
+    {
+      "x": 32,
+      "y": 32
+    },
+    {
+      "x": 33,
+      "y": 32
+    },
+    {
+      "x": 34,
+      "y": 32
+    },
+    {
+      "x": 35,
+      "y": 32
+    },
+    {
+      "x": 36,
+      "y": 32
+    },
+    {
+      "x": 37,
+      "y": 32
+    },
+    {
+      "x": 38,
+      "y": 32
+    },
+    {
+      "x": 39,
+      "y": 32
+    },
+    {
+      "x": 40,
+      "y": 32
+    },
+    {
+      "x": 41,
+      "y": 32
+    },
+    {
+      "x": 42,
+      "y": 32
+    },
+    {
+      "x": 32,
+      "y": 33
+    },
+    {
+      "x": 32,
+      "y": 34
+    },
+    {
+      "x": 33,
+      "y": 34
+    },
+    {
+      "x": 34,
+      "y": 34
+    },
+    {
+      "x": 32,
+      "y": 35
+    },
+    {
+      "x": 32,
+      "y": 36
+    },
+    {
+      "x": 32,
+      "y": 37
+    },
+    {
+      "x": 32,
+      "y": 38
+    },
+    {
+      "x": 32,
+      "y": 39
+    },
+    {
+      "x": 32,
+      "y": 40
+    },
+    {
+      "x": 32,
+      "y": 41
+    },
+    {
+      "x": 32,
+      "y": 42
+    }
+  ],
+  "spawnGates": [
+    {
+      "lane": 0,
+      "cell": {
+        "x": 32,
+        "y": 63
+      },
+      "dirToHQ": "S"
+    },
+    {
+      "lane": 1,
+      "cell": {
+        "x": 63,
+        "y": 32
+      },
+      "dirToHQ": "W"
+    },
+    {
+      "lane": 2,
+      "cell": {
+        "x": 0,
+        "y": 32
+      },
+      "dirToHQ": "E"
+    }
+  ],
+  "zones": [
+    {
+      "zoneId": "zone_farm_start",
+      "type": "FarmPlots",
+      "ownerBuildingHint": "bld_farmhouse_t1",
+      "cellsRect": {
+        "xMin": 34,
+        "yMin": 26,
+        "xMax": 39,
+        "yMax": 27
+      },
+      "cellCount": 12
+    },
+    {
+      "zoneId": "zone_forest_start",
+      "type": "ForestTiles",
+      "ownerBuildingHint": "bld_lumbercamp_t1",
+      "cellsRect": {
+        "xMin": 20,
+        "yMin": 26,
+        "xMax": 23,
+        "yMax": 29
+      },
+      "cellCount": 16
+    }
+  ],
+  "initialBuildings": [
+    {
+      "defId": "bld_hq_t1",
+      "anchor": {
+        "x": 30,
+        "y": 30
+      },
+      "rotation": "N",
+      "notes": "HQ 3x3. Entry side assumed South so EntryAnchor near (31,29), road at (32,29) within driveway=1."
+    },
+    {
+      "defId": "bld_house_t1",
+      "anchor": {
+        "x": 29,
+        "y": 30
+      },
+      "rotation": "N",
+      "notes": "House 2x2. Entry assumed East; road at x=32 within driveway=1 via EntryAnchor near (31,30)."
+    },
+    {
+      "defId": "bld_house_t1",
+      "anchor": {
+        "x": 29,
+        "y": 33
+      },
+      "rotation": "N",
+      "notes": "Second house 2x2, same entry orientation."
+    },
+    {
+      "defId": "bld_farmhouse_t1",
+      "anchor": {
+        "x": 34,
+        "y": 30
+      },
+      "rotation": "N",
+      "notes": "Farmhouse 2x2. Entry assumed North; road at y=32 adjacent to entry anchor (x≈35,y=32). Links to zone_farm_start."
+    },
+    {
+      "defId": "bld_lumbercamp_t1",
+      "anchor": {
+        "x": 24,
+        "y": 30
+      },
+      "rotation": "N",
+      "notes": "LumberCamp 2x2. Entry assumed North; road at y=32 adjacent. Links to zone_forest_start."
+    },
+    {
+      "defId": "bld_tower_arrow_t1",
+      "anchor": {
+        "x": 31,
+        "y": 37
+      },
+      "rotation": "N",
+      "initialStateOverrides": {
+        "ammo": "FULL",
+        "ammoPercent": 1.0
+      },
+      "notes": "1x1 tower off-road, entry assumed East so road cell (32,37) is adjacent."
+    }
+  ],
+  "initialNpcs": [
+    {
+      "npcDefId": "npc_villager_t1",
+      "spawnCell": {
+        "x": 31,
+        "y": 31
+      },
+      "assignedWorkplaceDefId": "bld_hq_t1",
+      "jobProfile": "HQ_Build_Repair_HaulBasic",
+      "notes": "HQ NPC: can HaulBasic immediately; Build/Repair later."
+    },
+    {
+      "npcDefId": "npc_villager_t1",
+      "spawnCell": {
+        "x": 35,
+        "y": 31
+      },
+      "assignedWorkplaceDefId": "bld_farmhouse_t1",
+      "jobProfile": "Harvest_Food",
+      "notes": "Farm worker."
+    },
+    {
+      "npcDefId": "npc_villager_t1",
+      "spawnCell": {
+        "x": 25,
+        "y": 31
+      },
+      "assignedWorkplaceDefId": "bld_lumbercamp_t1",
+      "jobProfile": "Harvest_Wood",
+      "notes": "Lumber worker."
+    }
+  ],
+  "startHints": [
+    {
+      "hintId": "hint_assign_new_npc",
+      "trigger": "OnNpcSpawned_AndCapacityAvailable",
+      "title": "Có NPC mới!",
+      "body": "Bạn vừa có thêm dân. Hãy gán NPC vào công trình (Farm/Lumber/HQ) để bắt đầu làm việc.",
+      "notificationKey": "npc.new"
+    },
+    {
+      "hintId": "hint_need_transporter",
+      "trigger": "ProducerLocalFull_Any",
+      "title": "Kho cục bộ đầy",
+      "body": "Kho cục bộ của công trình khai thác đã đầy. Hãy gán NPC vận chuyển (HQ) để đưa tài nguyên về kho.",
+      "notificationKey": "producer.local.full"
+    }
+  ],
+  "lockedInvariants": [
+    "DrivewayLength = 1",
+    "Road placement orthogonal N/E/S/W",
+    "Driveway conversion happens on commit; converts at most 1 cell",
+    "HQ workplace roles: Build/Repair/HaulBasic",
+    "Warehouse cannot store Ammo (not placed at start)",
+    "Tower starts with full ammo"
+  ]
+}

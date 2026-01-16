@@ -1,3 +1,19 @@
 {
-	"name": "Game.Jobs"
+"name": "Game.Jobs",
+"rootNamespace": "SeasonalBastion",
+"references": [
+  "Game.Contracts",
+  "Game.Core",
+  "Game.World",
+  "Game.Economy"
+],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
 }

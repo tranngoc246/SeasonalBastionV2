@@ -1,4 +1,3 @@
-// PATCH v0.1.3 — GameLoop uses runtime GameServices container
 using System;
 using SeasonalBastion.Contracts;
 

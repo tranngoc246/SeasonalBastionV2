@@ -1,16 +1,4 @@
-// AUTO-GENERATED SKELETON TEMPLATE from PART 26 (LOCKED v0.1)
-// Source: PART26_Concrete_Class_Skeletons_Scaffolds_LOCKED_SPEC_v0.1.md
-// Notes: Runtime scaffolds only. Fill TODOs during implementation.
-
-using System;
-using System.Collections.Generic;
-using SeasonalBastion.Contracts;
-
-namespace SeasonalBastion
-{
-    public sealed class BuildSiteState
-    {
-        // TODO: implement
-        public void Tick(float dt) { }
-    }
-}
+// PATCH v0.1.5 — Marker file
+// This file intentionally defines no types.
+// Canonical state structs are defined in Assets/_Game/Core/Contracts/World/States/.
+namespace SeasonalBastion { }

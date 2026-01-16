@@ -18,7 +18,7 @@
   - NPC sinh ra ở trạng thái **Unassigned**, chỉ làm **Leisure/Inspect**.
   - Thêm **Workplace Assignment**: gán NPC vào công trình → chỉ làm JobSet của công trình đó.
   - Thêm công trình **Builder Hut** (cổng xây dựng/sửa/nâng cấp).
-  - Mặc định **Auto-fill = ON** cho Workplace.
+  - Mặc định **Auto-fill = ON trong onboarding, OFF sau đó**.
 - Bổ sung **Notification System** chuẩn hóa (vị trí, số lượng, anti-spam + danh sách thông báo).
 
 ### 0.2 Decision Log (LOCKED)
@@ -207,7 +207,7 @@ HQ là Workplace đặc biệt để người chơi **khởi đầu dễ**, khô
 **HQ JobSet (LOCKED):**
 NPC assigned HQ có thể làm **mọi việc TRỪ thu thập tài nguyên tại node**:
 - Build / Move / Demolish / Upgrade / Repair *(builder tasks)*
-- HaulCore (vận chuyển tài nguyên cơ bản giữa các kho/công trình về HQ hoặc theo yêu cầu tiêu thụ)
+- HaulCore (vận chuyển tài nguyên cơ bản giữa các kho/công trình về HQ - HQ chỉ Build/Repair/HaulBasic, không đụng ammo)
 - EmergencyRepair (ưu tiên HQ/tower)
 
 **Giới hạn để giữ bản sắc hệ thống:**

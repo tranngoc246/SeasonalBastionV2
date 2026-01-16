@@ -1,4 +1,3 @@
-// PATCH v0.1.3 — TickOrder uses runtime GameServices container
 namespace SeasonalBastion
 {
     public static class TickOrder

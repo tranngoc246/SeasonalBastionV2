@@ -1,4 +1,3 @@
-// PATCH v0.1.3 — Minimal typed event bus
 using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;

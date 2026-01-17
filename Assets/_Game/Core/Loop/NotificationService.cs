@@ -1,7 +1,3 @@
-// AUTO-GENERATED SKELETON TEMPLATE from PART 26 (LOCKED v0.1)
-// Source: PART26_Concrete_Class_Skeletons_Scaffolds_LOCKED_SPEC_v0.1.md
-// Notes: Runtime scaffolds only. Fill TODOs during implementation.
-
 using UnityEngine;
 using System;
 using System.Collections.Generic;
@@ -14,22 +10,65 @@ namespace SeasonalBastion
         public int MaxVisible => 3;
 
         private readonly IEventBus _bus;
-        private readonly System.Collections.Generic.List<NotificationViewModel> _visible = new();
-        private readonly System.Collections.Generic.Dictionary<string, float> _cooldowns = new();
+        private readonly List<NotificationViewModel> _visible = new();
+        private readonly Dictionary<string, float> _cooldowns = new();
         private int _nextId = 1;
 
-        public event System.Action NotificationsChanged;
+        public event Action NotificationsChanged;
 
-        public NotificationService(IEventBus bus){ _bus = bus; }
+        public NotificationService(IEventBus bus) { _bus = bus; }
 
         public NotificationId Push(string key, string title, string body, NotificationSeverity severity,
                                    NotificationPayload payload, float cooldownSeconds = 3f, bool dedupeByKey = true)
         {
-            // TODO: cooldown + dedupe
+            var now = Time.realtimeSinceStartup;
+
+            // 1) Cooldown per key
+            if (cooldownSeconds > 0f && _cooldowns.TryGetValue(key, out var lastAt))
+            {
+                if ((now - lastAt) < cooldownSeconds)
+                {
+                    return default;
+                }
+            }
+
+            _cooldowns[key] = now;
+
+            // 2) Dedupe by key: update notification and move to top
+            if (dedupeByKey)
+            {
+                for (int i = 0; i < _visible.Count; i++)
+                {
+                    if (_visible[i].Key == key)
+                    {
+                        var existing = _visible[i];
+                        existing.Title = title;
+                        existing.Body = body;
+                        existing.Severity = severity;
+                        existing.Payload = payload;
+                        existing.CreatedAt = now;
+
+                        // move to top (newest-first)
+                        _visible.RemoveAt(i);
+                        _visible.Insert(0, existing);
+
+                        NotificationsChanged?.Invoke();
+                        return existing.Id;
+                    }
+                }
+            }
+
+            // 3) Create new
             var id = new NotificationId(_nextId++);
-            var vm = new NotificationViewModel{
-                Id = id, Key = key, Title = title, Body = body, Severity = severity, Payload = payload,
-                CreatedAt = UnityEngine.Time.realtimeSinceStartup
+            var vm = new NotificationViewModel
+            {
+                Id = id,
+                Key = key,
+                Title = title,
+                Body = body,
+                Severity = severity,
+                Payload = payload,
+                CreatedAt = now
             };
 
             // newest first
@@ -52,6 +91,6 @@ namespace SeasonalBastion
             NotificationsChanged?.Invoke();
         }
 
-        public System.Collections.Generic.IReadOnlyList<NotificationViewModel> GetVisible() => _visible;
+        public IReadOnlyList<NotificationViewModel> GetVisible() => _visible;
     }
 }

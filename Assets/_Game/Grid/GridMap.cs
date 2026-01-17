@@ -27,7 +27,11 @@ namespace SeasonalBastion
 
         private int Idx(CellPos c) => c.Y * _w + c.X;
 
-        public CellOccupancy Get(CellPos c) => _cells[Idx(c)];
+        public CellOccupancy Get(CellPos c)
+        {
+            if (!IsInside(c)) return new CellOccupancy(CellOccupancyKind.Empty, default, default);
+            return _cells[Idx(c)];
+        }
 
         public bool IsRoad(CellPos c) => Get(c).Kind == CellOccupancyKind.Road;
 
@@ -39,6 +43,7 @@ namespace SeasonalBastion
 
         public void SetRoad(CellPos c, bool isRoad)
         {
+            if (!IsInside(c)) return;
             _cells[Idx(c)] = isRoad
                 ? new CellOccupancy(CellOccupancyKind.Road, default, default)
                 : new CellOccupancy(CellOccupancyKind.Empty, default, default);

@@ -18,9 +18,9 @@ namespace SeasonalBastion
             //services.WorldOps = new WorldOps(services.WorldState, services.EventBus);
             //services.WorldIndex = new WorldIndexService(services.WorldState, services.DataRegistry);
 
-            //// Grid
-            //services.GridMap = new GridMap(width: 64, height: 64);
-            //services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus);
+            // Grid
+            services.GridMap = new GridMap(width: 64, height: 64);
+            services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus);
 
             //// Economy
             //services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);

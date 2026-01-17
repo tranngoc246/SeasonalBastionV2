@@ -1,33 +1,47 @@
 namespace SeasonalBastion
 {
+    using SeasonalBastion.Contracts;
     using UnityEngine;
 
     public sealed class GameBootstrap : MonoBehaviour
     {
         [SerializeField] private DefsCatalog _defsCatalog; // ScriptableObject listing all defs roots (optional)
         [SerializeField] private bool _autoStartRun = true;
+        [SerializeField] private int _debugSeed = 12345;
 
         private GameServices _services;
         private GameLoop _loop;
 
+        // For debug tools and other systems to access game services and loop
+        public GameServices Services => _services;
+
         private void Awake()
         {
             Application.targetFrameRate = 60;
+
             _services = GameServicesFactory.Create(_defsCatalog);
             _loop = new GameLoop(_services);
 
             if (_autoStartRun)
-                _loop.StartNewRun(seed: 12345); // TODO: seed source UI
+                _loop.StartNewRun(seed: _debugSeed); // TODO: seed source UI
         }
 
         private void Update()
         {
+            if (_loop == null) return;
+
             _loop.Tick(Time.deltaTime);
         }
 
         private void OnDestroy()
         {
-            _loop.Dispose();
+            if (_loop != null)
+            {
+                _loop.Dispose();
+                _loop = null;
+            }
+
+            _services = null;
         }
     }
 }

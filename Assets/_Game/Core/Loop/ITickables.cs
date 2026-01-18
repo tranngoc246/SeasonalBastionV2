@@ -1,7 +1,6 @@
-// PATCH v0.1.2 — runtime tick/reset helpers (NOT contracts)
 namespace SeasonalBastion
 {
-    internal interface ITickable
+    public interface ITickable
     {
         void Tick(float dt);
     }

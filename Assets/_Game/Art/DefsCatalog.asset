@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 17cf12e1747713a45bf3878c69e37da0, type: 3}
   m_Name: DefsCatalog
   m_EditorClassIdentifier: 
-  Buildings: {fileID: 0}
+  Buildings: {fileID: 4900000, guid: ef255ff877d51234da12a34d3940e317, type: 3}
   Npcs: {fileID: 0}
   Towers: {fileID: 0}
   Enemies: {fileID: 0}

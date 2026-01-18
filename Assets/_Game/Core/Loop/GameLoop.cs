@@ -20,6 +20,9 @@ namespace SeasonalBastion
             _s.RunClock.ForceSeasonDay(Season.Spring, dayIndex: 1);
             _s.RunClock.SetTimeScale(1f);
 
+            // rebuild derived world index lists (safe even if world is empty).
+            _s.WorldIndex?.RebuildAll();
+
             // TODO: generate start map + spawn initial buildings/NPCs using WorldOps.
         }
 

@@ -1,0 +1,40 @@
+{
+  "buildings": [
+    {
+      "id": "HQ",
+      "sizeX": 2,
+      "sizeY": 2,
+      "baseLevel": 1,
+      "isHQ": true,
+      "isWarehouse": true
+    },
+    {
+      "id": "House",
+      "sizeX": 2,
+      "sizeY": 2,
+      "baseLevel": 1,
+      "isHouse": true
+    },
+    {
+      "id": "Farm",
+      "sizeX": 3,
+      "sizeY": 3,
+      "baseLevel": 1,
+      "isProducer": true
+    },
+    {
+      "id": "Lumber",
+      "sizeX": 2,
+      "sizeY": 3,
+      "baseLevel": 1,
+      "isProducer": true
+    },
+    {
+      "id": "Warehouse",
+      "sizeX": 3,
+      "sizeY": 3,
+      "baseLevel": 1,
+      "isWarehouse": true
+    }
+  ]
+}

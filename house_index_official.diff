@@ -1,0 +1,239 @@
+diff --git a/_Game/Core/Contracts/World/IWorldIndex.cs b/_Game/Core/Contracts/World/IWorldIndex.cs
+index 8d5f3a1..e7b2d34 100644
+--- a/_Game/Core/Contracts/World/IWorldIndex.cs
++++ b/_Game/Core/Contracts/World/IWorldIndex.cs
+@@ -13,11 +13,12 @@ namespace SeasonalBastion.Contracts
+     public interface IWorldIndex
+     {
+         // storages
+         System.Collections.Generic.IReadOnlyList<BuildingId> Warehouses { get; }
+         System.Collections.Generic.IReadOnlyList<BuildingId> Producers  { get; }
++        System.Collections.Generic.IReadOnlyList<BuildingId> Houses     { get; }
+         System.Collections.Generic.IReadOnlyList<BuildingId> Forges     { get; }
+         System.Collections.Generic.IReadOnlyList<BuildingId> Armories   { get; }
+         System.Collections.Generic.IReadOnlyList<TowerId>    Towers     { get; }
+ 
+         // rebuild
+         void RebuildAll();
+         void OnBuildingCreated(BuildingId id);
+         void OnBuildingDestroyed(BuildingId id);
+     }
+ }
+
+diff --git a/_Game/Core/Contracts/Data/DefDTOs_Missing.cs b/_Game/Core/Contracts/Data/DefDTOs_Missing.cs
+index 3d705e5..a0e1f5f 100644
+--- a/_Game/Core/Contracts/Data/DefDTOs_Missing.cs
++++ b/_Game/Core/Contracts/Data/DefDTOs_Missing.cs
+@@ -24,6 +24,7 @@ public sealed class BuildingDef
+     public bool IsProducer = false;
+     public bool IsForge = false;
+     public bool IsArmory = false;
+     public bool IsTower = false;
++    public bool IsHouse = false;
+ }
+ 
+ 
+ public sealed class EnemyDef
+ {
+     public string DefId = "";
+     public int MaxHp = 1;
+     public float MoveSpeed = 1f;
+ }
+
+diff --git a/_Game/Core/Boot/DataRegistry.cs b/_Game/Core/Boot/DataRegistry.cs
+index 4b7abb6..07d1d5b 100644
+--- a/_Game/Core/Boot/DataRegistry.cs
++++ b/_Game/Core/Boot/DataRegistry.cs
+@@ -37,6 +37,7 @@ namespace SeasonalBastion
+             public bool isProducer = false;
+             public bool isForge = false;
+             public bool isArmory = false;
+             public bool isTower = false;
++            public bool isHouse = false;
+ 
+         }
+@@ -129,7 +130,8 @@ namespace SeasonalBastion
+                     IsProducer = bj.isProducer,
+                     IsForge = bj.isForge,
+                     IsArmory = bj.isArmory,
+-                    IsTower = bj.isTower
++                    IsTower = bj.isTower,
++                    IsHouse = bj.isHouse
+                 };
+ 
+                 // If duplicates exist, last wins (deterministic by file order).
+                 _buildings[id] = def;
+             }
+         }
+
+diff --git a/_Game/Defs/Buildings/Buildings.json b/_Game/Defs/Buildings/Buildings.json
+index 87aa79a..5c25f33 100644
+--- a/_Game/Defs/Buildings/Buildings.json
++++ b/_Game/Defs/Buildings/Buildings.json
+@@ -13,11 +13,12 @@
+     {
+       "id": "House",
+       "sizeX": 2,
+       "sizeY": 2,
+-      "baseLevel": 1
++      "baseLevel": 1,
++      "isHouse": true
+     },
+     {
+       "id": "Farm",
+       "sizeX": 3,
+       "sizeY": 3,
+       "baseLevel": 1,
+       "isProducer": true
+     },
+     {
+       "id": "Lumber",
+       "sizeX": 2,
+       "sizeY": 3,
+       "baseLevel": 1,
+       "isProducer": true
+     },
+     {
+       "id": "Warehouse",
+       "sizeX": 3,
+       "sizeY": 3,
+       "baseLevel": 1,
+       "isWarehouse": true
+     }
+   ]
+ }
+
+diff --git a/_Game/World/Index/WorldIndexService.cs b/_Game/World/Index/WorldIndexService.cs
+index 8d77eba..9a6f5c2 100644
+--- a/_Game/World/Index/WorldIndexService.cs
++++ b/_Game/World/Index/WorldIndexService.cs
+@@ -22,6 +22,7 @@ namespace SeasonalBastion
+         private readonly IDataRegistry _data;
+ 
+         private readonly List<BuildingId> _warehouses = new();
+         private readonly List<BuildingId> _producers = new();
++        private readonly List<BuildingId> _houses = new();
+         private readonly List<BuildingId> _forges = new();
+         private readonly List<BuildingId> _armories = new();
+         private readonly List<TowerId> _towers = new();
+@@ -29,6 +30,7 @@ namespace SeasonalBastion
+         // Idempotency guards (avoid duplicates if hooked via both direct call + event bus)
+         private readonly HashSet<int> _warehousesSet = new();
+         private readonly HashSet<int> _producersSet = new();
++        private readonly HashSet<int> _housesSet = new();
+         private readonly HashSet<int> _forgesSet = new();
+         private readonly HashSet<int> _armoriesSet = new();
+         private readonly HashSet<int> _towersSet = new();
+@@ -36,6 +38,7 @@ namespace SeasonalBastion
+         public IReadOnlyList<BuildingId> Warehouses => _warehouses;
+         public IReadOnlyList<BuildingId> Producers => _producers;
++        public IReadOnlyList<BuildingId> Houses => _houses;
+         public IReadOnlyList<BuildingId> Forges => _forges;
+         public IReadOnlyList<BuildingId> Armories => _armories;
+         public IReadOnlyList<TowerId> Towers => _towers;
+@@ -85,6 +88,7 @@ namespace SeasonalBastion
+             // VS#1: treat HQ as a warehouse destination (no separate HQ list in IWorldIndex).
+             if (isHQ) isWarehouse = true;
+ 
+             if (isWarehouse) AddUniqueSorted(_warehouses, _warehousesSet, id.Value, id);
+             if (isProducer) AddUniqueSorted(_producers, _producersSet, id.Value, id);
++            if (isHouse) AddUniqueSorted(_houses, _housesSet, id.Value, id);
+             if (isForge) AddUniqueSorted(_forges, _forgesSet, id.Value, id);
+             if (isArmory) AddUniqueSorted(_armories, _armoriesSet, id.Value, id);
+ 
+             // Towers are separate store (TowerId). Ignore building.IsTower here in v0.1.
+@@ -95,12 +99,14 @@ namespace SeasonalBastion
+         public void OnBuildingDestroyed(BuildingId id)
+         {
+             Remove(_warehouses, _warehousesSet, id.Value);
+             Remove(_producers, _producersSet, id.Value);
++            Remove(_houses, _housesSet, id.Value);
+             Remove(_forges, _forgesSet, id.Value);
+             Remove(_armories, _armoriesSet, id.Value);
+         }
+ 
+         private void ClearAllLists()
+         {
+             _warehouses.Clear(); _warehousesSet.Clear();
+             _producers.Clear(); _producersSet.Clear();
++            _houses.Clear(); _housesSet.Clear();
+             _forges.Clear(); _forgesSet.Clear();
+             _armories.Clear(); _armoriesSet.Clear();
+             _towers.Clear(); _towersSet.Clear();
+         }
+@@ -139,7 +145,8 @@ namespace SeasonalBastion
+             out bool isProducer,
+             out bool isForge,
+             out bool isArmory,
+-            out bool isTower)
++            out bool isTower,
++            out bool isHouse)
+         {
+             // Prefer explicit JSON tags if present.
+-            bool anyTagged = def.IsHQ || def.IsWarehouse || def.IsProducer || def.IsForge || def.IsArmory || def.IsTower;
++            bool anyTagged = def.IsHQ || def.IsWarehouse || def.IsProducer || def.IsForge || def.IsArmory || def.IsTower || def.IsHouse;
+ 
+             if (anyTagged)
+             {
+                 isHQ = def.IsHQ;
+                 isWarehouse = def.IsWarehouse;
+                 isProducer = def.IsProducer;
+                 isForge = def.IsForge;
+                 isArmory = def.IsArmory;
+                 isTower = def.IsTower;
++                isHouse = def.IsHouse;
+                 return;
+             }
+@@ -154,6 +161,7 @@ namespace SeasonalBastion
+                       || string.Equals(defId, "Lumber", StringComparison.OrdinalIgnoreCase);
+             isForge = false;
+             isArmory = false;
+             isTower = false;
++            isHouse = string.Equals(defId, "House", StringComparison.OrdinalIgnoreCase);
+         }
+ 
+         private sealed class BuildingIdComparer : IComparer<BuildingId>
+         {
+             public static readonly BuildingIdComparer Instance = new();
+             public int Compare(BuildingId x, BuildingId y) => x.Value.CompareTo(y.Value);
+         }
+@@ -48,12 +48,13 @@ namespace SeasonalBastion
+             ResolveTags(st.DefId, def,
+                 out bool isHQ,
+                 out bool isWarehouse,
+                 out bool isProducer,
+                 out bool isForge,
+                 out bool isArmory,
+-                out bool isTower);
++                out bool isTower,
++                out bool isHouse);
+ 
+             // VS#1: treat HQ as a warehouse destination (no separate HQ list in IWorldIndex).
+             if (isHQ) isWarehouse = true;
+ 
+             if (isWarehouse) AddUniqueSorted(_warehouses, _warehousesSet, id.Value, id);
+             if (isProducer) AddUniqueSorted(_producers, _producersSet, id.Value, id);
++            if (isHouse) AddUniqueSorted(_houses, _housesSet, id.Value, id);
+             if (isForge) AddUniqueSorted(_forges, _forgesSet, id.Value, id);
+             if (isArmory) AddUniqueSorted(_armories, _armoriesSet, id.Value, id);
+ 
+             // Towers are separate store (TowerId). Ignore building.IsTower here in v0.1.
+         }
+
+diff --git a/_Game/Debug/DebugWorldIndexHUD.cs b/_Game/Debug/DebugWorldIndexHUD.cs
+index 19e0b66..f5f4b2a 100644
+--- a/_Game/Debug/DebugWorldIndexHUD.cs
++++ b/_Game/Debug/DebugWorldIndexHUD.cs
+@@ -68,11 +68,12 @@ public sealed class DebugWorldIndexHUD : MonoBehaviour
+         GUILayout.BeginArea(new Rect(10, 340, 520, 240), GUI.skin.box);
+         GUILayout.Label("WorldIndex (derived lists) — Press I to toggle");
+ 
+-        GUILayout.Label($"Warehouses: {_index.Warehouses.Count} | Producers: {_index.Producers.Count} | Forges: {_index.Forges.Count} | Armories: {_index.Armories.Count} | Towers: {_index.Towers.Count}");
++        GUILayout.Label($"Warehouses: {_index.Warehouses.Count} | Producers: {_index.Producers.Count} | Houses: {_index.Houses.Count} | Forges: {_index.Forges.Count} | Armories: {_index.Armories.Count} | Towers: {_index.Towers.Count}");
+ 
+         DrawList("Warehouses", _index.Warehouses);
+         DrawList("Producers", _index.Producers);
++        DrawList("Houses", _index.Houses);
+ 
+         GUILayout.EndArea();
+     }

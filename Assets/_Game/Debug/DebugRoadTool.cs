@@ -1,0 +1,441 @@
+﻿using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using SeasonalBastion.Contracts;
+
+namespace SeasonalBastion.DebugTools
+{
+    public sealed class DebugRoadTool : MonoBehaviour
+    {
+        [Header("Bootstrap (required)")]
+        [SerializeField] private GameBootstrap _bootstrap;
+
+        [Header("Grid Mapping")]
+        [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
+        [SerializeField] private float _cellSize = 1f;
+        [SerializeField] private bool _useXZ = true;
+        [SerializeField] private float _planeY = 0f;
+
+        [Header("Gizmos")]
+        [SerializeField] private bool _drawRoadGizmos = true;
+        [SerializeField] private bool _drawHoverPreview = true;
+        [SerializeField] private float _gizmoHeight = 0.05f;
+        [SerializeField] private float _hoverPreviewScale = 0.85f;
+
+        private InputAction _toggleTool;  // R
+        private InputAction _click;       // LMB
+        private bool _enabled;
+
+        private IPlacementService _placement;
+        private IGridMap _grid;
+        private INotificationService _noti;
+
+        private Camera _cam;
+
+        // Hover/preview state
+        private bool _hasHover;
+        private CellPos _hoverCell;
+        private bool _hoverInside;
+        private bool _hoverIsRoad;
+        private bool _hoverCanPlace;
+        private bool _hoverCanRemove;
+        private bool _hoverWouldSplitIfRemoved;
+
+        // Temp allocations for BFS
+        private readonly Queue<CellPos> _q = new Queue<CellPos>(256);
+        private bool[] _visited;
+
+        // Cache to avoid scanning AnyRoadExists every frame
+        private bool _anyRoadCached;
+        private bool _anyRoadCacheValid;
+        private CellPos _lastHoverCell;
+        private bool _lastHoverValid;
+
+        private void Awake()
+        {
+            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+            _cam = Camera.main;
+
+            _toggleTool = new InputAction("ToggleRoadTool", InputActionType.Button, "<Keyboard>/r");
+            _click = new InputAction("PlaceRoadClick", InputActionType.Button, "<Mouse>/leftButton");
+        }
+
+        private void OnEnable()
+        {
+            _toggleTool.Enable();
+            _click.Enable();
+
+            _toggleTool.performed += OnToggle;
+            _click.performed += OnClick;
+        }
+
+        private void OnDisable()
+        {
+            _toggleTool.performed -= OnToggle;
+            _click.performed -= OnClick;
+
+            _toggleTool.Disable();
+            _click.Disable();
+        }
+
+        private void Start()
+        {
+            var services = _bootstrap.Services;
+
+            _placement = services.PlacementService;
+            _grid = services.GridMap;
+            _noti = services.NotificationService;
+
+            if (_cam == null) _cam = Camera.main;
+
+            if (_grid != null)
+                _visited = new bool[_grid.Width * _grid.Height];
+
+            _anyRoadCacheValid = false;
+            _lastHoverValid = false;
+        }
+
+        private void Update()
+        {
+            if (!_enabled || _grid == null)
+            {
+                _hasHover = false;
+                _lastHoverValid = false;
+                return;
+            }
+
+            if (!TryGetCellUnderMouse(out var cell))
+            {
+                _hasHover = false;
+                _lastHoverValid = false;
+                return;
+            }
+
+            _hasHover = true;
+            _hoverCell = cell;
+
+            // Update cache only when hover cell changes
+            if (!_lastHoverValid || _lastHoverCell.X != cell.X || _lastHoverCell.Y != cell.Y)
+            {
+                _anyRoadCacheValid = false;
+                _lastHoverValid = true;
+                _lastHoverCell = cell;
+            }
+
+            _hoverInside = _grid.IsInside(cell);
+            _hoverIsRoad = _hoverInside && _grid.IsRoad(cell);
+
+            if (!_hoverInside)
+            {
+                _hoverCanPlace = false;
+                _hoverCanRemove = false;
+                _hoverWouldSplitIfRemoved = false;
+                return;
+            }
+
+            if (_hoverIsRoad)
+            {
+                _hoverWouldSplitIfRemoved = !WouldRoadStayConnectedIfRemoved(cell);
+                _hoverCanRemove = !_hoverWouldSplitIfRemoved;
+                _hoverCanPlace = false;
+            }
+            else
+            {
+                _hoverCanPlace = CanPlaceRoadNoIslands(cell);
+                _hoverCanRemove = false;
+                _hoverWouldSplitIfRemoved = false;
+            }
+        }
+
+        private void OnToggle(InputAction.CallbackContext ctx)
+        {
+            _enabled = !_enabled;
+            _anyRoadCacheValid = false;
+            _lastHoverValid = false;
+
+            _noti?.Push(
+                key: "DebugRoadTool",
+                title: "Debug",
+                body: _enabled ? "Road Tool: ON (R toggle, LMB place/remove)" : "Road Tool: OFF (R toggle)",
+                severity: NotificationSeverity.Info,
+                payload: default,
+                cooldownSeconds: 0.2f,
+                dedupeByKey: true
+            );
+        }
+
+        private void OnClick(InputAction.CallbackContext ctx)
+        {
+            if (!_enabled) return;
+            if (_placement == null || _grid == null) return;
+
+            if (!TryGetCellUnderMouse(out var cell))
+                return;
+
+            if (!_grid.IsInside(cell))
+            {
+                _noti?.Push("Road_OutOfBounds", "Road", "Out of bounds", NotificationSeverity.Warning, default, 1.5f, true);
+                return;
+            }
+
+            // Remove
+            if (_grid.IsRoad(cell))
+            {
+                if (!WouldRoadStayConnectedIfRemoved(cell))
+                {
+                    _noti?.Push("Road_NoIslands_Remove", "Road", "Cannot remove: would create road islands", NotificationSeverity.Warning, default, 1.5f, true);
+                    return;
+                }
+
+                _grid.SetRoad(cell, false);
+
+                // Invalidate cache (roads changed)
+                _anyRoadCacheValid = false;
+                return;
+            }
+
+            // Place
+            if (!CanPlaceRoadNoIslands(cell))
+            {
+                if (_grid.IsBlocked(cell))
+                {
+                    _noti?.Push("Road_Blocked", "Road", "Cell is blocked", NotificationSeverity.Warning, default, 1.5f, true);
+                }
+                else
+                {
+                    _noti?.Push("Road_NoIslands_Place", "Road", "Cannot place: must connect to existing roads", NotificationSeverity.Warning, default, 1.5f, true);
+                }
+                return;
+            }
+
+            _placement.PlaceRoad(cell);
+
+            // Invalidate cache (roads changed)
+            _anyRoadCacheValid = false;
+        }
+
+        // ---------------------------
+        // No-islands rules
+        // ---------------------------
+
+        private bool AnyRoadExistsCached()
+        {
+            if (_anyRoadCacheValid) return _anyRoadCached;
+
+            bool any = false;
+            for (int y = 0; y < _grid.Height && !any; y++)
+                for (int x = 0; x < _grid.Width; x++)
+                {
+                    if (_grid.IsRoad(new CellPos(x, y))) { any = true; break; }
+                }
+
+            _anyRoadCached = any;
+            _anyRoadCacheValid = true;
+            return any;
+        }
+
+        private bool HasRoadNeighbor4(CellPos c)
+        {
+            var n = new CellPos(c.X, c.Y + 1);
+            var e = new CellPos(c.X + 1, c.Y);
+            var s = new CellPos(c.X, c.Y - 1);
+            var w = new CellPos(c.X - 1, c.Y);
+
+            return (_grid.IsInside(n) && _grid.IsRoad(n))
+                || (_grid.IsInside(e) && _grid.IsRoad(e))
+                || (_grid.IsInside(s) && _grid.IsRoad(s))
+                || (_grid.IsInside(w) && _grid.IsRoad(w));
+        }
+
+        private bool CanPlaceRoadNoIslands(CellPos c)
+        {
+            if (!_grid.IsInside(c)) return false;
+            if (_grid.IsBlocked(c)) return false;
+
+            if (!_placement.CanPlaceRoad(c)) return false;
+
+            if (AnyRoadExistsCached() && !HasRoadNeighbor4(c))
+                return false;
+
+            return true;
+        }
+
+        private bool WouldRoadStayConnectedIfRemoved(CellPos removed)
+        {
+            if (!_grid.IsInside(removed)) return true;
+            if (!_grid.IsRoad(removed)) return true;
+
+            int total = 0;
+            CellPos start = default;
+            bool hasStart = false;
+
+            for (int y = 0; y < _grid.Height; y++)
+                for (int x = 0; x < _grid.Width; x++)
+                {
+                    var c = new CellPos(x, y);
+                    if (c.X == removed.X && c.Y == removed.Y) continue;
+                    if (_grid.IsRoad(c))
+                    {
+                        total++;
+                        if (!hasStart) { start = c; hasStart = true; }
+                    }
+                }
+
+            if (total == 0) return true;
+
+            EnsureVisitedBuffer();
+            System.Array.Clear(_visited, 0, _visited.Length);
+            _q.Clear();
+
+            _q.Enqueue(start);
+            _visited[Idx(start)] = true;
+
+            int reached = 0;
+            while (_q.Count > 0)
+            {
+                var cur = _q.Dequeue();
+                reached++;
+
+                TryEnqueueRoadNeighbor(cur.X, cur.Y + 1, removed);
+                TryEnqueueRoadNeighbor(cur.X + 1, cur.Y, removed);
+                TryEnqueueRoadNeighbor(cur.X, cur.Y - 1, removed);
+                TryEnqueueRoadNeighbor(cur.X - 1, cur.Y, removed);
+            }
+
+            return reached == total;
+        }
+
+        private void TryEnqueueRoadNeighbor(int x, int y, CellPos removed)
+        {
+            var n = new CellPos(x, y);
+            if (!_grid.IsInside(n)) return;
+            if (n.X == removed.X && n.Y == removed.Y) return;
+            if (!_grid.IsRoad(n)) return;
+
+            int i = Idx(n);
+            if (_visited[i]) return;
+            _visited[i] = true;
+            _q.Enqueue(n);
+        }
+
+        private int Idx(CellPos c) => c.Y * _grid.Width + c.X;
+
+        private void EnsureVisitedBuffer()
+        {
+            int need = _grid.Width * _grid.Height;
+            if (_visited == null || _visited.Length != need)
+                _visited = new bool[need];
+        }
+
+        // ---------------------------
+        // Mouse -> cell
+        // ---------------------------
+
+        private bool TryGetCellUnderMouse(out CellPos cell)
+        {
+            cell = default;
+            if (_cam == null) return false;
+
+            Vector3 world;
+            if (_useXZ)
+            {
+                var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+                var plane = new Plane(Vector3.up, new Vector3(0f, _planeY, 0f));
+                if (!plane.Raycast(ray, out var enter)) return false;
+                world = ray.GetPoint(enter);
+            }
+            else
+            {
+                var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+                var plane = new Plane(Vector3.forward, Vector3.zero);
+                if (!plane.Raycast(ray, out var enter)) return false;
+                world = ray.GetPoint(enter);
+            }
+
+            var local = world - _gridOrigin;
+
+            int x = Mathf.FloorToInt(local.x / _cellSize);
+            int y = _useXZ ? Mathf.FloorToInt(local.z / _cellSize) : Mathf.FloorToInt(local.y / _cellSize);
+
+            cell = new CellPos(x, y);
+            return true;
+        }
+
+        // ---------------------------
+        // Gizmos
+        // ---------------------------
+
+        private void OnDrawGizmos()
+        {
+            if (!_drawRoadGizmos) return;
+            if (_grid == null) return;
+
+            Gizmos.color = Color.white;
+
+            for (int y = 0; y < _grid.Height; y++)
+                for (int x = 0; x < _grid.Width; x++)
+                {
+                    var c = new CellPos(x, y);
+                    if (!_grid.IsRoad(c)) continue;
+                    Gizmos.DrawCube(CellToWorldCenter(c), new Vector3(_cellSize, _gizmoHeight, _cellSize));
+                }
+
+            if (_drawHoverPreview && _enabled && _hasHover)
+                DrawHoverPreview();
+        }
+
+        private void DrawHoverPreview()
+        {
+            var center = CellToWorldCenter(_hoverCell);
+
+            float s = Mathf.Clamp01(_hoverPreviewScale) * _cellSize;
+            var size = new Vector3(s, _gizmoHeight, s);
+
+            if (!_hoverInside)
+            {
+                Gizmos.color = Color.red;
+                Gizmos.DrawWireCube(center, size);
+                return;
+            }
+
+            if (_hoverIsRoad)
+            {
+                Gizmos.color = _hoverCanRemove ? Color.yellow : Color.red;
+                Gizmos.DrawWireCube(center, size);
+
+                if (_hoverWouldSplitIfRemoved)
+                    DrawX(center, s * 0.5f);
+
+                return;
+            }
+
+            Gizmos.color = _hoverCanPlace ? Color.green : Color.red;
+            Gizmos.DrawWireCube(center, size);
+        }
+
+        private void DrawX(Vector3 center, float half)
+        {
+            Vector3 a = center + new Vector3(-half, 0f, -half);
+            Vector3 b = center + new Vector3(half, 0f, half);
+            Vector3 c = center + new Vector3(-half, 0f, half);
+            Vector3 d = center + new Vector3(half, 0f, -half);
+            Gizmos.DrawLine(a, b);
+            Gizmos.DrawLine(c, d);
+        }
+
+        private Vector3 CellToWorldCenter(CellPos c)
+        {
+            float wx = _gridOrigin.x + (c.X + 0.5f) * _cellSize;
+
+            if (_useXZ)
+            {
+                float wy = _planeY + (_gizmoHeight * 0.5f);
+                float wz = _gridOrigin.z + (c.Y + 0.5f) * _cellSize;
+                return new Vector3(wx, wy, wz);
+            }
+
+            float wy2 = _gridOrigin.y + (c.Y + 0.5f) * _cellSize;
+            return new Vector3(wx, wy2, 0f);
+        }
+    }
+}

@@ -1,7 +1,7 @@
-// PATCH v0.1.1 — DataRegistry implements Part25 IDataRegistry
+using SeasonalBastion.Contracts;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
-using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
@@ -16,10 +16,132 @@ namespace SeasonalBastion
         private readonly Dictionary<string, RewardDef> _rewards = new();
         private readonly Dictionary<string, RecipeDef> _recipes = new();
 
+        // --- JSON wrappers (Unity JsonUtility needs top-level object) ---
+        [Serializable]
+        private sealed class BuildingsRoot
+        {
+            public BuildingJson[] buildings;
+        }
+
+        [Serializable]
+        private sealed class BuildingJson
+        {
+            public string id;
+            public int sizeX = 1;
+            public int sizeY = 1;
+            public int baseLevel = 1;
+            // Optional tag booleans (default false).
+            public bool isHQ = false;
+            public bool isWarehouse = false;
+            public bool isProducer = false; 
+            public bool isHouse = false;
+            public bool isForge = false;
+            public bool isArmory = false;
+            public bool isTower = false;
+        }
+
         public DataRegistry(DefsCatalog catalog)
         {
             _catalog = catalog;
             // TODO(v0.1): parse _catalog.* TextAssets and fill maps.
+            LoadAllFromCatalog(); // Day 4: load Buildings now so Placement can use it immediately
+        }
+
+        // --- Public optional helpers for Debug tools / UI later ---
+        public IReadOnlyCollection<string> GetAllBuildingIds() => _buildings.Keys;
+
+        public void ClearAll()
+        {
+            _buildings.Clear();
+            _enemies.Clear();
+            _waves.Clear();
+            _rewards.Clear();
+            _recipes.Clear();
+        }
+
+        private void LoadAllFromCatalog()
+        {
+            ClearAll();
+
+            // Day 4 needs Buildings only.
+            LoadBuildings(_catalog != null ? _catalog.Buildings : null);
+        }
+
+        private void LoadBuildings(TextAsset ta)
+        {
+            if (ta == null)
+            {
+                Debug.LogWarning("[DataRegistry] Buildings TextAsset is null (DefsCatalog.Buildings). Building placement will fail.");
+                return;
+            }
+
+            var json = ta.text;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                Debug.LogWarning("[DataRegistry] Buildings TextAsset is empty.");
+                return;
+            }
+
+            BuildingsRoot root;
+            try
+            {
+                root = JsonUtility.FromJson<BuildingsRoot>(json);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[DataRegistry] Failed to parse Buildings JSON: {e.Message}");
+                return;
+            }
+
+            var arr = root != null ? root.buildings : null;
+            if (arr == null || arr.Length == 0)
+            {
+                Debug.LogWarning("[DataRegistry] Buildings JSON parsed, but 'buildings' array is empty/missing.");
+                return;
+            }
+
+            int added = 0;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                var bj = arr[i];
+                if (bj == null) continue;
+
+                var id = (bj.id ?? string.Empty).Trim();
+                if (string.IsNullOrEmpty(id))
+                {
+                    Debug.LogWarning($"[DataRegistry] Buildings[{i}] has empty id. Skipped.");
+                    continue;
+                }
+
+                int w = Mathf.Max(1, bj.sizeX);
+                int h = Mathf.Max(1, bj.sizeY);
+                int lvl = Mathf.Max(1, bj.baseLevel);
+
+                // BuildingDef is a pure data contract type; we only need these fields for Day 4 placement.
+                var def = new BuildingDef
+                {
+                    DefId = id,
+                    SizeX = w,
+                    SizeY = h,
+                    BaseLevel = lvl,
+                    IsHQ = bj.isHQ,
+                    IsWarehouse = bj.isWarehouse,
+                    IsProducer = bj.isProducer,
+                    IsHouse = bj.isHouse,
+                    IsForge = bj.isForge,
+                    IsArmory = bj.isArmory,
+                    IsTower = bj.isTower
+                };
+
+                // If duplicates exist, last wins (deterministic by file order).
+                if (_buildings.ContainsKey(id))
+                    Debug.LogWarning($"[DataRegistry] Duplicate BuildingDef id='{id}'. Overwriting.");
+
+                _buildings[id] = def;
+                added++;
+            }
+
+            Debug.Log($"[DataRegistry] Loaded Buildings: {added} (TextAsset: {ta.name})");
         }
 
         public T GetDef<T>(string id) where T : UnityEngine.Object
@@ -63,16 +185,6 @@ namespace SeasonalBastion
         {
             if (_recipes.TryGetValue(id, out var v)) return v;
             throw new KeyNotFoundException($"RecipeDef not found: '{id}'");
-        }
-
-        // Helper for later boot load (optional)
-        public void ClearAll()
-        {
-            _buildings.Clear();
-            _enemies.Clear();
-            _waves.Clear();
-            _rewards.Clear();
-            _recipes.Clear();
         }
     }
 }

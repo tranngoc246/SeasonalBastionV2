@@ -270,6 +270,9 @@ GameObject:
   - component: {fileID: 1656749906}
   - component: {fileID: 1656749905}
   - component: {fileID: 1656749907}
+  - component: {fileID: 1656749908}
+  - component: {fileID: 1656749909}
+  - component: {fileID: 1656749910}
   m_Layer: 0
   m_Name: Bootstrap
   m_TagString: Untagged
@@ -317,6 +320,69 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 572c98acd84cc6d4a909601b9e554d80, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _bootstrap: {fileID: 1656749905}
+--- !u!114 &1656749908
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1656749904}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b023bd07d56e74341b76fad6769a2160, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _bootstrap: {fileID: 1656749905}
+  _gridOrigin: {x: -9, y: -5, z: 0}
+  _cellSize: 1
+  _useXZ: 0
+  _planeY: 0
+  _drawRoadGizmos: 1
+  _drawHoverPreview: 1
+  _gizmoHeight: 1
+  _hoverPreviewScale: 0.85
+--- !u!114 &1656749909
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1656749904}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8bf27b7ae6f1361469464cf7c70371fa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _bootstrap: {fileID: 1656749905}
+  _def1: HQ
+  _def2: House
+  _def3: Farm
+  _def4: Lumber
+  _def5: Warehouse
+  _gridOrigin: {x: -9, y: -5, z: 0}
+  _cellSize: 1
+  _useXZ: 0
+  _planeY: 0
+  _drawPreview: 1
+  _drawPlacedBuildings: 1
+  _drawDrivewayHint: 1
+  _gizmoHeight: 1
+  _okColor: {r: 0, g: 1, b: 0, a: 1}
+  _failColor: {r: 1, g: 0, b: 0, a: 1}
+  _drivewayColor: {r: 1, g: 1, b: 0, a: 1}
+--- !u!114 &1656749910
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1656749904}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b0863e2a6ef81ea4496c07ec71a8d984, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   _bootstrap: {fileID: 1656749905}

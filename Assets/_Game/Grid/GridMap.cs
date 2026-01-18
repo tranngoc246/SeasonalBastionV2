@@ -1,9 +1,3 @@
-// AUTO-GENERATED SKELETON TEMPLATE from PART 26 (LOCKED v0.1)
-// Source: PART26_Concrete_Class_Skeletons_Scaffolds_LOCKED_SPEC_v0.1.md
-// Notes: Runtime scaffolds only. Fill TODOs during implementation.
-
-using System;
-using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
@@ -49,16 +43,29 @@ namespace SeasonalBastion
                 : new CellOccupancy(CellOccupancyKind.Empty, default, default);
         }
 
-        public void SetBuilding(CellPos c, BuildingId id) =>
+        public void SetBuilding(CellPos c, BuildingId id)
+        {
+            if (!IsInside(c)) return;
             _cells[Idx(c)] = new CellOccupancy(CellOccupancyKind.Building, id, default);
+        }
 
-        public void ClearBuilding(CellPos c) =>
+        public void ClearBuilding(CellPos c)
+        {
+            if (!IsInside(c)) return;
             _cells[Idx(c)] = new CellOccupancy(CellOccupancyKind.Empty, default, default);
+        }
 
-        public void SetSite(CellPos c, SiteId id) =>
+        public void SetSite(CellPos c, SiteId id)
+        {
+            if (!IsInside(c)) return;
             _cells[Idx(c)] = new CellOccupancy(CellOccupancyKind.Site, default, id);
+        }
 
-        public void ClearSite(CellPos c) =>
+        public void ClearSite(CellPos c)
+        {
+            if (!IsInside(c)) return;
             _cells[Idx(c)] = new CellOccupancy(CellOccupancyKind.Empty, default, default);
+        }
+
     }
 }

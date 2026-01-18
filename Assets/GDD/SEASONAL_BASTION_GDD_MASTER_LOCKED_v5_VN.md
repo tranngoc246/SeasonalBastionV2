@@ -24,7 +24,7 @@
 ### 0.2 Decision Log (LOCKED)
 - **R1 Road/Entry Connectivity:** EntryPoint là **world-space midpoint cạnh**; điều kiện “nối road” cho placement/move:
   - EntryCell và 4 ô N/E/S/W phải có ít nhất 1 road cell (**driveway length = 1**).
-- **Road Placement:** chỉ đặt theo grid-orthogonal (N/E/S/W), và road phải thuộc một mạng connected (không road island).
+- **Road Placement:** chỉ đặt theo grid-orthogonal (N/E/S/W), tất cả road phải connected tới HQ entry cluster.
 - **Authority:** RoadService/MapOccupancy/Season/Jobs là **source of truth**; Tilemap/prefab chỉ render.
 - **Base Run:** run = **2 năm**, WIN sau Winter Year 2, LOSE khi HQ HP=0.
 - **Automation nâng cao + ammo/parts chain:** **chỉ trong DLC**, không thuộc base.

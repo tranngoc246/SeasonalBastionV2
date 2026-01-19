@@ -122,6 +122,56 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &311099401
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 311099403}
+  - component: {fileID: 311099402}
+  m_Layer: 0
+  m_Name: DebugMouseBridge
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &311099402
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 311099401}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f94dce6764afd84cb74264ace76b431, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _cameraOverride: {fileID: 519420031}
+  _mappingSource: {fileID: 1656749909}
+  _gridOrigin: {x: -9, y: -5, z: 0}
+  _cellSize: 1
+  _useXZ: 0
+  _planeY: 0
+--- !u!4 &311099403
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 311099401}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -273,6 +323,7 @@ GameObject:
   - component: {fileID: 1656749908}
   - component: {fileID: 1656749909}
   - component: {fileID: 1656749910}
+  - component: {fileID: 1656749911}
   m_Layer: 0
   m_Name: Bootstrap
   m_TagString: Untagged
@@ -336,6 +387,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _bootstrap: {fileID: 1656749905}
+  _mappingSource: {fileID: 1656749909}
   _gridOrigin: {x: -9, y: -5, z: 0}
   _cellSize: 1
   _useXZ: 0
@@ -366,6 +418,7 @@ MonoBehaviour:
   _cellSize: 1
   _useXZ: 0
   _planeY: 0
+  _planeZ: 0
   _drawPreview: 1
   _drawPlacedBuildings: 1
   _drawDrivewayHint: 1
@@ -386,9 +439,31 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _bootstrap: {fileID: 1656749905}
+--- !u!114 &1656749911
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1656749904}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f84e1b2f94640064eabece073a916a82, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _bootstrap: {fileID: 1656749905}
+  _npcDefId: Worker
+  _spawnBurstCount: 1
+  _mappingSource: {fileID: 1656749909}
+  _cameraOverride: {fileID: 519420031}
+  _gridOrigin: {x: -9, y: -5, z: 0}
+  _cellSize: 1
+  _useXZ: 0
+  _planeY: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 519420032}
   - {fileID: 1656749906}
+  - {fileID: 311099403}

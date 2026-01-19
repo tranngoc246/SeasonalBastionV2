@@ -340,6 +340,34 @@
 
 ---
 
-### Việc tiếp theo (Day 7)
-- Storage snapshots + ResourceFlow (Harvest/Haul basic)
-- JobScheduler: jobs dựa vào WorldIndex (nhận diện warehouse/producer)
+### Day 7 – Buffer Day (Stabilize + EditMode Tests)
+
+**Mục tiêu (PART27 Day 7):** Ổn định hệ thống + bổ sung test cơ bản cho các hành vi đã khóa (placement/driveway/construction + notifications).
+
+### Việc đã làm
+1) **Setup Test Runner / NUnit cho asmdef test**
+- Fix lỗi `NUnit` không nhận: bật **Test Assemblies** + thêm `optionalUnityReferences: ["TestAssemblies"]` cho asmdef test (EditMode).
+- Fix lỗi constructor: `NotificationService` yêu cầu `IEventBus` → trong tests tạo `new NotificationService(bus)` thay vì ctor rỗng.
+
+2) **Thêm EditMode tests (không cần Scene/MonoBehaviour)**
+- File test chính: `Assets/_Game/Tests/EditMode/Day7_StabilityTests.cs`
+- Các test cover:
+  - `Notification_Max3_NewestFirst` (cap 3, newest-first)
+  - `Notification_Dedupe_MoveToTop_StillCap3` (dedupe theo key + move-to-top + vẫn cap 3)
+  - `Placement_NoRoadConnection_WhenNoRoadInEntryCross` (rule entry/driveway: không có road trong cross => fail NoRoadConnection)
+  - `Placement_Commit_ConvertsDrivewayToRoad_AndPublishesRoadPlaced` (commit convert driveway -> road + publish RoadPlacedEvent)
+  - `Placement_NoOverlap_BuildingOnBuilding` (không cho overlap footprint lên building đã có)
+  - `BuildOrder_Completes_ClearsSite_SetsBuildingOccupancy_PublishesBuildingPlaced`
+    - Construction/Site flow: create -> footprint là Site
+    - tick đủ thời gian -> clear Site, set occupancy Building, `IsConstructed=true`, publish `BuildingPlacedEvent`
+
+### Kết quả chạy test
+- **EditMode: PASS sạch** (0 failed), chạy nhanh (~0.03s).
+- Đã xuất file kết quả `TestResults_20260119_102205.xml` (Passed).
+
+### Acceptance Day 7
+- [v] Tất cả EditMode tests PASS
+- [v] Console sạch khi Run All tests
+- [v] Không thay đổi scope gameplay, chỉ harden bằng test (đúng “buffer day”)
+
+---

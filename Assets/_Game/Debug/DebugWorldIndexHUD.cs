@@ -61,7 +61,7 @@ public sealed class DebugWorldIndexHUD : MonoBehaviour
         _index ??= _bootstrap != null ? _bootstrap.Services?.WorldIndex : null;
         if (_index == null) return;
 
-        GUILayout.BeginArea(new Rect(10, 340, 520, 240), GUI.skin.box);
+        GUILayout.BeginArea(new Rect(10, 140, 520, 140), GUI.skin.box);
         GUILayout.Label("WorldIndex (derived lists) — Press I to toggle");
 
         GUILayout.Label($"Warehouses: {_index.Warehouses.Count} | Producers: {_index.Producers.Count} | Houses: {_index.Houses.Count} | Forges: {_index.Forges.Count} | Armories: {_index.Armories.Count} | Towers: {_index.Towers.Count}");

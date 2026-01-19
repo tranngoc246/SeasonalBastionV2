@@ -19,8 +19,15 @@ namespace SeasonalBastion.DebugTools
         [Header("Grid Mapping")]
         [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
         [SerializeField] private float _cellSize = 1f;
-        [SerializeField] private bool _useXZ = true;
+        [SerializeField] private bool _useXZ = false;
         [SerializeField] private float _planeY = 0f;
+        [SerializeField] private float _planeZ = 0f;
+
+        public Vector3 GridOrigin => _gridOrigin;
+        public float CellSize => _cellSize;
+        public bool UseXZ => _useXZ;
+        public float PlaneY => _planeY; 
+        public float PlaneZ => _planeZ;
 
         [Header("Gizmos")]
         [SerializeField] private bool _drawPreview = true;
@@ -289,7 +296,7 @@ namespace SeasonalBastion.DebugTools
             else
             {
                 var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
-                var plane = new Plane(Vector3.forward, Vector3.zero); // z=0
+                var plane = new Plane(Vector3.forward, new Vector3(0f, 0f, _planeZ)); // z=0
                 if (!plane.Raycast(ray, out var enter)) return false;
                 world = ray.GetPoint(enter);
             }
@@ -412,7 +419,7 @@ namespace SeasonalBastion.DebugTools
             else
             {
                 float wy = _gridOrigin.y + (c.Y + 0.5f) * _cellSize;
-                return new Vector3(wx, wy, 0f);
+                return new Vector3(wx, wy, _planeZ);
             }
         }
     }

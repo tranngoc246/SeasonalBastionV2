@@ -11,9 +11,10 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private GameBootstrap _bootstrap;
 
         [Header("Grid Mapping")]
+        [SerializeField] private DebugBuildingTool _mappingSource;
         [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
         [SerializeField] private float _cellSize = 1f;
-        [SerializeField] private bool _useXZ = true;
+        [SerializeField] private bool _useXZ = false;
         [SerializeField] private float _planeY = 0f;
 
         [Header("Gizmos")]
@@ -54,6 +55,7 @@ namespace SeasonalBastion.DebugTools
         private void Awake()
         {
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+            if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
             _cam = Camera.main;
 
             _toggleTool = new InputAction("ToggleRoadTool", InputActionType.Button, "<Keyboard>/r");
@@ -102,6 +104,14 @@ namespace SeasonalBastion.DebugTools
                 _hasHover = false;
                 _lastHoverValid = false;
                 return;
+            }
+
+            if (_mappingSource != null)
+            {
+                _gridOrigin = _mappingSource.GridOrigin;
+                _cellSize = _mappingSource.CellSize;
+                _useXZ = _mappingSource.UseXZ;
+                _planeY = _mappingSource.PlaneY;
             }
 
             if (!TryGetCellUnderMouse(out var cell))
@@ -347,7 +357,7 @@ namespace SeasonalBastion.DebugTools
             else
             {
                 var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
-                var plane = new Plane(Vector3.forward, Vector3.zero);
+                var plane = new Plane(Vector3.forward, new Vector3(0f, 0f, _mappingSource.PlaneZ));
                 if (!plane.Raycast(ray, out var enter)) return false;
                 world = ray.GetPoint(enter);
             }
@@ -435,7 +445,7 @@ namespace SeasonalBastion.DebugTools
             }
 
             float wy2 = _gridOrigin.y + (c.Y + 0.5f) * _cellSize;
-            return new Vector3(wx, wy2, 0f);
+            return new Vector3(wx, wy2, _mappingSource.PlaneZ);
         }
     }
 }

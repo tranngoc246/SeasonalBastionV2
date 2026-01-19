@@ -112,7 +112,7 @@ public sealed class DebugNotificationsHUD : MonoBehaviour
         if (_noti == null) return;
 
         var list = _noti.GetVisible();
-        GUILayout.BeginArea(new Rect(10, 10, 520, 320), GUI.skin.box);
+        GUILayout.BeginArea(new Rect(10, 10, 520, 120), GUI.skin.box);
         GUILayout.Label("Notifications (max 3, newest-first)");
         GUILayout.Label("Press N: push 5 | Press M: spam key cooldown | Press H: toggle HUD");
 

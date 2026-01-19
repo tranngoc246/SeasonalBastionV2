@@ -13,9 +13,12 @@ namespace SeasonalBastion
         private readonly List<int> _active = new();
         private readonly Dictionary<int, BuildOrder> _orders = new();
 
+        // Long-term safety: prevent ghost placeholder on cancel
+        private readonly bool _destroyPlaceholderOnCancel = true;
+
         public event Action<int> OnOrderCompleted;
 
-        public BuildOrderService(GameServices s){ _s = s; }
+        public BuildOrderService(GameServices s) { _s = s; }
 
         public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
         {
@@ -98,9 +101,35 @@ namespace SeasonalBastion
             return orderId;
         }
 
-        public int CreateUpgradeOrder(BuildingId building) { throw new NotImplementedException(); }
+        public int CreateUpgradeOrder(BuildingId building)
+        {
+            // VS#1/Day6 scope: not implemented yet -> return 0 instead of throwing
+            _s.NotificationService?.Push(
+                key: $"UpgradeNotImpl_{building.Value}",
+                title: "Construction",
+                body: "Upgrade is not available in VS#1.",
+                severity: NotificationSeverity.Warning,
+                payload: new NotificationPayload(building, default, "upgrade"),
+                cooldownSeconds: 0.25f,
+                dedupeByKey: true
+            );
+            return 0;
+        }
 
-        public int CreateRepairOrder(BuildingId building) { throw new NotImplementedException(); }
+        public int CreateRepairOrder(BuildingId building)
+        {
+            // VS#1/Day6 scope: not implemented yet -> return 0 instead of throwing
+            _s.NotificationService?.Push(
+                key: $"RepairNotImpl_{building.Value}",
+                title: "Construction",
+                body: "Repair is not available in VS#1.",
+                severity: NotificationSeverity.Warning,
+                payload: new NotificationPayload(building, default, "repair"),
+                cooldownSeconds: 0.25f,
+                dedupeByKey: true
+            );
+            return 0;
+        }
 
         public bool TryGet(int orderId, out BuildOrder order) => _orders.TryGetValue(orderId, out order);
 
@@ -109,19 +138,38 @@ namespace SeasonalBastion
             if (!_orders.TryGetValue(orderId, out var o)) return;
             if (o.Completed) return;
 
-            // Minimal cancel: destroy site + free occupancy, leave placeholder building as-is (optional: destroy)
-            if (o.Kind == BuildOrderKind.PlaceNew && _s.WorldState.Sites.Exists(o.Site))
+            if (o.Kind == BuildOrderKind.PlaceNew)
             {
-                var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
-                int w = Math.Max(1, def.SizeX);
-                int h = Math.Max(1, def.SizeY);
+                // 1) Clear site occupancy + destroy site
+                if (_s.WorldState.Sites.Exists(o.Site))
+                {
+                    var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
+                    int w = Math.Max(1, def.SizeX);
+                    int h = Math.Max(1, def.SizeY);
 
-                var st = _s.WorldState.Sites.Get(o.Site);
-                for (int dy = 0; dy < h; dy++)
-                    for (int dx = 0; dx < w; dx++)
-                        _s.GridMap.ClearSite(new CellPos(st.Anchor.X + dx, st.Anchor.Y + dy));
+                    var st = _s.WorldState.Sites.Get(o.Site);
+                    for (int dy = 0; dy < h; dy++)
+                        for (int dx = 0; dx < w; dx++)
+                            _s.GridMap.ClearSite(new CellPos(st.Anchor.X + dx, st.Anchor.Y + dy));
 
-                _s.WorldState.Sites.Destroy(o.Site);
+                    _s.WorldState.Sites.Destroy(o.Site);
+                }
+
+                // 2) Optional: destroy placeholder building to avoid ghost state
+                if (_destroyPlaceholderOnCancel && _s.WorldState.Buildings.Exists(o.TargetBuilding))
+                {
+                    _s.WorldState.Buildings.Destroy(o.TargetBuilding);
+                }
+
+                _s.NotificationService?.Push(
+                    key: $"BuildCancel_{o.TargetBuilding.Value}",
+                    title: "Construction",
+                    body: $"Cancelled: {o.BuildingDefId}",
+                    severity: NotificationSeverity.Info,
+                    payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
             }
 
             _orders.Remove(orderId);

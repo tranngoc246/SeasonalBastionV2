@@ -10,12 +10,16 @@ namespace SeasonalBastion.DebugTools
         [Header("Bootstrap (required)")]
         [SerializeField] private GameBootstrap _bootstrap;
 
-        [Header("Grid Mapping")]
+        [Header("Mapping (single source)")]
         [SerializeField] private DebugBuildingTool _mappingSource;
+        [SerializeField] private Camera _cameraOverride;
+
+        [Header("Grid Mapping (fallback)")]
         [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
         [SerializeField] private float _cellSize = 1f;
         [SerializeField] private bool _useXZ = false;
         [SerializeField] private float _planeY = 0f;
+        [SerializeField] private float _planeZ = 0f;
 
         [Header("Gizmos")]
         [SerializeField] private bool _drawRoadGizmos = true;
@@ -33,7 +37,6 @@ namespace SeasonalBastion.DebugTools
 
         private Camera _cam;
 
-        // Hover/preview state
         private bool _hasHover;
         private CellPos _hoverCell;
         private bool _hoverInside;
@@ -42,11 +45,9 @@ namespace SeasonalBastion.DebugTools
         private bool _hoverCanRemove;
         private bool _hoverWouldSplitIfRemoved;
 
-        // Temp allocations for BFS
         private readonly Queue<CellPos> _q = new Queue<CellPos>(256);
         private bool[] _visited;
 
-        // Cache to avoid scanning AnyRoadExists every frame
         private bool _anyRoadCached;
         private bool _anyRoadCacheValid;
         private CellPos _lastHoverCell;
@@ -55,8 +56,8 @@ namespace SeasonalBastion.DebugTools
         private void Awake()
         {
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+            _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
             if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
-            _cam = Camera.main;
 
             _toggleTool = new InputAction("ToggleRoadTool", InputActionType.Button, "<Keyboard>/r");
             _click = new InputAction("PlaceRoadClick", InputActionType.Button, "<Mouse>/leftButton");
@@ -88,7 +89,7 @@ namespace SeasonalBastion.DebugTools
             _grid = services.GridMap;
             _noti = services.NotificationService;
 
-            if (_cam == null) _cam = Camera.main;
+            if (_cam == null) _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
 
             if (_grid != null)
                 _visited = new bool[_grid.Width * _grid.Height];
@@ -99,19 +100,22 @@ namespace SeasonalBastion.DebugTools
 
         private void Update()
         {
+            // Sync mapping
+            if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
+            if (_mappingSource != null)
+            {
+                _gridOrigin = _mappingSource.GridOrigin;
+                _cellSize = Mathf.Max(0.0001f, _mappingSource.CellSize);
+                _useXZ = _mappingSource.UseXZ;
+                _planeY = _mappingSource.PlaneY;
+                _planeZ = _mappingSource.PlaneZ;
+            }
+
             if (!_enabled || _grid == null)
             {
                 _hasHover = false;
                 _lastHoverValid = false;
                 return;
-            }
-
-            if (_mappingSource != null)
-            {
-                _gridOrigin = _mappingSource.GridOrigin;
-                _cellSize = _mappingSource.CellSize;
-                _useXZ = _mappingSource.UseXZ;
-                _planeY = _mappingSource.PlaneY;
             }
 
             if (!TryGetCellUnderMouse(out var cell))
@@ -124,7 +128,6 @@ namespace SeasonalBastion.DebugTools
             _hasHover = true;
             _hoverCell = cell;
 
-            // Update cache only when hover cell changes
             if (!_lastHoverValid || _lastHoverCell.X != cell.X || _lastHoverCell.Y != cell.Y)
             {
                 _anyRoadCacheValid = false;
@@ -157,7 +160,7 @@ namespace SeasonalBastion.DebugTools
             }
         }
 
-        private void OnToggle(InputAction.CallbackContext ctx)
+        private void OnToggle(InputAction.CallbackContext _)
         {
             _enabled = !_enabled;
             _anyRoadCacheValid = false;
@@ -174,7 +177,7 @@ namespace SeasonalBastion.DebugTools
             );
         }
 
-        private void OnClick(InputAction.CallbackContext ctx)
+        private void OnClick(InputAction.CallbackContext _)
         {
             if (!_enabled) return;
             if (_placement == null || _grid == null) return;
@@ -188,7 +191,6 @@ namespace SeasonalBastion.DebugTools
                 return;
             }
 
-            // Remove
             if (_grid.IsRoad(cell))
             {
                 if (!WouldRoadStayConnectedIfRemoved(cell))
@@ -198,35 +200,22 @@ namespace SeasonalBastion.DebugTools
                 }
 
                 _grid.SetRoad(cell, false);
-
-                // Invalidate cache (roads changed)
                 _anyRoadCacheValid = false;
                 return;
             }
 
-            // Place
             if (!CanPlaceRoadNoIslands(cell))
             {
                 if (_grid.IsBlocked(cell))
-                {
                     _noti?.Push("Road_Blocked", "Road", "Cell is blocked", NotificationSeverity.Warning, default, 1.5f, true);
-                }
                 else
-                {
                     _noti?.Push("Road_NoIslands_Place", "Road", "Cannot place: must connect to existing roads", NotificationSeverity.Warning, default, 1.5f, true);
-                }
                 return;
             }
 
             _placement.PlaceRoad(cell);
-
-            // Invalidate cache (roads changed)
             _anyRoadCacheValid = false;
         }
-
-        // ---------------------------
-        // No-islands rules
-        // ---------------------------
 
         private bool AnyRoadExistsCached()
         {
@@ -235,9 +224,7 @@ namespace SeasonalBastion.DebugTools
             bool any = false;
             for (int y = 0; y < _grid.Height && !any; y++)
                 for (int x = 0; x < _grid.Width; x++)
-                {
                     if (_grid.IsRoad(new CellPos(x, y))) { any = true; break; }
-                }
 
             _anyRoadCached = any;
             _anyRoadCacheValid = true;
@@ -261,7 +248,6 @@ namespace SeasonalBastion.DebugTools
         {
             if (!_grid.IsInside(c)) return false;
             if (_grid.IsBlocked(c)) return false;
-
             if (!_placement.CanPlaceRoad(c)) return false;
 
             if (AnyRoadExistsCached() && !HasRoadNeighbor4(c))
@@ -337,31 +323,20 @@ namespace SeasonalBastion.DebugTools
                 _visited = new bool[need];
         }
 
-        // ---------------------------
-        // Mouse -> cell
-        // ---------------------------
-
         private bool TryGetCellUnderMouse(out CellPos cell)
         {
             cell = default;
             if (_cam == null) return false;
+            if (Mouse.current == null) return false;
 
-            Vector3 world;
-            if (_useXZ)
-            {
-                var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
-                var plane = new Plane(Vector3.up, new Vector3(0f, _planeY, 0f));
-                if (!plane.Raycast(ray, out var enter)) return false;
-                world = ray.GetPoint(enter);
-            }
-            else
-            {
-                var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
-                var plane = new Plane(Vector3.forward, new Vector3(0f, 0f, _mappingSource.PlaneZ));
-                if (!plane.Raycast(ray, out var enter)) return false;
-                world = ray.GetPoint(enter);
-            }
+            var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+            Plane plane = _useXZ
+                ? new Plane(Vector3.up, new Vector3(0f, _planeY, 0f))
+                : new Plane(Vector3.forward, new Vector3(0f, 0f, _planeZ));
 
+            if (!plane.Raycast(ray, out var enter)) return false;
+
+            Vector3 world = ray.GetPoint(enter);
             var local = world - _gridOrigin;
 
             int x = Mathf.FloorToInt(local.x / _cellSize);
@@ -370,10 +345,6 @@ namespace SeasonalBastion.DebugTools
             cell = new CellPos(x, y);
             return true;
         }
-
-        // ---------------------------
-        // Gizmos
-        // ---------------------------
 
         private void OnDrawGizmos()
         {
@@ -387,7 +358,7 @@ namespace SeasonalBastion.DebugTools
                 {
                     var c = new CellPos(x, y);
                     if (!_grid.IsRoad(c)) continue;
-                    Gizmos.DrawCube(CellToWorldCenter(c), new Vector3(_cellSize, _gizmoHeight, _cellSize));
+                    Gizmos.DrawCube(CellToWorldCenter(c), CellBoxSize(1f));
                 }
 
             if (_drawHoverPreview && _enabled && _hasHover)
@@ -397,21 +368,19 @@ namespace SeasonalBastion.DebugTools
         private void DrawHoverPreview()
         {
             var center = CellToWorldCenter(_hoverCell);
-
             float s = Mathf.Clamp01(_hoverPreviewScale) * _cellSize;
-            var size = new Vector3(s, _gizmoHeight, s);
 
             if (!_hoverInside)
             {
                 Gizmos.color = Color.red;
-                Gizmos.DrawWireCube(center, size);
+                Gizmos.DrawWireCube(center, CellBoxSize(_hoverPreviewScale));
                 return;
             }
 
             if (_hoverIsRoad)
             {
                 Gizmos.color = _hoverCanRemove ? Color.yellow : Color.red;
-                Gizmos.DrawWireCube(center, size);
+                Gizmos.DrawWireCube(center, CellBoxSize(_hoverPreviewScale));
 
                 if (_hoverWouldSplitIfRemoved)
                     DrawX(center, s * 0.5f);
@@ -420,15 +389,27 @@ namespace SeasonalBastion.DebugTools
             }
 
             Gizmos.color = _hoverCanPlace ? Color.green : Color.red;
-            Gizmos.DrawWireCube(center, size);
+            Gizmos.DrawWireCube(center, CellBoxSize(_hoverPreviewScale));
         }
 
         private void DrawX(Vector3 center, float half)
         {
-            Vector3 a = center + new Vector3(-half, 0f, -half);
-            Vector3 b = center + new Vector3(half, 0f, half);
-            Vector3 c = center + new Vector3(-half, 0f, half);
-            Vector3 d = center + new Vector3(half, 0f, -half);
+            Vector3 a, b, c, d;
+            if (_useXZ)
+            {
+                a = center + new Vector3(-half, 0f, -half);
+                b = center + new Vector3(half, 0f, half);
+                c = center + new Vector3(-half, 0f, half);
+                d = center + new Vector3(half, 0f, -half);
+            }
+            else
+            {
+                a = center + new Vector3(-half, -half, 0f);
+                b = center + new Vector3(half, half, 0f);
+                c = center + new Vector3(-half, half, 0f);
+                d = center + new Vector3(half, -half, 0f);
+            }
+
             Gizmos.DrawLine(a, b);
             Gizmos.DrawLine(c, d);
         }
@@ -445,7 +426,13 @@ namespace SeasonalBastion.DebugTools
             }
 
             float wy2 = _gridOrigin.y + (c.Y + 0.5f) * _cellSize;
-            return new Vector3(wx, wy2, _mappingSource.PlaneZ);
+            return new Vector3(wx, wy2, _planeZ);
+        }
+
+        private Vector3 CellBoxSize(float scale01)
+        {
+            float s = Mathf.Clamp01(scale01) * _cellSize;
+            return _useXZ ? new Vector3(s, _gizmoHeight, s) : new Vector3(s, s, _gizmoHeight);
         }
     }
 }

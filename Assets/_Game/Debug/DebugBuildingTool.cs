@@ -19,14 +19,14 @@ namespace SeasonalBastion.DebugTools
         [Header("Grid Mapping")]
         [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
         [SerializeField] private float _cellSize = 1f;
-        [SerializeField] private bool _useXZ = false;
+        [SerializeField] private bool _useXZ = false; // 2D: false
         [SerializeField] private float _planeY = 0f;
-        [SerializeField] private float _planeZ = 0f;
+        [SerializeField] private float _planeZ = 0f; // 2D XY plane at z = planeZ
 
         public Vector3 GridOrigin => _gridOrigin;
         public float CellSize => _cellSize;
         public bool UseXZ => _useXZ;
-        public float PlaneY => _planeY; 
+        public float PlaneY => _planeY;
         public float PlaneZ => _planeZ;
 
         [Header("Gizmos")]
@@ -48,21 +48,18 @@ namespace SeasonalBastion.DebugTools
         private Camera _cam;
         private bool _enabled;
 
-        // Services
         private GameServices _s;
         private IGridMap _grid;
         private IPlacementService _place;
         private IDataRegistry _data;
         private INotificationService _noti;
 
-        // Preview state
         private string _selectedDef;
         private CellPos _hoverCell;
         private bool _hasHover;
         private PlacementResult _lastValidate;
         private Dir4 _rotation = Dir4.N;
 
-        // Cache to avoid re-validating every frame
         private bool _cacheValid;
         private CellPos _cacheCell;
         private string _cacheDef;
@@ -73,7 +70,6 @@ namespace SeasonalBastion.DebugTools
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _cam = Camera.main;
 
-            // Runtime actions - do not touch InputActions asset
             _toggle = new InputAction("ToggleBuildingTool", InputActionType.Button, "<Keyboard>/b");
             _click = new InputAction("PlaceBuilding", InputActionType.Button, "<Mouse>/leftButton");
 
@@ -92,7 +88,6 @@ namespace SeasonalBastion.DebugTools
         private void Start()
         {
             _s = _bootstrap.Services;
-
             _grid = _s.GridMap;
             _place = _s.PlacementService;
             _data = _s.DataRegistry;
@@ -165,7 +160,6 @@ namespace SeasonalBastion.DebugTools
             _hasHover = true;
             _hoverCell = c;
 
-            // Only revalidate when something changes
             if (!_cacheValid || _cacheCell.X != c.X || _cacheCell.Y != c.Y || _cacheRot != _rotation || _cacheDef != _selectedDef)
             {
                 _lastValidate = _place.ValidateBuilding(_selectedDef, _hoverCell, _rotation);
@@ -258,10 +252,7 @@ namespace SeasonalBastion.DebugTools
 
             var id = _place.CommitBuilding(_selectedDef, _hoverCell, _rotation);
             if (id.Value == 0)
-            {
                 _noti?.Push("Build_CommitFailed", "Build", "Commit failed (id=0)", NotificationSeverity.Error, default, 1.0f, true);
-                return;
-            }
         }
 
         private void PushFail(PlacementFailReason reason)
@@ -283,24 +274,17 @@ namespace SeasonalBastion.DebugTools
         {
             cell = default;
             if (_cam == null) return false;
+            if (Mouse.current == null) return false;
 
-            Vector3 world;
+            var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
 
-            if (_useXZ)
-            {
-                var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
-                var plane = new Plane(Vector3.up, new Vector3(0f, _planeY, 0f));
-                if (!plane.Raycast(ray, out var enter)) return false;
-                world = ray.GetPoint(enter);
-            }
-            else
-            {
-                var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
-                var plane = new Plane(Vector3.forward, new Vector3(0f, 0f, _planeZ)); // z=0
-                if (!plane.Raycast(ray, out var enter)) return false;
-                world = ray.GetPoint(enter);
-            }
+            Plane plane = _useXZ
+                ? new Plane(Vector3.up, new Vector3(0f, _planeY, 0f))
+                : new Plane(Vector3.forward, new Vector3(0f, 0f, _planeZ)); // XY at z=planeZ
 
+            if (!plane.Raycast(ray, out var enter)) return false;
+
+            Vector3 world = ray.GetPoint(enter);
             var local = world - _gridOrigin;
 
             int x = Mathf.FloorToInt(local.x / _cellSize);
@@ -331,14 +315,14 @@ namespace SeasonalBastion.DebugTools
 
         private void DrawPlacedSiteCells()
         {
-            Gizmos.color = new Color(1f, 0.6f, 0f, 1f); // orange
+            Gizmos.color = new Color(1f, 0.6f, 0f, 1f);
             for (int y = 0; y < _grid.Height; y++)
                 for (int x = 0; x < _grid.Width; x++)
                 {
                     var c = new CellPos(x, y);
                     var occ = _grid.Get(c);
                     if (occ.Kind != CellOccupancyKind.Site) continue;
-                    Gizmos.DrawCube(CellCenter(c), new Vector3(_cellSize, _gizmoHeight, _cellSize));
+                    Gizmos.DrawCube(CellCenter(c), CellBoxSize(1f));
                 }
         }
 
@@ -351,8 +335,7 @@ namespace SeasonalBastion.DebugTools
                     var c = new CellPos(x, y);
                     var occ = _grid.Get(c);
                     if (occ.Kind != CellOccupancyKind.Building) continue;
-
-                    Gizmos.DrawCube(CellCenter(c), new Vector3(_cellSize, _gizmoHeight, _cellSize));
+                    Gizmos.DrawCube(CellCenter(c), CellBoxSize(1f));
                 }
         }
 
@@ -365,51 +348,37 @@ namespace SeasonalBastion.DebugTools
                 w = Mathf.Max(1, def.SizeX);
                 h = Mathf.Max(1, def.SizeY);
             }
-            catch { /* keep 1x1 */ }
+            catch { }
 
             for (int dy = 0; dy < h; dy++)
                 for (int dx = 0; dx < w; dx++)
                 {
                     var c = new CellPos(_hoverCell.X + dx, _hoverCell.Y + dy);
-
                     bool inside = _grid.IsInside(c);
 
-                    // inside: use ok/fail color
-                    // outside: draw faint gray (still visible footprint)
-                    if (inside)
-                        Gizmos.color = _lastValidate.Ok ? _okColor : _failColor;
-                    else
-                        Gizmos.color = _failColor; 
-
-                    Gizmos.DrawWireCube(CellCenter(c), new Vector3(_cellSize, _gizmoHeight, _cellSize));
+                    Gizmos.color = inside ? (_lastValidate.Ok ? _okColor : _failColor) : _failColor;
+                    Gizmos.DrawWireCube(CellCenter(c), CellBoxSize(1f));
                 }
         }
 
         private void DrawDrivewayHint()
         {
-            // Always draw SuggestedRoadCell (even if outside map) for invalid preview debugging.
             var d = _lastValidate.SuggestedRoadCell;
-
             Gizmos.color = _lastValidate.Ok ? _drivewayColor : Color.red;
-            var center = CellCenter(d);
-            var s = _cellSize * 0.6f;
-            Gizmos.DrawWireCube(center, new Vector3(s, _gizmoHeight, s));
+            Gizmos.DrawWireCube(CellCenter(d), CellBoxSize(0.6f));
         }
 
         private void DrawEntryHint()
         {
-            // Always draw entry (SuggestedRoadCell), even when invalid, and even if outside map.
             var entry = _lastValidate.SuggestedRoadCell;
-
             Gizmos.color = _lastValidate.Ok ? Color.yellow : Color.red;
-            var center = CellCenter(entry);
-            float s2 = _cellSize * 0.6f;
-            Gizmos.DrawWireCube(center, new Vector3(s2, _gizmoHeight, s2));
+            Gizmos.DrawWireCube(CellCenter(entry), CellBoxSize(0.6f));
         }
 
         private Vector3 CellCenter(CellPos c)
         {
             float wx = _gridOrigin.x + (c.X + 0.5f) * _cellSize;
+
             if (_useXZ)
             {
                 float wy = _planeY + (_gizmoHeight * 0.5f);
@@ -421,6 +390,13 @@ namespace SeasonalBastion.DebugTools
                 float wy = _gridOrigin.y + (c.Y + 0.5f) * _cellSize;
                 return new Vector3(wx, wy, _planeZ);
             }
+        }
+
+        private Vector3 CellBoxSize(float scale)
+        {
+            float s = _cellSize * Mathf.Max(0.0001f, scale);
+            // XZ: thin by Y, XY: thin by Z
+            return _useXZ ? new Vector3(s, _gizmoHeight, s) : new Vector3(s, s, _gizmoHeight);
         }
     }
 }

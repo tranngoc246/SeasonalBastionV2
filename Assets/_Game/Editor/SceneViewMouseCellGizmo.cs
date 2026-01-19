@@ -11,18 +11,12 @@ namespace SeasonalBastion.EditorTools
     {
         private static bool _enabled = true;
 
-        // Fallback mapping nếu không có DebugBuildingTool
-        private static Vector3 _gridOrigin = new Vector3(-9, -5, 0);
-        private static float _cellSize = 1f;
-        private static bool _useXZ = false;
-        private static float _planeY = 0f;
-
         static SceneViewMouseCellGizmo()
         {
             SceneView.duringSceneGui += OnSceneGUI;
         }
 
-        [MenuItem("Tools/SeasonalBastion/Toggle Mouse Cell Gizmo %#g")] // Ctrl+Shift+G
+        [MenuItem("Tools/SeasonalBastion/Toggle Mouse Cell Gizmo %#g")]
         private static void Toggle()
         {
             _enabled = !_enabled;
@@ -32,89 +26,73 @@ namespace SeasonalBastion.EditorTools
         private static void OnSceneGUI(SceneView view)
         {
             if (!_enabled) return;
-            var e = Event.current;
-            if (e == null) return;
 
-            // 1) Nếu đang Play: ưu tiên data từ GameView mouse (bridge)
+            var tool = Object.FindObjectOfType<DebugBuildingTool>();
+            if (tool == null) return;
+
+            float cellSize = Mathf.Max(0.0001f, tool.CellSize);
+            bool useXZ = tool.UseXZ;
+            Vector3 origin = tool.GridOrigin;
+            float planeY = tool.PlaneY;
+            float planeZ = tool.PlaneZ;
+
             if (Application.isPlaying && MouseCellSharedState.HasValue)
             {
                 float age = Time.realtimeSinceStartup - MouseCellSharedState.LastUpdateRealtime;
                 if (age < 0.25f)
                 {
-                    DrawCell(MouseCellSharedState.Cell, MouseCellSharedState.CellCenterWorld);
+                    DrawCell(MouseCellSharedState.Cell, MouseCellSharedState.CellCenterWorld, cellSize, useXZ);
                     view.Repaint();
                     return;
                 }
             }
 
-            // 2) Nếu không Play (hoặc data stale): fallback hover theo chuột SceneView
-            PullMappingFromBuildingTool();
+            var e = Event.current;
+            if (e == null) return;
 
-            if (e.type == EventType.MouseMove || e.type == EventType.MouseDrag || e.type == EventType.Repaint)
-            {
-                if (TryGetCellFromSceneMouse(e.mousePosition, out var cell, out var center))
-                {
-                    DrawCell(cell, center);
-                    if (e.type != EventType.Repaint) view.Repaint();
-                }
-            }
-        }
+            if (e.type != EventType.MouseMove && e.type != EventType.MouseDrag && e.type != EventType.Repaint)
+                return;
 
-        private static void PullMappingFromBuildingTool()
-        {
-            var tool = Object.FindObjectOfType<DebugBuildingTool>();
-            if (tool == null) return;
+            Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+            Plane plane = useXZ
+                ? new Plane(Vector3.up, new Vector3(0f, planeY, 0f))
+                : new Plane(Vector3.forward, new Vector3(0f, 0f, planeZ));
 
-            _gridOrigin = tool.GridOrigin;
-            _cellSize = Mathf.Max(0.0001f, tool.CellSize);
-            _useXZ = tool.UseXZ;
-            _planeY = tool.PlaneY;
-        }
-
-        private static bool TryGetCellFromSceneMouse(Vector2 guiMousePos, out CellPos cell, out Vector3 center)
-        {
-            cell = default;
-            center = default;
-
-            Ray ray = HandleUtility.GUIPointToWorldRay(guiMousePos);
-            Plane plane = _useXZ
-                ? new Plane(Vector3.up, new Vector3(0f, _planeY, 0f))
-                : new Plane(Vector3.forward, Vector3.zero);
-
-            if (!plane.Raycast(ray, out float enter)) return false;
+            if (!plane.Raycast(ray, out float enter)) return;
 
             Vector3 hit = ray.GetPoint(enter);
-            Vector3 local = hit - _gridOrigin;
+            Vector3 local = hit - origin;
 
-            int x = Mathf.FloorToInt(local.x / _cellSize);
-            int y = _useXZ ? Mathf.FloorToInt(local.z / _cellSize) : Mathf.FloorToInt(local.y / _cellSize);
+            int x = Mathf.FloorToInt(local.x / cellSize);
+            int y = useXZ ? Mathf.FloorToInt(local.z / cellSize) : Mathf.FloorToInt(local.y / cellSize);
 
-            cell = new CellPos(x, y);
+            var cell = new CellPos(x, y);
 
-            center = _useXZ
-                ? _gridOrigin + new Vector3((x + 0.5f) * _cellSize, _planeY, (y + 0.5f) * _cellSize)
-                : _gridOrigin + new Vector3((x + 0.5f) * _cellSize, (y + 0.5f) * _cellSize, 0f);
+            Vector3 center = useXZ
+                ? origin + new Vector3((x + 0.5f) * cellSize, planeY, (y + 0.5f) * cellSize)
+                : origin + new Vector3((x + 0.5f) * cellSize, (y + 0.5f) * cellSize, planeZ);
 
-            return true;
+            DrawCell(cell, center, cellSize, useXZ);
+            if (e.type != EventType.Repaint) view.Repaint();
         }
 
-        private static void DrawCell(CellPos cell, Vector3 center)
+        private static void DrawCell(CellPos cell, Vector3 center, float cellSize, bool useXZ)
         {
             Handles.zTest = UnityEngine.Rendering.CompareFunction.LessEqual;
 
-            // wire square
-            Vector3 size = new Vector3(1f, 0.02f, 1f); // will be scaled by Handles matrix below
+            Vector3 size = useXZ
+                ? new Vector3(cellSize, 0.02f, cellSize)
+                : new Vector3(cellSize, cellSize, 0.02f);
 
-            // scale to cellSize without keeping extra state
-            Handles.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(_cellSize, 1f, _cellSize));
-
-            // draw at scaled space center
-            Vector3 scaledCenter = new Vector3(center.x / _cellSize, center.y, center.z / _cellSize);
-            Handles.DrawWireCube(scaledCenter, size);
-
-            Handles.matrix = Matrix4x4.identity;
-
+            Handles.DrawWireCube(center, size);
             Handles.Label(center + Vector3.up * 0.06f, $"Cell ({cell.X},{cell.Y})");
+
+            float r = cellSize * 0.15f;
+            Handles.DrawLine(center + new Vector3(-r, 0f, 0f), center + new Vector3(r, 0f, 0f));
+            if (useXZ)
+                Handles.DrawLine(center + new Vector3(0f, 0f, -r), center + new Vector3(0f, 0f, r));
+            else
+                Handles.DrawLine(center + new Vector3(0f, -r, 0f), center + new Vector3(0f, r, 0f));
         }
     }
 }

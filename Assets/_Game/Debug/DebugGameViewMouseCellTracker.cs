@@ -3,17 +3,18 @@ using UnityEngine.InputSystem;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion.DebugTools
-{
+{    
     public sealed class DebugGameViewMouseCellTracker : MonoBehaviour
     {
         [SerializeField] private Camera _cameraOverride;
         [SerializeField] private DebugBuildingTool _mappingSource;
 
-        // Fallback nếu không tìm thấy BuildingTool
+        // fallback nếu mappingSource chưa có
         [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
         [SerializeField] private float _cellSize = 1f;
         [SerializeField] private bool _useXZ = false;
         [SerializeField] private float _planeY = 0f;
+        [SerializeField] private float _planeZ = 0f;
 
         private Camera Cam => _cameraOverride != null ? _cameraOverride : Camera.main;
 
@@ -23,9 +24,18 @@ namespace SeasonalBastion.DebugTools
                 _mappingSource = FindObjectOfType<DebugBuildingTool>();
         }
 
+        private void OnDisable()
+        {
+            MouseCellSharedState.Clear();
+        }
+
         private void Update()
         {
             if (!Application.isPlaying) return;
+
+            // Sync mapping (single source)
+            if (_mappingSource == null)
+                _mappingSource = FindObjectOfType<DebugBuildingTool>();
 
             if (_mappingSource != null)
             {
@@ -33,12 +43,13 @@ namespace SeasonalBastion.DebugTools
                 _cellSize = Mathf.Max(0.0001f, _mappingSource.CellSize);
                 _useXZ = _mappingSource.UseXZ;
                 _planeY = _mappingSource.PlaneY;
+                _planeZ = _mappingSource.PlaneZ;
             }
 
             var cam = Cam;
             if (cam == null || Mouse.current == null)
             {
-                MouseCellSharedState.HasValue = false;
+                MouseCellSharedState.Clear();
                 return;
             }
 
@@ -47,11 +58,11 @@ namespace SeasonalBastion.DebugTools
 
             Plane plane = _useXZ
                 ? new Plane(Vector3.up, new Vector3(0f, _planeY, 0f))
-                : new Plane(Vector3.forward, new Vector3(0f, 0f, _mappingSource.PlaneZ));
+                : new Plane(Vector3.forward, new Vector3(0f, 0f, _planeZ)); // XY at z=planeZ
 
             if (!plane.Raycast(ray, out float enter))
             {
-                MouseCellSharedState.HasValue = false;
+                MouseCellSharedState.Clear();
                 return;
             }
 
@@ -65,17 +76,9 @@ namespace SeasonalBastion.DebugTools
 
             Vector3 center = _useXZ
                 ? _gridOrigin + new Vector3((x + 0.5f) * _cellSize, _planeY, (y + 0.5f) * _cellSize)
-                : _gridOrigin + new Vector3((x + 0.5f) * _cellSize, (y + 0.5f) * _cellSize, 0f);
+                : _gridOrigin + new Vector3((x + 0.5f) * _cellSize, (y + 0.5f) * _cellSize, _planeZ);
 
-            MouseCellSharedState.HasValue = true;
-            MouseCellSharedState.Cell = cell;
-            MouseCellSharedState.CellCenterWorld = center;
-            MouseCellSharedState.LastUpdateRealtime = Time.realtimeSinceStartup;
-        }
-
-        private void OnDisable()
-        {
-            MouseCellSharedState.HasValue = false;
+            MouseCellSharedState.Set(cell, center);
         }
     }
 }

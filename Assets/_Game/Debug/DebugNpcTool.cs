@@ -3,17 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using static UnityEngine.EventSystems.EventTrigger;
 
 namespace SeasonalBastion.DebugTools
 {
-    /// <summary>
-    /// Day 8 (PART27) - Debug tool:
-    /// - Press P: spawn NPC at HQ cell
-    /// - Press N: toggle tool ON/OFF
-    /// - When ON: select NPC in HUD -> click a building cell to assign workplace
-    /// - Publishes NPCAssignedEvent + pushes notifications
-    /// </summary>
     public sealed class DebugNpcTool : MonoBehaviour
     {
         [Header("Bootstrap (required)")]
@@ -21,15 +13,18 @@ namespace SeasonalBastion.DebugTools
 
         [Header("NPC Spawn")]
         [SerializeField] private string _npcDefId = "Worker";
-        [SerializeField] private int _spawnBurstCount = 1; // set to 3 if you want quick acceptance test
+        [SerializeField] private int _spawnBurstCount = 1;
 
-        [Header("Grid Mapping (match DebugBuildingTool)")]
+        [Header("Mapping (single source)")]
         [SerializeField] private DebugBuildingTool _mappingSource;
         [SerializeField] private Camera _cameraOverride;
+
+        [Header("Grid Mapping (fallback)")]
         [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
         [SerializeField] private float _cellSize = 1f;
         [SerializeField] private bool _useXZ = false;
         [SerializeField] private float _planeY = 0f;
+        [SerializeField] private float _planeZ = 0f;
 
         private InputAction _toggle; // N
         private InputAction _spawn;  // P
@@ -38,7 +33,6 @@ namespace SeasonalBastion.DebugTools
         private Camera _cam;
         private bool _enabled;
 
-        // Services
         private GameServices _s;
         private IWorldState _world;
         private IGridMap _grid;
@@ -46,11 +40,9 @@ namespace SeasonalBastion.DebugTools
         private IEventBus _bus;
         private INotificationService _noti;
 
-        // Selection
         private NpcId _selectedNpc;
         private bool _hasSelectedNpc;
 
-        // Cached hover
         private CellPos _hoverCell;
         private bool _hasHover;
 
@@ -60,7 +52,6 @@ namespace SeasonalBastion.DebugTools
             _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
             if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
 
-            // Runtime actions - do not touch InputActions asset
             _toggle = new InputAction("ToggleNpcTool", InputActionType.Button, "<Keyboard>/n");
             _spawn = new InputAction("SpawnNpc", InputActionType.Button, "<Keyboard>/p");
             _click = new InputAction("AssignNpc", InputActionType.Button, "<Mouse>/leftButton");
@@ -68,7 +59,6 @@ namespace SeasonalBastion.DebugTools
 
         private void Start()
         {
-            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _s = _bootstrap.Services;
 
             _world = _s.WorldState;
@@ -78,8 +68,6 @@ namespace SeasonalBastion.DebugTools
             _noti = _s.NotificationService;
 
             if (_cam == null) _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
-            if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
-
         }
 
         private void OnEnable()
@@ -110,13 +98,15 @@ namespace SeasonalBastion.DebugTools
 
         private void Update()
         {
-            // Hover cell is always updated for HUD feedback (even when tool off)
+            // Sync mapping
+            if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
             if (_mappingSource != null)
             {
                 _gridOrigin = _mappingSource.GridOrigin;
                 _cellSize = Mathf.Max(0.0001f, _mappingSource.CellSize);
                 _useXZ = _mappingSource.UseXZ;
                 _planeY = _mappingSource.PlaneY;
+                _planeZ = _mappingSource.PlaneZ;
             }
 
             _hasHover = TryGetCellUnderMouse(out _hoverCell);
@@ -139,20 +129,11 @@ namespace SeasonalBastion.DebugTools
 
         private void OnSpawn(InputAction.CallbackContext _)
         {
-            if (_world == null || _data == null)
-                return;
+            if (_world == null || _data == null) return;
 
             if (!TryFindHQAnchor(out var hqCell))
             {
-                _noti?.Push(
-                    key: "NpcSpawn_NoHQ",
-                    title: "NPC",
-                    body: "Cannot spawn: HQ not found.",
-                    severity: NotificationSeverity.Warning,
-                    payload: default,
-                    cooldownSeconds: 0.5f,
-                    dedupeByKey: true
-                );
+                _noti?.Push("NpcSpawn_NoHQ", "NPC", "Cannot spawn: HQ not found.", NotificationSeverity.Warning, default, 0.5f, true);
                 return;
             }
 
@@ -161,7 +142,6 @@ namespace SeasonalBastion.DebugTools
             {
                 var st = new NpcState
                 {
-                    // Id will be set after Create()
                     Id = default,
                     DefId = _npcDefId,
                     Cell = hqCell,
@@ -174,15 +154,8 @@ namespace SeasonalBastion.DebugTools
                 st.Id = id;
                 _world.Npcs.Set(id, st);
 
-                _noti?.Push(
-                    key: $"NpcSpawn_{id.Value}",
-                    title: "NPC",
-                    body: $"Spawned NPC #{id.Value} at HQ ({hqCell.X},{hqCell.Y})",
-                    severity: NotificationSeverity.Info,
-                    payload: default,
-                    cooldownSeconds: 0.1f,
-                    dedupeByKey: true
-                );
+                _noti?.Push($"NpcSpawn_{id.Value}", "NPC", $"Spawned NPC #{id.Value} at HQ ({hqCell.X},{hqCell.Y})",
+                    NotificationSeverity.Info, default, 0.1f, true);
             }
         }
 
@@ -198,35 +171,24 @@ namespace SeasonalBastion.DebugTools
                 return;
             }
 
-            if (!TryGetCellUnderMouse(out var clickCell))
+            if (!TryGetCellUnderMouse(out var cell))
+                return;
+
+            if (!_grid.IsInside(cell))
             {
-                _noti?.Push("NpcAssign_NoHover", "NPC", "Mouse not over grid.", NotificationSeverity.Warning, default, 0.2f, true);
+                _noti?.Push("NpcAssign_OutOfBounds", "NPC", "Out of bounds.", NotificationSeverity.Warning, default, 0.2f, true);
                 return;
             }
 
-            var occ = _grid.Get(clickCell);
-            if (occ.Kind != CellOccupancyKind.Building)
+            var occ = _grid.Get(cell);
+            if (occ.Kind != CellOccupancyKind.Building || occ.Building.Value == 0)
             {
-                _noti?.Push(
-                key: "NpcAssign_NotBuilding",
-                title: "NPC",
-                body: $"Not a Building. Cell=({clickCell.X},{clickCell.Y}) Kind={occ.Kind}",
-                severity: NotificationSeverity.Warning,
-                payload: default,
-                cooldownSeconds: 0.2f,
-                dedupeByKey: true
-                                );
+                _noti?.Push("NpcAssign_NotBuilding", "NPC", $"Not a building cell ({cell.X},{cell.Y}).", NotificationSeverity.Warning, default, 0.2f, true);
                 return;
             }
 
             var buildingId = occ.Building;
-            if (buildingId.Value == 0)
-            {
-                _noti?.Push("NpcAssign_ZeroId", "NPC", "Resolved BuildingId=0 (unexpected).", NotificationSeverity.Warning, default, 0.2f, true);
-                return;
-            }
 
-            // Assign workplace
             var npc = _world.Npcs.Get(_selectedNpc);
             npc.Workplace = buildingId;
             npc.IsIdle = true;
@@ -235,15 +197,9 @@ namespace SeasonalBastion.DebugTools
 
             _bus?.Publish(new NPCAssignedEvent(_selectedNpc, buildingId));
 
-            _noti?.Push(
-                key: $"NpcAssigned_{_selectedNpc.Value}",
-                title: "NPC",
-                body: $"NPC #{_selectedNpc.Value} assigned to Building #{buildingId.Value}",
-                severity: NotificationSeverity.Info,
-                payload: default,
-                cooldownSeconds: 0.15f,
-                dedupeByKey: true
-            );
+            _noti?.Push($"NpcAssigned_{_selectedNpc.Value}", "NPC",
+                $"NPC #{_selectedNpc.Value} assigned to Building #{buildingId.Value}",
+                NotificationSeverity.Info, default, 0.15f, true);
         }
 
         private bool TryFindHQAnchor(out CellPos hqCell)
@@ -251,7 +207,6 @@ namespace SeasonalBastion.DebugTools
             hqCell = default;
             if (_world == null || _data == null) return false;
 
-            // Deterministic: pick smallest building id that is HQ
             var ids = _world.Buildings.Ids;
             int bestId = int.MaxValue;
             CellPos bestCell = default;
@@ -267,17 +222,9 @@ namespace SeasonalBastion.DebugTools
                     var def = _data.GetBuilding(b.DefId);
                     isHQ = def != null && def.IsHQ;
                 }
-                catch
-                {
-                    // ignore
-                }
+                catch { }
 
-                if (!isHQ)
-                {
-                    // fallback by id string
-                    if (b.DefId == "HQ") isHQ = true;
-                }
-
+                if (!isHQ && b.DefId == "HQ") isHQ = true;
                 if (!isHQ) continue;
 
                 if (bid.Value < bestId)
@@ -289,37 +236,28 @@ namespace SeasonalBastion.DebugTools
             }
 
             if (!found) return false;
-
             hqCell = bestCell;
             return true;
         }
-
-        // ---------------------------------------------------------
-        // HUD
-        // ---------------------------------------------------------
 
         private void OnGUI()
         {
             if (_world == null) return;
 
-            //const float w = 420f;
-            //const float h = 300f;
-            //var r = new Rect(10f, 10f, w, h);
-            //GUI.Box(r, "NPC Debug (Day 8)");
+            GUILayout.BeginArea(new Rect(10f, 300f, 520f, 220f), GUI.skin.box);
 
-            GUILayout.BeginArea(new Rect(10f, 300f, 520f, 200f), GUI.skin.box);
+            GUILayout.Label($"Tool: {(_enabled ? "ON (N)" : "OFF (N)")} | Spawn: P | Hover: {(_hasHover ? $"({_hoverCell.X},{_hoverCell.Y})" : "none")}");
 
-            GUILayout.Label($"Tool: {(_enabled ? "ON (N toggle)" : "OFF (N toggle)")} | Spawn: P | Hover: {(_hasHover ? $"({_hoverCell.X},{_hoverCell.Y})" : "none")}");
-            if (_hasHover && _grid != null)
+            if (_hasHover && _grid != null && _grid.IsInside(_hoverCell))
             {
                 var o = _grid.Get(_hoverCell);
                 string extra = o.Kind == CellOccupancyKind.Building ? $"B#{o.Building.Value}" :
-                o.Kind == CellOccupancyKind.Site ? $"S#{o.Site.Value}" : "-";
+                               o.Kind == CellOccupancyKind.Site ? $"S#{o.Site.Value}" : "-";
                 GUILayout.Label($"Hover Occ: {o.Kind} {extra}");
             }
+
             GUILayout.Space(6);
 
-            // List NPCs sorted by id.Value (deterministic)
             var npcIds = _world.Npcs.Ids;
             var tmp = new List<NpcId>(npcIds.Count());
             foreach (var npcid in npcIds) tmp.Add(npcid);
@@ -328,17 +266,13 @@ namespace SeasonalBastion.DebugTools
             int unassigned = 0;
             for (int i = 0; i < tmp.Count; i++)
             {
-                var id = tmp[i];
-                var st = _world.Npcs.Get(id);
+                var st = _world.Npcs.Get(tmp[i]);
                 if (st.Workplace.Value == 0) unassigned++;
             }
 
             GUILayout.Label($"NPCs: {tmp.Count} | Unassigned: {unassigned}");
-            GUILayout.Space(6);
-
             GUILayout.Label($"Selected: {(_hasSelectedNpc ? $"#{_selectedNpc.Value}" : "none")}");
 
-            // Show list (limit to 12 rows to avoid spamming)
             int show = tmp.Count > 12 ? 12 : tmp.Count;
             for (int i = 0; i < show; i++)
             {
@@ -348,22 +282,13 @@ namespace SeasonalBastion.DebugTools
                 GUILayout.BeginHorizontal();
 
                 string wp = st.Workplace.Value == 0 ? "none" : $"#{st.Workplace.Value}";
-                GUILayout.Label($"#{id.Value} {st.DefId} @({st.Cell.X},{st.Cell.Y})  WP:{wp}", GUILayout.Width(300));
+                GUILayout.Label($"#{id.Value} {st.DefId} @({st.Cell.X},{st.Cell.Y})  WP:{wp}", GUILayout.Width(320));
 
                 if (GUILayout.Button("Select", GUILayout.Width(80)))
                 {
                     _selectedNpc = id;
                     _hasSelectedNpc = true;
-
-                    _noti?.Push(
-                        key: "NpcSelect",
-                        title: "NPC",
-                        body: $"Selected NPC #{id.Value}",
-                        severity: NotificationSeverity.Info,
-                        payload: default,
-                        cooldownSeconds: 0.1f,
-                        dedupeByKey: true
-                    );
+                    _noti?.Push("NpcSelect", "NPC", $"Selected NPC #{id.Value}", NotificationSeverity.Info, default, 0.1f, true);
                 }
 
                 GUILayout.EndHorizontal();
@@ -375,10 +300,6 @@ namespace SeasonalBastion.DebugTools
             GUILayout.EndArea();
         }
 
-        // ---------------------------------------------------------
-        // Mouse -> CellPos (copied style from DebugBuildingTool)
-        // ---------------------------------------------------------
-
         private bool TryGetCellUnderMouse(out CellPos cell)
         {
             cell = default;
@@ -386,7 +307,10 @@ namespace SeasonalBastion.DebugTools
             if (Mouse.current == null) return false;
 
             Ray ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
-            Plane p = _useXZ ? new Plane(Vector3.up, new Vector3(0f, _planeY, 0f)) : new Plane(Vector3.forward, new Vector3(0f, 0, _mappingSource.PlaneZ));
+
+            Plane p = _useXZ
+                ? new Plane(Vector3.up, new Vector3(0f, _planeY, 0f))
+                : new Plane(Vector3.forward, new Vector3(0f, 0f, _planeZ));
 
             if (!p.Raycast(ray, out float enter))
                 return false;
@@ -394,20 +318,11 @@ namespace SeasonalBastion.DebugTools
             Vector3 hit = ray.GetPoint(enter);
             Vector3 local = hit - _gridOrigin;
 
-            int x, y;
-            if (_useXZ)
-            {
-                x = Mathf.FloorToInt(local.x / _cellSize);
-                y = Mathf.FloorToInt(local.z / _cellSize);
-            }
-            else
-            {
-                x = Mathf.FloorToInt(local.x / _cellSize);
-                y = Mathf.FloorToInt(local.y / _cellSize);
-            }
+            int x = Mathf.FloorToInt(local.x / _cellSize);
+            int y = _useXZ ? Mathf.FloorToInt(local.z / _cellSize) : Mathf.FloorToInt(local.y / _cellSize);
 
             cell = new CellPos(x, y);
-            return _grid == null || _grid.IsInside(cell);
+            return true;
         }
     }
 }

@@ -371,3 +371,99 @@
 - [v] Không thay đổi scope gameplay, chỉ harden bằng test (đúng “buffer day”)
 
 ---
+
+## Day 8 — NPC Store + Manual Assignment UI (Debug) + Debug Tools 2D XY ổn định (Part 27)
+
+### Mục tiêu (theo PART27 – Day 8)
+- [x] Implement `NpcState` + `NpcStore`.
+- [x] Spawn NPC bằng phím `P` tại HQ cell.
+- [x] UI debug để:
+  - [x] Chọn NPC
+  - [x] Click building để assign workplace
+  - [x] Fire `NPCAssignedEvent`
+- [x] Acceptance:
+  - [x] Spawn 3 NPC → assign 1 Farm, 1 Lumber, 1 Warehouse
+  - [x] Hiển thị danh sách NPC + trạng thái unassigned/assigned trong debug list
+
+---
+
+### Đã làm
+#### 1) NPC Store + State (core)
+- [v] `NpcState` có các field tối thiểu phục vụ VS#1: `Id`, `DefId`, `Cell`, `Workplace`, `CurrentJob`, `IsIdle`.
+- [v] `NpcStore` hỗ trợ:
+  - Create / Exists / Get / Set
+  - Enumerate `Ids` để render debug list
+- [v] Wire vào `WorldState`/`IWorldState` (nếu chưa có thì dùng services/world hiện có).
+
+#### 2) DebugNpcTool — Spawn + Select + Assign workplace (manual)
+- [v] `N`: toggle NPC tool (ON/OFF).
+- [v] `P`: spawn NPC tại HQ anchor cell (fallback: chọn HQ building id nhỏ nhất).
+- [v] HUD debug hiển thị:
+  - danh sách NPC (giới hạn hiển thị để không spam UI)
+  - số lượng `Unassigned`
+  - NPC đang được select
+  - hover cell + occupancy (Building/Site/Empty)
+- [v] `LMB`: assign workplace:
+  - Chỉ assign khi click vào cell có `CellOccupancyKind.Building` và có `BuildingId`.
+  - Set `NpcState.Workplace = buildingId`, reset job state tối thiểu.
+  - Publish `NPCAssignedEvent(npcId, buildingId)`.
+  - Push notification spam-safe.
+
+#### 3) Bổ sung thêm ngoài PART27 (đã làm thêm để ổn định lâu dài)
+**3.1. Chuẩn hoá 2D XY mapping (_useXZ=false)**
+- [v] Fix triệt để sai mặt phẳng khi raycast mouse:
+  - XY dùng `Plane(Vector3.forward, z = planeZ)` (không hardcode z=0).
+  - Center cell XY dùng `z = planeZ`.
+- [v] Fix gizmo vẽ đúng XY:
+  - XY: ô cell “mỏng theo Z” (không còn kiểu XZ mỏng theo Y).
+
+**3.2. GameView mouse → SceneView gizmos/label (Play Mode)**
+- [v] `MouseCellSharedState` làm “bridge state” runtime.
+- [v] `DebugGameViewMouseCellTracker`:
+  - Đọc mouse position trong **Game View** (Play Mode)
+  - Convert → cell/center theo mapping hiện tại
+  - Ghi vào `MouseCellSharedState` để Scene View có thể đọc
+- [v] (Optional/khuyến nghị) `SceneViewMouseCellGizmo` (Editor):
+  - Khi Play Mode: ưu tiên vẽ theo `MouseCellSharedState` (tức là theo chuột ở Game View)
+  - Khi Edit Mode: fallback ray theo chuột Scene View
+  - Vẽ wire cube + label “Cell (x,y)” đúng XY
+
+**3.3. Chuẩn hoá lại path + apply patch workflow**
+- [v] Xác nhận folder debug thực tế trong repo: `Assets/Game/Debug/` (không phải `Assets/_Game/DebugTools/`)
+- [v] Fix các lỗi apply patch do lệch đường dẫn (No such file or directory) bằng cách kiểm tra `git ls-files`.
+
+---
+
+### Kết quả / Acceptance
+- [v] Play Mode:
+  - Bấm `P` spawn được NPC tại HQ.
+  - HUD hiển thị đúng số lượng NPC và số lượng unassigned.
+  - Select NPC trong HUD → click lên building đã constructed → NPC được assign workplace.
+  - `NPCAssignedEvent` được publish (phục vụ bước Job/Harvest/Haul về sau).
+- [v] 2D XY:
+  - Hover/click không còn lệch ô do sai plane.
+  - Gizmos/label thể hiện đúng cell XY (không còn “ô kiểu XZ”).
+- [v] Play Mode:
+  - Di chuột trong Game View → Scene View vẫn vẽ gizmo/label theo đúng cell dưới chuột (khi có tracker + editor gizmo).
+
+---
+
+### Ghi chú / Pitfalls
+- Với 2D (XY), bắt buộc set:
+  - `_useXZ = false`
+  - `_planeZ` đúng Z của tilemap/ground (thường là `0`)
+  - Camera orthographic vẫn OK; nếu map ở Z khác 0 thì phải set `_planeZ` tương ứng.
+- DebugNpcTool assign chỉ nhận `CellOccupancyKind.Building`; nếu click vào `Site`/`Road`/`Empty` sẽ warn (đúng kỳ vọng).
+- Nếu Scene View không vẽ theo chuột Game View:
+  - đảm bảo có `DebugGameViewMouseCellTracker` trong scene
+  - đảm bảo `SceneViewMouseCellGizmo` nằm trong folder `Editor/` và đang enabled
+
+---
+
+### Việc tiếp theo (Day 9 — theo PART27)
+- Implement Storage baseline:
+  - storage amounts + caps trong `BuildingState` theo `BuildingDef`
+  - `StorageService` (HQ/Warehouse không nhận Ammo)
+  - Debug UI: chọn building → xem snapshot storage
+  
+---

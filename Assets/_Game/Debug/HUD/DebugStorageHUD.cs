@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using SeasonalBastion.Contracts;
 using UnityEngine.InputSystem;
+using System;
 
 namespace SeasonalBastion.DebugTools
 {
@@ -10,6 +11,11 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private Key _toggleKey = Key.S;
         [SerializeField] private Key _lockKey = Key.L;
         [SerializeField] private int _addAmountDefault = 50;
+        [SerializeField] private bool _hubControlled;
+        [SerializeField] private Key _freezeFromKey = Key.F;
+
+        private bool _hasFrozenFrom;
+        private CellPos _frozenFrom;
 
         private bool _hasLocked;
         private BuildingId _lockedBuilding;
@@ -37,7 +43,7 @@ namespace SeasonalBastion.DebugTools
             var kb = Keyboard.current;
             if (kb == null) return;
 
-            if (kb[_toggleKey].wasPressedThisFrame)
+            if (!_hubControlled && kb[_toggleKey].wasPressedThisFrame)
                 _enabled = !_enabled;
 
             if (!_enabled) return;
@@ -58,6 +64,28 @@ namespace SeasonalBastion.DebugTools
                 }
             }
 
+            if (kb[_freezeFromKey].wasPressedThisFrame)
+            {
+                if (MouseCellSharedState.HasValue)
+                {
+                    _hasFrozenFrom = true;
+                    _frozenFrom = MouseCellSharedState.Cell;
+                    Debug.Log($"[DebugStorageHUD] Frozen FromCell = {_frozenFrom.X},{_frozenFrom.Y}");
+                }
+                else
+                {
+                    _hasFrozenFrom = false;
+                    Debug.Log("[DebugStorageHUD] Frozen FromCell cleared (no hover)");
+                }
+            }
+        }
+
+        public void SetHubControlled(bool v) => _hubControlled = v;
+
+        public void SetEnabledFromHub(bool enabled)
+        {
+            _enabled = enabled;
+            // reset hover cache nhẹ, giữ locked state
         }
 
         private bool TryGetHoverBuilding(out BuildingId bid)
@@ -94,11 +122,12 @@ namespace SeasonalBastion.DebugTools
 
         private CellPos GetFromCellFallback(BuildingId target)
         {
-            // Prefer hover cell for flow queries (matches PART27 acceptance "pick nearest from a point")
+            if (_hasFrozenFrom)
+                return _frozenFrom;
+
             if (MouseCellSharedState.HasValue)
                 return MouseCellSharedState.Cell;
 
-            // Fallback: use target building anchor if hover not available
             if (_gs != null && _gs.WorldState != null && _gs.WorldState.Buildings.Exists(target))
                 return _gs.WorldState.Buildings.Get(target).Anchor;
 
@@ -119,7 +148,9 @@ namespace SeasonalBastion.DebugTools
 
             GUILayout.Space(10);
             GUILayout.Label("Day10 Flow Debug (Pick/Transfer):");
-            GUILayout.Label($"FromCell: {from.X},{from.Y}");
+            GUILayout.Label(_hasFrozenFrom
+                            ? $"FromCell: {_frozenFrom.X},{_frozenFrom.Y} (FROZEN - press F to update)"
+                            : $"FromCell: {from.X},{from.Y} (hover)");
 
             // ---- Pick Dest (Warehouses / Armory) ----
             GUILayout.BeginHorizontal();
@@ -216,17 +247,16 @@ namespace SeasonalBastion.DebugTools
             GUILayout.EndHorizontal();
         }
 
-        private void OnGUI()
+        public void DrawHubGUI()
         {
             TryResolveServices();
+            if (!_enabled) { GUILayout.Label("Storage HUD: OFF (enable via Hub mode F5)"); return; }
 
-            const float x = 10f;
-            const float y = 540f;
-            const float w = 520f;
-            const float h = 520f;
+            DrawContent();
+        }
 
-            GUILayout.BeginArea(new Rect(x, y, w, h), GUI.skin.box);
-
+        private void DrawContent()
+        {
             // Header + status 
             GUILayout.Label($"[Storage HUD] enabled={_enabled} toggleKey={_toggleKey}");
 
@@ -237,7 +267,6 @@ namespace SeasonalBastion.DebugTools
             {
                 GUILayout.Space(6);
                 GUILayout.Label("GameServices = null (GameBootstrap not found?)");
-                GUILayout.EndArea();
                 return;
             }
 
@@ -245,7 +274,6 @@ namespace SeasonalBastion.DebugTools
             {
                 GUILayout.Space(6);
                 GUILayout.Label("GridMap = null");
-                GUILayout.EndArea();
                 return;
             }
 
@@ -270,7 +298,6 @@ namespace SeasonalBastion.DebugTools
             if (!hasTarget)
             {
                 GUILayout.Label("No building target.");
-                GUILayout.EndArea();
                 return;
             }
 
@@ -310,7 +337,6 @@ namespace SeasonalBastion.DebugTools
             {
                 GUILayout.Space(6);
                 GUILayout.Label("StorageService = null");
-                GUILayout.EndArea();
                 return;
             }
 
@@ -349,6 +375,22 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Label($"Ammo:  {snap.Ammo} / {snap.CapAmmo}");
 
             DrawFlowDebugUI(bid);
+        }
+
+        private void OnGUI()
+        {
+            if (DebugHubState.Enabled || _hubControlled) return;
+
+            TryResolveServices();
+
+            const float x = 10f;
+            const float y = 540f;
+            const float w = 520f;
+            const float h = 520f;
+
+            GUILayout.BeginArea(new Rect(x, y, w, h), GUI.skin.box);
+
+            DrawContent();
 
             GUILayout.EndArea();
         }

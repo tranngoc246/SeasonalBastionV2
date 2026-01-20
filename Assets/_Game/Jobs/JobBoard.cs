@@ -1,8 +1,3 @@
-// AUTO-GENERATED SKELETON TEMPLATE from PART 26 (LOCKED v0.1)
-// Source: PART26_Concrete_Class_Skeletons_Scaffolds_LOCKED_SPEC_v0.1.md
-// Notes: Runtime scaffolds only. Fill TODOs during implementation.
-
-using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -10,8 +5,8 @@ namespace SeasonalBastion
 {
     public sealed class JobBoard : IJobBoard
     {
-        private readonly System.Collections.Generic.Dictionary<int, Job> _jobs = new();
-        private readonly System.Collections.Generic.Dictionary<int, System.Collections.Generic.Queue<int>> _queues = new();
+        private readonly Dictionary<int, Job> _jobs = new();
+        private readonly Dictionary<int, Queue<int>> _queues = new();
         private int _nextId = 1;
 
         public JobId Enqueue(Job job)
@@ -20,7 +15,7 @@ namespace SeasonalBastion
             _jobs[job.Id.Value] = job;
 
             var key = job.Workplace.Value;
-            if (!_queues.TryGetValue(key, out var q)) _queues[key] = q = new System.Collections.Generic.Queue<int>();
+            if (!_queues.TryGetValue(key, out var q)) _queues[key] = q = new Queue<int>();
             q.Enqueue(job.Id.Value);
             return job.Id;
         }
@@ -30,8 +25,10 @@ namespace SeasonalBastion
             job = default;
             if (!_queues.TryGetValue(workplace.Value, out var q) || q.Count == 0) return false;
 
-            // TODO: skip cancelled/completed stale ids (while loop)
-            var id = q.Peek();
+            CleanFront(q);
+            if (q.Count == 0) return false;
+
+            int id = q.Peek();
             return _jobs.TryGetValue(id, out job);
         }
 
@@ -58,7 +55,29 @@ namespace SeasonalBastion
             }
         }
 
-        public int CountForWorkplace(BuildingId workplace) =>
-            _queues.TryGetValue(workplace.Value, out var q) ? q.Count : 0;
+        public int CountForWorkplace(BuildingId workplace)
+        {
+            if (!_queues.TryGetValue(workplace.Value, out var q)) return 0;
+            CleanFront(q);
+            return q.Count;
+        }
+
+        private static bool IsStale(JobStatus s)
+        {
+            return s == JobStatus.Completed
+                || s == JobStatus.Failed
+                || s == JobStatus.Cancelled;
+        }
+
+        private void CleanFront(Queue<int> q)
+        {
+            while (q.Count > 0)
+            {
+                int id = q.Peek();
+                if (!_jobs.TryGetValue(id, out var j)) { q.Dequeue(); continue; }
+                if (IsStale(j.Status)) { q.Dequeue(); continue; }
+                break;
+            }
+        }
     }
 }

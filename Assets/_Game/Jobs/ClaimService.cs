@@ -1,8 +1,3 @@
-// AUTO-GENERATED SKELETON TEMPLATE from PART 26 (LOCKED v0.1)
-// Source: PART26_Concrete_Class_Skeletons_Scaffolds_LOCKED_SPEC_v0.1.md
-// Notes: Runtime scaffolds only. Fill TODOs during implementation.
-
-using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -10,7 +5,7 @@ namespace SeasonalBastion
 {
     public sealed class ClaimService : IClaimService
     {
-        private readonly System.Collections.Generic.Dictionary<ClaimKey, NpcId> _map = new();
+        private readonly Dictionary<ClaimKey, NpcId> _map = new();
 
         public bool TryAcquire(ClaimKey key, NpcId owner)
         {
@@ -29,9 +24,22 @@ namespace SeasonalBastion
 
         public void ReleaseAll(NpcId owner)
         {
-            // TODO: iterate safely (copy keys) remove owned
-            throw new System.NotImplementedException();
+            if (owner.Value == 0) return;
+            if (_map.Count == 0) return;
+
+            // Copy keys to avoid modifying dictionary during enumeration
+            var toRemove = new List<ClaimKey>();
+
+            foreach (var kv in _map)
+            {
+                if (kv.Value.Value == owner.Value)
+                    toRemove.Add(kv.Key);
+            }
+
+            for (int i = 0; i < toRemove.Count; i++)
+                _map.Remove(toRemove[i]);
         }
+
 
         public int ActiveClaimsCount => _map.Count;
     }

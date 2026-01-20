@@ -26,6 +26,11 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private float _planeY = 0f;
         [SerializeField] private float _planeZ = 0f;
 
+        [SerializeField] private bool _hubControlled;
+        public void SetHubControlled(bool v) => _hubControlled = v;
+        public void SetEnabledFromHub(bool enabled) { _enabled = enabled; }
+
+
         private InputAction _toggle; // N
         private InputAction _spawn;  // P
         private InputAction _click;  // LMB
@@ -39,6 +44,8 @@ namespace SeasonalBastion.DebugTools
         private IDataRegistry _data;
         private IEventBus _bus;
         private INotificationService _noti;
+        private IClaimService _claims;
+        private IJobBoard _jobs;
 
         private NpcId _selectedNpc;
         private bool _hasSelectedNpc;
@@ -66,6 +73,8 @@ namespace SeasonalBastion.DebugTools
             _data = _s.DataRegistry;
             _bus = _s.EventBus;
             _noti = _s.NotificationService;
+            _claims = _s.ClaimService;
+            _jobs = _s.JobBoard;
 
             if (_cam == null) _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
         }
@@ -98,7 +107,7 @@ namespace SeasonalBastion.DebugTools
 
         private void Update()
         {
-            // Sync mapping
+            // Sync mapping (always, so Hub UI has hover)
             if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
             if (_mappingSource != null)
             {
@@ -109,11 +118,19 @@ namespace SeasonalBastion.DebugTools
                 _planeZ = _mappingSource.PlaneZ;
             }
 
+            if (!_enabled)
+            {
+                _hasHover = false;
+                return;
+            }
+
             _hasHover = TryGetCellUnderMouse(out _hoverCell);
         }
 
         private void OnToggle(InputAction.CallbackContext _)
         {
+            if (_hubControlled) return;
+
             _enabled = !_enabled;
 
             _noti?.Push(
@@ -129,6 +146,8 @@ namespace SeasonalBastion.DebugTools
 
         private void OnSpawn(InputAction.CallbackContext _)
         {
+            if (!_enabled) return;
+
             if (_world == null || _data == null) return;
 
             if (!TryFindHQAnchor(out var hqCell))
@@ -240,12 +259,8 @@ namespace SeasonalBastion.DebugTools
             return true;
         }
 
-        private void OnGUI()
+        public void DrawHubGUI()
         {
-            if (_world == null) return;
-
-            GUILayout.BeginArea(new Rect(10f, 300f, 520f, 220f), GUI.skin.box);
-
             GUILayout.Label($"Tool: {(_enabled ? "ON (N)" : "OFF (N)")} | Spawn: P | Hover: {(_hasHover ? $"({_hoverCell.X},{_hoverCell.Y})" : "none")}");
 
             if (_hasHover && _grid != null && _grid.IsInside(_hoverCell))
@@ -273,6 +288,53 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Label($"NPCs: {tmp.Count} | Unassigned: {unassigned}");
             GUILayout.Label($"Selected: {(_hasSelectedNpc ? $"#{_selectedNpc.Value}" : "none")}");
 
+            GUILayout.Space(6);
+            GUILayout.Label("Claims / Jobs:");
+
+            if (_claims != null)
+                GUILayout.Label($"ActiveClaimsCount: {_claims.ActiveClaimsCount}");
+            else
+                GUILayout.Label("ClaimService = null");
+
+            if (_hasSelectedNpc && _world.Npcs.Exists(_selectedNpc))
+            {
+                if (GUILayout.Button("Release All Claims (Selected NPC)", GUILayout.Width(260)))
+                {
+                    _claims?.ReleaseAll(_selectedNpc);
+                    _noti?.Push("ClaimsReleaseAll", "Claims",
+                        $"Released all claims for NPC #{_selectedNpc.Value}",
+                        NotificationSeverity.Info, default, 0.15f, true);
+                }
+
+                var npc = _world.Npcs.Get(_selectedNpc);
+                var wp = npc.Workplace;
+
+                GUILayout.Label($"Workplace: {(wp.Value == 0 ? "none" : $"#{wp.Value}")}");
+
+                if (_jobs != null && wp.Value != 0)
+                {
+                    int c = _jobs.CountForWorkplace(wp);
+                    GUILayout.Label($"Jobs in workplace queue: {c}");
+
+                    if (_jobs.TryPeekForWorkplace(wp, out var j))
+                    {
+                        GUILayout.Label($"Peek: #{j.Id.Value} {j.Archetype} {j.Status} Amt:{j.Amount} Res:{j.ResourceType}");
+                    }
+                    else
+                    {
+                        GUILayout.Label("Peek: (none)");
+                    }
+                }
+                else if (_jobs == null)
+                {
+                    GUILayout.Label("JobBoard = null");
+                }
+            }
+            else
+            {
+                GUILayout.Label("Select an NPC to enable ReleaseAllClaims + Workplace job view.");
+            }
+
             int show = tmp.Count > 12 ? 12 : tmp.Count;
             for (int i = 0; i < show; i++)
             {
@@ -296,6 +358,17 @@ namespace SeasonalBastion.DebugTools
 
             if (tmp.Count > show)
                 GUILayout.Label($"... ({tmp.Count - show} more)");
+        }
+
+        private void OnGUI()
+        {
+            if (DebugHubState.Enabled) return;
+
+            if (_world == null) return;
+
+            GUILayout.BeginArea(new Rect(10f, 300f, 520f, 220f), GUI.skin.box);
+
+            DrawHubGUI();
 
             GUILayout.EndArea();
         }

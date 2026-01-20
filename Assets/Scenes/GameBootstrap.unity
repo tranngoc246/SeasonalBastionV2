@@ -173,6 +173,68 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1732529964}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &331910899
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 331910900}
+  - component: {fileID: 331910901}
+  m_Layer: 0
+  m_Name: DebugHUDHub
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &331910900
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 331910899}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1732529964}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &331910901
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 331910899}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac0c9adbba0159248b541d86ee23a2bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _bootstrap: {fileID: 1656749905}
+  _buildTool: {fileID: 1166508313}
+  _roadTool: {fileID: 1633037785}
+  _npcTool: {fileID: 1615191216}
+  _storageHud: {fileID: 360055334}
+  _notiHud: {fileID: 606999408}
+  _worldIndexHud: {fileID: 1725449634}
+  _toggleUiKey: 94
+  _modeBuildKey: 95
+  _modeRoadKey: 96
+  _modeNpcKey: 97
+  _modeStorageKey: 98
+  _tabNotiKey: 99
+  _tabWorldIndexKey: 100
+  _clearModeKey: 60
+  _showUi: 1
+  _mode: 0
+  _tab: 0
 --- !u!1 &360055332
 GameObject:
   m_ObjectHideFlags: 0
@@ -221,6 +283,7 @@ MonoBehaviour:
   _toggleKey: 29
   _lockKey: 26
   _addAmountDefault: 50
+  _hubControlled: 0
 --- !u!1 &385074214
 GameObject:
   m_ObjectHideFlags: 0
@@ -270,14 +333,14 @@ MonoBehaviour:
   _delayFrames: 1
   _enforceNoRoadIslands: 1
   _roads:
-  - From: {x: 10, y: -1}
+  - From: {x: 10, y: 1}
     To: {x: 10, y: 10}
   - From: {x: 10, y: 1}
-    To: {x: 18, y: 1}
+    To: {x: 15, y: 1}
   - From: {x: 10, y: 10}
     To: {x: 15, y: 10}
   - From: {x: 10, y: 5}
-    To: {x: 0, y: 5}
+    To: {x: 1, y: 5}
   _buildings:
   - DefId: HQ
     Anchor: {x: 13, y: 3}
@@ -291,6 +354,12 @@ MonoBehaviour:
   - DefId: Lumber
     Anchor: {x: 5, y: 1}
     Rotation: 0
+  - DefId: Warehouse
+    Anchor: {x: 0, y: 7}
+    Rotation: 2
+  - DefId: Warehouse
+    Anchor: {x: 5, y: 7}
+    Rotation: 2
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -473,6 +542,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _bootstrap: {fileID: 1656749905}
+  _hubControlled: 0
 --- !u!1 &1166508312
 GameObject:
   m_ObjectHideFlags: 0
@@ -513,6 +583,7 @@ MonoBehaviour:
   _useXZ: 0
   _planeY: 0
   _planeZ: 0
+  _hubControlled: 0
   _drawPreview: 1
   _drawPlacedBuildings: 1
   _drawDrivewayHint: 1
@@ -589,6 +660,7 @@ MonoBehaviour:
   _useXZ: 0
   _planeY: 0
   _planeZ: 0
+  _hubControlled: 0
 --- !u!1 &1633037783
 GameObject:
   m_ObjectHideFlags: 0
@@ -645,6 +717,7 @@ MonoBehaviour:
   _drawHoverPreview: 1
   _gizmoHeight: 1
   _hoverPreviewScale: 0.85
+  _hubControlled: 0
 --- !u!1 &1656749904
 GameObject:
   m_ObjectHideFlags: 0
@@ -737,6 +810,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _bootstrap: {fileID: 1656749905}
+  _hubControlled: 0
 --- !u!1 &1732529963
 GameObject:
   m_ObjectHideFlags: 0
@@ -767,6 +841,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 385074215}
+  - {fileID: 331910900}
   - {fileID: 311099403}
   - {fileID: 1166508314}
   - {fileID: 1615191215}

@@ -27,6 +27,10 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private float _gizmoHeight = 0.05f;
         [SerializeField] private float _hoverPreviewScale = 0.85f;
 
+        [SerializeField] private bool _hubControlled;
+        public void SetHubControlled(bool v) => _hubControlled = v;
+        public void SetEnabledFromHub(bool enabled) { _enabled = enabled; _anyRoadCacheValid = false; _lastHoverValid = false; }
+
         private InputAction _toggleTool;  // R
         private InputAction _click;       // LMB
         private bool _enabled;
@@ -162,6 +166,8 @@ namespace SeasonalBastion.DebugTools
 
         private void OnToggle(InputAction.CallbackContext _)
         {
+            if (_hubControlled) return;
+
             _enabled = !_enabled;
             _anyRoadCacheValid = false;
             _lastHoverValid = false;

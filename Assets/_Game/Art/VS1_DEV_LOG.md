@@ -555,3 +555,155 @@
   - transfer giữa producer local storage → warehouse/HQ
   - chuẩn bị cho CarryAmount + Haul jobs (Day 11–12).
 
+---
+
+## Day 10 — ResourceFlowService (Pick Source/Dest) + Transfer Atomic + Debug Flow Buttons
+
+### Mục tiêu (theo PART27 – Day 10)
+- [x] Implement `TryPickSource` / `TryPickDest`:
+  - [x] Deterministic “nearest” theo Manhattan distance
+  - [x] Tie-break theo `BuildingId.Value` (ascending)
+- [x] Implement `Transfer(src, dst, type, amount)` với atomic semantics:
+  - [x] Không âm resource
+  - [x] Respect cap (clamp)
+  - [x] Không mất tài nguyên (refund phần dư)
+- [x] Acceptance:
+  - [x] Nhiều warehouse → pick nearest đúng
+  - [x] Không overflow / không negative
+
+### Đã làm
+
+#### 1) `ResourceFlowService` (core)
+- [v] Tạo `ResourceFlowService.cs` implement `IResourceFlowService`:
+  - `TryPickSource(from, type, minAmount, out StoragePick)`:
+    - duyệt candidate set theo resource type
+    - filter: building tồn tại + `IsConstructed` + `StorageService.CanStore` + amount >= minAmount
+    - chọn best theo: dist Manhattan nhỏ nhất, tie-break `BuildingId.Value`
+  - `TryPickDest(from, type, minSpace, out StoragePick)`:
+    - filter: `CanStore` + cap > 0 + (cap - amount) >= minSpace
+    - chọn best theo: dist Manhattan, tie-break `BuildingId.Value`
+  - `Transfer(src, dst, type, amount)`:
+    - remove từ src (clamp)
+    - add vào dst (clamp cap)
+    - refund remainder về src (atomic semantics)
+- [v] Candidate sets v0.1:
+  - Basic (Wood/Food/Stone/Iron):
+    - Source: Producers + Warehouses (HQ được treat như warehouse)
+    - Dest: Warehouses (HQ included)
+  - Ammo:
+    - Source: Forges + Armories
+    - Dest: Armories only
+- [v] Determinism:
+  - dùng WorldIndex lists đã sorted theo `BuildingId.Value`
+  - merge lists theo id để giữ order ổn định
+
+#### 2) Wiring / Services
+- [v] Xác nhận `GameServicesFactory` đã wire:
+  - `StorageService`
+  - `ResourceFlowService = new ResourceFlowService(WorldState, WorldIndex, StorageService)`
+- [v] Không thay đổi boot/tick order.
+
+#### 3) Debug test buttons (Game View)
+- [v] Bổ sung vào `DebugStorageHUD` nhóm nút test Day10:
+  - Pick Dest: `Pick Dest (Wood/Food/Ammo)` → log `id/dist`, lưu `LastDest`
+  - Pick Source: `Pick Src (Wood/Food/Ammo)` → log `id/dist`, lưu `LastSrc`
+  - Transfer:
+    - `Transfer Wood (Target->LastDest)`
+    - `Transfer Wood (LastSrc->Target)`
+- [v] “FromCell” cho pick:
+  - ưu tiên hover cell (MouseCellSharedState)
+  - fallback theo anchor của building target
+- [v] Giữ cơ chế lock target (phím `L`) để bấm UI không mất selection.
+
+### Kết quả / Acceptance
+- [v] Pick nearest warehouse/armory đúng theo Manhattan distance.
+- [v] Tie-break ổn định theo `BuildingId.Value` khi dist bằng nhau.
+- [v] Transfer không làm âm resource, không vượt cap, không mất phần dư (refund).
+- [v] Có debug buttons để verify trực tiếp trong Play mode (không cần viết test runner).
+
+### Ghi chú
+- Nếu `PickDest` trả NONE:
+  - không có building constructed phù hợp hoặc không còn space theo resource.
+- Ammo không vào HQ/Warehouse là expected (rule v0.1 từ Day9).
+
+---
+
+## Day 11 — Claims + JobBoard Hardening + DebugHub (giảm HUD chồng nhau)
+
+### Mục tiêu (theo PART27 – Day 11)
+- [x] Claims:
+  - [x] `ClaimService.TryAcquire` ngăn 2 NPC claim cùng key.
+  - [x] `ReleaseAll(npcId)` hoạt động (không leak) để tránh softlock.
+  - [x] Debug button “Release all claims for selected NPC”.
+- [x] JobBoard:
+  - [x] Queue theo workplace.
+  - [x] `TryPeekForWorkplace()` deterministic (FIFO) + không kẹt bởi job stale.
+  - [x] Debug hiển thị `Jobs in workplace queue` + `Peek`.
+- [x] Debug UX:
+  - [x] Giảm “HUD chồng nhau” → gom về 1 Hub (Mức 2), tránh lắp phím.
+
+---
+
+### Đã làm
+
+#### 1) ClaimService — ReleaseAll chống softlock
+- [v] Implement `ReleaseAll(NpcId owner)`:
+  - Duyệt map claim, collect keys thuộc owner → remove sau (tránh modify khi đang enumerate).
+  - Không throw/không leak claim.
+- [v] Regression: `TryAcquire/Release` giữ hành vi cũ, chỉ bổ sung “panic button” ReleaseAll.
+
+#### 2) JobBoard — skip stale, peek không kẹt
+- [v] Harden `JobBoard`:
+  - Thêm `CleanFront(queue)`:
+    - Dequeue các job id không còn tồn tại / status stale (Completed/Failed/Cancelled).
+  - `TryPeekForWorkplace()`:
+    - CleanFront trước khi peek
+    - FIFO deterministic, không stuck vì stale ở đầu hàng.
+  - `CountForWorkplace()`:
+    - CleanFront trước khi trả count (count phản ánh hàng đợi “live”).
+
+#### 3) DebugNpcTool — UI Day11 (Selected NPC)
+- [v] Hiển thị:
+  - `ActiveClaimsCount`
+  - `Workplace` của NPC selected
+  - `Jobs in workplace queue` + `Peek job`
+- [v] Thêm button:
+  - `Release All Claims (Selected NPC)` → gọi `ClaimService.ReleaseAll(selectedNpc)`
+  - Push notification xác nhận (spam-safe).
+
+#### 4) DebugHUDHub (Mức 2) — 1 panel duy nhất, tránh lắp phím
+- [v] Tạo Hub quản lý mode/tabs:
+  - Toggle UI + chuyển mode bằng F-keys (không dùng lại các phím debug rải rác).
+  - Exclusive mode: chỉ 1 tool active tại 1 thời điểm.
+- [v] Chuyển các HUD/Tool sang “hub-controlled”:
+  - Tắt standalone OnGUI khi Hub bật.
+  - Disable các toggle keys cũ (B/R/N/I/S/H/M...) để tránh chồng input.
+  - Guard input theo `_enabled` (đặc biệt NPC spawn P chỉ chạy khi NPC tool active).
+- [v] Fix GUI mismatch cho Storage/NPC khi render trong Hub:
+  - `DrawContent()` không gọi `GUILayout.EndArea()` nội bộ (Hub không BeginArea).
+  - Standalone OnGUI có guard `if (DebugHubState.Enabled) return;`.
+
+---
+
+### Kết quả / Acceptance
+- [v] Có thể bấm `Release All Claims` cho NPC selected mà không crash.
+- [v] `TryPeekForWorkplace` không kẹt do job stale ở đầu queue.
+- [v] Debug UI gọn: chỉ còn 1 Hub, không còn nhiều panel chồng nhau.
+- [~] Hiện tại `ActiveClaimsCount = 0` và `Jobs in workplace queue = 0` là expected vì Day12 mới bắt đầu enqueue jobs / tạo claim thực tế qua job pipeline.
+
+---
+
+### Ghi chú / Pitfalls
+- Nếu muốn “pass acceptance enqueue 10 jobs” ngay Day11:
+  - cần thêm debug button enqueue jobs (để Day12 làm tiếp theo kế hoạch).
+- Khi render vào Hub: tuyệt đối không `EndArea()` trong hàm content; Begin/End chỉ ở wrapper.
+
+---
+
+### Việc tiếp theo (Day 12)
+- Bắt đầu pipeline job thực:
+  - Enqueue jobs theo workplace (Harvest/Haul/Builder fetch…).
+  - Claim keys thực sự (storage slot / job id / interest tile).
+  - Debug button enqueue jobs để verify `Peek/Count` + claim contention.
+
+  ---

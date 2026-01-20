@@ -23,6 +23,10 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private float _planeY = 0f;
         [SerializeField] private float _planeZ = 0f; // 2D XY plane at z = planeZ
 
+        [SerializeField] private bool _hubControlled;
+        public void SetHubControlled(bool v) => _hubControlled = v;
+        public void SetEnabledFromHub(bool enabled) { _enabled = enabled; _cacheValid = false; _hasHover = false; _lastValidate = default; }
+
         public Vector3 GridOrigin => _gridOrigin;
         public float CellSize => _cellSize;
         public bool UseXZ => _useXZ;
@@ -172,6 +176,8 @@ namespace SeasonalBastion.DebugTools
 
         private void OnToggle(InputAction.CallbackContext _)
         {
+            if (_hubControlled) return;
+
             _enabled = !_enabled;
             _cacheValid = false;
 
@@ -186,11 +192,11 @@ namespace SeasonalBastion.DebugTools
             );
         }
 
-        private void OnSel1(InputAction.CallbackContext _) => Select(_def1);
-        private void OnSel2(InputAction.CallbackContext _) => Select(_def2);
-        private void OnSel3(InputAction.CallbackContext _) => Select(_def3);
-        private void OnSel4(InputAction.CallbackContext _) => Select(_def4);
-        private void OnSel5(InputAction.CallbackContext _) => Select(_def5);
+        private void OnSel1(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def1); }
+        private void OnSel2(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def2); }
+        private void OnSel3(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def3); }
+        private void OnSel4(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def4); }
+        private void OnSel5(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def5); }
 
         private void Select(string defId)
         {

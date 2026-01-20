@@ -1,3 +1,5 @@
+using System;
+
 namespace SeasonalBastion.Contracts
 {
     public sealed class BuildingDef
@@ -14,8 +16,32 @@ namespace SeasonalBastion.Contracts
         public bool IsForge = false;
         public bool IsArmory = false;
         public bool IsTower = false;
+
+        public StorageCapsByLevel CapWood;
+        public StorageCapsByLevel CapFood;
+        public StorageCapsByLevel CapStone;
+        public StorageCapsByLevel CapIron;
+        public StorageCapsByLevel CapAmmo;
     }
 
+    [Serializable]
+    public struct StorageCapsByLevel
+    {
+        public int L1;
+        public int L2;
+        public int L3;
+
+        public int Get(int level)
+        {
+            return level switch
+            {
+                1 => L1,
+                2 => L2,
+                3 => L3,
+                _ => L1
+            };
+        }
+    }
 
     public sealed class EnemyDef
     {

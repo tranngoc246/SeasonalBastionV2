@@ -2,16 +2,21 @@
   "buildings": [
     {
       "id": "HQ",
-      "sizeX": 2,
-      "sizeY": 2,
+      "sizeX": 5,
+      "sizeY": 5,
       "baseLevel": 1,
       "isHQ": true,
-      "isWarehouse": true
+      "isWarehouse": true,
+      "capWood": { "L1": 120, "L2": 180, "L3": 240 },
+      "capFood": { "L1": 120, "L2": 180, "L3": 240 },
+      "capStone": { "L1": 120, "L2": 180, "L3": 240 },
+      "capIron": { "L1": 120, "L2": 180, "L3": 240 },
+      "capAmmo": { "L1": 0, "L2": 0, "L3": 0 }
     },
     {
       "id": "House",
-      "sizeX": 2,
-      "sizeY": 2,
+      "sizeX": 3,
+      "sizeY": 3,
       "baseLevel": 1,
       "isHouse": true
     },
@@ -20,21 +25,59 @@
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
-      "isProducer": true
+      "isProducer": true,
+      "capFood": { "L1": 30, "L2": 60, "L3": 90 }
     },
     {
       "id": "Lumber",
-      "sizeX": 2,
+      "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
-      "isProducer": true
+      "isProducer": true,
+      "capWood": { "L1": 40, "L2": 80, "L3": 120 }
+    },
+    {
+      "id": "Quarry",
+      "sizeX": 3,
+      "sizeY": 3,
+      "baseLevel": 1,
+      "isProducer": true,
+      "capStone": { "L1": 40, "L2": 80, "L3": 120 }
+    },
+    {
+      "id": "IronHut",
+      "sizeX": 3,
+      "sizeY": 3,
+      "baseLevel": 1,
+      "isProducer": true,
+      "capIron": { "L1": 30, "L2": 60, "L3": 90 }
+    },
+    {
+      "id": "Forge",
+      "sizeX": 3,
+      "sizeY": 3,
+      "baseLevel": 1,
+      "isProducer": true,
+      "capAmmo": { "L1": 50, "L2": 100, "L3": 150 }
+    },
+    {
+      "id": "Armory",
+      "sizeX": 3,
+      "sizeY": 3,
+      "baseLevel": 1,
+      "capAmmo": { "L1": 300, "L2": 600, "L3": 1000 }
     },
     {
       "id": "Warehouse",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
-      "isWarehouse": true
+      "isWarehouse": true,
+      "capWood": { "L1": 300, "L2": 600, "L3": 1000 },
+      "capFood": { "L1": 300, "L2": 600, "L3": 1000 },
+      "capStone": { "L1": 300, "L2": 600, "L3": 1000 },
+      "capIron": { "L1": 300, "L2": 600, "L3": 1000 },
+      "capAmmo": { "L1": 0, "L2": 0, "L3": 0 }
     }
   ]
 }

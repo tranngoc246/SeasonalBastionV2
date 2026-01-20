@@ -24,6 +24,14 @@ namespace SeasonalBastion
         }
 
         [Serializable]
+        private class StorageCapsJson
+        {
+            public int L1;
+            public int L2;
+            public int L3;
+        }
+
+        [Serializable]
         private sealed class BuildingJson
         {
             public string id;
@@ -38,6 +46,12 @@ namespace SeasonalBastion
             public bool isForge = false;
             public bool isArmory = false;
             public bool isTower = false;
+
+            public StorageCapsJson capWood;
+            public StorageCapsJson capFood;
+            public StorageCapsJson capStone;
+            public StorageCapsJson capIron;
+            public StorageCapsJson capAmmo;
         }
 
         public DataRegistry(DefsCatalog catalog)
@@ -130,7 +144,12 @@ namespace SeasonalBastion
                     IsHouse = bj.isHouse,
                     IsForge = bj.isForge,
                     IsArmory = bj.isArmory,
-                    IsTower = bj.isTower
+                    IsTower = bj.isTower,
+                    CapWood = ToCaps(bj.capWood),
+                    CapFood = ToCaps(bj.capFood),
+                    CapStone = ToCaps(bj.capStone),
+                    CapIron = ToCaps(bj.capIron),
+                    CapAmmo = ToCaps(bj.capAmmo)
                 };
 
                 // If duplicates exist, last wins (deterministic by file order).
@@ -155,6 +174,12 @@ namespace SeasonalBastion
         {
             def = null;
             return false;
+        }
+
+        private static StorageCapsByLevel ToCaps(StorageCapsJson j)
+        {
+            if (j == null) return default;
+            return new StorageCapsByLevel { L1 = j.L1, L2 = j.L2, L3 = j.L3 };
         }
 
         public BuildingDef GetBuilding(string id)

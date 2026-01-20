@@ -467,3 +467,91 @@
   - Debug UI: chọn building → xem snapshot storage
   
 ---
+
+## Day 9 — Storage Baseline (Caps L1/L2/L3) + Debug Storage HUD + AutoPlaceOnPlay
+
+### Mục tiêu (theo PART27 – Day 9)
+- [x] Implement Storage baseline:
+  - [x] `BuildingState` có amounts theo resource.
+  - [x] `BuildingDef` có caps theo level (L1/L2/L3).
+  - [x] `StorageService`:
+    - [x] `GetStorage` snapshot (amount + cap)
+    - [x] `Add/Remove` clamp theo cap
+    - [x] `GetTotal` tổng theo resource
+    - [x] Rule: **HQ/Warehouse không chứa Ammo** (v0.1)
+- [x] Debug:
+  - [x] `DebugStorageHUD` hiển thị snapshot storage theo building.
+  - [x] Có nút debug **Add resource** vào building.
+  - [x] Fix input theo **New Input System** (không dùng `UnityEngine.Input`).
+
+### Đã làm
+
+#### 1) Storage caps (LOCKED data)
+- [v] Bổ sung caps theo bảng **Local Storage Caps (L1/L2/L3)** vào `Buildings.json`:
+  - Farm/Food: 30/60/90
+  - Lumber/Wood: 40/80/120
+  - Quarry/Stone: 40/80/120
+  - IronHut/Iron: 30/60/90
+  - Forge/Ammo: 50/100/150
+  - Armory/Ammo: 300/600/1000
+  - Warehouse: Wood/Food/Stone/Iron = 300/600/1000 each
+  - HQ (core only): Wood/Food/Stone/Iron = 120/180/240 each, **Ammo = 0**
+- [v] Giữ rule: HQ **không chứa Ammo** để rõ pipeline v0.1.
+
+#### 2) `StorageService` (core)
+- [v] Map theo interface hiện tại (`IWorldState`, `IDataRegistry`, `IEventBus`) và implement:
+  - `CanStore(building, type)`:
+    - check cap > 0 theo level
+    - hard-rule: HQ/Warehouse **forbid ammo**
+    - harden: ammo chỉ hợp lệ ở Forge/Armory (nếu def có tag)
+  - `GetCap/GetAmount/GetStorage`
+  - `Add/Remove` clamp theo cap/amount, trả về số thực tế add/remove
+  - `GetTotal(type)` deterministic (iterate `_w.Buildings.Ids`)
+- [v] Publish `ResourceDeliveredEvent` khi add vào **HQ/Warehouse** (phục vụ UI/notification về sau).
+
+#### 3) `DebugStorageHUD` (debug UX)
+- [v] Fix input: bỏ `UnityEngine.Input.GetKeyDown` → dùng `UnityEngine.InputSystem.Keyboard`.
+- [v] Tái cấu trúc `OnGUI()`:
+  - 1 panel duy nhất (không chồng `BeginArea`)
+  - status debug: enabled/toggleKey + `Keyboard.current` + `MouseCellSharedState.HasValue`
+- [v] Fix race boot:
+  - Lazy resolve `GameBootstrap.Services` khi `_gs == null` (tránh Awake order).
+- [v] Thêm “Lock building” để bấm UI không mất hover:
+  - phím `L` lock/unlock target building
+  - UI render theo `target` (locked/hover), hover chỉ làm info phụ
+- [v] Thêm cụm nút debug **Add resource**:
+  - nhập amount (TextField) + preset 10/50/100
+  - buttons: Wood/Food/Stone/Iron/Ammo
+  - gọi `StorageService.Add()` + log `added=...`
+  - clamp + rule ammo(HQ/Warehouse) tự enforced (added=0).
+
+#### 4) Auto place khi Play (tool runtime)
+- [v] Tạo `AutoPlaceOnPlay` (MonoBehaviour debug) để đặt **RoadLine** + **Buildings** khi nhấn Play:
+  - Road place qua `PlacementService.PlaceRoad/CanPlaceRoad`
+  - Building commit qua `PlacementService.ValidateBuilding/CommitBuilding`
+  - In log fail reason + `suggestedRoadCell` để chỉnh layout nhanh
+- [v] Fix serialization Inspector:
+  - dùng `Vector2Int` cho From/To/Anchor (Inspector-friendly) → convert sang `CellPos` runtime.
+
+### Kết quả / Acceptance
+- [v] Storage snapshot hiển thị đúng cap/amount theo building đang chọn (hover hoặc locked).
+- [v] Add resource bằng nút trong HUD:
+  - không vượt cap (clamp chuẩn)
+  - HQ/Warehouse không nhận Ammo (added=0)
+- [v] HUD không còn mất target khi rê chuột sang UI (lock bằng `L`).
+- [v] Không còn lỗi `UnityEngine.Input` khi project dùng New Input System.
+- [v] Auto place road/buildings chạy khi Play để test nhanh pipeline placement + storage.
+
+### Ghi chú / Pitfalls
+- Nếu HUD báo `MouseCellSharedState.HasValue = false`:
+  - cần có `DebugGameViewMouseCellTracker` trong scene để cập nhật cell hover.
+- Nếu `_gs == null` lúc đầu:
+  - do Awake order; đã fix bằng lazy resolve (sau 1–2 frame sẽ tự có).
+- Khi HQ size lớn (ví dụ 5x5), layout auto place dễ gặp `Overlap`:
+  - dựa `suggestedRoadCell` trong log để chỉnh road/anchor nhanh.
+
+### Việc tiếp theo (Day 10)
+- Resource flow/transfer baseline:
+  - transfer giữa producer local storage → warehouse/HQ
+  - chuẩn bị cho CarryAmount + Haul jobs (Day 11–12).
+

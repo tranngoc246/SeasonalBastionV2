@@ -1,4 +1,3 @@
-// PATCH v0.1.2 — Contracts canonical BuildingState
 namespace SeasonalBastion.Contracts
 {
     public struct BuildingState
@@ -9,5 +8,10 @@ namespace SeasonalBastion.Contracts
         public Dir4 Rotation;
         public int Level;
         public bool IsConstructed;
+        public int Wood;
+        public int Food;
+        public int Stone;
+        public int Iron;
+        public int Ammo;
     }
 }

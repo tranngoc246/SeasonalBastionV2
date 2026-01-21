@@ -30,10 +30,10 @@ namespace SeasonalBastion.DebugTools
         public void SetHubControlled(bool v) => _hubControlled = v;
         public void SetEnabledFromHub(bool enabled) { _enabled = enabled; }
 
-
         private InputAction _toggle; // N
         private InputAction _spawn;  // P
         private InputAction _click;  // LMB
+        private InputAction _release; // R
 
         private Camera _cam;
         private bool _enabled;
@@ -62,6 +62,7 @@ namespace SeasonalBastion.DebugTools
             _toggle = new InputAction("ToggleNpcTool", InputActionType.Button, "<Keyboard>/n");
             _spawn = new InputAction("SpawnNpc", InputActionType.Button, "<Keyboard>/p");
             _click = new InputAction("AssignNpc", InputActionType.Button, "<Mouse>/leftButton");
+            _release = new InputAction("ReleaseAllClaimsSelectedNpc", InputActionType.Button, "<Keyboard>/r");
         }
 
         private void Start()
@@ -84,10 +85,13 @@ namespace SeasonalBastion.DebugTools
             _toggle.Enable();
             _spawn.Enable();
             _click.Enable();
+            _release.Enable();
 
             _toggle.performed += OnToggle;
             _spawn.performed += OnSpawn;
             _click.performed += OnClick;
+            _release.performed += OnReleaseAllClaims;
+
         }
 
         private void OnDisable()
@@ -95,10 +99,12 @@ namespace SeasonalBastion.DebugTools
             _toggle.performed -= OnToggle;
             _spawn.performed -= OnSpawn;
             _click.performed -= OnClick;
+            _release.performed -= OnReleaseAllClaims;
 
             _toggle.Disable();
             _spawn.Disable();
             _click.Disable();
+            _release.Disable();
 
             _enabled = false;
             _hasSelectedNpc = false;
@@ -218,6 +224,32 @@ namespace SeasonalBastion.DebugTools
 
             _noti?.Push($"NpcAssigned_{_selectedNpc.Value}", "NPC",
                 $"NPC #{_selectedNpc.Value} assigned to Building #{buildingId.Value}",
+                NotificationSeverity.Info, default, 0.15f, true);
+        }
+
+        private void OnReleaseAllClaims(InputAction.CallbackContext _)
+        {
+            if (!_enabled) return;
+
+            if (!_hasSelectedNpc) return;
+
+            if (_world == null || _claims == null) return;
+
+            if (!_world.Npcs.Exists(_selectedNpc))
+            {
+                _hasSelectedNpc = false;
+                return;
+            }
+
+            _claims.ReleaseAll(_selectedNpc);
+
+            var npc = _world.Npcs.Get(_selectedNpc);
+            npc.IsIdle = true;
+            npc.CurrentJob = default;
+            _world.Npcs.Set(_selectedNpc, npc);
+
+            _noti?.Push("ClaimsReleaseAll_Hotkey", "Claims",
+                $"Released all claims for NPC #{_selectedNpc.Value} (R)",
                 NotificationSeverity.Info, default, 0.15f, true);
         }
 

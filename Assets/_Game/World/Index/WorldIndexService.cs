@@ -91,7 +91,6 @@ namespace SeasonalBastion
             if (isWarehouse) AddUniqueSorted(_warehouses, _warehousesSet, id.Value, id);
             if (isProducer) AddUniqueSorted(_producers, _producersSet, id.Value, id);
             if (IsHouse) AddUniqueSorted(_houses, _housesSet, id.Value, id);
-            if (isProducer) AddUniqueSorted(_producers, _producersSet, id.Value, id);
             if (isForge) AddUniqueSorted(_forges, _forgesSet, id.Value, id);
             if (isArmory) AddUniqueSorted(_armories, _armoriesSet, id.Value, id);
 
@@ -176,11 +175,18 @@ namespace SeasonalBastion
             // VS#1 fallback by known ids (keeps game playable even if defs are minimal).
             isHQ = string.Equals(defId, "HQ", StringComparison.OrdinalIgnoreCase);
             isWarehouse = string.Equals(defId, "Warehouse", StringComparison.OrdinalIgnoreCase);
-            isProducer = string.Equals(defId, "Farm", StringComparison.OrdinalIgnoreCase)
-                      || string.Equals(defId, "Lumber", StringComparison.OrdinalIgnoreCase);
+
+            // Producers in v0.1 (Buildings.json): Farm, Lumber, Quarry, IronHut, Forge
+            isProducer =
+                   string.Equals(defId, "Farm", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(defId, "Lumber", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(defId, "Quarry", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(defId, "IronHut", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(defId, "Forge", StringComparison.OrdinalIgnoreCase);
+
             IsHouse = string.Equals(defId, "House", StringComparison.OrdinalIgnoreCase);
-            isForge = false;
-            isArmory = false;
+            isForge = string.Equals(defId, "Forge", StringComparison.OrdinalIgnoreCase);
+            isArmory = string.Equals(defId, "Armory", StringComparison.OrdinalIgnoreCase);
             isTower = false;
         }
 

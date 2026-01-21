@@ -1,7 +1,3 @@
-// AUTO-GENERATED SKELETON TEMPLATE from PART 26 (LOCKED v0.1)
-// Source: PART26_Concrete_Class_Skeletons_Scaffolds_LOCKED_SPEC_v0.1.md
-// Notes: Runtime scaffolds only. Fill TODOs during implementation.
-
 using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
@@ -11,16 +7,139 @@ namespace SeasonalBastion
     public sealed class HarvestExecutor : IJobExecutor
     {
         private readonly GameServices _s;
-        public HarvestExecutor(GameServices s){ _s = s; }
+
+        // jobId -> remaining work seconds
+        private readonly Dictionary<int, float> _remaining = new();
+
+        public HarvestExecutor(GameServices s) { _s = s; }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
-            // TODO:
-            // - move to producer target
-            // - work timer
-            // - on complete: add to producer local storage
-            // - mark job completed
-            return false;
+            if (_s.WorldState == null || _s.StorageService == null)
+            {
+                job.Status = JobStatus.Failed;
+                return true;
+            }
+
+            var producer = job.Workplace;
+            if (producer.Value == 0 || !_s.WorldState.Buildings.Exists(producer))
+            {
+                job.Status = JobStatus.Failed;
+                return true;
+            }
+
+            var bs = _s.WorldState.Buildings.Get(producer);
+            if (!bs.IsConstructed)
+            {
+                job.Status = JobStatus.Failed;
+                return true;
+            }
+
+            // Day12 harvest subset only
+            if (!IsHarvestProducer(bs.DefId))
+            {
+                job.Status = JobStatus.Cancelled;
+                return true;
+            }
+
+            var rt = HarvestResourceType(bs.DefId);
+            GetHarvestParams(bs.DefId, NormalizeLevel(bs.Level), out float workSec, out int yield);
+
+            // Claim producer node
+            if (_s.ClaimService != null)
+            {
+                var key = new ClaimKey(ClaimKind.ProducerNode, producer.Value, (int)rt);
+                if (!_s.ClaimService.TryAcquire(key, npc))
+                    return false; // waiting
+            }
+
+            // Teleport to anchor
+            npcState.Cell = bs.Anchor;
+
+            job.SourceBuilding = producer;
+            job.ResourceType = rt;
+            job.TargetCell = bs.Anchor;
+            job.Status = JobStatus.InProgress;
+
+            int jid = job.Id.Value;
+            if (!_remaining.TryGetValue(jid, out var rem))
+                rem = workSec;
+
+            rem -= dt;
+            if (rem > 0f)
+            {
+                _remaining[jid] = rem;
+                return true;
+            }
+
+            _remaining.Remove(jid);
+
+            // Complete => add to producer local storage
+            int added = _s.StorageService.Add(producer, rt, yield);
+            job.Amount = yield;
+
+            job.Status = (added > 0) ? JobStatus.Completed : JobStatus.Failed;
+            return true;
+        }
+
+        private static void GetHarvestParams(string defId, int level, out float workSec, out int yield)
+        {
+            // PART27 Day12 defaults (LOCKED tables)
+            if (EqualsIgnoreCase(defId, "Farm"))
+            {
+                workSec = 6f;
+                yield = level == 1 ? 6 : level == 2 ? 8 : 10;
+                return;
+            }
+
+            if (EqualsIgnoreCase(defId, "Lumber"))
+            {
+                workSec = 4f;
+                yield = level == 1 ? 6 : level == 2 ? 8 : 10;
+                return;
+            }
+
+            if (EqualsIgnoreCase(defId, "Quarry"))
+            {
+                workSec = 5f;
+                yield = level == 1 ? 6 : level == 2 ? 8 : 10;
+                return;
+            }
+
+            if (EqualsIgnoreCase(defId, "IronHut"))
+            {
+                workSec = 6f;
+                yield = level == 1 ? 4 : level == 2 ? 6 : 8;
+                return;
+            }
+
+            workSec = 6f;
+            yield = 6;
+        }
+
+        private static bool IsHarvestProducer(string defId)
+        {
+            return EqualsIgnoreCase(defId, "Farm")
+                || EqualsIgnoreCase(defId, "Lumber")
+                || EqualsIgnoreCase(defId, "Quarry")
+                || EqualsIgnoreCase(defId, "IronHut");
+        }
+
+        private static ResourceType HarvestResourceType(string defId)
+        {
+            if (EqualsIgnoreCase(defId, "Farm")) return ResourceType.Food;
+            if (EqualsIgnoreCase(defId, "Lumber")) return ResourceType.Wood;
+            if (EqualsIgnoreCase(defId, "Quarry")) return ResourceType.Stone;
+            if (EqualsIgnoreCase(defId, "IronHut")) return ResourceType.Iron;
+            return ResourceType.Food;
+        }
+
+        private static int NormalizeLevel(int level) => level <= 0 ? 1 : (level > 3 ? 3 : level);
+
+        private static bool EqualsIgnoreCase(string a, string b)
+        {
+            if (a == null || b == null) return false;
+            return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

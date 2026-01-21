@@ -24,22 +24,23 @@ namespace SeasonalBastion
 
         public void ReleaseAll(NpcId owner)
         {
-            if (owner.Value == 0) return;
             if (_map.Count == 0) return;
 
-            // Copy keys to avoid modifying dictionary during enumeration
-            var toRemove = new List<ClaimKey>();
+            List<ClaimKey> toRemove = null;
 
             foreach (var kv in _map)
             {
-                if (kv.Value.Value == owner.Value)
-                    toRemove.Add(kv.Key);
+                if (kv.Value.Value != owner.Value) continue;
+
+                toRemove ??= new List<ClaimKey>(8);
+                toRemove.Add(kv.Key);
             }
+
+            if (toRemove == null) return;
 
             for (int i = 0; i < toRemove.Count; i++)
                 _map.Remove(toRemove[i]);
         }
-
 
         public int ActiveClaimsCount => _map.Count;
     }

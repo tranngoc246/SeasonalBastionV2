@@ -284,6 +284,7 @@ MonoBehaviour:
   _lockKey: 26
   _addAmountDefault: 50
   _hubControlled: 0
+  _freezeFromKey: 20
 --- !u!1 &385074214
 GameObject:
   m_ObjectHideFlags: 0
@@ -333,32 +334,44 @@ MonoBehaviour:
   _delayFrames: 1
   _enforceNoRoadIslands: 1
   _roads:
-  - From: {x: 10, y: 1}
-    To: {x: 10, y: 10}
-  - From: {x: 10, y: 1}
-    To: {x: 15, y: 1}
+  - From: {x: 9, y: 1}
+    To: {x: 9, y: 10}
+  - From: {x: 9, y: 0}
+    To: {x: 17, y: 0}
   - From: {x: 10, y: 10}
     To: {x: 15, y: 10}
-  - From: {x: 10, y: 5}
-    To: {x: 1, y: 5}
+  - From: {x: 9, y: 5}
+    To: {x: 2, y: 5}
   _buildings:
   - DefId: HQ
-    Anchor: {x: 13, y: 3}
+    Anchor: {x: 15, y: 2}
     Rotation: 2
   - DefId: House
     Anchor: {x: 14, y: 12}
     Rotation: 2
   - DefId: Farm
-    Anchor: {x: 0, y: 1}
+    Anchor: {x: 1, y: 1}
     Rotation: 0
   - DefId: Lumber
     Anchor: {x: 5, y: 1}
     Rotation: 0
   - DefId: Warehouse
-    Anchor: {x: 0, y: 7}
+    Anchor: {x: 1, y: 7}
     Rotation: 2
   - DefId: Warehouse
     Anchor: {x: 5, y: 7}
+    Rotation: 2
+  - DefId: Quarry
+    Anchor: {x: 11, y: 2}
+    Rotation: 3
+  - DefId: IronHut
+    Anchor: {x: 11, y: 6}
+    Rotation: 3
+  - DefId: Forge
+    Anchor: {x: 17, y: 9}
+    Rotation: 3
+  - DefId: Armory
+    Anchor: {x: 10, y: 12}
     Rotation: 2
 --- !u!1 &519420028
 GameObject:
@@ -466,7 +479,7 @@ Camera:
   far clip plane: 1000
   field of view: 34
   orthographic: 1
-  orthographic size: 5
+  orthographic size: 10
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2

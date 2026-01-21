@@ -2,6 +2,27 @@ using System;
 
 namespace SeasonalBastion.Contracts
 {
+    [Flags]
+    public enum WorkRoleFlags
+    {
+        None = 0,
+
+        // Producer jobs
+        Harvest = 1 << 0,
+
+        // Logistics jobs
+        HaulBasic = 1 << 1,
+
+        // Construction jobs (Sprint 2+)
+        Build = 1 << 2,
+
+        // Craft / ammo pipeline (Sprint 3+)
+        Craft = 1 << 3,
+
+        // Armory / resupply pipeline (Sprint 3+)
+        Armory = 1 << 4,
+    }
+
     public sealed class BuildingDef
     {
         public string DefId = "";
@@ -16,6 +37,12 @@ namespace SeasonalBastion.Contracts
         public bool IsForge = false;
         public bool IsArmory = false;
         public bool IsTower = false;
+
+        // Day13: workplace role gating (LOCKED)
+        // HQ: Build|HaulBasic (VS#1 uses HaulBasic)
+        // Producer: Harvest
+        // Warehouse: HaulBasic
+        public WorkRoleFlags WorkRoles = WorkRoleFlags.None;
 
         public StorageCapsByLevel CapWood;
         public StorageCapsByLevel CapFood;

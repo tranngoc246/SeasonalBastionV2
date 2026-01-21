@@ -7,6 +7,8 @@ namespace SeasonalBastion
     {
         private readonly Dictionary<int, Job> _jobs = new();
         private readonly Dictionary<int, Queue<int>> _queues = new();
+        // Reused buffer for scans (avoid per-call allocations)
+        private readonly List<int> _scanBuf = new(64);
         private int _nextId = 1;
 
         public JobId Enqueue(Job job)
@@ -30,6 +32,39 @@ namespace SeasonalBastion
 
             int id = q.Peek();
             return _jobs.TryGetValue(id, out job);
+        }
+
+        /// <summary>
+        /// Day13: peek the first non-stale job in queue that is allowed by workplace roles.
+        /// Keeps queue order stable (no rotation side effects).
+        /// </summary>
+        public bool TryPeekForWorkplaceFiltered(BuildingId workplace, WorkRoleFlags allowed, out Job job)
+        {
+            job = default;
+            if (!_queues.TryGetValue(workplace.Value, out var q) || q.Count == 0) return false;
+
+            // We must preserve order. We do a single pass into _scanBuf, then restore.
+            _scanBuf.Clear();
+
+            int n = q.Count;
+            int candidate = 0;
+            for (int i = 0; i < n; i++)
+            {
+                int id = q.Dequeue();
+                if (!_jobs.TryGetValue(id, out var j)) continue;
+                if (IsStale(j.Status)) continue;
+
+                _scanBuf.Add(id);
+
+                if (candidate == 0 && IsAllowed(allowed, j.Archetype))
+                    candidate = id;
+            }
+
+            for (int i = 0; i < _scanBuf.Count; i++)
+                q.Enqueue(_scanBuf[i]);
+
+            if (candidate == 0) return false;
+            return _jobs.TryGetValue(candidate, out job);
         }
 
         public bool TryClaim(JobId id, NpcId npc)
@@ -67,6 +102,19 @@ namespace SeasonalBastion
             return s == JobStatus.Completed
                 || s == JobStatus.Failed
                 || s == JobStatus.Cancelled;
+        }
+
+        private static bool IsAllowed(WorkRoleFlags allowed, JobArchetype archetype)
+        {
+            return archetype switch
+            {
+                JobArchetype.Harvest => (allowed & WorkRoleFlags.Harvest) != 0,
+                JobArchetype.HaulBasic => (allowed & WorkRoleFlags.HaulBasic) != 0,
+                JobArchetype.BuildDeliver or JobArchetype.BuildWork => (allowed & WorkRoleFlags.Build) != 0,
+                JobArchetype.CraftAmmo => (allowed & WorkRoleFlags.Craft) != 0,
+                JobArchetype.ResupplyTower => (allowed & WorkRoleFlags.Armory) != 0,
+                _ => true,
+            };
         }
 
         private void CleanFront(Queue<int> q)

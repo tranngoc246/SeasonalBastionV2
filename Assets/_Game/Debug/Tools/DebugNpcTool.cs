@@ -215,9 +215,17 @@ namespace SeasonalBastion.DebugTools
             var buildingId = occ.Building;
 
             var npc = _world.Npcs.Get(_selectedNpc);
+
+            if (npc.CurrentJob.Value != 0)
+            {
+                ForceReleaseSelectedNpc("Assign", keepWorkplace: false);
+                npc = _world.Npcs.Get(_selectedNpc); // re-fetch sau force release
+            }
+
             npc.Workplace = buildingId;
             npc.IsIdle = true;
             npc.CurrentJob = default;
+
             _world.Npcs.Set(_selectedNpc, npc);
 
             _bus?.Publish(new NPCAssignedEvent(_selectedNpc, buildingId));
@@ -231,25 +239,42 @@ namespace SeasonalBastion.DebugTools
         {
             if (!_enabled) return;
 
+            var kb = Keyboard.current;
+            bool keepWorkplace = kb != null && (kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed);
+
+            ForceReleaseSelectedNpc(keepWorkplace ? "Ctrl+R" : "R", keepWorkplace);
+        }
+
+        private void ForceReleaseSelectedNpc(string source, bool keepWorkplace)
+        {
             if (!_hasSelectedNpc) return;
-
             if (_world == null || _claims == null) return;
-
-            if (!_world.Npcs.Exists(_selectedNpc))
-            {
-                _hasSelectedNpc = false;
-                return;
-            }
-
-            _claims.ReleaseAll(_selectedNpc);
+            if (!_world.Npcs.Exists(_selectedNpc)) { _hasSelectedNpc = false; return; }
 
             var npc = _world.Npcs.Get(_selectedNpc);
+
+            var curJobId = npc.CurrentJob;
+            if (curJobId.Value != 0 && _jobs != null && _jobs.TryGet(curJobId, out var job))
+            {
+                job.Status = JobStatus.Cancelled;
+                job.ClaimedBy = default;
+                _jobs.Update(job);
+            }
+
+            // Release claims
+            _claims.ReleaseAll(_selectedNpc);
+
+            // Reset npc state
             npc.IsIdle = true;
             npc.CurrentJob = default;
+
+            if (!keepWorkplace)
+                npc.Workplace = default;
+
             _world.Npcs.Set(_selectedNpc, npc);
 
-            _noti?.Push("ClaimsReleaseAll_Hotkey", "Claims",
-                $"Released all claims for NPC #{_selectedNpc.Value} (R)",
+            _noti?.Push("ClaimsReleaseAll", "Claims",
+                $"ForceRelease NPC #{_selectedNpc.Value} job={(curJobId.Value != 0 ? curJobId.Value : 0)} ({source})",
                 NotificationSeverity.Info, default, 0.15f, true);
         }
 
@@ -332,10 +357,7 @@ namespace SeasonalBastion.DebugTools
             {
                 if (GUILayout.Button("Release All Claims (Selected NPC)", GUILayout.Width(260)))
                 {
-                    _claims?.ReleaseAll(_selectedNpc);
-                    _noti?.Push("ClaimsReleaseAll", "Claims",
-                        $"Released all claims for NPC #{_selectedNpc.Value}",
-                        NotificationSeverity.Info, default, 0.15f, true);
+                    ForceReleaseSelectedNpc("Button", keepWorkplace: false);
                 }
 
                 var npc = _world.Npcs.Get(_selectedNpc);

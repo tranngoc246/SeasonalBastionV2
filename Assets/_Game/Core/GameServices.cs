@@ -1,4 +1,3 @@
-// PATCH v0.1.3 — Runtime service container (lives in Game.Core assembly)
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion

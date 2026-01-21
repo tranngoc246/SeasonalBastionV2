@@ -36,7 +36,14 @@ namespace SeasonalBastion
             services.ClaimService = new ClaimService();
             services.JobBoard = new JobBoard();
             var executorRegistry = new JobExecutorRegistry(services);
-            services.JobScheduler = new JobScheduler(services.WorldState, services.JobBoard, services.ClaimService, executorRegistry, services.EventBus);
+            services.JobScheduler = new JobScheduler(
+                services.WorldState,
+                services.JobBoard,
+                services.ClaimService,
+                executorRegistry,
+                services.EventBus,
+                services.DataRegistry,
+                services.NotificationService);
 
             // Build
             services.BuildOrderService = new BuildOrderService(services);

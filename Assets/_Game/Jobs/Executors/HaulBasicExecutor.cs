@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -8,7 +8,9 @@ namespace SeasonalBastion
     {
         private readonly GameServices _s;
 
-        private const int CarryCap = 10; // Deliverable_C HaulBasic L1
+        private const int CarryCap = 10;
+        private static bool IsWarehouseOnly(string defId) => EqualsIgnoreCase(defId, "Warehouse");
+        private static bool IsHQOnly(string defId) => EqualsIgnoreCase(defId, "HQ");
 
         // jobId -> phase (0 pickup, 1 deliver)
         private readonly Dictionary<int, byte> _phase = new();
@@ -27,34 +29,67 @@ namespace SeasonalBastion
             var rt = job.ResourceType;
 
             // ---------------------------
-            // 1) Choose destination dynamically (Warehouse/HQ)
+            // Destination selection (tuned):
+            // 1) Prefer workplace if workplace is WAREHOUSE and has space.
+            // 2) Else select destination near SOURCE anchor.
+            // 3) Prefer Warehouse over HQ (HQ only fallback).
             // ---------------------------
 
-            // Prefer workplace if it's a valid Warehouse/HQ.
-            // Otherwise still choose any Warehouse/HQ with free capacity.
-            if (!TryResolveBestDestination(rt, job.Workplace, out var chosenDest))
-            {
-                // All destinations full (or no warehouse/hq at all) -> cancel to avoid oscillation.
-                job.Status = JobStatus.Cancelled;
-                Cleanup(job.Id.Value);
-                return true;
-            }
+            // Resolve preferred workplace state (if any)
+            BuildingState prefState = default;
+            bool hasPrefState = job.Workplace.Value != 0
+                                && _s.WorldState.Buildings.Exists(job.Workplace)
+                                && (prefState = _s.WorldState.Buildings.Get(job.Workplace)).IsConstructed
+                                && IsWarehouseWorkplace(prefState.DefId);
 
-            // Update job.DestBuilding to chosen dest (sticky unless full later)
-            if (job.DestBuilding.Value == 0 || job.DestBuilding.Value != chosenDest.Value)
+            bool prefIsWarehouse = hasPrefState && IsWarehouseOnly(prefState.DefId);
+
+            // A) Workplace Warehouse has space => hard prefer it
+            if (prefIsWarehouse && GetDestFree(prefState, rt) > 0)
             {
-                // If switching, release old dest claim to avoid holding two.
-                if (_s.ClaimService != null && job.DestBuilding.Value != 0)
+                job.DestBuilding = job.Workplace;
+            }
+            else
+            {
+                // B) Need a source candidate to choose dest "near source"
+                EnsureSourceCandidate(ref job, rt, hasPrefState ? prefState.Anchor : npcState.Cell);
+                if (job.SourceBuilding.Value == 0)
                 {
-                    var oldKey = new ClaimKey(ClaimKind.StorageDest, job.DestBuilding.Value, (int)rt);
-                    _s.ClaimService.Release(oldKey, npc);
+                    // No source available now => wait
+                    return false;
                 }
 
-                job.DestBuilding = chosenDest;
+                if (!_s.WorldState.Buildings.Exists(job.SourceBuilding))
+                    return false;
+
+                var srcState0 = _s.WorldState.Buildings.Get(job.SourceBuilding);
+                if (!srcState0.IsConstructed || !IsHarvestProducer(srcState0.DefId))
+                    return false;
+
+                if (!TryResolveBestDestination(rt, job.Workplace, srcState0.Anchor, out var chosen))
+                {
+                    // No destination has space => cancel (avoid flicker)
+                    job.Status = JobStatus.Cancelled;
+                    Cleanup(job.Id.Value);
+                    return true;
+                }
+
+                // Switch dest (release old dest claim if switching)
+                if (job.DestBuilding.Value == 0 || job.DestBuilding.Value != chosen.Value)
+                {
+                    if (_s.ClaimService != null && job.DestBuilding.Value != 0)
+                    {
+                        var oldKey = new ClaimKey(ClaimKind.StorageDest, job.DestBuilding.Value, (int)rt);
+                        _s.ClaimService.Release(oldKey, npc);
+                    }
+                    job.DestBuilding = chosen;
+                }
             }
 
-            // Validate chosen dest state
-            if (!_s.WorldState.Buildings.Exists(chosenDest))
+            var chosenDest = job.DestBuilding;
+
+            // Validate chosen dest
+            if (chosenDest.Value == 0 || !_s.WorldState.Buildings.Exists(chosenDest))
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(job.Id.Value);
@@ -70,17 +105,36 @@ namespace SeasonalBastion
             }
 
             int free = GetDestFree(dstState, rt);
+
+            // Reroute if destination became full
             if (free <= 0)
             {
-                // Destination became full since resolve (rare but possible). Try once more.
-                if (!TryResolveBestDestination(rt, job.Workplace, out chosenDest))
+                // refPos ưu tiên SOURCE anchor (near resource), fallback pref anchor, fallback npc cell
+                CellPos refPos = hasPrefState ? prefState.Anchor : npcState.Cell;
+
+                if (job.SourceBuilding.Value != 0 && _s.WorldState.Buildings.Exists(job.SourceBuilding))
+                {
+                    var ss = _s.WorldState.Buildings.Get(job.SourceBuilding);
+                    if (ss.IsConstructed) refPos = ss.Anchor;
+                }
+
+                if (!TryResolveBestDestination(rt, job.Workplace, refPos, out var reroute))
                 {
                     job.Status = JobStatus.Cancelled;
                     Cleanup(job.Id.Value);
                     return true;
                 }
 
-                job.DestBuilding = chosenDest;
+                // Release old dest claim before switching
+                if (_s.ClaimService != null && chosenDest.Value != 0)
+                {
+                    var oldKey = new ClaimKey(ClaimKind.StorageDest, chosenDest.Value, (int)rt);
+                    _s.ClaimService.Release(oldKey, npc);
+                }
+
+                job.DestBuilding = reroute;
+                chosenDest = reroute;
+
                 dstState = _s.WorldState.Buildings.Get(chosenDest);
                 free = GetDestFree(dstState, rt);
 
@@ -92,12 +146,12 @@ namespace SeasonalBastion
                 }
             }
 
-            // Hold dest claim during job
+            // Hold dest claim during job (teleport model)
             if (_s.ClaimService != null)
             {
                 var destKey = new ClaimKey(ClaimKind.StorageDest, chosenDest.Value, (int)rt);
                 if (!_s.ClaimService.TryAcquire(destKey, npc))
-                    return false; // waiting
+                    return false;
             }
 
             int jid = job.Id.Value;
@@ -105,7 +159,7 @@ namespace SeasonalBastion
 
             if (ph == 0)
             {
-                // Clamp amount by free capacity (prevents pickup when dest can't take it)
+                // Clamp amount by free capacity
                 int want = CarryCap;
                 if (free < want) want = free;
                 if (want <= 0)
@@ -115,13 +169,11 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                // pick source lazily
+                // pick source lazily (ensure it has >= want)
                 if (job.SourceBuilding.Value == 0)
                 {
-                    // require enough for this trip to avoid micro-haul hiding producer growth
                     if (!TryPickBestHarvestProducerSource(dstState.Anchor, rt, want, out var src))
-                        return false; // nothing suitable now
-
+                        return false;
                     job.SourceBuilding = src;
                 }
 
@@ -133,19 +185,33 @@ namespace SeasonalBastion
                 if (!srcState.IsConstructed || !IsHarvestProducer(srcState.DefId))
                     return false;
 
-                // pickup claim
+                // Ensure enough at source; if not, repick
+                if (GetAmountFromBuilding(srcState, rt) < want)
+                {
+                    if (!TryPickBestHarvestProducerSource(srcState.Anchor, rt, want, out var repick))
+                        return false;
+
+                    job.SourceBuilding = repick;
+                    srcId = repick;
+
+                    if (!_s.WorldState.Buildings.Exists(srcId))
+                        return false;
+                    srcState = _s.WorldState.Buildings.Get(srcId);
+                    if (!srcState.IsConstructed || !IsHarvestProducer(srcState.DefId))
+                        return false;
+                }
+
+                // pickup
                 if (_s.ClaimService != null)
                 {
                     var srcKey = new ClaimKey(ClaimKind.StorageSource, srcId.Value, (int)rt);
                     if (!_s.ClaimService.TryAcquire(srcKey, npc))
                         return false;
 
-                    // Teleport to source
                     npcState.Cell = srcState.Anchor;
 
                     int removed = _s.StorageService.Remove(srcId, rt, want);
 
-                    // release pickup claim immediately (teleport model)
                     _s.ClaimService.Release(srcKey, npc);
 
                     if (removed <= 0)
@@ -163,7 +229,8 @@ namespace SeasonalBastion
                     npcState.Cell = srcState.Anchor;
 
                     int removed = _s.StorageService.Remove(srcId, rt, want);
-                    if (removed <= 0) return false;
+                    if (removed <= 0)
+                        return false;
 
                     _carry[jid] = removed;
                     _phase[jid] = 1;
@@ -183,7 +250,6 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                // teleport to dest
                 npcState.Cell = dstState.Anchor;
 
                 int added = _s.StorageService.Add(chosenDest, rt, carried);
@@ -201,40 +267,46 @@ namespace SeasonalBastion
             }
         }
 
+
         /// <summary>
+
+        /// <summary>
+        /// Ensures job.SourceBuilding has a candidate so we can choose destination near SOURCE.
+        /// This uses minRequired=1 (only to get an anchor), later pickup will repick/validate against CarryCap.
+        /// </summary>
+        private void EnsureSourceCandidate(ref Job job, ResourceType rt, CellPos from)
+        {
+            if (job.SourceBuilding.Value != 0) return;
+
+            if (TryPickBestHarvestProducerSource(from, rt, 1, out var src))
+                job.SourceBuilding = src;
+        }
+
         /// Pick a destination Warehouse/HQ with free capacity for rt.
         /// Prefer Workplace if it's a valid Warehouse/HQ and has space.
         /// Deterministic: nearest to preferred anchor, tie-break by BuildingId.
         /// </summary>
-        private bool TryResolveBestDestination(ResourceType rt, BuildingId preferredWorkplace, out BuildingId best)
+        private bool TryResolveBestDestination(ResourceType rt, BuildingId preferredWorkplace, CellPos refPos, out BuildingId best)
         {
             best = default;
 
-            var whs = _s.WorldIndex.Warehouses; // should include HQ too if WorldIndexService tags it as warehouse
+            var whs = _s.WorldIndex.Warehouses; // includes HQ (WorldIndexService tags HQ as warehouse destination)
             if (whs == null || whs.Count == 0) return false;
 
-            // Preferred anchor = workplace anchor if valid, else (0,0)
-            CellPos prefAnchor = default;
-            bool hasPref = preferredWorkplace.Value != 0
-                           && _s.WorldState.Buildings.Exists(preferredWorkplace)
-                           && _s.WorldState.Buildings.Get(preferredWorkplace).IsConstructed
-                           && IsWarehouseWorkplace(_s.WorldState.Buildings.Get(preferredWorkplace).DefId);
-
-            if (hasPref)
+            // 0) Preferred workplace: ONLY hard-prefer if it is a Warehouse (not HQ) and has space
+            if (preferredWorkplace.Value != 0 && _s.WorldState.Buildings.Exists(preferredWorkplace))
             {
                 var ps = _s.WorldState.Buildings.Get(preferredWorkplace);
-                prefAnchor = ps.Anchor;
-
-                // If preferred has space, take it immediately
-                if (GetDestFree(ps, rt) > 0)
+                if (ps.IsConstructed && IsWarehouseOnly(ps.DefId) && GetDestFree(ps, rt) > 0)
                 {
                     best = preferredWorkplace;
                     return true;
                 }
             }
 
-            int bestDist = int.MaxValue;
-            int bestId = int.MaxValue;
+            int bestDistWh = int.MaxValue, bestIdWh = int.MaxValue;
+            int bestDistHq = int.MaxValue, bestIdHq = int.MaxValue;
+            BuildingId bestWh = default, bestHq = default;
 
             for (int i = 0; i < whs.Count; i++)
             {
@@ -248,19 +320,30 @@ namespace SeasonalBastion
                 int free = GetDestFree(bs, rt);
                 if (free <= 0) continue;
 
-                // distance from preferred anchor if exists, else from this building's anchor (tie-break by id only)
-                int d = hasPref ? Manhattan(prefAnchor, bs.Anchor) : 0;
+                int d = Manhattan(refPos, bs.Anchor);
                 int idv = bid.Value;
 
-                if (d < bestDist || (d == bestDist && idv < bestId))
+                if (IsWarehouseOnly(bs.DefId))
                 {
-                    bestDist = d;
-                    bestId = idv;
-                    best = bid;
+                    if (d < bestDistWh || (d == bestDistWh && idv < bestIdWh))
+                    {
+                        bestDistWh = d; bestIdWh = idv; bestWh = bid;
+                    }
+                }
+                else if (IsHQOnly(bs.DefId))
+                {
+                    if (d < bestDistHq || (d == bestDistHq && idv < bestIdHq))
+                    {
+                        bestDistHq = d; bestIdHq = idv; bestHq = bid;
+                    }
                 }
             }
 
-            return best.Value != 0;
+            // Warehouse > HQ
+            if (bestWh.Value != 0) { best = bestWh; return true; }
+            if (bestHq.Value != 0) { best = bestHq; return true; }
+
+            return false;
         }
 
         private bool TryPickBestHarvestProducerSource(CellPos from, ResourceType rt, int minRequired, out BuildingId best)

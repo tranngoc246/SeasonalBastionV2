@@ -7,6 +7,7 @@
       "baseLevel": 1,
       "isHQ": true,
       "isWarehouse": true,
+      "workRoles": ["Build", "HaulBasic"],
       "capWood": { "L1": 120, "L2": 180, "L3": 240 },
       "capFood": { "L1": 120, "L2": 180, "L3": 240 },
       "capStone": { "L1": 120, "L2": 180, "L3": 240 },
@@ -18,7 +19,8 @@
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
-      "isHouse": true
+      "isHouse": true,
+      "workRoles": []
     },
     {
       "id": "Farm",
@@ -26,6 +28,7 @@
       "sizeY": 3,
       "baseLevel": 1,
       "isProducer": true,
+      "workRoles": ["Harvest"],
       "capFood": { "L1": 30, "L2": 60, "L3": 90 }
     },
     {
@@ -34,6 +37,7 @@
       "sizeY": 3,
       "baseLevel": 1,
       "isProducer": true,
+      "workRoles": ["Harvest"],
       "capWood": { "L1": 40, "L2": 80, "L3": 120 }
     },
     {
@@ -42,6 +46,7 @@
       "sizeY": 3,
       "baseLevel": 1,
       "isProducer": true,
+      "workRoles": ["Harvest"],
       "capStone": { "L1": 40, "L2": 80, "L3": 120 }
     },
     {
@@ -50,6 +55,7 @@
       "sizeY": 3,
       "baseLevel": 1,
       "isProducer": true,
+      "workRoles": ["Harvest"],
       "capIron": { "L1": 30, "L2": 60, "L3": 90 }
     },
     {
@@ -57,7 +63,8 @@
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
-      "isProducer": true,
+      "isForge": true,
+      "workRoles": ["Craft"],
       "capAmmo": { "L1": 50, "L2": 100, "L3": 150 }
     },
     {
@@ -65,6 +72,8 @@
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
+      "isArmory": true,
+      "workRoles": ["Armory"],
       "capAmmo": { "L1": 300, "L2": 600, "L3": 1000 }
     },
     {
@@ -73,6 +82,7 @@
       "sizeY": 3,
       "baseLevel": 1,
       "isWarehouse": true,
+      "workRoles": ["HaulBasic"],
       "capWood": { "L1": 300, "L2": 600, "L3": 1000 },
       "capFood": { "L1": 300, "L2": 600, "L3": 1000 },
       "capStone": { "L1": 300, "L2": 600, "L3": 1000 },

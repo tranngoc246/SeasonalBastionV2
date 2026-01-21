@@ -708,7 +708,7 @@
 
 ---
 
-## Day 12 — JobScheduler (Harvest + HaulBasic) + Haul reroute đa kho (Warehouse/HQ) + Fix flicker/full-dest
+## Day 12 — JobScheduler (Harvest + HaulBasic) + Haul reroute đa kho + DebugNpcTool ForceStop/SoftReset + Fix ưu tiên Dest (Workplace→NearSource, Warehouse>HQ)
 
 ### Mục tiêu (theo PART27 – Day 12)
 - [x] Job pipeline chạy thực:
@@ -721,58 +721,82 @@
 - [x] Fix hiện tượng:
   - [x] Producer “không tăng” do micro-haul hút ngay khi vừa có hàng.
   - [x] “Nhấp nháy liên tục” khi dest full (pickup → deliver fail/refund → loop).
-- [x] Hauler có thể giao sang **Warehouse/HQ khác còn chỗ** (không kẹt tại 1 kho được gán).
+- [x] Hauler giao sang **Warehouse/HQ khác còn chỗ** (không kẹt tại 1 kho duy nhất).
+- [x] Debug control ổn định:
+  - [x] Hotkey reset NPC không gây hiểu nhầm “không có tác dụng”.
 
 ---
 
 ### Đã làm
-- [v] **Fix tick wiring JobScheduler**
-  - [v] Sửa `TickOrder` gọi `JobScheduler.Tick(dt)` trực tiếp (không cast `ITickable` gây fail → không tick).
-  - [v] Xác nhận TickOrder/JobScheduler chạy qua debug log (không spam).
-- [v] **JobScheduler — enqueue/assign/tick deterministic**
-  - [v] Sort NPC/Building ids theo `Id.Value` để deterministic.
-  - [v] Build `workplacesWithNpc` để chỉ enqueue khi workplace có NPC.
-  - [v] Enqueue `Harvest` (1 job/workplace) cho producer **constructed** + local chưa full cap.
-  - [v] Enqueue `HaulBasic` cho Warehouse/HQ workplace (1 job / (workplace, resourceType)).
-  - [v] Assign job cho NPC Idle bằng `TryPeekForWorkplace` + `TryClaim`.
-  - [v] Tick executor theo `job.Archetype`, update job, cleanup terminal: `ReleaseAll(npc)` tránh leak claims.
-- [v] **HaulBasicExecutor — anti-flicker + batch hauling**
-  - [v] Clamp lượng pickup theo free capacity của dest (LOCKED caps).
-  - [v] Cancel sớm nếu dest không còn chỗ → tránh loop “pickup/deliver/refund” gây nhấp nháy.
-  - [v] Chọn source yêu cầu đủ lượng cho 1 chuyến (giảm micro-haul làm producer nhìn “không tăng”).
-- [v] **Reroute destination đa kho (Warehouse/HQ)**
-  - [v] Cho phép `HaulBasicExecutor` chọn `DestBuilding` động:
-    - [v] Ưu tiên kho workplace nếu còn chỗ.
-    - [v] Nếu đầy → tìm Warehouse/HQ khác còn chỗ (deterministic: gần nhất + tie-break id).
-    - [v] Nếu tất cả kho/HQ đầy → Cancel (không pickup).
-  - [v] Điều chỉnh enqueue HaulBasic để không bị “đóng đinh” vào 1 kho duy nhất.
+
+#### 1) Fix tick wiring JobScheduler (không còn “tick order chạy nhưng scheduler không tick”)
+- [v] Sửa `TickOrder` gọi `JobScheduler.Tick(dt)` đúng path trong game loop (không dựa cast `ITickable` gây không log/không tick).
+- [v] Xác nhận `JobScheduler.Tick` chạy thực tế bằng debug log (không spam).
+
+#### 2) JobScheduler — enqueue/assign/tick deterministic + cleanup terminal
+- [v] Determinism:
+  - [v] Sort NPC/Building ids theo `Id.Value`.
+  - [v] `workplacesWithNpc`: chỉ enqueue jobs cho workplace có NPC assigned (giảm rác).
+- [v] Enqueue rules (1 job/workplace):
+  - [v] Producer: enqueue `Harvest` khi building constructed và local chưa full cap.
+  - [v] Warehouse/HQ: enqueue `HaulBasic` cho Wood/Food/Stone/Iron theo nhu cầu (space + có nguồn).
+- [v] Assign:
+  - [v] NPC Idle → peek job theo workplace queue (FIFO) → claim job → set `CurrentJob`.
+- [v] Cleanup terminal:
+  - [v] Khi job terminal (Completed/Cancelled/Failed) → release claims của NPC (anti-leak/softlock).
+
+#### 3) HaulBasicExecutor — anti-flicker + batch hauling + clamp theo cap (LOCKED)
+- [v] Clamp lượng pickup theo **free capacity** của destination (không pickup nếu dest không thể nhận).
+- [v] Nếu dest full → **cancel sớm trước pickup** (tránh loop pickup/deliver/refund gây nhấp nháy).
+- [v] Source validate:
+  - [v] Yêu cầu source đủ lượng cho 1 chuyến (giảm micro-haul làm producer “không tăng dễ thấy”).
+
+#### 4) Reroute destination đa kho (Workplace ưu tiên, rồi Near-Source; Warehouse > HQ)
+- [v] Fix lỗi root cause “luôn về 1 kho”:
+  - [v] Loại bỏ logic chọn dest theo `d=0` khiến luôn chọn `BuildingId` nhỏ nhất.
+- [v] Quy tắc chọn destination (đúng yêu cầu):
+  - [v] **Ưu tiên Warehouse workplace** trước (nếu còn chỗ).
+  - [v] Nếu workplace không dùng được (đầy / không phải Warehouse / là HQ) → chọn dest **gần SOURCE** (Manhattan + tie-break `BuildingId.Value`).
+  - [v] **Ưu tiên Warehouse hơn HQ** (HQ chỉ fallback khi không còn warehouse nào còn chỗ).
+- [v] Bổ sung helper `EnsureSourceCandidate(...)` để có “source anchor” làm refPos khi chọn dest near-source (minRequired=1; pickup phase vẫn validate theo `want`).
+
+#### 5) DebugNpcTool — chốt hotkey reset NPC (R/Ctrl+R) để không “auto assign lại” gây hiểu nhầm
+- [v] Chốt mapping:
+  - [v] **R = Force Stop**: Cancel job + ReleaseAllClaims + `Workplace=0` + reset idle (NPC dừng hẳn).
+  - [v] **Ctrl+R = Soft Reset**: Cancel job + ReleaseAllClaims + **giữ Workplace** (NPC nhận job mới ngay tick sau).
+- [v] Sửa bug thứ tự thao tác:
+  - [v] Cancel job **trước** khi clear `CurrentJob` (tránh `CurrentJob=0` làm không cancel được).
+- [v] Button “ReleaseAllClaims” gọi chung flow force-release (cancel job + release claims), không chỉ release claims.
 
 ---
 
 ### Kết quả / Acceptance
-- [v] Play Mode: `JobScheduler` tick ổn định (đã xác nhận qua TickOrder).
+- [v] Play Mode: `JobScheduler` tick ổn định, job lifecycle chạy end-to-end (Created → Claimed → InProgress → Terminal).
 - [v] Setup test: 3 NPC (Farm / Lumber / Warehouse)
-  - [v] Producer bắt đầu tạo `Harvest` job và tăng local storage theo cap.
-  - [v] Hauler tạo `HaulBasic` job và chuyển tài nguyên về kho (đúng clamp, không âm, không overflow).
-- [v] Khi Warehouse workplace đầy:
-  - [v] Hauler tự chuyển sang Warehouse/HQ khác còn chỗ (nếu tồn tại).
+  - [v] Producer tạo `Harvest` và local storage tăng theo cap.
+  - [v] Hauler chuyển tài nguyên về kho đúng clamp, không âm, không overflow.
+- [v] Khi workplace warehouse đầy:
+  - [v] Hauler tự chuyển sang Warehouse khác còn chỗ; chỉ fallback HQ khi không còn warehouse trống.
   - [v] Không còn nhấp nháy liên tục do dest full.
-- [v] Producer tăng dễ quan sát hơn (giảm micro-haul), HUD ổn định hơn cho debug.
+- [v] Debug reset NPC:
+  - [v] Nhấn **R** → NPC dừng hẳn (không auto nhận job mới).
+  - [v] Nhấn **Ctrl+R** → reset và chạy lại job ngay (giữ workplace).
 
 ---
 
 ### Ghi chú / Pitfalls
-- Day 12 vẫn dùng **teleport model** (chưa path/move), nên “near/closest” chỉ để deterministic (phục vụ replay/debug).
-- LOCKED caps cho Warehouse/HQ áp dụng cho Wood/Food/Stone/Iron; HQ/WH **không chứa Ammo** trong v0.1.
-- Tránh thêm `Count` vào `IJobBoard` chỉ để debug; debug theo hướng log enqueue/peek/trạng thái job-id.
+- Day 12 vẫn dùng **teleport model** (chưa path/move), “near/closest” chỉ để deterministic + debug.
+- LOCKED caps Warehouse/HQ áp dụng cho Wood/Food/Stone/Iron; HQ/Warehouse **không chứa Ammo** trong v0.1.
+- Khi reroute dest, nhớ release claim dest cũ trước khi switch (tránh claim leak).
+- Nếu thấy “Peek tăng ngay sau R”: đó là expected khi dùng **Ctrl+R** (soft reset) — còn R (force stop) sẽ không enqueue/assign lại cho NPC đó.
 
 ---
 
 ### Việc tiếp theo (Day 13)
 - Bổ sung thống kê/harden debug:
-  - ActiveClaimsCount thực (theo claim map) + Jobs-in-queue theo workplace (count live).
-  - UI/Debug cho “job lifecycle” rõ hơn (Created → Claimed → InProgress → Completed).
-- Mở rộng pipeline theo scope kế hoạch:
-  - BuildDeliver/BuildWork hoặc Craft/Forge pipeline (không harvest Forge; ammo theo input→output).
+  - ActiveClaimsCount phản ánh đúng claim map.
+  - Jobs-in-queue theo workplace (count live) + job lifecycle tracer.
+- Mở rộng pipeline theo scope:
+  - BuildDeliver/BuildWork hoặc Craft/Forge pipeline (ammo theo input→output, không harvest Forge).
 
 ---

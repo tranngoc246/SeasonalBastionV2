@@ -38,6 +38,11 @@ namespace SeasonalBastion
             public int sizeX = 1;
             public int sizeY = 1;
             public int baseLevel = 1;
+
+            // Optional explicit workplace roles. If omitted/empty, we derive from tag booleans.
+            // Example: ["Harvest"], ["HaulBasic"], ["Build","HaulBasic"].
+            public string[] workRoles;
+
             // Optional tag booleans (default false).
             public bool isHQ = false;
             public bool isWarehouse = false;
@@ -145,6 +150,7 @@ namespace SeasonalBastion
                     IsForge = bj.isForge,
                     IsArmory = bj.isArmory,
                     IsTower = bj.isTower,
+                    WorkRoles = ParseWorkRolesOrDerive(bj),
                     CapWood = ToCaps(bj.capWood),
                     CapFood = ToCaps(bj.capFood),
                     CapStone = ToCaps(bj.capStone),
@@ -180,6 +186,41 @@ namespace SeasonalBastion
         {
             if (j == null) return default;
             return new StorageCapsByLevel { L1 = j.L1, L2 = j.L2, L3 = j.L3 };
+        }
+
+        private static WorkRoleFlags ParseWorkRolesOrDerive(BuildingJson bj)
+        {
+            // 1) If JSON explicitly specifies roles, trust it.
+            if (bj != null && bj.workRoles != null && bj.workRoles.Length > 0)
+            {
+                WorkRoleFlags f = WorkRoleFlags.None;
+                for (int i = 0; i < bj.workRoles.Length; i++)
+                {
+                    var s = (bj.workRoles[i] ?? string.Empty).Trim();
+                    if (s.Length == 0) continue;
+
+                    // Case-insensitive, tolerate minor variants.
+                    if (string.Equals(s, "Harvest", StringComparison.OrdinalIgnoreCase)) f |= WorkRoleFlags.Harvest;
+                    else if (string.Equals(s, "HaulBasic", StringComparison.OrdinalIgnoreCase)) f |= WorkRoleFlags.HaulBasic;
+                    else if (string.Equals(s, "Build", StringComparison.OrdinalIgnoreCase)) f |= WorkRoleFlags.Build;
+                    else if (string.Equals(s, "Craft", StringComparison.OrdinalIgnoreCase)) f |= WorkRoleFlags.Craft;
+                    else if (string.Equals(s, "Armory", StringComparison.OrdinalIgnoreCase)) f |= WorkRoleFlags.Armory;
+                }
+
+                return f;
+            }
+
+            // 2) Otherwise, derive from tag booleans (Day13 LOCKED rules).
+            WorkRoleFlags roles = WorkRoleFlags.None;
+            if (bj == null) return roles;
+
+            if (bj.isProducer) roles |= WorkRoleFlags.Harvest;
+            if (bj.isWarehouse) roles |= WorkRoleFlags.HaulBasic;
+            if (bj.isHQ) roles |= (WorkRoleFlags.Build | WorkRoleFlags.HaulBasic);
+            if (bj.isForge) roles |= WorkRoleFlags.Craft;
+            if (bj.isArmory) roles |= WorkRoleFlags.Armory;
+
+            return roles;
         }
 
         public BuildingDef GetBuilding(string id)

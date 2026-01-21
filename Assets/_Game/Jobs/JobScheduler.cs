@@ -11,6 +11,8 @@ namespace SeasonalBastion
         private readonly IClaimService _claims;
         private readonly JobExecutorRegistry _exec;
         private readonly IEventBus _bus;
+        private readonly IDataRegistry _data;
+        private readonly INotificationService _noti;
 
         public int AssignedThisTick { get; private set; }
 
@@ -23,8 +25,26 @@ namespace SeasonalBastion
         private readonly Dictionary<int, JobId> _harvestJobByWorkplace = new();
         private readonly Dictionary<int, JobId> _haulJobByWorkplaceAndType = new(); // key = workplace*16 + type
 
-        public JobScheduler(IWorldState w, IJobBoard board, IClaimService claims, JobExecutorRegistry exec, IEventBus bus)
-        { _w = w; _board = board; _claims = claims; _exec = exec; _bus = bus; }
+        // No-job notifications (throttle per workplace)
+        private readonly Dictionary<int, float> _noJobNextNotifyAt = new();
+
+        public JobScheduler(
+            IWorldState w,
+            IJobBoard board,
+            IClaimService claims,
+            JobExecutorRegistry exec,
+            IEventBus bus,
+            IDataRegistry data,
+            INotificationService noti)
+        {
+            _w = w;
+            _board = board;
+            _claims = claims;
+            _exec = exec;
+            _bus = bus;
+            _data = data;
+            _noti = noti;
+        }
 
         public void Tick(float dt)
         {
@@ -100,8 +120,40 @@ namespace SeasonalBastion
 
         private bool TryAssignInternal(NpcId npc, ref NpcState ns)
         {
-            if (!_board.TryPeekForWorkplace(ns.Workplace, out var peek))
+            if (!_w.Buildings.Exists(ns.Workplace)) return false;
+
+            var wps = _w.Buildings.Get(ns.Workplace);
+            var allowed = GetWorkplaceAllowedRoles(wps.DefId);
+            if (allowed == WorkRoleFlags.None)
+            {
+                NotifyNoJobs(ns.Workplace, wps.DefId);
                 return false;
+            }
+
+            // Day13: only pull jobs allowed by workplace roles
+            Job peek;
+            if (_board is JobBoard jb)
+            {
+                if (!jb.TryPeekForWorkplaceFiltered(ns.Workplace, allowed, out peek))
+                {
+                    NotifyNoJobs(ns.Workplace, wps.DefId);
+                    return false;
+                }
+            }
+            else
+            {
+                if (!_board.TryPeekForWorkplace(ns.Workplace, out peek))
+                {
+                    NotifyNoJobs(ns.Workplace, wps.DefId);
+                    return false;
+                }
+
+                if (!IsJobAllowed(allowed, peek.Archetype))
+                {
+                    NotifyNoJobs(ns.Workplace, wps.DefId);
+                    return false;
+                }
+            }
 
             // Preflight for HaulBasic: avoid claiming when nothing to haul (prevents stuck claimed jobs).
             if (peek.Archetype == JobArchetype.HaulBasic && !AnyHarvestProducerHasAmount(peek.ResourceType))
@@ -121,6 +173,60 @@ namespace SeasonalBastion
             ns.CurrentJob = job.Id;
             ns.IsIdle = false;
             return true;
+        }
+
+        private WorkRoleFlags GetWorkplaceAllowedRoles(string defId)
+        {
+            if (_data == null || string.IsNullOrEmpty(defId)) return WorkRoleFlags.None;
+            try
+            {
+                return _data.GetBuilding(defId).WorkRoles;
+            }
+            catch
+            {
+                // Missing def => treat as no roles (fail-safe)
+                return WorkRoleFlags.None;
+            }
+        }
+
+        private bool HasWorkRole(string defId, WorkRoleFlags required)
+        {
+            var roles = GetWorkplaceAllowedRoles(defId);
+            return (roles & required) != 0;
+        }
+
+        private static bool IsJobAllowed(WorkRoleFlags allowed, JobArchetype archetype)
+        {
+            return archetype switch
+            {
+                JobArchetype.Harvest => (allowed & WorkRoleFlags.Harvest) != 0,
+                JobArchetype.HaulBasic => (allowed & WorkRoleFlags.HaulBasic) != 0,
+                JobArchetype.BuildDeliver or JobArchetype.BuildWork => (allowed & WorkRoleFlags.Build) != 0,
+                JobArchetype.CraftAmmo => (allowed & WorkRoleFlags.Craft) != 0,
+                JobArchetype.ResupplyTower => (allowed & WorkRoleFlags.Armory) != 0,
+                _ => true,
+            };
+        }
+
+        private void NotifyNoJobs(BuildingId workplace, string workplaceDefId)
+        {
+            if (_noti == null) return;
+
+            // Per-workplace throttle (plus NotificationService built-in cooldown by key)
+            float now = UnityEngine.Time.realtimeSinceStartup;
+            if (_noJobNextNotifyAt.TryGetValue(workplace.Value, out var next) && now < next)
+                return;
+
+            _noJobNextNotifyAt[workplace.Value] = now + 3f; // matches default cooldown
+
+            _noti.Push(
+                key: $"NoJobs_{workplace.Value}",
+                title: "NPC không có việc để làm",
+                body: $"Workplace={workplaceDefId} (#{workplace.Value}) không có job hợp lệ.",
+                severity: NotificationSeverity.Info,
+                payload: new NotificationPayload(workplace, default, "no_jobs"),
+                cooldownSeconds: 3f,
+                dedupeByKey: true);
         }
 
         private void CleanupNpcJob(NpcId npc, ref NpcState ns)
@@ -144,8 +250,8 @@ namespace SeasonalBastion
                 var bs = _w.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
-                // Day12: harvest subset ONLY (do not harvest Forge)
-                if (!IsHarvestProducer(bs.DefId)) continue;
+                // Day13: harvest only if workplace roles allow it
+                if (!HasWorkRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
 
                 // only if there is at least 1 NPC assigned to this workplace
                 if (!_workplacesWithNpc.Contains(bid.Value)) continue;
@@ -193,7 +299,7 @@ namespace SeasonalBastion
 
                 var bs = _w.Buildings.Get(wid);
                 if (!bs.IsConstructed) continue;
-                if (!IsWarehouseWorkplace(bs.DefId)) continue;
+                if (!HasWorkRole(bs.DefId, WorkRoleFlags.HaulBasic)) continue;
                 if (!_workplacesWithNpc.Contains(wid.Value)) continue;
 
                 // NEW: pass dest state so we can gate enqueue by free capacity (prevents full-dest flicker loops)
@@ -254,7 +360,7 @@ namespace SeasonalBastion
 
                 var bs = _w.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
-                if (!IsHarvestProducer(bs.DefId)) continue;
+                if (!HasWorkRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
                 if (HarvestResourceType(bs.DefId) != rt) continue;
 
                 if (GetAmountFromBuilding(bs, rt) > 0) return true;

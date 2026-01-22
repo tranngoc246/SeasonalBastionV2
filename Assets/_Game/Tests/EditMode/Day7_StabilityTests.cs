@@ -75,6 +75,16 @@ namespace SeasonalBastion.Tests.EditMode
             public WaveDef GetWave(string id) => throw new NotSupportedException();
             public RewardDef GetReward(string id) => throw new NotSupportedException();
             public RecipeDef GetRecipe(string id) => throw new NotSupportedException();
+
+            public NpcDef GetNpc(string id)
+            {
+                throw new NotImplementedException();
+            }
+
+            public TowerDef GetTower(string id)
+            {
+                throw new NotImplementedException();
+            }
         }
 
         /// <summary>
@@ -123,6 +133,11 @@ namespace SeasonalBastion.Tests.EditMode
             }
 
             public void Tick(float dt)
+            {
+                throw new NotImplementedException();
+            }
+
+            public void ClearAll()
             {
                 throw new NotImplementedException();
             }

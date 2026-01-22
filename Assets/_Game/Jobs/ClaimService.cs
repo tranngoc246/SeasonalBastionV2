@@ -41,6 +41,10 @@ namespace SeasonalBastion
             for (int i = 0; i < toRemove.Count; i++)
                 _map.Remove(toRemove[i]);
         }
+        public void ClearAll()
+        {
+            _map.Clear();
+        }
 
         public int ActiveClaimsCount => _map.Count;
     }

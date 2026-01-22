@@ -285,5 +285,12 @@ namespace SeasonalBastion
 
             return 1.5f + area * 0.35f;
         }
+
+        public void ClearAll()
+        {
+            _nextOrderId = 1;
+            _active.Clear();
+            _orders.Clear();
+        }
     }
 }

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using SeasonalBastion.Contracts;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -44,7 +46,6 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private DebugStorageHUD _storageHud;
         [SerializeField] private DebugNotificationsHUD _notiHud;
         [SerializeField] private DebugWorldIndexHUD _worldIndexHud;
-        [SerializeField] private DebugRunClockHUD _clockHud;
 
         [Header("Hotkeys (Hub only)")]
         [SerializeField] private Key _toggleUiKey = Key.F1;
@@ -65,6 +66,13 @@ namespace SeasonalBastion.DebugTools
 
         private GameServices _gs;
 
+        // --- Data validation HUD (Day17) ---
+        private readonly List<string> _dataErrors = new List<string>(128);
+        private Vector2 _dataScroll;
+        private bool _dataLastOk = true;
+        private string _dataLastSummary = "Not validated";
+
+
         private void Awake()
         {
             DebugHubState.Enabled = true;
@@ -79,7 +87,6 @@ namespace SeasonalBastion.DebugTools
             if (_storageHud == null) _storageHud = FindObjectOfType<DebugStorageHUD>(true);
             if (_notiHud == null) _notiHud = FindObjectOfType<DebugNotificationsHUD>(true);
             if (_worldIndexHud == null) _worldIndexHud = FindObjectOfType<DebugWorldIndexHUD>(true);
-            if (_clockHud == null) _clockHud = FindObjectOfType<DebugRunClockHUD>(true);
 
             // Hub-control: disable standalone HUD + disable standalone toggle hotkeys
             if (_buildTool != null) _buildTool.SetHubControlled(true);
@@ -89,7 +96,6 @@ namespace SeasonalBastion.DebugTools
             if (_storageHud != null) _storageHud.SetHubControlled(true);
             if (_notiHud != null) _notiHud.SetHubControlled(true);
             if (_worldIndexHud != null) _worldIndexHud.SetHubControlled(true);
-            if (_clockHud != null) _clockHud.SetHubControlled(true);
 
             ApplyMode(_mode);
         }
@@ -183,12 +189,46 @@ namespace SeasonalBastion.DebugTools
             GUILayout.EndArea();
         }
 
+        private void ValidateDataNow()
+        {
+            _dataErrors.Clear();
+
+            if (_gs == null)
+            {
+                _dataLastOk = false;
+                _dataLastSummary = "GameServices is null";
+                _dataErrors.Add(_dataLastSummary);
+                return;
+            }
+
+            var validator = _gs.DataValidator;
+            var registry = _gs.DataRegistry;
+            if (validator == null || registry == null)
+            {
+                _dataLastOk = false;
+                _dataLastSummary = "Missing DataValidator/DataRegistry";
+                _dataErrors.Add(_dataLastSummary);
+                return;
+            }
+
+            _dataLastOk = validator.ValidateAll(registry, _dataErrors);
+            _dataLastSummary = _dataLastOk ? "OK" : $"FAIL ({_dataErrors.Count} errors)";
+
+            if (!_dataLastOk)
+            {
+                try
+                {
+                    _gs.NotificationService?.Push("data_invalid", "Data INVALID", _dataLastSummary, NotificationSeverity.Error, default, cooldownSeconds: 0f, dedupeByKey: true);
+                }
+                catch { }
+            }
+        }
+
         private void DrawHome()
         {
             GUILayout.Label("Active Modules:");
             GUILayout.Label($"BuildTool: {(_buildTool != null ? "OK" : "missing")}  | RoadTool: {(_roadTool != null ? "OK" : "missing")}  | NpcTool: {(_npcTool != null ? "OK" : "missing")}");
             GUILayout.Label($"NotiHUD: {(_notiHud != null ? "OK" : "missing")}  | WorldIndexHUD: {(_worldIndexHud != null ? "OK" : "missing")}  | StorageHUD: {(_storageHud != null ? "OK" : "missing")}");
-            GUILayout.Label($"RunClockHUD: {(_clockHud != null ? "OK" : "missing")}");
 
             GUILayout.Space(8);
             GUILayout.Label("Notes:");
@@ -196,7 +236,25 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Label("- Tools only respond to inputs when their mode is active.");
 
             GUILayout.Space(10);
-            if (_clockHud != null) _clockHud.DrawHubGUI();
+            GUILayout.Label("Day17: Data Validator");
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Validate Data", GUILayout.Width(140)))
+                ValidateDataNow();
+            GUILayout.Label($"Result: {_dataLastSummary}");
+            GUILayout.EndHorizontal();
+
+            if (!_dataLastOk)
+            {
+                GUILayout.Label("Errors:");
+                _dataScroll = GUILayout.BeginScrollView(_dataScroll, GUILayout.Height(240));
+                int show = Mathf.Min(_dataErrors.Count, 50);
+                for (int i = 0; i < show; i++)
+                    GUILayout.Label("- " + _dataErrors[i]);
+                if (_dataErrors.Count > show)
+                    GUILayout.Label($"...({_dataErrors.Count - show} more)");
+                GUILayout.EndScrollView();
+            }
         }
     }
 }

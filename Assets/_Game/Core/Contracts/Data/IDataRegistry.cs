@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace SeasonalBastion.Contracts
 {
     public interface IDataRegistry
@@ -11,5 +13,7 @@ namespace SeasonalBastion.Contracts
         WaveDef GetWave(string id);
         RewardDef GetReward(string id);
         RecipeDef GetRecipe(string id);
+        NpcDef GetNpc(string id);
+        TowerDef GetTower(string id);
     }
 }

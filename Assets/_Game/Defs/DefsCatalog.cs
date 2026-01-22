@@ -1,4 +1,3 @@
-// PATCH v0.1.1 — DefsCatalog compile + assembly separation
 using UnityEngine;
 
 namespace SeasonalBastion

@@ -19,5 +19,7 @@ namespace SeasonalBastion.Contracts
 
         void SetSite(CellPos c, SiteId id);
         void ClearSite(CellPos c);
+
+        void ClearAll();
     }
 }

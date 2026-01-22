@@ -127,5 +127,13 @@ namespace SeasonalBastion
                 break;
             }
         }
+
+        public void ClearAll()
+        {
+            _jobs.Clear();
+            _queues.Clear();
+            _scanBuf.Clear();
+            _nextId = 1;
+        }
     }
 }

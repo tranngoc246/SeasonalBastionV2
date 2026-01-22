@@ -10,6 +10,8 @@ namespace SeasonalBastion.Contracts
         void Update(Job job);        // status transitions
         void Cancel(JobId id);
 
+        void ClearAll();
+
         int CountForWorkplace(BuildingId workplace);
     }
 }

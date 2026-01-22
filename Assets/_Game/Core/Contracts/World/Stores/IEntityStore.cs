@@ -10,6 +10,8 @@ namespace SeasonalBastion.Contracts
         TId Create(TState state);
         void Destroy(TId id);
 
+        void ClearAll();
+
         int Count { get; }
         IEnumerable<TId> Ids { get; }
     }

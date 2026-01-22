@@ -1,0 +1,92 @@
+{
+  "npcs": [
+    {
+      "id": "NPC_HQ_Worker",
+      "role": "HQWorker",
+      "baseMoveSpeed": 1.0,
+      "roadSpeedMultiplier": 1.3,
+      "carryCore": {
+        "L1": 8,
+        "L2": 12,
+        "L3": 16
+      }
+    },
+    {
+      "id": "NPC_Farmer",
+      "role": "Farmer",
+      "baseMoveSpeed": 1.0,
+      "roadSpeedMultiplier": 1.3,
+      "carryCore": {
+        "L1": 6,
+        "L2": 8,
+        "L3": 10
+      }
+    },
+    {
+      "id": "NPC_Woodcutter",
+      "role": "HarvesterWood",
+      "baseMoveSpeed": 1.0,
+      "roadSpeedMultiplier": 1.3,
+      "carryCore": {
+        "L1": 6,
+        "L2": 8,
+        "L3": 10
+      }
+    },
+    {
+      "id": "NPC_Stonecutter",
+      "role": "HarvesterStone",
+      "baseMoveSpeed": 1.0,
+      "roadSpeedMultiplier": 1.3,
+      "carryCore": {
+        "L1": 6,
+        "L2": 8,
+        "L3": 10
+      }
+    },
+    {
+      "id": "NPC_Miner",
+      "role": "HarvesterIron",
+      "baseMoveSpeed": 1.0,
+      "roadSpeedMultiplier": 1.3,
+      "carryCore": {
+        "L1": 6,
+        "L2": 8,
+        "L3": 10
+      }
+    },
+    {
+      "id": "NPC_Hauler",
+      "role": "HaulBasic",
+      "baseMoveSpeed": 1.0,
+      "roadSpeedMultiplier": 1.3,
+      "carryCore": {
+        "L1": 10,
+        "L2": 14,
+        "L3": 18
+      }
+    },
+    {
+      "id": "NPC_Smith",
+      "role": "Smith",
+      "baseMoveSpeed": 1.0,
+      "roadSpeedMultiplier": 1.3,
+      "carryCore": {
+        "L1": 8,
+        "L2": 12,
+        "L3": 16
+      }
+    },
+    {
+      "id": "NPC_ArmoryRunner",
+      "role": "ArmoryRunner",
+      "baseMoveSpeed": 1.0,
+      "roadSpeedMultiplier": 1.3,
+      "carryAmmo": {
+        "L1": 40,
+        "L2": 60,
+        "L3": 80
+      }
+    }
+  ]
+}

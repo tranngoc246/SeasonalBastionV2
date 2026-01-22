@@ -1,0 +1,70 @@
+{
+  "enemies": [
+    {
+      "id": "Swarmling",
+      "maxHp": 18,
+      "moveSpeed": 1.25,
+      "damageToHQ": 2,
+      "damageToBuildings": 1
+    },
+    {
+      "id": "Raider",
+      "maxHp": 45,
+      "moveSpeed": 1.0,
+      "damageToHQ": 5,
+      "damageToBuildings": 3
+    },
+    {
+      "id": "Bruiser",
+      "maxHp": 120,
+      "moveSpeed": 0.8,
+      "damageToHQ": 12,
+      "damageToBuildings": 7
+    },
+    {
+      "id": "Archer",
+      "maxHp": 35,
+      "moveSpeed": 0.95,
+      "damageToHQ": 4,
+      "damageToBuildings": 2,
+      "range": 4.5
+    },
+    {
+      "id": "Sapper",
+      "maxHp": 60,
+      "moveSpeed": 1.05,
+      "damageToHQ": 6,
+      "damageToBuildings": 14
+    },
+    {
+      "id": "SiegeBrute",
+      "maxHp": 1200,
+      "moveSpeed": 0.75,
+      "damageToHQ": 25,
+      "damageToBuildings": 20,
+      "isBoss": true,
+      "year": 1,
+      "season": "Winter",
+      "day": 4
+    },
+    {
+      "id": "FrostWarlord",
+      "maxHp": 1700,
+      "moveSpeed": 0.8,
+      "damageToHQ": 20,
+      "damageToBuildings": 15,
+      "isBoss": true,
+      "year": 2,
+      "season": "Winter",
+      "day": 4,
+      "auraSlowRofPct": 0.1
+    }
+  ],
+  "scaling": {
+    "year2": {
+      "hpMul": 1.35,
+      "damageMul": 1.25,
+      "countMul": 1.2
+    }
+  }
+}

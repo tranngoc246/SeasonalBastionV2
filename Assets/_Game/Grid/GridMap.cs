@@ -67,5 +67,11 @@ namespace SeasonalBastion
             _cells[Idx(c)] = new CellOccupancy(CellOccupancyKind.Empty, default, default);
         }
 
+        public void ClearAll()
+        {
+            // Reset entire occupancy buffer to Empty (deterministic, no allocations)
+            for (int i = 0; i < _cells.Length; i++)
+                _cells[i] = default;
+        }
     }
 }

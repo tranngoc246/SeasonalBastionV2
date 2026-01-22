@@ -11,6 +11,8 @@ namespace SeasonalBastion.Contracts
         bool TryGet(int orderId, out BuildOrder order);
         void Cancel(int orderId);
 
+        void ClearAll();
+
         // tick drives generating jobs (deliver/work)
         void Tick(float dt);
 

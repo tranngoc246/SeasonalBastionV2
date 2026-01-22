@@ -48,22 +48,22 @@ namespace SeasonalBastion
         private void ResetForNewRun()
         {
             // clear transient UI
-            try { (_s.NotificationService as NotificationService)?.ClearAll(); } catch { }
+            try { (_s.NotificationService as INotificationService)?.ClearAll(); } catch { }
 
             // jobs / claims / build orders (runtime concrete types)
-            try { (_s.JobBoard as JobBoard)?.ClearAll(); } catch { }
-            try { (_s.ClaimService as ClaimService)?.ClearAll(); } catch { }
-            try { (_s.BuildOrderService as BuildOrderService)?.ClearAll(); } catch { }
+            try { (_s.JobBoard as IJobBoard)?.ClearAll(); } catch { }
+            try { (_s.ClaimService as IClaimService)?.ClearAll(); } catch { }
+            try { (_s.BuildOrderService as IBuildOrderService)?.ClearAll(); } catch { }
 
             // grid occupancy
-            try { (_s.GridMap as GridMap)?.ClearAll(); } catch { }
+            try { (_s.GridMap as IGridMap)?.ClearAll(); } catch { }
 
             // world stores (runtime concrete stores)
-            try { (_s.WorldState?.Buildings as EntityStore<BuildingId, BuildingState>)?.ClearAll(); } catch { }
-            try { (_s.WorldState?.Sites as EntityStore<SiteId, BuildSiteState>)?.ClearAll(); } catch { }
-            try { (_s.WorldState?.Npcs as EntityStore<NpcId, NpcState>)?.ClearAll(); } catch { }
-            try { (_s.WorldState?.Enemies as EntityStore<EnemyId, EnemyState>)?.ClearAll(); } catch { }
-            try { (_s.WorldState?.Towers as EntityStore<TowerId, TowerState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Buildings as IEntityStore<BuildingId, BuildingState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Sites as IEntityStore<SiteId, BuildSiteState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Npcs as IEntityStore<NpcId, NpcState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Enemies as IEntityStore<EnemyId, EnemyState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Towers as IEntityStore<TowerId, TowerState>)?.ClearAll(); } catch { }
         }
 
         public void Tick(float dt) => TickOrder.TickAll(_s, dt);

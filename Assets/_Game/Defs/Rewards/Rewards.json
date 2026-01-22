@@ -1,0 +1,16 @@
+{
+  "rewards": [
+    {
+      "id": "Reward_None",
+      "title": "Không có"
+    },
+    {
+      "id": "Reward_RunComplete",
+      "title": "Hoàn thành Run"
+    },
+    {
+      "id": "Reward_WinterBossY1",
+      "title": "Hạ Boss Mùa Đông (Y1)"
+    }
+  ]
+}

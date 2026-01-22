@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: DefsCatalog
   m_EditorClassIdentifier: 
   Buildings: {fileID: 4900000, guid: ef255ff877d51234da12a34d3940e317, type: 3}
-  Npcs: {fileID: 0}
-  Towers: {fileID: 0}
-  Enemies: {fileID: 0}
-  Recipes: {fileID: 0}
-  Waves: {fileID: 0}
-  Rewards: {fileID: 0}
+  Npcs: {fileID: 4900000, guid: 4398eff90bbb3a54bbb0518aab2ebb74, type: 3}
+  Towers: {fileID: 4900000, guid: fe9e8f52abc70d54680c4963e832ede6, type: 3}
+  Enemies: {fileID: 4900000, guid: ffdb5df012a4c1e44a7e91c8d3e906c7, type: 3}
+  Recipes: {fileID: 4900000, guid: 36f7cc473a4825a4ab6248e6b30f6a66, type: 3}
+  Waves: {fileID: 4900000, guid: 6cc27021f0602bd41be3839d8cb22763, type: 3}
+  Rewards: {fileID: 4900000, guid: 20835419c6eb1ae46bdebad3b7762da4, type: 3}

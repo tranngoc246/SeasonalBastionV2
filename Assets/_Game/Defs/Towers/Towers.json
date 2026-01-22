@@ -1,0 +1,160 @@
+{
+  "towers": [
+    {
+      "id": "TowerArrow",
+      "tier": 1,
+      "hp": 260,
+      "range": 5,
+      "rof": 1.0,
+      "damage": 6,
+      "ammoMax": 90,
+      "ammoPerShot": 1,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [
+        {
+          "res": 0,
+          "amt": 25
+        },
+        {
+          "res": 2,
+          "amt": 10
+        }
+      ],
+      "buildChunks": 2,
+      "unlock": {
+        "year": 1,
+        "season": "Spring",
+        "day": 1
+      }
+    },
+    {
+      "id": "TowerCannon",
+      "tier": 1,
+      "hp": 320,
+      "range": 4,
+      "rof": 1.6,
+      "damage": 18,
+      "ammoMax": 80,
+      "ammoPerShot": 2,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [
+        {
+          "res": 0,
+          "amt": 20
+        },
+        {
+          "res": 2,
+          "amt": 40
+        },
+        {
+          "res": 3,
+          "amt": 10
+        }
+      ],
+      "buildChunks": 3,
+      "unlock": {
+        "year": 1,
+        "season": "Summer",
+        "day": 3
+      }
+    },
+    {
+      "id": "TowerFrost",
+      "tier": 1,
+      "hp": 300,
+      "range": 5,
+      "rof": 1.3,
+      "damage": 4,
+      "slowPct": 0.3,
+      "slowSec": 2.0,
+      "ammoMax": 90,
+      "ammoPerShot": 1,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [
+        {
+          "res": 0,
+          "amt": 25
+        },
+        {
+          "res": 2,
+          "amt": 35
+        },
+        {
+          "res": 3,
+          "amt": 10
+        }
+      ],
+      "buildChunks": 3,
+      "unlock": {
+        "year": 1,
+        "season": "Summer",
+        "day": 3
+      }
+    },
+    {
+      "id": "TowerFire",
+      "tier": 1,
+      "hp": 340,
+      "range": 5,
+      "rof": 1.5,
+      "damage": 8,
+      "aoe": "small",
+      "dotDps": 3,
+      "dotSec": 2,
+      "ammoMax": 90,
+      "ammoPerShot": 2,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [
+        {
+          "res": 0,
+          "amt": 30
+        },
+        {
+          "res": 2,
+          "amt": 45
+        },
+        {
+          "res": 3,
+          "amt": 20
+        }
+      ],
+      "buildChunks": 4,
+      "unlock": {
+        "year": 2,
+        "season": "Spring",
+        "day": 1
+      }
+    },
+    {
+      "id": "TowerSniper",
+      "tier": 1,
+      "hp": 300,
+      "range": 8,
+      "rof": 2.2,
+      "damage": 40,
+      "ammoMax": 70,
+      "ammoPerShot": 3,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [
+        {
+          "res": 0,
+          "amt": 25
+        },
+        {
+          "res": 2,
+          "amt": 40
+        },
+        {
+          "res": 3,
+          "amt": 30
+        }
+      ],
+      "buildChunks": 4,
+      "unlock": {
+        "year": 2,
+        "season": "Spring",
+        "day": 2
+      }
+    }
+  ]
+}

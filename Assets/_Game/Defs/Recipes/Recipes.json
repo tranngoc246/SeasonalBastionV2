@@ -1,0 +1,18 @@
+{
+  "recipes": [
+    {
+      "id": "ForgeAmmo",
+      "inputType": 3,
+      "inputAmount": 2,
+      "outputType": 4,
+      "outputAmount": 10,
+      "extraInputs": [
+        {
+          "type": 0,
+          "amount": 1
+        }
+      ],
+      "craftTimeSec": 6
+    }
+  ]
+}

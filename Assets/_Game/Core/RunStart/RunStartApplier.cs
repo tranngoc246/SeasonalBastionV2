@@ -11,15 +11,9 @@ namespace SeasonalBastion.RunStart
     /// </summary>
     public static class RunStartApplier
     {
-        // Optional backwards compat (old defs) — only used if direct id not found.
-        private static readonly Dictionary<string, string> DefRemap = new(StringComparer.OrdinalIgnoreCase)
-        {
-            { "bld_hq_t1", "HQ" },
-            { "bld_house_t1", "House" },
-            { "bld_farmhouse_t1", "Farm" },
-            { "bld_lumbercamp_t1", "Lumber" },
-            { "bld_tower_arrow_t1", "TowerArrow" },
-        };
+        // Option 1 (canonical): StartMapConfig MUST use canonical DefIds from Buildings.json.
+        // No alias/remap here. Single-source-of-truth = DataRegistry.Buildings.
+        private const string TowerArrowDefId = "TowerArrow";
 
         public static bool TryApply(GameServices s, string jsonOrMarkdown, out string error)
         {
@@ -107,6 +101,7 @@ namespace SeasonalBastion.RunStart
             }
 
             // 2) Buildings
+            // Canonical only: key = canonical defId (same as Buildings.json)
             var defIdToBuildingId = new Dictionary<string, BuildingId>(StringComparer.OrdinalIgnoreCase);
 
             if (cfg.initialBuildings != null)
@@ -116,39 +111,38 @@ namespace SeasonalBastion.RunStart
                     var b = cfg.initialBuildings[i];
                     if (b == null || b.anchor == null || string.IsNullOrEmpty(b.defId)) continue;
 
-                    string resolvedDefId = ResolveBuildingDefId(s, b.defId);
-                    if (string.IsNullOrEmpty(resolvedDefId))
+                    // Canonical: input defId must exist in DataRegistry.
+                    string defId = ResolveBuildingDefIdOrNull(s, b.defId);
+                    if (string.IsNullOrEmpty(defId))
                     {
-                        // Best-effort for optional tower in StartMapConfig (common during incremental defs work)
-                        if (IsArrowTowerLike(b.defId, null))
-                            continue;
+                        // Optional tower: don't fail run-start if config includes it but defs not ready yet.
+                        if (IsArrowTowerLike(b.defId)) continue;
 
                         error = $"BuildingDef not found: {b.defId}";
                         return false;
                     }
 
-                    var def = s.DataRegistry.GetBuilding(resolvedDefId);
+                    var def = s.DataRegistry.GetBuilding(defId);
                     int w = Math.Max(1, def.SizeX);
                     int h = Math.Max(1, def.SizeY);
 
                     var rot = ParseDir4(b.rotation);
                     var desiredAnchor = new CellPos(b.anchor.x, b.anchor.y);
 
-                    // IMPORTANT: StartMapConfig anchors were authored against older smaller footprints.
+                    // IMPORTANT: StartMapConfig anchors might be authored against older smaller footprints.
                     // We re-validate placement with current Buildings.json and pick the nearest valid anchor deterministically.
-                    if (!TryPickValidAnchor(s, resolvedDefId, desiredAnchor, w, h, rot, out var finalAnchor))
+                    if (!TryPickValidAnchor(s, defId, desiredAnchor, w, h, rot, out var finalAnchor))
                     {
                         // Optional tower: don't fail run-start if invalid.
-                        if (IsArrowTowerLike(b.defId, resolvedDefId))
-                            continue;
+                        if (IsArrowTowerLike(defId)) continue;
 
-                        error = $"RunStart: cannot place '{resolvedDefId}' near anchor ({desiredAnchor.X},{desiredAnchor.Y})";
+                        error = $"RunStart: cannot place '{defId}' near anchor ({desiredAnchor.X},{desiredAnchor.Y})";
                         return false;
                     }
 
                     var st = new BuildingState
                     {
-                        DefId = resolvedDefId,
+                        DefId = defId,
                         Anchor = finalAnchor,
                         Rotation = rot,
                         Level = Math.Max(1, def.BaseLevel),
@@ -167,14 +161,12 @@ namespace SeasonalBastion.RunStart
                     // WorldIndex bookkeeping
                     try { s.WorldIndex?.OnBuildingCreated(id); } catch { }
 
-                    // keep first by defId for workplace mapping
-                    if (!defIdToBuildingId.ContainsKey(b.defId))
-                        defIdToBuildingId[b.defId] = id;
-                    if (!defIdToBuildingId.ContainsKey(resolvedDefId))
-                        defIdToBuildingId[resolvedDefId] = id;
+                    // Canonical mapping for workplace lookup
+                    if (!defIdToBuildingId.ContainsKey(defId))
+                        defIdToBuildingId[defId] = id;
 
                     // Tower init (optional): Arrow tower from balance table
-                    if (IsArrowTowerLike(b.defId, resolvedDefId))
+                    if (IsArrowTowerLike(defId))
                         TryCreateArrowTowerState(s, st, b);
                 }
             }
@@ -193,14 +185,8 @@ namespace SeasonalBastion.RunStart
                     BuildingId workplace = default;
                     if (!string.IsNullOrEmpty(n.assignedWorkplaceDefId))
                     {
+                        // Canonical only
                         defIdToBuildingId.TryGetValue(n.assignedWorkplaceDefId, out workplace);
-                        if (workplace.Value == 0)
-                        {
-                            // Try remapped id as well
-                            var resolvedWp = ResolveBuildingDefId(s, n.assignedWorkplaceDefId);
-                            if (!string.IsNullOrEmpty(resolvedWp))
-                                defIdToBuildingId.TryGetValue(resolvedWp, out workplace);
-                        }
                     }
 
                     var st = new NpcState
@@ -248,18 +234,13 @@ namespace SeasonalBastion.RunStart
             return jsonOrMd.Substring(start, end - start);
         }
 
-        private static string ResolveBuildingDefId(GameServices s, string defId)
+        /// <summary>
+        /// Option 1: canonical only. Returns defId if exists, else null.
+        /// </summary>
+        private static string ResolveBuildingDefIdOrNull(GameServices s, string defId)
         {
             if (string.IsNullOrEmpty(defId) || s?.DataRegistry == null) return null;
-
-            // 1) direct
-            if (HasBuildingDef(s, defId)) return defId;
-
-            // 2) remap
-            if (DefRemap.TryGetValue(defId, out var mapped) && HasBuildingDef(s, mapped))
-                return mapped;
-
-            return null;
+            return HasBuildingDef(s, defId) ? defId : null;
         }
 
         /// <summary>
@@ -355,13 +336,9 @@ namespace SeasonalBastion.RunStart
             };
         }
 
-        private static bool IsArrowTowerLike(string rawDefId, string resolvedDefId)
+        private static bool IsArrowTowerLike(string defId)
         {
-            if (!string.IsNullOrEmpty(rawDefId) && rawDefId.IndexOf("tower", StringComparison.OrdinalIgnoreCase) >= 0)
-                return rawDefId.IndexOf("arrow", StringComparison.OrdinalIgnoreCase) >= 0;
-            if (!string.IsNullOrEmpty(resolvedDefId) && resolvedDefId.IndexOf("tower", StringComparison.OrdinalIgnoreCase) >= 0)
-                return resolvedDefId.IndexOf("arrow", StringComparison.OrdinalIgnoreCase) >= 0;
-            return false;
+            return !string.IsNullOrEmpty(defId) && defId.Equals(TowerArrowDefId, StringComparison.OrdinalIgnoreCase);
         }
 
         private static void TryCreateArrowTowerState(GameServices s, in BuildingState building, InitialBuildingDto b)

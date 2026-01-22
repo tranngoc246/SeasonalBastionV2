@@ -1,0 +1,169 @@
+{
+  "waves": [
+    {
+      "id": "Y1_Autumn_A1",
+      "waveIndex": 1,
+      "year": 1,
+      "season": "Autumn",
+      "day": 1,
+      "entries": [
+        {
+          "enemyId": "Swarmling",
+          "count": 10
+        },
+        {
+          "enemyId": "Raider",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "id": "Y1_Autumn_A2",
+      "waveIndex": 2,
+      "year": 1,
+      "season": "Autumn",
+      "day": 2,
+      "entries": [
+        {
+          "enemyId": "Raider",
+          "count": 8
+        },
+        {
+          "enemyId": "Bruiser",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "Y1_Autumn_A3",
+      "waveIndex": 3,
+      "year": 1,
+      "season": "Autumn",
+      "day": 3,
+      "entries": [
+        {
+          "enemyId": "Swarmling",
+          "count": 16
+        },
+        {
+          "enemyId": "Raider",
+          "count": 6
+        },
+        {
+          "enemyId": "Archer",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "Y1_Autumn_A4",
+      "waveIndex": 4,
+      "year": 1,
+      "season": "Autumn",
+      "day": 4,
+      "entries": [
+        {
+          "enemyId": "Raider",
+          "count": 10
+        },
+        {
+          "enemyId": "Bruiser",
+          "count": 4
+        },
+        {
+          "enemyId": "Archer",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "Y1_Winter_W1",
+      "waveIndex": 5,
+      "year": 1,
+      "season": "Winter",
+      "day": 1,
+      "entries": [
+        {
+          "enemyId": "Raider",
+          "count": 10
+        },
+        {
+          "enemyId": "Bruiser",
+          "count": 5
+        },
+        {
+          "enemyId": "Archer",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "id": "Y1_Winter_W2",
+      "waveIndex": 6,
+      "year": 1,
+      "season": "Winter",
+      "day": 2,
+      "entries": [
+        {
+          "enemyId": "Swarmling",
+          "count": 22
+        },
+        {
+          "enemyId": "Archer",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "id": "Y1_Winter_W3",
+      "waveIndex": 7,
+      "year": 1,
+      "season": "Winter",
+      "day": 3,
+      "entries": [
+        {
+          "enemyId": "Raider",
+          "count": 8
+        },
+        {
+          "enemyId": "Bruiser",
+          "count": 4
+        },
+        {
+          "enemyId": "Sapper",
+          "count": 2
+        },
+        {
+          "enemyId": "Archer",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "Y1_Winter_W4",
+      "waveIndex": 8,
+      "year": 1,
+      "season": "Winter",
+      "day": 4,
+      "isBoss": true,
+      "entries": [
+        {
+          "enemyId": "SiegeBrute",
+          "count": 1
+        },
+        {
+          "enemyId": "Swarmling",
+          "count": 12
+        },
+        {
+          "enemyId": "Raider",
+          "count": 6
+        }
+      ]
+    }
+  ],
+  "notes": {
+    "source": "Deliverable_C_Balance_Tables_LOCKED_v0.1",
+    "year2Outline": "Apply scaling.year2 multipliers, insert elites per Deliverable_B."
+  }
+}

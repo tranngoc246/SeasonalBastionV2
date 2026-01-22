@@ -44,6 +44,7 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private DebugStorageHUD _storageHud;
         [SerializeField] private DebugNotificationsHUD _notiHud;
         [SerializeField] private DebugWorldIndexHUD _worldIndexHud;
+        [SerializeField] private DebugRunClockHUD _clockHud;
 
         [Header("Hotkeys (Hub only)")]
         [SerializeField] private Key _toggleUiKey = Key.F1;
@@ -78,6 +79,7 @@ namespace SeasonalBastion.DebugTools
             if (_storageHud == null) _storageHud = FindObjectOfType<DebugStorageHUD>(true);
             if (_notiHud == null) _notiHud = FindObjectOfType<DebugNotificationsHUD>(true);
             if (_worldIndexHud == null) _worldIndexHud = FindObjectOfType<DebugWorldIndexHUD>(true);
+            if (_clockHud == null) _clockHud = FindObjectOfType<DebugRunClockHUD>(true);
 
             // Hub-control: disable standalone HUD + disable standalone toggle hotkeys
             if (_buildTool != null) _buildTool.SetHubControlled(true);
@@ -87,6 +89,7 @@ namespace SeasonalBastion.DebugTools
             if (_storageHud != null) _storageHud.SetHubControlled(true);
             if (_notiHud != null) _notiHud.SetHubControlled(true);
             if (_worldIndexHud != null) _worldIndexHud.SetHubControlled(true);
+            if (_clockHud != null) _clockHud.SetHubControlled(true);
 
             ApplyMode(_mode);
         }
@@ -185,11 +188,15 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Label("Active Modules:");
             GUILayout.Label($"BuildTool: {(_buildTool != null ? "OK" : "missing")}  | RoadTool: {(_roadTool != null ? "OK" : "missing")}  | NpcTool: {(_npcTool != null ? "OK" : "missing")}");
             GUILayout.Label($"NotiHUD: {(_notiHud != null ? "OK" : "missing")}  | WorldIndexHUD: {(_worldIndexHud != null ? "OK" : "missing")}  | StorageHUD: {(_storageHud != null ? "OK" : "missing")}");
+            GUILayout.Label($"RunClockHUD: {(_clockHud != null ? "OK" : "missing")}");
 
             GUILayout.Space(8);
             GUILayout.Label("Notes:");
             GUILayout.Label("- All old standalone toggle keys are disabled (B/R/N/H/I/S).");
             GUILayout.Label("- Tools only respond to inputs when their mode is active.");
+
+            GUILayout.Space(10);
+            if (_clockHud != null) _clockHud.DrawHubGUI();
         }
     }
 }

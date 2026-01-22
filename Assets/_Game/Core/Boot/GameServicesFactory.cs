@@ -23,9 +23,12 @@ namespace SeasonalBastion
             services.WorldIndex.RebuildAll();
             services.EventBus.Subscribe<BuildingPlacedEvent>(ev => services.WorldIndex.OnBuildingCreated(ev.Building));
 
-
             // Grid
             services.GridMap = new GridMap(width: 64, height: 64);
+
+            // Day14: simple mover (cell-by-cell)
+            services.AgentMover = new GridAgentMoverLite(services.GridMap);
+
             services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus);
 
             // Economy

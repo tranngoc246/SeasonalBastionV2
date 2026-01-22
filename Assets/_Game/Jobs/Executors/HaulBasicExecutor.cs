@@ -9,6 +9,7 @@ namespace SeasonalBastion
         private readonly GameServices _s;
 
         private const int CarryCap = 10;
+
         private static bool IsWarehouseOnly(string defId) => EqualsIgnoreCase(defId, "Warehouse");
         private static bool IsHQOnly(string defId) => EqualsIgnoreCase(defId, "HQ");
 
@@ -20,7 +21,7 @@ namespace SeasonalBastion
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null)
+            if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null || _s.AgentMover == null)
             {
                 job.Status = JobStatus.Failed;
                 return true;
@@ -146,7 +147,7 @@ namespace SeasonalBastion
                 }
             }
 
-            // Hold dest claim during job (teleport model)
+            // Hold dest claim during job (prevents two haulers choosing same dest+rt)
             if (_s.ClaimService != null)
             {
                 var destKey = new ClaimKey(ClaimKind.StorageDest, chosenDest.Value, (int)rt);
@@ -201,14 +202,20 @@ namespace SeasonalBastion
                         return false;
                 }
 
-                // pickup
+                // Move toward source (Day14: no teleport)
+                job.TargetCell = srcState.Anchor;
+                job.Status = JobStatus.InProgress;
+
+                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcState.Anchor);
+                if (!arrivedSrc)
+                    return true;
+
+                // pickup (claim source while removing)
                 if (_s.ClaimService != null)
                 {
                     var srcKey = new ClaimKey(ClaimKind.StorageSource, srcId.Value, (int)rt);
                     if (!_s.ClaimService.TryAcquire(srcKey, npc))
                         return false;
-
-                    npcState.Cell = srcState.Anchor;
 
                     int removed = _s.StorageService.Remove(srcId, rt, want);
 
@@ -226,8 +233,6 @@ namespace SeasonalBastion
                 }
                 else
                 {
-                    npcState.Cell = srcState.Anchor;
-
                     int removed = _s.StorageService.Remove(srcId, rt, want);
                     if (removed <= 0)
                         return false;
@@ -250,7 +255,13 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                npcState.Cell = dstState.Anchor;
+                // Move toward destination (Day14: no teleport)
+                job.TargetCell = dstState.Anchor;
+                job.Status = JobStatus.InProgress;
+
+                bool arrivedDst = _s.AgentMover.StepToward(ref npcState, dstState.Anchor);
+                if (!arrivedDst)
+                    return true;
 
                 int added = _s.StorageService.Add(chosenDest, rt, carried);
 
@@ -267,9 +278,6 @@ namespace SeasonalBastion
             }
         }
 
-
-        /// <summary>
-
         /// <summary>
         /// Ensures job.SourceBuilding has a candidate so we can choose destination near SOURCE.
         /// This uses minRequired=1 (only to get an anchor), later pickup will repick/validate against CarryCap.
@@ -282,15 +290,18 @@ namespace SeasonalBastion
                 job.SourceBuilding = src;
         }
 
+        /// <summary>
         /// Pick a destination Warehouse/HQ with free capacity for rt.
-        /// Prefer Workplace if it's a valid Warehouse/HQ and has space.
-        /// Deterministic: nearest to preferred anchor, tie-break by BuildingId.
+        /// Priority:
+        /// 1) Workplace if it's a WAREHOUSE (not HQ) and has space
+        /// 2) Nearest Warehouse by Manhattan(refPos), tie-break by BuildingId
+        /// 3) Nearest HQ by Manhattan(refPos), tie-break by BuildingId
         /// </summary>
         private bool TryResolveBestDestination(ResourceType rt, BuildingId preferredWorkplace, CellPos refPos, out BuildingId best)
         {
             best = default;
 
-            var whs = _s.WorldIndex.Warehouses; // includes HQ (WorldIndexService tags HQ as warehouse destination)
+            var whs = _s.WorldIndex.Warehouses; // includes HQ
             if (whs == null || whs.Count == 0) return false;
 
             // 0) Preferred workplace: ONLY hard-prefer if it is a Warehouse (not HQ) and has space

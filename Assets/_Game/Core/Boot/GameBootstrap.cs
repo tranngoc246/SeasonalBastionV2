@@ -8,6 +8,8 @@ namespace SeasonalBastion
         [SerializeField] private DefsCatalog _defsCatalog; // ScriptableObject listing all defs roots (optional)
         [SerializeField] private bool _autoStartRun = true;
         [SerializeField] private int _debugSeed = 12345;
+        [Header("Run Start (optional)")]
+        [SerializeField] private TextAsset _startMapConfigOverride;
 
         private GameServices _services;
         private GameLoop _loop;
@@ -23,7 +25,18 @@ namespace SeasonalBastion
             _loop = new GameLoop(_services);
 
             if (_autoStartRun)
-                _loop.StartNewRun(seed: _debugSeed); // TODO: seed source UI
+            {
+                // Prefer inspector override; fallback to Resources/RunStart/StartMapConfig_RunStart_64x64_v0.1
+                string cfg = null;
+                if (_startMapConfigOverride != null) cfg = _startMapConfigOverride.text;
+                else
+                {
+                    var ta = Resources.Load<TextAsset>("RunStart/StartMapConfig_RunStart_64x64_v0.1");
+                    if (ta != null) cfg = ta.text;
+                }
+
+                _loop.StartNewRun(seed: _debugSeed, startMapConfigJsonOrMarkdown: cfg); // TODO: seed source UI
+            }
         }
 
         private void Update()

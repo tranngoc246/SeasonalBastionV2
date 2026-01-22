@@ -6,6 +6,11 @@
 > - Mỗi Day gồm: **Mục tiêu**, **Đã làm**, **Kết quả/Acceptance**, **Ghi chú/Pitfalls**, **Việc tiếp theo**.
 > - Khi hoàn thành hạng mục, tick ✅.
 
+
+**Phạm vi thư mục (trong repo Unity):** `Assets/_Game/…`
+- File dev log canonical nên đặt tại: `Assets/_Game/Art/VS1_DEV_LOG.md`.
+- Từ **Day 11** trở đi, debug UI/tool được gom vào **DebugHUDHub** (các phím debug rải rác trước đó bị disable để tránh chồng input).
+
 ---
 
 ## Day 1 — Boot Graph chạy được (GameBootstrap → GameLoop.Tick)
@@ -284,7 +289,7 @@
 
 ---
 
-### Day 6 — WorldIndex (derived lists) + Debug HUD
+## Day 6 — WorldIndex (derived lists) + Debug HUD
 
 #### 1) WorldIndexService (IWorldIndex)
 - [v] Implement `RebuildAll()`
@@ -340,7 +345,7 @@
 
 ---
 
-### Day 7 – Buffer Day (Stabilize + EditMode Tests)
+## Day 7 – Buffer Day (Stabilize + EditMode Tests)
 
 **Mục tiêu (PART27 Day 7):** Ổn định hệ thống + bổ sung test cơ bản cho các hành vi đã khóa (placement/driveway/construction + notifications).
 
@@ -798,5 +803,142 @@
   - Jobs-in-queue theo workplace (count live) + job lifecycle tracer.
 - Mở rộng pipeline theo scope:
   - BuildDeliver/BuildWork hoặc Craft/Forge pipeline (ammo theo input→output, không harvest Forge).
+
+---
+
+## Day 13 — Workplace WorkRoles (HQ/Warehouse/Producer) + Filter Job theo Role + Notification “NPC không có việc” (throttle)
+
+### Mục tiêu (theo PART27 – Day 13)
+- [x] Workplace rules (role gates):
+  - [x] Producer NPC: chỉ `Harvest`
+  - [x] Warehouse NPC: chỉ `HaulBasic` (basic resources)
+  - [x] HQ NPC: `Build/Repair/HaulBasic` (VS#1: dùng `HaulBasic` là chính)
+- [x] JobScheduler chỉ assign job hợp lệ theo workplace role (không kẹt queue).
+- [x] Nếu không có job hợp lệ → notification “NPC không có việc để làm” **1 lần**, không spam.
+
+---
+
+### Đã làm
+
+#### 1) Contract: `WorkRoleFlags` + `BuildingDef.WorkRoles`
+- [v] Thêm `WorkRoleFlags` (flags enum) phục vụ gate job:
+  - `Harvest`, `HaulBasic`, `Build`, `Repair`, `Craft`, `Armory` (mở đường scope sau).
+- [v] Bổ sung field `BuildingDef.WorkRoles` (source-of-truth cho workplace capabilities).
+
+#### 2) DataRegistry — map WorkRoles từ `Buildings.json` (ưu tiên explicit; fallback derive)
+- [v] Hỗ trợ parse `workRoles` trong JSON nếu có (string[]).
+- [v] Fallback derive nếu JSON chưa khai báo:
+  - Producer (`isProducer`) → `Harvest`
+  - Warehouse (`isWarehouse`) → `HaulBasic`
+  - HQ (`isHQ`) → `HaulBasic | Build | Repair` (VS#1 hiện dùng HaulBasic)
+  - Forge (`isForge`) → `Craft`
+  - Armory (`isArmory`) → `Armory`
+- [v] Harden: normalize case role strings + ignore role không hợp lệ (không crash load).
+
+#### 3) JobBoard — hỗ trợ peek theo filter (không đổi thứ tự, deterministic)
+- [v] Thêm API peek “filtered” theo predicate để JobScheduler chọn đúng job hợp role mà không phá FIFO:
+  - scan queue theo thứ tự hiện tại
+  - bỏ qua job stale / job không hợp role
+  - không reorder queue (giữ deterministic)
+
+#### 4) JobScheduler — filter job theo WorkRoles + no-jobs notification (throttle)
+- [v] Trước khi assign:
+  - lấy `BuildingDef.WorkRoles` của workplace
+  - chỉ peek job match role (`Harvest` ↔ producer, `HaulBasic` ↔ warehouse/HQ)
+- [v] Nếu workplace queue rỗng / không có job hợp role:
+  - push notification “NPC không có việc để làm” theo key (throttle/dedupe)
+  - chỉ bắn 1 lần cho cùng workplace/NPC trong cooldown, tránh spam
+- [v] Khi NPC được assign job lại → reset throttle state (cho phép thông báo lần sau nếu lại rơi vào “no job”).
+
+#### 5) (Tuỳ chọn) `Buildings.json` — khóa WorkRoles cho Forge/Armory (đúng pipeline v0.1)
+- [v] Forge set `workRoles: ["Craft"]` (không harvest Forge ở v0.1).
+- [v] Armory set `workRoles: ["Armory"]`.
+
+---
+
+### Kết quả / Acceptance
+- [v] Assign workplace:
+  - NPC ở Farm/Lumber/Quarry/IronHut chỉ nhận `Harvest`.
+  - NPC ở Warehouse/HQ chỉ nhận `HaulBasic`.
+- [v] Không còn case “NPC đứng yên vì peek job sai role ở đầu queue”.
+- [v] Khi không có job hợp lệ: notification xuất hiện **1 lần** (throttle), không spam mỗi tick.
+
+---
+
+### Ghi chú / Pitfalls
+- `WorkRoles` là gate theo workplace (không phải theo NPC class/level) — phù hợp VS#1.
+- Peek filtered phải giữ FIFO: không được reorder queue để tránh nondeterministic.
+- Notification dùng key ổn định (theo workplace hoặc npc) + cooldown để chống spam.
+
+---
+
+### Việc tiếp theo (Day 14)
+- Thay teleport executor bằng mover đơn giản: di chuyển 1 cell/tick (deterministic Manhattan), không pathfinding.
+
+
+## Day 14 — Replace Teleport bằng Move (GridAgentMoverLite) + Executor đi cell-by-cell (Deterministic Manhattan)
+
+### Mục tiêu (theo PART27 – Day 14)
+- [x] Bỏ “teleport” trong job executor (Harvest/HaulBasic).
+- [x] NPC di chuyển **1 cell mỗi tick** theo Manhattan (deterministic).
+- [x] Không pathfinding/avoid obstacle (v0.1) — chỉ clamp bounds.
+- [x] Debug dễ thấy: job có `TargetCell`/NPC cell thay đổi theo thời gian.
+
+---
+
+### Đã làm
+
+#### 1) `GridAgentMoverLite` (deterministic, tối giản)
+- [v] Thêm mover runtime:
+  - `StepToward(ref NpcState, CellPos target)`:
+    - ưu tiên trục **X trước rồi Y** (deterministic)
+    - di chuyển đúng 1 cell / tick
+    - clamp trong map (IsInside) để tránh out-of-bounds
+  - Không lưu path state (stateless) → không leak, dễ debug.
+
+#### 2) Wire vào services
+- [v] `GameServices` thêm field `AgentMover`.
+- [v] `GameServicesFactory` init `AgentMover = new GridAgentMoverLite(GridMap)`.
+- [v] Fix compile/asmdef: mover được đặt cùng assembly với `GameServices` (tránh “type not found”).
+
+#### 3) Patch Executors: Harvest/HaulBasic dùng mover thay teleport
+- [v] `HarvestExecutor`:
+  - set `job.TargetCell = producer.Anchor`
+  - mỗi tick gọi `AgentMover.StepToward(...)` cho tới khi arrived
+  - chỉ bắt đầu work timer sau khi arrived
+  - complete → add yield vào producer local storage
+- [v] `HaulBasicExecutor`:
+  - giữ logic Day12/13 (clamp cap, claim, reroute dest theo Workplace→NearSource, Warehouse>HQ)
+  - thay teleport bằng move:
+    - phase pickup: move tới `Source.Anchor` rồi mới Remove
+    - phase deliver: move tới `Dest.Anchor` rồi mới Add
+  - set `job.TargetCell` theo target hiện tại để HUD/trace dễ kiểm.
+
+---
+
+### Kết quả / Acceptance
+- [v] Play Mode: NPC thực sự “đi” theo cell-by-cell (CellPos thay đổi mỗi tick), không còn nhảy teleport.
+- [v] Harvest:
+  - NPC đi tới producer, đứng làm (timer), local storage tăng theo yield.
+- [v] HaulBasic:
+  - NPC đi tới source → pickup → đi tới dest → deliver, không overflow, không âm, không mất tài nguyên (refund phần dư).
+- [v] Determinism:
+  - cùng seed/layout → path luôn theo trục X trước rồi Y (stable).
+
+---
+
+### Ghi chú / Pitfalls
+- Day14 mover bỏ qua obstacle → nếu building/road blocking chưa được xét, đây là expected theo scope VS#1.
+- Nếu NPC “đi xuyên” footprint: chấp nhận ở v0.1; pathfinding/avoid sẽ làm ở phase sau.
+- Nếu thấy mover “không thấy type”: nguyên nhân thường là asmdef reference; giải pháp là đặt mover chung asmdef với core services (đã fix).
+
+---
+
+
+### Việc tiếp theo
+- [ ] (Phase sau) Thay mover-lite bằng pathfinding có avoid obstacle + reservation cell (khi scope mở).
+- [ ] (Phase sau) Chuẩn hóa `Stand/WorkCell` (đứng đúng cạnh/entry) thay vì đứng anchor cell.
+- [ ] Dọn lại DebugHub: thêm tab trace job theo NPC, hiển thị `TargetCell` + phase.
+- [ ] Khóa tài liệu: đảm bảo chỉ còn **1** bản `VS1_DEV_LOG.md` trong repo.
 
 ---

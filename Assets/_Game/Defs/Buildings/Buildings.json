@@ -77,6 +77,13 @@
       "capAmmo": { "L1": 300, "L2": 600, "L3": 1000 }
     },
     {
+      "id": "TowerArrow",
+      "sizeX": 1,
+      "sizeY": 1,
+      "baseLevel": 1,
+      "isTower": true
+    },
+    {
       "id": "Warehouse",
       "sizeX": 3,
       "sizeY": 3,

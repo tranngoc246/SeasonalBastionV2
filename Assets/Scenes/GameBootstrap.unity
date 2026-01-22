@@ -122,6 +122,51 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &80928309
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 80928310}
+  - component: {fileID: 80928311}
+  m_Layer: 0
+  m_Name: DebugRunClockHUD
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &80928310
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 80928309}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1732529964}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &80928311
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 80928309}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29b1ee504ae4f9245a23e6d07a82f1f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _hubControlled: 0
 --- !u!1 &311099401
 GameObject:
   m_ObjectHideFlags: 0
@@ -224,6 +269,7 @@ MonoBehaviour:
   _storageHud: {fileID: 360055334}
   _notiHud: {fileID: 606999408}
   _worldIndexHud: {fileID: 1725449634}
+  _clockHud: {fileID: 80928311}
   _toggleUiKey: 94
   _modeBuildKey: 95
   _modeRoadKey: 96
@@ -862,6 +908,7 @@ Transform:
   - {fileID: 606999407}
   - {fileID: 360055333}
   - {fileID: 1725449633}
+  - {fileID: 80928310}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807

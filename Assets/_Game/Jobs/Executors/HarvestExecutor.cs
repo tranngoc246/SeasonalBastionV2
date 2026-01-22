@@ -13,9 +13,10 @@ namespace SeasonalBastion
 
         public HarvestExecutor(GameServices s) { _s = s; }
 
+
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
-            if (_s.WorldState == null || _s.StorageService == null)
+            if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null)
             {
                 job.Status = JobStatus.Failed;
                 return true;
@@ -45,7 +46,7 @@ namespace SeasonalBastion
             var rt = HarvestResourceType(bs.DefId);
             GetHarvestParams(bs.DefId, NormalizeLevel(bs.Level), out float workSec, out int yield);
 
-            // Claim producer node
+            // Claim producer node (held during moving+working; released by JobScheduler on terminal)
             if (_s.ClaimService != null)
             {
                 var key = new ClaimKey(ClaimKind.ProducerNode, producer.Value, (int)rt);
@@ -53,14 +54,17 @@ namespace SeasonalBastion
                     return false; // waiting
             }
 
-            // Teleport to anchor
-            npcState.Cell = bs.Anchor;
-
             job.SourceBuilding = producer;
             job.ResourceType = rt;
             job.TargetCell = bs.Anchor;
             job.Status = JobStatus.InProgress;
 
+            // Day14: Move to anchor (no teleport)
+            bool arrived = _s.AgentMover.StepToward(ref npcState, bs.Anchor);
+            if (!arrived)
+                return true;
+
+            // Work timer only after arrived
             int jid = job.Id.Value;
             if (!_remaining.TryGetValue(jid, out var rem))
                 rem = workSec;

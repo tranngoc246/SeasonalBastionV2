@@ -1,5 +1,6 @@
 using System;
 using SeasonalBastion.Contracts;
+using SeasonalBastion.RunStart;
 
 namespace SeasonalBastion
 {
@@ -12,18 +13,57 @@ namespace SeasonalBastion
             _s = services ?? throw new ArgumentNullException(nameof(services));
         }
 
-        public void StartNewRun(int seed)
+        public void StartNewRun(int seed, string startMapConfigJsonOrMarkdown = null)
         {
             if (_s.RunOutcomeService is IResettable resetOutcome) resetOutcome.Reset();
+
+            // Reset runtime state (world/grid/jobs/orders/notifications) to avoid leaks between runs.
+            ResetForNewRun();
 
             // Deterministic initial run clock state
             _s.RunClock.ForceSeasonDay(Season.Spring, dayIndex: 1);
             _s.RunClock.SetTimeScale(1f);
 
+            // Apply StartMapConfig (if provided). If missing, keep empty world but deterministic.
+            if (!string.IsNullOrEmpty(startMapConfigJsonOrMarkdown))
+            {
+                if (!RunStartApplier.TryApply(_s, startMapConfigJsonOrMarkdown, out var err))
+                {
+                    // Fail-safe: notify + continue (empty world)
+                    _s.NotificationService?.Push(
+                        key: "RunStartApplyFailed",
+                        title: "Run Start",
+                        body: err,
+                        severity: NotificationSeverity.Error,
+                        payload: default,
+                        cooldownSeconds: 0f,
+                        dedupeByKey: true
+                    );
+                }
+            }
+
             // rebuild derived world index lists (safe even if world is empty).
             _s.WorldIndex?.RebuildAll();
+        }
+        private void ResetForNewRun()
+        {
+            // clear transient UI
+            try { (_s.NotificationService as NotificationService)?.ClearAll(); } catch { }
 
-            // TODO: generate start map + spawn initial buildings/NPCs using WorldOps.
+            // jobs / claims / build orders (runtime concrete types)
+            try { (_s.JobBoard as JobBoard)?.ClearAll(); } catch { }
+            try { (_s.ClaimService as ClaimService)?.ClearAll(); } catch { }
+            try { (_s.BuildOrderService as BuildOrderService)?.ClearAll(); } catch { }
+
+            // grid occupancy
+            try { (_s.GridMap as GridMap)?.ClearAll(); } catch { }
+
+            // world stores (runtime concrete stores)
+            try { (_s.WorldState?.Buildings as EntityStore<BuildingId, BuildingState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Sites as EntityStore<SiteId, BuildSiteState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Npcs as EntityStore<NpcId, NpcState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Enemies as EntityStore<EnemyId, EnemyState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Towers as EntityStore<TowerId, TowerState>)?.ClearAll(); } catch { }
         }
 
         public void Tick(float dt) => TickOrder.TickAll(_s, dt);

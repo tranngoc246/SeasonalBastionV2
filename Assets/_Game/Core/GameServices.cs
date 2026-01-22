@@ -22,6 +22,12 @@ namespace SeasonalBastion
         public IGridMap GridMap;
         public IPlacementService PlacementService;
 
+        // VS2: cached data loaded from StartMapConfig at StartNewRun()
+        public RunStartRuntime RunStartRuntime;
+
+        // Day14: simple mover (runtime-only)
+        public GridAgentMoverLite AgentMover;
+
         // Economy/Jobs
         public IStorageService StorageService;
         public IResourceFlowService ResourceFlowService;

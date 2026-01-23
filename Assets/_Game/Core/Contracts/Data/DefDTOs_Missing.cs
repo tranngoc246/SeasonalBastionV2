@@ -49,6 +49,10 @@ namespace SeasonalBastion.Contracts
         public StorageCapsByLevel CapStone;
         public StorageCapsByLevel CapIron;
         public StorageCapsByLevel CapAmmo;
+
+        // VS2 Day18: construction delivery gate (L1 build)
+        public CostDef[] BuildCostsL1;
+        public int BuildChunksL1;
     }
 
     [Serializable]

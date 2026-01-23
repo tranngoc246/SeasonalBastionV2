@@ -16,7 +16,7 @@ namespace SeasonalBastion.EditorTools
             SceneView.duringSceneGui += OnSceneGUI;
         }
 
-        [MenuItem("Tools/SeasonalBastion/Toggle Mouse Cell Gizmo %#g")]
+        [MenuItem("Tools/Seasonal Bastion/Toggle Mouse Cell Gizmo %#g")]
         private static void Toggle()
         {
             _enabled = !_enabled;

@@ -21,7 +21,12 @@ namespace SeasonalBastion.Contracts
         public float WorkSecondsDone;
         public float WorkSecondsTotal;
 
+        // Costs delivered so far (mirror of total cost for stable UI)
+        public List<CostDef> DeliveredSoFar;
+
         // Costs remaining to deliver
         public List<CostDef> RemainingCosts;
+
+        public bool IsReadyToWork => RemainingCosts == null || RemainingCosts.Count == 0;
     }
 }

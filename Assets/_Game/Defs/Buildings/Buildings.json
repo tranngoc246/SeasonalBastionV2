@@ -20,7 +20,9 @@
       "sizeY": 3,
       "baseLevel": 1,
       "isHouse": true,
-      "workRoles": []
+      "workRoles": [],
+      "buildCostsL1": [ { "res": 0, "amt": 20 } ],
+      "buildChunksL1": 2
     },
     {
       "id": "Farm",
@@ -29,6 +31,8 @@
       "baseLevel": 1,
       "isProducer": true,
       "workRoles": ["Harvest"],
+      "buildCostsL1": [ { "res": 0, "amt": 25 } ],
+      "buildChunksL1": 2,
       "capFood": { "L1": 30, "L2": 60, "L3": 90 }
     },
     {
@@ -38,6 +42,8 @@
       "baseLevel": 1,
       "isProducer": true,
       "workRoles": ["Harvest"],
+      "buildCostsL1": [ { "res": 0, "amt": 20 } ],
+      "buildChunksL1": 2,
       "capWood": { "L1": 40, "L2": 80, "L3": 120 }
     },
     {
@@ -47,6 +53,8 @@
       "baseLevel": 1,
       "isProducer": true,
       "workRoles": ["Harvest"],
+      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 20 } ],
+      "buildChunksL1": 3,
       "capStone": { "L1": 40, "L2": 80, "L3": 120 }
     },
     {
@@ -56,6 +64,8 @@
       "baseLevel": 1,
       "isProducer": true,
       "workRoles": ["Harvest"],
+      "buildCostsL1": [ { "res": 0, "amt": 30 }, { "res": 2, "amt": 20 } ],
+      "buildChunksL1": 3,
       "capIron": { "L1": 30, "L2": 60, "L3": 90 }
     },
     {
@@ -65,6 +75,8 @@
       "baseLevel": 1,
       "isForge": true,
       "workRoles": ["Craft"],
+      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 20 }, { "res": 3, "amt": 10 } ],
+      "buildChunksL1": 3,
       "capAmmo": { "L1": 50, "L2": 100, "L3": 150 }
     },
     {
@@ -74,14 +86,9 @@
       "baseLevel": 1,
       "isArmory": true,
       "workRoles": ["Armory"],
+      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 30 }, { "res": 3, "amt": 10 } ],
+      "buildChunksL1": 3,
       "capAmmo": { "L1": 300, "L2": 600, "L3": 1000 }
-    },
-    {
-      "id": "TowerArrow",
-      "sizeX": 1,
-      "sizeY": 1,
-      "baseLevel": 1,
-      "isTower": true
     },
     {
       "id": "Warehouse",
@@ -90,6 +97,8 @@
       "baseLevel": 1,
       "isWarehouse": true,
       "workRoles": ["HaulBasic"],
+      "buildCostsL1": [ { "res": 0, "amt": 30 }, { "res": 2, "amt": 20 } ],
+      "buildChunksL1": 3,
       "capWood": { "L1": 300, "L2": 600, "L3": 1000 },
       "capFood": { "L1": 300, "L2": 600, "L3": 1000 },
       "capStone": { "L1": 300, "L2": 600, "L3": 1000 },

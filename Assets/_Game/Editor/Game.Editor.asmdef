@@ -1,0 +1,20 @@
+{
+    "name": "Game.Editor",
+    "rootNamespace": "SeasonalBastion",
+    "references": [
+        "Game.Core",
+        "Game.Contracts",
+        "Game.Debug",
+        "Game.Defs",
+        "Game.Boot"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

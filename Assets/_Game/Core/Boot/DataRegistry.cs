@@ -52,6 +52,10 @@ namespace SeasonalBastion
 
             public string[] workRoles;
 
+            // VS2 Day18: construction delivery gate (L1 build)
+            public BuildingCostJson[] buildCostsL1;
+            public int buildChunksL1 = 0;
+
             public bool isHQ = false;
             public bool isWarehouse = false;
             public bool isProducer = false;
@@ -87,6 +91,13 @@ namespace SeasonalBastion
 
         [Serializable]
         private sealed class TowerCostJson
+        {
+            public int res;
+            public int amt;
+        }
+
+        [Serializable]
+        private sealed class BuildingCostJson
         {
             public int res;
             public int amt;
@@ -296,7 +307,9 @@ namespace SeasonalBastion
                     CapFood = ToCaps(bj.capFood),
                     CapStone = ToCaps(bj.capStone),
                     CapIron = ToCaps(bj.capIron),
-                    CapAmmo = ToCaps(bj.capAmmo)
+                    CapAmmo = ToCaps(bj.capAmmo),
+                    BuildCostsL1 = ToCosts(bj.buildCostsL1, ctx: $"Building '{id}' buildCostsL1"),
+                    BuildChunksL1 = Mathf.Max(0, bj.buildChunksL1)
                 };
 
                 _buildings[id] = def;
@@ -789,6 +802,20 @@ namespace SeasonalBastion
             }
 
             return (ResourceType)v;
+        }
+
+        private CostDef[] ToCosts(BuildingCostJson[] arr, string ctx)
+        {
+            if (arr == null || arr.Length == 0) return null;
+
+            var outArr = new CostDef[arr.Length];
+            for (int i = 0; i < arr.Length; i++)
+            {
+                var c = arr[i] ?? new BuildingCostJson();
+                var res = ParseResourceType(c.res, $"{ctx}[{i}].res");
+                outArr[i] = new CostDef { Resource = res, Amount = Mathf.Max(0, c.amt) };
+            }
+            return outArr;
         }
 
         private CostDef[] ToCosts(TowerCostJson[] arr, string ctx)

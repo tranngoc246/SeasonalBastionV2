@@ -233,3 +233,76 @@
 ### Việc tiếp theo (Day 18)
 - Dùng `Waves.json` + `SpawnGates` (RunStartRuntime) để wiring **Wave spawn pipeline** (Defend phase).
 - Add “Editor menu Validate Data” (optional) để validate trước khi Play / CI.
+
+---
+
+## Day 18 — Build Site Cost Tracking (L1) + Gate Work + Debug Site Progress
+
+### Mục tiêu
+- [x] Chuẩn hoá **build cost L1** cho building defs (nguồn: `Buildings.json`):
+  - [x] Thêm `buildCostsL1` (mảng cost theo resource)
+  - [x] Thêm `buildChunksL1` (số chunk chuẩn bị cho Day 19 delivery/jobs)
+- [x] `DataRegistry` parse cost L1 vào `BuildingDef` (không làm mất nội dung cũ).
+- [x] `BuildSiteState` có progress giao hàng:
+  - [x] `DeliveredSoFar` (mirror để UI ổn định)
+  - [x] `RemainingCosts` (còn cần giao)
+  - [x] `IsReadyToWork` (gate work = chỉ work khi RemainingCosts rỗng)
+- [x] `BuildOrderService`:
+  - [x] Khi tạo site: init `DeliveredSoFar/RemainingCosts` từ `BuildingDef.BuildCostsL1`
+  - [x] **Chặn tiến độ work** nếu site chưa `IsReadyToWork`
+- [x] Debug HUD:
+  - [x] `DebugWorldIndexHUD` hiển thị **Build Sites** + cost progress `delivered/total`
+
+### Đã làm
+- [v] **Buildings.json**
+  - Bổ sung field cho từng building cần build theo VS2:
+    - `buildCostsL1`: danh sách `{ res, amt }` (resource index theo enum runtime)
+    - `buildChunksL1`: số chunk (dùng cho Day 19 delivery/work split)
+  - Giữ nguyên các field cũ, chỉ thêm field mới theo Day 18.
+- [v] **DefDTOs**
+  - Bổ sung vào `BuildingDef`:
+    - `CostDef[] BuildCostsL1`
+    - `int BuildChunksL1`
+- [v] **DataRegistry**
+  - Thêm DTO parse: `BuildingCostJson { res, amt }`
+  - Thêm field vào `BuildingJson`: `buildCostsL1`, `buildChunksL1`
+  - Map vào `BuildingDef`: `BuildCostsL1`, `BuildChunksL1`
+  - Implement overload `ToCosts(BuildingCostJson[])` (tương tự Tower/Recipe costs)
+  - Patch theo nguyên tắc: **chỉ add, không xoá code cũ** (nếu không tìm được điểm chèn thì báo warning khi patch).
+- [v] **BuildSiteState**
+  - Thêm:
+    - `DeliveredSoFar` (mirror của total cost, amount ban đầu = 0)
+    - `IsReadyToWork` => `RemainingCosts == null || RemainingCosts.Count == 0`
+- [v] **BuildOrderService**
+  - Khi tạo `BuildSiteState`:
+    - `DeliveredSoFar = BuildDeliveredMirror(def.BuildCostsL1)`
+    - `RemainingCosts = CloneCostsOrEmpty(def.BuildCostsL1)`
+  - Trong Tick:
+    - Nếu `!site.IsReadyToWork` => **không progress work**, giữ site/state đồng bộ.
+  - Bổ sung helper nội bộ:
+    - `CloneCostsOrEmpty()`
+    - `BuildDeliveredMirror()`
+- [v] **DebugWorldIndexHUD**
+  - Hiển thị Build Sites (cap số lượng để tránh spam):
+    - id, defId, anchor, trạng thái `READY/WAIT_COST`
+    - cost line: `W/F/S/I/A delivered/total`
+  - Bổ sung helper:
+    - `FormatCostProgress(BuildSiteState)`
+    - `Accum(List<CostDef>, int[])`
+
+### Kết quả / Acceptance
+- [v] Đặt building tạo **Build Site** sẽ có cost tracked:
+  - `DeliveredSoFar` ban đầu = 0, `RemainingCosts` = total.
+  - `IsReadyToWork = false` khi còn cost.
+- [v] BuildOrder **không tự hoàn thành** nữa khi chưa có delivery (đúng chuẩn để Day 19 nối pipeline giao hàng).
+- [v] DebugWorldIndexHUD hiển thị rõ progress `delivered/total` cho từng site.
+
+### Ghi chú / Pitfalls
+- `JsonUtility` yêu cầu schema DTO khớp tên field; dùng `{ res, amt }` để parse ổn định.
+- Đảm bảo `BuildCostsL1/BuildChunksL1` đã có trong `BuildingDef` trước khi map trong DataRegistry.
+- Helper (CloneCosts/DeliveredMirror/FormatCostProgress) phải nằm trong đúng file, tránh lỗi “method not found”.
+
+### Việc tiếp theo (Day 19)
+- Implement delivery pipeline:
+  - Job lấy tài nguyên từ storage → giao vào BuildSite (giảm Remaining, tăng Delivered)
+  - Khi RemainingCosts rỗng → unlock WorkOnSite job để hoàn thành build.

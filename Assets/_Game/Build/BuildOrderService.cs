@@ -16,6 +16,18 @@ namespace SeasonalBastion
         // Long-term safety: prevent ghost placeholder on cancel
         private readonly bool _destroyPlaceholderOnCancel = true;
 
+        // VS2 Day19: BuildOrderService acts as Job Provider for build pipeline.
+        private const int CarryCap = 10; // keep consistent with HaulBasicExecutor
+        private const int MaxPendingDeliveryJobsPerSite = 3;
+
+        // siteId.Value -> pending deliver job ids
+        private readonly Dictionary<int, List<JobId>> _deliverJobsBySite = new();
+        // siteId.Value -> active work job id
+        private readonly Dictionary<int, JobId> _workJobBySite = new();
+
+        // reuse buffers
+        private readonly List<BuildingId> _buildingIdsBuf = new(128);
+
         public event Action<int> OnOrderCompleted;
 
         public BuildOrderService(GameServices s) { _s = s; }
@@ -57,7 +69,8 @@ namespace SeasonalBastion
                 IsActive = true,
                 WorkSecondsDone = 0f,
                 WorkSecondsTotal = Math.Max(0.1f, workTotal),
-                RemainingCosts = null // Day 6: ignore delivery
+                DeliveredSoFar = BuildDeliveredMirror(def.BuildCostsL1),
+                RemainingCosts = CloneCostsOrEmpty(def.BuildCostsL1) // VS2 Day18: delivery gate
             };
             var siteId = _s.WorldState.Sites.Create(site);
             site.Id = siteId;
@@ -77,7 +90,7 @@ namespace SeasonalBastion
                 BuildingDefId = buildingDefId,
                 TargetBuilding = buildingId,
                 Site = siteId,
-                RequiredCost = null, // Day 6: no delivery
+                RequiredCost = default,
                 Delivered = default,
                 WorkSecondsRequired = site.WorkSecondsTotal,
                 WorkSecondsDone = 0f,
@@ -140,6 +153,9 @@ namespace SeasonalBastion
 
             if (o.Kind == BuildOrderKind.PlaceNew)
             {
+                // Day19: cancel pending jobs for this site (avoid orphan jobs)
+                CancelTrackedJobsForSite(o.Site);
+
                 // 1) Clear site occupancy + destroy site
                 if (_s.WorldState.Sites.Exists(o.Site))
                 {
@@ -180,41 +196,47 @@ namespace SeasonalBastion
         {
             if (dt <= 0f) return;
 
+            var workplace = ResolveBuildWorkplace();
+            if (workplace.Value == 0)
+                return; // no build workplace => cannot create jobs deterministically
+
             // Iterate deterministic by insertion order (orderId always increasing)
             for (int i = 0; i < _active.Count; i++)
             {
                 int id = _active[i];
                 if (!_orders.TryGetValue(id, out var o)) continue;
                 if (o.Completed) continue;
-
                 if (o.Kind != BuildOrderKind.PlaceNew) continue;
 
                 // Site might have been destroyed (edge case)
                 if (!_s.WorldState.Sites.Exists(o.Site))
                 {
+                    CancelTrackedJobsForSite(o.Site);
                     o.Completed = true;
                     _orders[id] = o;
                     continue;
                 }
 
-                // Progress work
-                o.WorkSecondsDone += dt;
-
                 var site = _s.WorldState.Sites.Get(o.Site);
-                site.WorkSecondsDone = o.WorkSecondsDone;
-                _s.WorldState.Sites.Set(o.Site, site);
 
-                // Complete?
-                if (o.WorkSecondsDone + 1e-4f >= o.WorkSecondsRequired)
+                // Day19: Ensure delivery/work jobs exist before JobScheduler tick
+                var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
+                EnsureBuildJobsForSite(o.Site, site, def, workplace);
+
+                // Sync order progress from site (executor will advance site.WorkSecondsDone)
+                o.WorkSecondsDone = site.WorkSecondsDone;
+                _orders[id] = o;
+
+                // Complete when:
+                // - remaining costs are done
+                // - and work seconds done >= total
+                if (IsReadyToWork(site) && site.WorkSecondsDone + 1e-4f >= site.WorkSecondsTotal)
                 {
+                    CancelTrackedJobsForSite(o.Site);
+
                     CompletePlaceOrder(ref o);
                     _orders[id] = o;
-
                     OnOrderCompleted?.Invoke(id);
-                }
-                else
-                {
-                    _orders[id] = o;
                 }
             }
 
@@ -230,6 +252,9 @@ namespace SeasonalBastion
         private void CompletePlaceOrder(ref BuildOrder o)
         {
             if (o.Completed) return;
+
+            // Day19: cancel any leftover jobs for this site (safety)
+            CancelTrackedJobsForSite(o.Site);
 
             // read site + def
             var site = _s.WorldState.Sites.Get(o.Site);
@@ -291,6 +316,268 @@ namespace SeasonalBastion
             _nextOrderId = 1;
             _active.Clear();
             _orders.Clear();
+            _deliverJobsBySite.Clear();
+            _workJobBySite.Clear();
+            _buildingIdsBuf.Clear();
+        }
+
+        private static bool IsReadyToWork(in BuildSiteState site)
+        {
+            return site.RemainingCosts == null || site.RemainingCosts.Count == 0;
+        }
+
+        private static List<CostDef> CloneCostsOrEmpty(IReadOnlyList<CostDef> src)
+        {
+            if (src == null || src.Count == 0) return new List<CostDef>(0);
+
+            var list = new List<CostDef>(src.Count);
+            for (int i = 0; i < src.Count; i++)
+            {
+                var c = src[i];
+                if (c.Amount > 0) list.Add(c);
+            }
+            return list;
+        }
+
+        private BuildingId ResolveBuildWorkplace()
+        {
+            _buildingIdsBuf.Clear();
+            foreach (var id in _s.WorldState.Buildings.Ids) _buildingIdsBuf.Add(id);
+            _buildingIdsBuf.Sort((a, b) => a.Value.CompareTo(b.Value));
+
+            // Prefer HQ (constructed)
+            for (int i = 0; i < _buildingIdsBuf.Count; i++)
+            {
+                var bid = _buildingIdsBuf[i];
+                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+
+                var bs = _s.WorldState.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+
+                var def = _s.DataRegistry.GetBuilding(bs.DefId);
+                if (def.IsHQ) return bid;
+            }
+
+            // Fallback: any workplace with Build role (if you have such defs)
+            for (int i = 0; i < _buildingIdsBuf.Count; i++)
+            {
+                var bid = _buildingIdsBuf[i];
+                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+
+                var bs = _s.WorldState.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+
+                var def = _s.DataRegistry.GetBuilding(bs.DefId);
+                if ((def.WorkRoles & WorkRoleFlags.Build) != 0) return bid;
+            }
+
+            return default;
+        }
+
+        private void EnsureBuildJobsForSite(SiteId siteId, BuildSiteState site, BuildingDef def, BuildingId workplace)
+        {
+            if (_s.JobBoard == null) return;
+
+            // prune stale tracked jobs
+            if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
+                PruneTerminal(list);
+
+            if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
+            {
+                if (!_s.JobBoard.TryGet(wid, out var wj) || IsTerminal(wj.Status))
+                    _workJobBySite.Remove(siteId.Value);
+            }
+
+            // Not ready => ensure delivery jobs, cancel work job
+            if (!IsReadyToWork(site))
+            {
+                if (_workJobBySite.TryGetValue(siteId.Value, out var w))
+                {
+                    _s.JobBoard.Cancel(w);
+                    _workJobBySite.Remove(siteId.Value);
+                }
+
+                EnsureDeliveryJobs(siteId, site, def, workplace);
+                return;
+            }
+
+            // Ready => cancel delivery jobs, ensure 1 work job
+            CancelDeliveryJobs(siteId);
+
+            if (!_workJobBySite.ContainsKey(siteId.Value))
+            {
+                var j = new Job
+                {
+                    Archetype = JobArchetype.BuildWork,
+                    Status = JobStatus.Created,
+                    Workplace = workplace,
+
+                    SourceBuilding = default,
+                    DestBuilding = default,
+                    Site = siteId,
+                    Tower = default,
+
+                    ResourceType = 0,
+                    Amount = 0,
+
+                    TargetCell = site.Anchor,
+                    CreatedAt = 0
+                };
+
+                var newId = _s.JobBoard.Enqueue(j);
+                _workJobBySite[siteId.Value] = newId;
+            }
+        }
+
+        private void EnsureDeliveryJobs(SiteId siteId, BuildSiteState site, BuildingDef def, BuildingId workplace)
+        {
+            if (site.RemainingCosts == null || site.RemainingCosts.Count == 0) return;
+
+            if (!_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
+                _deliverJobsBySite[siteId.Value] = list = new List<JobId>(MaxPendingDeliveryJobsPerSite);
+
+            int chunks = def.BuildChunksL1 <= 0 ? 1 : def.BuildChunksL1;
+
+            while (list.Count < MaxPendingDeliveryJobsPerSite)
+            {
+                int idx = PickNextRemainingIndex(site);
+                if (idx < 0) break;
+
+                var rc = site.RemainingCosts[idx];
+                if (rc.Amount <= 0) { site.RemainingCosts.RemoveAt(idx); continue; }
+
+                int totalForRes = GetTotalCostFromDef(def.BuildCostsL1, rc.Resource);
+                int chunkAmt = (totalForRes + chunks - 1) / chunks; // ceil
+                if (chunkAmt <= 0) chunkAmt = rc.Amount;
+
+                int want = rc.Amount < chunkAmt ? rc.Amount : chunkAmt;
+                if (want > CarryCap) want = CarryCap;
+
+                var j = new Job
+                {
+                    Archetype = JobArchetype.BuildDeliver,
+                    Status = JobStatus.Created,
+                    Workplace = workplace,
+
+                    SourceBuilding = default,
+                    DestBuilding = default,
+                    Site = siteId,
+                    Tower = default,
+
+                    ResourceType = rc.Resource,
+                    Amount = want,
+
+                    TargetCell = site.Anchor,
+                    CreatedAt = 0
+                };
+
+                var jid = _s.JobBoard.Enqueue(j);
+                list.Add(jid);
+            }
+        }
+
+        private static int PickNextRemainingIndex(in BuildSiteState site)
+        {
+            if (site.RemainingCosts == null || site.RemainingCosts.Count == 0) return -1;
+
+            int best = -1;
+            int bestKey = int.MaxValue;
+
+            for (int i = 0; i < site.RemainingCosts.Count; i++)
+            {
+                var c = site.RemainingCosts[i];
+                if (c.Amount <= 0) continue;
+
+                int key = (int)c.Resource;
+                if (key < bestKey)
+                {
+                    bestKey = key;
+                    best = i;
+                }
+            }
+            return best;
+        }
+
+        private static int GetTotalCostFromDef(IReadOnlyList<CostDef> costs, ResourceType rt)
+        {
+            if (costs == null) return 0;
+            for (int i = 0; i < costs.Count; i++)
+                if (costs[i].Resource == rt)
+                    return costs[i].Amount;
+            return 0;
+        }
+
+        private void CancelTrackedJobsForSite(SiteId siteId)
+        {
+            CancelDeliveryJobs(siteId);
+
+            if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
+            {
+                _s.JobBoard.Cancel(wid);
+                _workJobBySite.Remove(siteId.Value);
+            }
+        }
+
+        private void CancelDeliveryJobs(SiteId siteId)
+        {
+            if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
+            {
+                for (int i = 0; i < list.Count; i++)
+                    _s.JobBoard.Cancel(list[i]);
+                list.Clear();
+            }
+        }
+
+        private void PruneTerminal(List<JobId> list)
+        {
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var id = list[i];
+                if (!_s.JobBoard.TryGet(id, out var j) || IsTerminal(j.Status))
+                    list.RemoveAt(i);
+            }
+        }
+
+        private static bool IsTerminal(JobStatus s)
+        {
+            return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
+        }
+
+        // VS2 Day18: helpers for site cost tracking (delivery gate)
+        private static List<CostDef> CloneCostsOrEmpty(CostDef[] arr)
+        {
+            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
+
+            var list = new List<CostDef>(arr.Length);
+            for (int i = 0; i < arr.Length; i++)
+            {
+                var c = arr[i];
+                if (c == null) continue;
+
+                int amt = c.Amount;
+                if (amt <= 0) continue;
+
+                list.Add(new CostDef { Resource = c.Resource, Amount = amt });
+            }
+            return list;
+        }
+
+        private static List<CostDef> BuildDeliveredMirror(CostDef[] arr)
+        {
+            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
+
+            var list = new List<CostDef>(arr.Length);
+            for (int i = 0; i < arr.Length; i++)
+            {
+                var c = arr[i];
+                if (c == null) continue;
+
+                // keep only positive cost lines
+                if (c.Amount <= 0) continue;
+
+                list.Add(new CostDef { Resource = c.Resource, Amount = 0 });
+            }
+            return list;
         }
     }
 }

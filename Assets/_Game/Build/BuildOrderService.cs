@@ -25,6 +25,10 @@ namespace SeasonalBastion
         // siteId.Value -> active work job id
         private readonly Dictionary<int, JobId> _workJobBySite = new();
 
+        // orderId -> driveway road cell auto-created by PlacementService (rollback on cancel)
+        private readonly Dictionary<int, CellPos> _autoRoadByOrder = new();
+        private bool _busSubscribed;
+
         // reuse buffers
         private readonly List<BuildingId> _buildingIdsBuf = new(128);
 
@@ -34,6 +38,8 @@ namespace SeasonalBastion
 
         public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
         {
+            EnsureBusSubscribed();
+
             // 1) Validate via PlacementService (single source of truth)
             var placement = _s.PlacementService;
             var vr = placement.ValidateBuilding(buildingDefId, anchor, rotation);
@@ -156,6 +162,20 @@ namespace SeasonalBastion
                 // Day19: cancel pending jobs for this site (avoid orphan jobs)
                 CancelTrackedJobsForSite(o.Site);
 
+                TryRollbackAutoRoad(orderId);
+                _autoRoadByOrder.Remove(orderId);
+
+                // Day21: refund resources already delivered to this site (best-effort, deterministic)
+                if (_s.WorldState.Sites.Exists(o.Site))
+                {
+                    var stRefund = _s.WorldState.Sites.Get(o.Site);
+                    RefundDeliveredToNearestStorage(stRefund);
+                }
+
+                // Day21: clear local tracking maps to avoid ghost tracking after cancel
+                _deliverJobsBySite.Remove(o.Site.Value);
+                _workJobBySite.Remove(o.Site.Value);
+
                 // 1) Clear site occupancy + destroy site
                 if (_s.WorldState.Sites.Exists(o.Site))
                 {
@@ -192,8 +212,71 @@ namespace SeasonalBastion
             _active.Remove(orderId);
         }
 
+        private void TryRollbackAutoRoad(int orderId)
+        {
+            if (!_autoRoadByOrder.TryGetValue(orderId, out var c)) return;
+            if (_s.GridMap == null) return;
+            if (!_s.GridMap.IsInside(c)) return;
+
+            var occ = _s.GridMap.Get(c);
+            if (occ.Kind == CellOccupancyKind.Site || occ.Kind == CellOccupancyKind.Building)
+                return;
+
+            if (_s.GridMap.IsRoad(c))
+                _s.GridMap.SetRoad(c, false);
+        }
+
+        // Day21: tiện ích cancel theo Site/Building để debug tool gọi (không cần biết orderId)
+        public bool CancelBySite(SiteId siteId)
+        {
+            if (siteId.Value == 0) return false;
+            for (int i = 0; i < _active.Count; i++)
+            {
+                int id = _active[i];
+                if (!_orders.TryGetValue(id, out var o)) continue;
+                if (o.Completed) continue;
+                if (o.Site.Value != siteId.Value) continue;
+                Cancel(id);
+                return true;
+            }
+            return false;
+        }
+
+        public bool CancelByBuilding(BuildingId buildingId)
+        {
+            if (buildingId.Value == 0) return false;
+            for (int i = 0; i < _active.Count; i++)
+            {
+                int id = _active[i];
+                if (!_orders.TryGetValue(id, out var o)) continue;
+                if (o.Completed) continue;
+                if (o.TargetBuilding.Value != buildingId.Value) continue;
+                Cancel(id);
+                return true;
+            }
+            return false;
+        }
+
+        private void EnsureBusSubscribed()
+        {
+            if (_busSubscribed) return;
+            var bus = _s.EventBus;
+            if (bus == null) return;
+
+            bus.Subscribe<BuildOrderAutoRoadCreatedEvent>(OnAutoRoadCreated);
+            _busSubscribed = true;
+        }
+
+        private void OnAutoRoadCreated(BuildOrderAutoRoadCreatedEvent e)
+        {
+            if (e.OrderId <= 0) return;
+            _autoRoadByOrder[e.OrderId] = e.RoadCell;
+        }
+
         public void Tick(float dt)
         {
+            EnsureBusSubscribed();
+
             if (dt <= 0f) return;
 
             var workplace = ResolveBuildWorkplace();
@@ -298,27 +381,41 @@ namespace SeasonalBastion
             );
 
             o.Completed = true;
+            _autoRoadByOrder.Remove(o.OrderId);
         }
 
         private static float ComputeWorkSecondsTotal(BuildingDef def)
         {
-            // VS#1 simple deterministic formula:
-            // base + area factor
-            int w = Math.Max(1, def.SizeX);
-            int h = Math.Max(1, def.SizeY);
-            int area = w * h;
+            // Day20 (LOCKED): WorkDuration theo def (BuildChunks) + chunk time từ Deliverable C.
+            // Deliverable C: BuildWorkChunkTime = 6s, mỗi building có BuildChunksL1.
+            const float BuildWorkChunkTimeSec = 6f;
 
+            if (def != null && def.BuildChunksL1 > 0)
+                return def.BuildChunksL1 * BuildWorkChunkTimeSec;
+
+            // Fallback an toàn (nếu data thiếu BuildChunksL1): deterministic formula.
+            int w = Math.Max(1, def?.SizeX ?? 1);
+            int h = Math.Max(1, def?.SizeY ?? 1);
+            int area = w * h;
             return 1.5f + area * 0.35f;
         }
 
         public void ClearAll()
         {
+            // best-effort unsubscribe (avoid double handlers on domain reload / re-init)
+            if (_busSubscribed && _s.EventBus != null)
+            {
+                _s.EventBus.Unsubscribe<BuildOrderAutoRoadCreatedEvent>(OnAutoRoadCreated);
+                _busSubscribed = false;
+            }
+
             _nextOrderId = 1;
             _active.Clear();
             _orders.Clear();
             _deliverJobsBySite.Clear();
             _workJobBySite.Clear();
             _buildingIdsBuf.Clear();
+            _autoRoadByOrder.Clear();
         }
 
         private static bool IsReadyToWork(in BuildSiteState site)
@@ -525,6 +622,7 @@ namespace SeasonalBastion
                 for (int i = 0; i < list.Count; i++)
                     _s.JobBoard.Cancel(list[i]);
                 list.Clear();
+                _deliverJobsBySite.Remove(siteId.Value);
             }
         }
 
@@ -542,6 +640,72 @@ namespace SeasonalBastion
         {
             return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
         }
+        // -------------------------
+        // Day21: Cancel refund policy
+        // -------------------------
+        private void RefundDeliveredToNearestStorage(in BuildSiteState st)
+        {
+            if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null) return;
+            if (st.DeliveredSoFar == null || st.DeliveredSoFar.Count == 0) return;
+
+            var whs = _s.WorldIndex.Warehouses;
+            if (whs == null || whs.Count == 0) return;
+
+            // Build candidate list once (deterministic)
+            _buildingIdsBuf.Clear();
+            for (int i = 0; i < whs.Count; i++)
+            {
+                var bid = whs[i];
+                if (bid.Value == 0) continue;
+                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+
+                var bs = _s.WorldState.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+
+                _buildingIdsBuf.Add(bid);
+            }
+
+            if (_buildingIdsBuf.Count == 0) return;
+
+            var from = st.Anchor;
+            _buildingIdsBuf.Sort((a, b) =>
+            {
+                var aa = _s.WorldState.Buildings.Get(a).Anchor;
+                var bb = _s.WorldState.Buildings.Get(b).Anchor;
+                int da = Manhattan(from, aa);
+                int db = Manhattan(from, bb);
+                if (da != db) return da.CompareTo(db);
+                return a.Value.CompareTo(b.Value);
+            });
+
+            // Refund each delivered cost line to nearest storage/HQ (best-effort).
+            for (int i = 0; i < st.DeliveredSoFar.Count; i++)
+            {
+                var c = st.DeliveredSoFar[i];
+                if (c.Amount <= 0) continue;
+
+                int left = c.Amount;
+                var rt = c.Resource;
+
+                for (int k = 0; k < _buildingIdsBuf.Count && left > 0; k++)
+                {
+                    var dst = _buildingIdsBuf[k];
+                    if (!_s.StorageService.CanStore(dst, rt)) continue;
+
+                    int added = _s.StorageService.Add(dst, rt, left);
+                    left -= added;
+                }
+            }
+        }
+
+        private static int Manhattan(CellPos a, CellPos b)
+        {
+            int dx = a.X - b.X; if (dx < 0) dx = -dx;
+            int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
+            return dx + dy;
+        }
+
+
 
         // VS2 Day18: helpers for site cost tracking (delivery gate)
         private static List<CostDef> CloneCostsOrEmpty(CostDef[] arr)

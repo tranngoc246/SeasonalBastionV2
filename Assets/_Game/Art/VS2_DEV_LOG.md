@@ -306,3 +306,168 @@
 - Implement delivery pipeline:
   - Job lấy tài nguyên từ storage → giao vào BuildSite (giảm Remaining, tăng Delivered)
   - Khi RemainingCosts rỗng → unlock WorkOnSite job để hoàn thành build.
+
+---
+
+## Day 19 — BuildOrderService = Job Provider (BuildDeliver/BuildWork) + Throttle
+
+### Mục tiêu
+- [x] Biến `BuildOrderService` thành **Job Provider** cho pipeline build (L1):
+  - [x] Khi site **còn thiếu cost** → sinh `JobArchetype.BuildDeliver` theo **chunk**.
+  - [x] Khi site **đủ cost** → sinh **1** `JobArchetype.BuildWork`.
+- [x] Throttle: mỗi site tối đa **N pending delivery jobs** (tránh spam job).
+- [x] Deterministic:
+  - [x] Resolve workplace build ưu tiên **HQ constructed**, fallback workplace có `WorkRoleFlags.Build`.
+  - [x] Pick remaining cost theo thứ tự resource (stable), không phụ thuộc frame.
+- [x] Không over-scope: Day 19 chỉ “tạo job đúng lúc”, executor giao/thi công là Day 20.
+
+### Đã làm
+- [v] **BuildOrderService.Tick**
+  - Không còn auto-progress work trong service.
+  - Mỗi tick: resolve build workplace (HQ) → `EnsureBuildJobsForSite(...)`:
+    - Nếu `RemainingCosts` còn → ensure tối đa `MaxPendingDeliveryJobsPerSite` jobs `BuildDeliver`.
+    - Nếu `RemainingCosts` rỗng → huỷ delivery jobs còn dư → ensure 1 job `BuildWork`.
+  - Complete order khi:
+    - Site ready (`RemainingCosts` rỗng) **và** `WorkSecondsDone >= WorkSecondsTotal` (work do executor tăng).
+- [v] **Job payload (BuildDeliver/BuildWork)**
+  - BuildDeliver: set `Site`, `ResourceType`, `Amount`, `TargetCell=site.Anchor`, `Workplace=HQ`.
+  - BuildWork: set `Site`, `TargetCell=site.Anchor`, `Workplace=HQ`.
+- [v] **Cancel/Reset**
+  - `Cancel(order)` / `CompletePlaceOrder` huỷ tracked jobs theo site để tránh “job mồ côi”.
+  - `ClearAll()` clear thêm tracking dictionaries.
+
+### Kết quả / Acceptance
+- [v] Đặt building → site vào trạng thái `WAIT_COST`:
+  - Jobs `BuildDeliver` xuất hiện trong workplace queue (HQ) theo chunk, không spam vô hạn.
+- [v] Khi site đủ cost (RemainingCosts rỗng) → chỉ còn **1** `BuildWork` job.
+- [v] Không còn tình trạng `BuildOrderService` tự cộng work khi chưa đủ cost.
+
+### Ghi chú / Pitfalls
+- `BuildOrder.RequiredCost` vẫn là field legacy dạng 1 cost line; pipeline VS2 dùng **Site.RemainingCosts** (list) là source of truth.
+- Throttle delivery jobs là bắt buộc để tránh “peek jobId tăng nhanh” do enqueue mỗi tick.
+
+### Việc tiếp theo (Day 20)
+- Implement executor `BuildDeliverExecutor` / `BuildWorkExecutor` để:
+  - trừ kho, giảm `RemainingCosts`, hoàn thành delivery
+  - tăng `WorkSecondsDone` và hoàn thành build.
+
+---
+
+## Day 20 — BuildDeliver/BuildWork Executors (apply cost + work) + HaulBasic Gate Hardening
+
+### Mục tiêu
+- [x] Implement `BuildDeliverExecutor`:
+  - [x] Pickup tài nguyên từ nguồn hợp lệ (ưu tiên workplace/HQ, fallback Warehouse/HQ gần nhất có hàng).
+  - [x] Deliver vào `BuildSiteState`: giảm `RemainingCosts` (gate), refund phần dư nếu over-deliver.
+  - [x] Hoàn thành job (Completed) và cleanup state nội bộ.
+- [x] Implement `BuildWorkExecutor`:
+  - [x] Chỉ work khi `RemainingCosts` rỗng.
+  - [x] Tăng `WorkSecondsDone` trên site, complete job khi đủ `WorkSecondsTotal`.
+- [x] Fix loop “HaulBasic enqueue/cancel” (peek jobId tăng liên tục) bằng **gate ở scheduler**:
+  - [x] Không enqueue HaulBasic nếu **tất cả** Warehouse/HQ đều full cho resource đó (fail fast ở gate, tránh cancel trong executor).
+
+### Đã làm
+- [v] **BuildDeliverExecutor**
+  - Phase 0 (Pickup):
+    - Resolve `SourceBuilding` deterministic:
+      - ưu tiên `Workplace` nếu đủ hàng
+      - fallback scan Warehouse/HQ constructed có `GetAmount >= minRequired` (tie-break distance + id).
+    - Move tới source bằng `GridAgentMoverLite.StepToward(...)`.
+    - `StorageService.Remove(source, rt, amount)`; nếu rỗng → repick source tick sau.
+  - Phase 1 (Deliver):
+    - Move tới `site.Anchor`.
+    - Apply:
+      - clamp theo remaining hiện tại của resource
+      - giảm `RemainingCosts` (remove line nếu về 0; nếu empty → set null để clean gate)
+    - Refund phần dư về source (`StorageService.Add(...)`) nếu deliver vượt remaining.
+    - Set `JobStatus.Completed` + cleanup.
+- [v] **BuildWorkExecutor**
+  - Gate: nếu `RemainingCosts != null && Count>0` → giữ `InProgress` và chờ delivery.
+  - Khi arrived tại `site.Anchor`:
+    - `site.WorkSecondsDone += dt` (clamp <= total)
+    - complete job khi đủ total.
+- [v] **JobExecutorRegistry**
+  - Đảm bảo map `JobArchetype.BuildDeliver` / `BuildWork` → đúng executor.
+- [v] **JobScheduler HaulBasic gate (hardening)**
+  - Trong `TryEnsureHaulJob`: thêm gate `AnyHaulDestinationHasFree(rt)` (scan `_buildingIds` sorted, filter HQ/Warehouse constructed):
+    - nếu ALL destinations full → không enqueue → tránh vòng lặp cancel/enqueue.
+  - Un-comment/enable `DestCap(...)` (LOCKED) để tính free capacity đúng theo spec.
+
+### Kết quả / Acceptance
+- [v] Site `WAIT_COST`:
+  - NPC nhận `BuildDeliver` → kho giảm, `RemainingCosts` giảm dần → UI cost progress tăng (delivered/total).
+- [v] Khi `RemainingCosts` rỗng:
+  - `BuildWork` job xuất hiện → NPC work → `WorkSecondsDone` tăng dần.
+  - Khi đủ total → build hoàn tất (building constructed), site bị remove đúng flow.
+- [v] HaulBasic:
+  - Khi kho đích full → không còn spam jobId peek tăng liên tục (queue ổn định).
+
+### Ghi chú / Pitfalls
+- Executor không tự tạo job; mọi spam job đều phải fix ở **provider/gate** (JobScheduler/BuildOrderService).
+- Refund phần dư giúp tránh over-deliver gây “mất tài nguyên” khi nhiều NPC deliver đồng thời.
+- Gate HaulBasic chỉ kiểm tra “có bất kỳ destination còn chỗ”, không gate theo workplace để giữ reroute logic.
+
+### Việc tiếp theo
+- Day 21+: wiring BuildDeliver/BuildWork với claim/interest (nếu mở rộng), và polish debug HUD hiển thị job/site progress chi tiết hơn.
+
+---
+
+## Day 21 — Cancel Build (Site/Order) + Cleanup + Refund + Rollback Driveway Road
+
+### Mục tiêu
+- [x] Cancel build site/order giữa chừng **không để lại “ghost state”**:
+  - [x] Huỷ toàn bộ `BuildDeliver/BuildWork` jobs đang track theo site
+  - [x] Clear tracking refs trong `BuildOrderService` (không spawn job lại cho site đã huỷ)
+  - [x] Xoá site footprint khỏi `GridMap` + destroy `BuildSiteState`
+  - [x] (Policy) Destroy placeholder building nếu cấu hình `_destroyPlaceholderOnCancel`
+- [x] Refund tài nguyên theo policy Day 21:
+  - [x] Refund **DeliveredSoFar** về kho/HQ gần nhất (best-effort, deterministic)
+  - [x] Refund **carry** của NPC nếu job bị Cancel/Fail sau khi đã pickup
+- [x] Rollback “driveway road” được auto-create khi Commit building:
+  - [x] Chỉ rollback nếu cell road đó được auto tạo (không đụng road có sẵn)
+  - [x] Không tạo cyclic asmdef (không reference concrete `BuildOrderService` trong `PlacementService`)
+- [x] Hardening: executor **không “hồi sinh”** job đã `Cancelled/Failed`
+- [x] Debug UX: có hotkey để cancel build site nhanh khi test
+
+### Đã làm
+- [v] **BuildOrderService.Cancel(orderId) hardening**
+  - Cancel tracked jobs theo `SiteId` (delivery + work), đồng thời clear tracking dicts liên quan.
+  - Refund `BuildSiteState.DeliveredSoFar` về kho/HQ gần nhất (distance + id tie-break → deterministic).
+  - Clear footprint site trên `GridMap` và destroy site; destroy placeholder theo policy.
+- [v] **Rollback driveway road (auto-created)**
+  - `BuildOrderService` giữ map `orderId -> drivewayRoadCell` để rollback khi Cancel.
+  - Khi order complete: remove mapping để driveway road trở thành “permanent”.
+  - Khi reset: clear mapping.
+- [v] **No-cyclic asmdef wiring bằng EventBus**
+  - `PlacementService.CommitBuilding()`:
+    - xác định `drivewayWasCreated` khi auto-convert driveway → road
+    - publish `BuildOrderAutoRoadCreatedEvent(orderId, drivewayCell)` qua EventBus (không cast concrete).
+  - `BuildOrderService` subscribe event thông qua `_s.EventBus` (lazy subscribe via `EnsureBusSubscribed()`), và best-effort unsubscribe trong `ClearAll()` để tránh double-handler khi re-init/domain reload.
+- [v] **Executors hardening (Cancel/Fail)**
+  - `BuildDeliverExecutor`:
+    - nếu `job.Status` đã `Cancelled/Failed` → refund carry best-effort rồi cleanup.
+    - nếu site vanished/invalid → refund carry rồi terminal.
+  - `BuildWorkExecutor`:
+    - nếu `job.Status` đã `Cancelled/Failed` → không set lại `InProgress`, cleanup state nội bộ.
+- [v] **DebugBuildingTool**
+  - Thêm hotkey **X**: cancel build site dưới cursor (không thay đổi contract `IBuildOrderService`; dùng wiring nội bộ/debug-safe).
+  - Notification rõ ràng khi cancel thành công/không có order.
+
+### Kết quả / Acceptance
+- [v] Cancel build tại mọi thời điểm (đang WAIT_COST / đang deliver / đang work):
+  - Site bị xoá sạch khỏi grid, không còn occupancy “kẹt”.
+  - Không spawn thêm delivery/work jobs cho site đã huỷ (tracking đã clear).
+- [v] Tài nguyên không bị mất:
+  - `DeliveredSoFar` được trả về kho/HQ gần nhất (best-effort theo capacity).
+  - NPC đang carry khi bị cancel/fail được refund (source ưu tiên, fallback kho/HQ).
+- [v] Driveway road auto-create được rollback đúng:
+  - Road do player đặt trước đó **không bị xoá**.
+- [v] Không còn hiện tượng executor “resurrect” job Cancelled.
+
+### Ghi chú / Pitfalls
+- Tránh cyclic asmdef: `PlacementService` chỉ publish event, không reference `BuildOrderService`.
+- Subscribe EventBus nên làm lazy (đợi `_s.EventBus` sẵn sàng), và best-effort unsubscribe khi reset để tránh double-subscribe.
+- Refund policy là best-effort (nếu kho full có thể không refund hết) — đúng scope Day 21, không over-engineer reservation ledger.
+
+### Việc tiếp theo
+- Day 22+: polish debug HUD/site inspector (hiển thị orderId/siteId + driveway tracking), và bắt đầu wiring Defend/Waves pipeline theo VS2 plan.

@@ -1,0 +1,471 @@
+--- a/Assets/_Game/Build/BuildOrderService.cs
++++ b/Assets/_Game/Build/BuildOrderService.cs
+@@ -1,4 +1,4 @@
+-using System;
++using System;
+ using System.Collections.Generic;
+ using SeasonalBastion.Contracts;
+
+@@ -206,6 +206,31 @@ namespace SeasonalBastion
+         public void Cancel(int orderId)
+         {
+             if (!_orders.TryGetValue(orderId, out var o)) return;
+             if (o.Completed) return;
+
+             if (o.Kind == BuildOrderKind.PlaceNew)
+             {
+                 // Day19: cancel pending jobs for this site (avoid orphan jobs)
+-                CancelTrackedJobsForSite(o.Site);
++                CancelTrackedJobsForSite(o.Site);
++
++                // Day21: refund delivered resources (DeliveredSoFar) to nearest storage/HQ before destroying the site
++                if (_s.WorldState.Sites.Exists(o.Site))
++                {
++                    var stRefund = _s.WorldState.Sites.Get(o.Site);
++                    RefundDeliveredToNearestStorage(stRefund);
++                }
++
++                // Day21: ensure internal refs cleared (avoid ghost tracking)
++                _deliverJobsBySite.Remove(o.Site.Value);
++                _workJobBySite.Remove(o.Site.Value);
+
+                 // 1) Clear site occupancy + destroy site
+                 if (_s.WorldState.Sites.Exists(o.Site))
+                 {
+                     var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
+                     int w = Math.Max(1, def.SizeX);
+                     int h = Math.Max(1, def.SizeY);
+
+                     var st = _s.WorldState.Sites.Get(o.Site);
+                     for (int dy = 0; dy < h; dy++)
+                         for (int dx = 0; dx < w; dx++)
+                             _s.GridMap.ClearSite(new CellPos(st.Anchor.X + dx, st.Anchor.Y + dy));
+
+                     _s.WorldState.Sites.Destroy(o.Site);
+                 }
+
+                 // 2) Optional: destroy placeholder building to avoid ghost state
+                 if (_destroyPlaceholderOnCancel && _s.WorldState.Buildings.Exists(o.TargetBuilding))
+                 {
+                     _s.WorldState.Buildings.Destroy(o.TargetBuilding);
+                 }
+
+                 _s.NotificationService?.Push(
+                     key: $"BuildCancel_{o.TargetBuilding.Value}",
+                     title: "Construction",
+                     body: $"Cancelled: {o.BuildingDefId}",
+                     severity: NotificationSeverity.Info,
+                     payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
+                     cooldownSeconds: 0.25f,
+                     dedupeByKey: true
+                 );
+             }
+
+             _orders.Remove(orderId);
+             _active.Remove(orderId);
+         }
+
++        // Day21: debug/utility - cancel by SiteId / BuildingId without exposing orderId externally.
++        public bool CancelBySite(SiteId siteId)
++        {
++            if (siteId.Value == 0) return false;
++            for (int i = 0; i < _active.Count; i++)
++            {
++                int id = _active[i];
++                if (!_orders.TryGetValue(id, out var o)) continue;
++                if (o.Completed) continue;
++                if (o.Site.Value != siteId.Value) continue;
++                Cancel(id);
++                return true;
++            }
++            return false;
++        }
++
++        public bool CancelByBuilding(BuildingId buildingId)
++        {
++            if (buildingId.Value == 0) return false;
++            for (int i = 0; i < _active.Count; i++)
++            {
++                int id = _active[i];
++                if (!_orders.TryGetValue(id, out var o)) continue;
++                if (o.Completed) continue;
++                if (o.TargetBuilding.Value != buildingId.Value) continue;
++                Cancel(id);
++                return true;
++            }
++            return false;
++        }
++
+         public void Tick(float dt)
+         {
+             if (dt <= 0f) return;
+@@ -470,6 +495,7 @@ namespace SeasonalBastion
+         void CancelTrackedJobsForSite(SiteId siteId)
+         {
+             CancelDeliveryJobs(siteId);
+
+             if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
+             {
+                 _s.JobBoard.Cancel(wid);
+                 _workJobBySite.Remove(siteId.Value);
+             }
+         }
+
+         void CancelDeliveryJobs(SiteId siteId)
+         {
+             if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
+             {
+                 for (int i = 0; i < list.Count; i++)
+                     _s.JobBoard.Cancel(list[i]);
+                 list.Clear();
++                _deliverJobsBySite.Remove(siteId.Value);
+             }
+         }
+
+@@ -505,6 +531,79 @@ namespace SeasonalBastion
+         private static bool IsTerminal(JobStatus s)
+         {
+             return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
+         }
++
++        // -------------------------
++        // Day21: Cancel refund policy
++        // -------------------------
++        private void RefundDeliveredToNearestStorage(in BuildSiteState st)
++        {
++            if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null) return;
++            if (st.DeliveredSoFar == null || st.DeliveredSoFar.Count == 0) return;
++
++            var whs = _s.WorldIndex.Warehouses;
++            if (whs == null || whs.Count == 0) return;
++
++            // Build sorted candidate list once (deterministic)
++            _buildingIdsBuf.Clear();
++            for (int i = 0; i < whs.Count; i++)
++            {
++                var bid = whs[i];
++                if (bid.Value == 0) continue;
++                if (!_s.WorldState.Buildings.Exists(bid)) continue;
++
++                var bs = _s.WorldState.Buildings.Get(bid);
++                if (!bs.IsConstructed) continue;
++
++                _buildingIdsBuf.Add(bid);
++            }
++
++            if (_buildingIdsBuf.Count == 0) return;
++
++            var from = st.Anchor;
++            _buildingIdsBuf.Sort((a, b) =>
++            {
++                var aa = _s.WorldState.Buildings.Get(a).Anchor;
++                var bb = _s.WorldState.Buildings.Get(b).Anchor;
++                int da = Manhattan(from, aa);
++                int db = Manhattan(from, bb);
++                if (da != db) return da.CompareTo(db);
++                return a.Value.CompareTo(b.Value);
++            });
++
++            // Refund each delivered cost line to nearest storage/HQ (best-effort).
++            for (int i = 0; i < st.DeliveredSoFar.Count; i++)
++            {
++                var c = st.DeliveredSoFar[i];
++                if (c == null || c.Amount <= 0) continue;
++
++                int left = c.Amount;
++                var rt = c.Resource;
++
++                for (int k = 0; k < _buildingIdsBuf.Count && left > 0; k++)
++                {
++                    var dst = _buildingIdsBuf[k];
++                    if (!_s.StorageService.CanStore(dst, rt)) continue;
++
++                    int added = _s.StorageService.Add(dst, rt, left);
++                    left -= added;
++                }
++
++                // If left > 0: ignore (no space). Day21 says "rule đơn giản".
++            }
++        }
++
++        private static int Manhattan(CellPos a, CellPos b)
++        {
++            int dx = a.X - b.X; if (dx < 0) dx = -dx;
++            int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
++            return dx + dy;
++        }
+
+         // VS2 Day18: helpers for site cost tracking (delivery gate)
+         private static List<CostDef> CloneCostsOrEmpty(CostDef[] arr)
+         {
+             if (arr == null || arr.Length == 0) return new List<CostDef>(0);
+
+--- a/Assets/_Game/Jobs/Executors/BuildDeliverExecutor.cs
++++ b/Assets/_Game/Jobs/Executors/BuildDeliverExecutor.cs
+@@ -12,18 +12,34 @@ namespace SeasonalBastion
+         // jobId -> phase (0 pickup, 1 deliver)
+         private readonly Dictionary<int, byte> _phase = new();
+         private readonly Dictionary<int, int> _carry = new();
++
++        // Day21: best-effort refund buffer (avoid alloc)
++        private readonly List<BuildingId> _refundBuf = new(32);
+
+         public BuildDeliverExecutor(GameServices s) { _s = s; }
+
+         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
+         {
++            int jid = job.Id.Value;
++
++            // Day21: if JobBoard already cancelled this job, do not resurrect it.
++            // Also refund any carried resources best-effort to storage/HQ to avoid loss.
++            if (job.Status == JobStatus.Cancelled || job.Status == JobStatus.Failed)
++            {
++                TryRefundCarry(jid, npcState.Cell, job.SourceBuilding, job.ResourceType);
++                Cleanup(jid);
++                return true;
++            }
++
+             if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null || _s.AgentMover == null)
+             {
+                 job.Status = JobStatus.Failed;
+-                Cleanup(job.Id.Value);
++                TryRefundCarry(jid, npcState.Cell, job.SourceBuilding, job.ResourceType);
++                Cleanup(jid);
+                 return true;
+             }
+
+             if (job.Site.Value == 0 || !_s.WorldState.Sites.Exists(job.Site))
+             {
+                 job.Status = JobStatus.Cancelled;
+-                Cleanup(job.Id.Value);
++                TryRefundCarry(jid, npcState.Cell, job.SourceBuilding, job.ResourceType);
++                Cleanup(jid);
+                 return true;
+             }
+
+             var site = _s.WorldState.Sites.Get(job.Site);
+             if (!site.IsActive)
+             {
+                 job.Status = JobStatus.Cancelled;
+-                Cleanup(job.Id.Value);
++                TryRefundCarry(jid, npcState.Cell, job.SourceBuilding, job.ResourceType);
++                Cleanup(jid);
+                 return true;
+             }
+
+             var rt = job.ResourceType;
+
+             // If already no remaining for this resource => complete (avoid stuck)
+             int remaining = GetRemainingFor(site, rt);
+             if (remaining <= 0)
+             {
++                // If we somehow already picked up, refund it (best-effort) to avoid loss.
++                TryRefundCarry(jid, npcState.Cell, job.SourceBuilding, rt);
+                 job.Status = JobStatus.Completed;
+-                Cleanup(job.Id.Value);
++                Cleanup(jid);
+                 return true;
+             }
+
+-            int jid = job.Id.Value;
+             if (!_phase.TryGetValue(jid, out var ph)) ph = 0;
+
+             if (ph == 0)
+@@ -93,7 +109,7 @@ namespace SeasonalBastion
+                 if (!_s.WorldState.Sites.Exists(job.Site))
+                 {
+                     // site vanished; refund best-effort
+-                    RefundToSource(job.SourceBuilding, rt, carried);
++                    RefundCarry(npcState.Cell, job.SourceBuilding, rt, carried);
+                     job.Status = JobStatus.Cancelled;
+                     Cleanup(jid);
+                     return true;
+                 }
+@@ -117,8 +133,8 @@ namespace SeasonalBastion
+                 _s.WorldState.Sites.Set(job.Site, site);
+             }
+
+             int refund = carried - apply;
+             if (refund > 0)
+-                RefundToSource(job.SourceBuilding, rt, refund);
++                RefundCarry(npcState.Cell, job.SourceBuilding, rt, refund);
+
+             job.Status = JobStatus.Completed;
+             Cleanup(jid);
+             return true;
+         }
+
+-        private void RefundToSource(BuildingId src, ResourceType rt, int amount)
++        private void TryRefundCarry(int jobId, CellPos from, BuildingId preferredSource, ResourceType rt)
+         {
+-            if (amount <= 0) return;
+-            if (src.Value == 0) return;
+-            if (_s.WorldState.Buildings == null || !_s.WorldState.Buildings.Exists(src)) return;
+-
+-            _s.StorageService.Add(src, rt, amount);
++            if (!_carry.TryGetValue(jobId, out var carried) || carried <= 0) return;
++            RefundCarry(from, preferredSource, rt, carried);
++            _carry.Remove(jobId);
++            _phase.Remove(jobId);
+         }
++
++        private void RefundCarry(CellPos from, BuildingId preferredSource, ResourceType rt, int amount)
++        {
++            if (amount <= 0) return;
++            if (_s.WorldState == null || _s.StorageService == null) return;
++
++            int left = amount;
++
++            // 1) Prefer refund to the original source if possible.
++            if (preferredSource.Value != 0
++                && _s.WorldState.Buildings.Exists(preferredSource)
++                && _s.StorageService.CanStore(preferredSource, rt))
++            {
++                int added = _s.StorageService.Add(preferredSource, rt, left);
++                left -= added;
++            }
++
++            if (left <= 0) return;
++
++            // 2) Fallback to nearest storage/HQ (simple deterministic rule).
++            var whs = _s.WorldIndex?.Warehouses;
++            if (whs == null || whs.Count == 0) return;
++
++            _refundBuf.Clear();
++            for (int i = 0; i < whs.Count; i++)
++            {
++                var bid = whs[i];
++                if (bid.Value == 0) continue;
++                if (!_s.WorldState.Buildings.Exists(bid)) continue;
++
++                var bs = _s.WorldState.Buildings.Get(bid);
++                if (!bs.IsConstructed) continue;
++
++                if (!_s.StorageService.CanStore(bid, rt)) continue;
++                _refundBuf.Add(bid);
++            }
++
++            if (_refundBuf.Count == 0) return;
++
++            _refundBuf.Sort((a, b) =>
++            {
++                var aa = _s.WorldState.Buildings.Get(a).Anchor;
++                var bb = _s.WorldState.Buildings.Get(b).Anchor;
++                int da = Manhattan(from, aa);
++                int db = Manhattan(from, bb);
++                if (da != db) return da.CompareTo(db);
++                return a.Value.CompareTo(b.Value);
++            });
++
++            for (int i = 0; i < _refundBuf.Count && left > 0; i++)
++            {
++                int added = _s.StorageService.Add(_refundBuf[i], rt, left);
++                left -= added;
++            }
++        }
++
++        private static int Manhattan(CellPos a, CellPos b)
++        {
++            int dx = a.X - b.X; if (dx < 0) dx = -dx;
++            int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
++            return dx + dy;
++        }
++
++        private void RefundToSource(BuildingId src, ResourceType rt, int amount)
++        {
++            // Backward compat wrapper (used by older flow)
++            RefundCarry(default, src, rt, amount);
++        }
+
+--- a/Assets/_Game/Jobs/Executors/BuildWorkExecutor.cs
++++ b/Assets/_Game/Jobs/Executors/BuildWorkExecutor.cs
+@@ -13,6 +13,13 @@ namespace SeasonalBastion
+         public BuildWorkExecutor(GameServices s) { _s = s; }
+
+         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
+         {
++            // Day21: if JobBoard already cancelled this job, do not resurrect it.
++            if (job.Status == JobStatus.Cancelled || job.Status == JobStatus.Failed)
++            {
++                _started.Remove(job.Id.Value);
++                return true;
++            }
++
+             if (_s.WorldState == null || _s.AgentMover == null)
+             {
+                 job.Status = JobStatus.Failed;
+                 _started.Remove(job.Id.Value);
+                 return true;
+             }
+
+--- a/Assets/_Game/Debug/Tools/DebugBuildingTool.cs
++++ b/Assets/_Game/Debug/Tools/DebugBuildingTool.cs
+@@ -52,6 +52,7 @@ namespace SeasonalBastion.DebugTools
+         private InputAction _toggle;     // B
+         private InputAction _click;      // LMB
+         private InputAction _sel1, _sel2, _sel3, _sel4, _sel5; // 1..5
+         private InputAction _rotL, _rotR; // q/e
++        private InputAction _cancel;    // X (cancel build site/order)
+
+@@ -74,6 +75,7 @@ namespace SeasonalBastion.DebugTools
+             _rotL = new InputAction("RotL", InputActionType.Button, "<Keyboard>/q");
+             _rotR = new InputAction("RotR", InputActionType.Button, "<Keyboard>/e");
++            _cancel = new InputAction("CancelBuild", InputActionType.Button, "<Keyboard>/x");
+
+             _selectedDef = _def1;
+         }
+
+@@ -98,6 +100,7 @@ namespace SeasonalBastion.DebugTools
+             _sel1.Enable(); _sel2.Enable(); _sel3.Enable(); _sel4.Enable(); _sel5.Enable();
+             _rotL.Enable();
+             _rotR.Enable();
++            _cancel.Enable();
+
+             _toggle.performed += OnToggle;
+             _click.performed += OnClick;
+@@ -114,6 +117,7 @@ namespace SeasonalBastion.DebugTools
+             _sel5.performed += OnSel5;
+
+             _rotL.performed += OnRotL;
+             _rotR.performed += OnRotR;
++            _cancel.performed += OnCancel;
+         }
+
+@@ -132,6 +136,7 @@ namespace SeasonalBastion.DebugTools
+             _sel5.performed -= OnSel5;
+
+             _rotL.performed -= OnRotL;
+             _rotR.performed -= OnRotR;
++            _cancel.performed -= OnCancel;
+
+             _toggle.Disable();
+             _click.Disable();
+@@ -140,6 +145,7 @@ namespace SeasonalBastion.DebugTools
+             _sel1.Disable(); _sel2.Disable(); _sel3.Disable(); _sel4.Disable(); _sel5.Disable();
+             _rotL.Disable();
+             _rotR.Disable();
++            _cancel.Disable();
+
+@@ -215,6 +221,24 @@ namespace SeasonalBastion.DebugTools
+             if (id.Value == 0)
+                 _noti?.Push("Build_CommitFailed", "Build", "Commit failed", NotificationSeverity.Warning, default, 0.25f, true);
+         }
++
++        void OnCancel(InputAction.CallbackContext _)
++        {
++            if (!_enabled || !_hasHover || _s == null || _grid == null) return;
++
++            // Cancel build site/order under cursor (Day21 debug)
++            var occ = _grid.Get(_hoverCell);
++            if (occ.Kind == CellOccupancyKind.Site && occ.Site.Value != 0)
++            {
++                if (_s.BuildOrderService is SeasonalBastion.BuildOrderService bos)
++                {
++                    bool ok = bos.CancelBySite(occ.Site);
++                    if (ok) _noti?.Push("Build_Cancel_OK", "Build", $"Cancelled Site {occ.Site.Value}", NotificationSeverity.Info, default, 0.1f, true);
++                    else _noti?.Push("Build_Cancel_NoOrder", "Build", $"No order for Site {occ.Site.Value}", NotificationSeverity.Warning, default, 0.25f, true);
++                }
++            }
++        }
+
+

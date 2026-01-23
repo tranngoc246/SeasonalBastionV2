@@ -140,8 +140,9 @@ namespace SeasonalBastion
                 return default;
             }
 
-            // Convert driveway (entry cell) to road if needed 
             var driveway = vr.SuggestedRoadCell;
+            bool drivewayWasCreated = false;
+
             if (_grid.IsInside(driveway) && !_grid.IsRoad(driveway))
             {
                 var occ = _grid.Get(driveway);
@@ -149,11 +150,18 @@ namespace SeasonalBastion
                 {
                     _grid.SetRoad(driveway, true);
                     _bus.Publish(new RoadPlacedEvent(driveway));
+                    drivewayWasCreated = true;
                 }
             }
 
             // Create build order (this will create site + placeholder building)
             int orderId = _buildOrders.CreatePlaceOrder(buildingDefId, anchor, rotation);
+
+            // Record auto-created driveway road for cancel rollback (không đổi interface IBuildOrderService).
+            if (drivewayWasCreated)
+            {
+                _bus?.Publish(new BuildOrderAutoRoadCreatedEvent(orderId, driveway));
+            }
 
             if (_buildOrders.TryGet(orderId, out var order))
                 return order.TargetBuilding;

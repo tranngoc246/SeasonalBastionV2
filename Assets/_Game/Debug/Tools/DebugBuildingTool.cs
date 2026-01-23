@@ -49,6 +49,7 @@ namespace SeasonalBastion.DebugTools
         private InputAction _sel1, _sel2, _sel3, _sel4, _sel5; // 1..5
         private InputAction _rotL, _rotR; // Q/E
 
+        private InputAction _cancel;  // X (cancel build)
         private Camera _cam;
         private bool _enabled;
 
@@ -86,6 +87,8 @@ namespace SeasonalBastion.DebugTools
             _rotL = new InputAction("RotL", InputActionType.Button, "<Keyboard>/q");
             _rotR = new InputAction("RotR", InputActionType.Button, "<Keyboard>/e");
 
+
+            _cancel = new InputAction("CancelBuild", InputActionType.Button, "<Keyboard>/x");
             _selectedDef = _def1;
         }
 
@@ -107,6 +110,7 @@ namespace SeasonalBastion.DebugTools
             _sel1.Enable(); _sel2.Enable(); _sel3.Enable(); _sel4.Enable(); _sel5.Enable();
             _rotL.Enable(); _rotR.Enable();
 
+            _cancel.Enable();
             _toggle.performed += OnToggle;
             _click.performed += OnClick;
 
@@ -118,6 +122,7 @@ namespace SeasonalBastion.DebugTools
 
             _rotL.performed += OnRotL;
             _rotR.performed += OnRotR;
+            _cancel.performed += OnCancel;
         }
 
         private void OnDisable()
@@ -134,11 +139,13 @@ namespace SeasonalBastion.DebugTools
             _rotL.performed -= OnRotL;
             _rotR.performed -= OnRotR;
 
+            _cancel.performed -= OnCancel;
             _toggle.Disable();
             _click.Disable();
             _sel1.Disable(); _sel2.Disable(); _sel3.Disable(); _sel4.Disable(); _sel5.Disable();
             _rotL.Disable(); _rotR.Disable();
 
+            _cancel.Disable();
             _hasHover = false;
             _cacheValid = false;
         }
@@ -243,6 +250,23 @@ namespace SeasonalBastion.DebugTools
                 cooldownSeconds: 0.15f,
                 dedupeByKey: true
             );
+        }
+
+
+        private void OnCancel(InputAction.CallbackContext _)
+        {
+            if (!_enabled || !_hasHover) return;
+            if (_s == null || _grid == null) return;
+
+            var occ = _grid.Get(_hoverCell);
+            if (occ.Kind != CellOccupancyKind.Site || occ.Site.Value == 0) return;
+
+            if (_s.BuildOrderService is BuildOrderService bos)
+            {
+                bool ok = bos.CancelBySite(occ.Site);
+                if (ok) _noti?.Push("Build_Cancel_OK", "Build", $"Cancelled Site {occ.Site.Value}", NotificationSeverity.Info, default, 0.10f, true);
+                else _noti?.Push("Build_Cancel_NoOrder", "Build", $"No order for Site {occ.Site.Value}", NotificationSeverity.Warning, default, 0.25f, true);
+            }
         }
 
         private void OnClick(InputAction.CallbackContext _)

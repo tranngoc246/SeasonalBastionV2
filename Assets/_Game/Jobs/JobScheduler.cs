@@ -315,9 +315,13 @@ namespace SeasonalBastion
             // Only enqueue if there is something to haul now
             if (!AnyHarvestProducerHasAmount(rt)) return;
 
-            // IMPORTANT (Day12 upgrade): Do NOT gate by workplace free capacity here,
-            // because hauler can reroute to other Warehouse/HQ that still has space.
-            // Executor will cancel if ALL destinations are full.
+            // Day19.5/20 hardening: gate enqueue if ALL Warehouse/HQ destinations are full.
+            // Prevents cancel/enqueue loops -> jobId peek increases forever.
+            if (!AnyHaulDestinationHasFree(rt))
+                return;
+
+            // Gate only by "ANY destination has free capacity" (NOT by workplace itself).
+            // This preserves reroute behavior while preventing full-dest cancel/enqueue loops.
 
             int key = workplace.Value * 16 + (int)rt;
 
@@ -349,6 +353,29 @@ namespace SeasonalBastion
 
             var newId = _board.Enqueue(j);
             _haulJobByWorkplaceAndType[key] = newId;
+        }
+
+        private bool AnyHaulDestinationHasFree(ResourceType rt)
+        {
+            for (int i = 0; i < _buildingIds.Count; i++)
+            {
+                var bid = _buildingIds[i];
+                if (!_w.Buildings.Exists(bid)) continue;
+
+                var bs = _w.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+
+                // destinations are Warehouse/HQ only
+                if (!IsWarehouseWorkplace(bs.DefId)) continue;
+
+                int cap = DestCap(bs.DefId, NormalizeLevel(bs.Level), rt);
+                if (cap <= 0) continue;
+
+                int cur = GetAmountFromBuilding(bs, rt);
+                if (cur < cap) return true; // has free space
+            }
+
+            return false;
         }
 
         private bool AnyHarvestProducerHasAmount(ResourceType rt)
@@ -444,32 +471,32 @@ namespace SeasonalBastion
         }
 
         // NEW: Dest caps for hauling (LOCKED)
-        //private static int DestCap(string defId, int level, ResourceType rt)
-        //{
-        //    // Warehouse: 300/600/1000 each (Wood/Food/Stone/Iron), Ammo=0
-        //    if (EqualsIgnoreCase(defId, "Warehouse"))
-        //    {
-        //        return rt switch
-        //        {
-        //            ResourceType.Wood or ResourceType.Food or ResourceType.Stone or ResourceType.Iron
-        //                => level == 1 ? 300 : level == 2 ? 600 : 1000,
-        //            _ => 0
-        //        };
-        //    }
+        private static int DestCap(string defId, int level, ResourceType rt)
+        {
+            // Warehouse: 300/600/1000 each (Wood/Food/Stone/Iron), Ammo=0
+            if (EqualsIgnoreCase(defId, "Warehouse"))
+            {
+                return rt switch
+                {
+                    ResourceType.Wood or ResourceType.Food or ResourceType.Stone or ResourceType.Iron
+                        => level == 1 ? 300 : level == 2 ? 600 : 1000,
+                    _ => 0
+                };
+            }
 
-        //    // HQ: 120/180/240 each (core only), Ammo=0
-        //    if (EqualsIgnoreCase(defId, "HQ"))
-        //    {
-        //        return rt switch
-        //        {
-        //            ResourceType.Wood or ResourceType.Food or ResourceType.Stone or ResourceType.Iron
-        //                => level == 1 ? 120 : level == 2 ? 180 : 240,
-        //            _ => 0
-        //        };
-        //    }
+            // HQ: 120/180/240 each (core only), Ammo=0
+            if (EqualsIgnoreCase(defId, "HQ"))
+            {
+                return rt switch
+                {
+                    ResourceType.Wood or ResourceType.Food or ResourceType.Stone or ResourceType.Iron
+                        => level == 1 ? 120 : level == 2 ? 180 : 240,
+                    _ => 0
+                };
+            }
 
-        //    return 0;
-        //}
+            return 0;
+        }
 
         private static int GetAmountFromBuilding(in BuildingState bs, ResourceType rt)
         {

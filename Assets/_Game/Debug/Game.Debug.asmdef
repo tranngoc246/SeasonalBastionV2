@@ -12,7 +12,8 @@
         "Game.Save",
         "Game.Contracts",
         "Game.Boot",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Game.Build"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

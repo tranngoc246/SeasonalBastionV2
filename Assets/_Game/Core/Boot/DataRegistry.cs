@@ -49,6 +49,7 @@ namespace SeasonalBastion
             public int sizeX = 1;
             public int sizeY = 1;
             public int baseLevel = 1;
+            public int hp = 1; // VS2 Day22: building durability
 
             public string[] workRoles;
 
@@ -295,6 +296,7 @@ namespace SeasonalBastion
                     SizeX = w,
                     SizeY = h,
                     BaseLevel = lvl,
+                    MaxHp = Mathf.Max(1, bj.hp),
                     IsHQ = bj.isHQ,
                     IsWarehouse = bj.isWarehouse,
                     IsProducer = bj.isProducer,

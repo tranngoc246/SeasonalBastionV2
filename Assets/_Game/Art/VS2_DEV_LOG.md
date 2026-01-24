@@ -471,3 +471,67 @@
 
 ### Việc tiếp theo
 - Day 22+: polish debug HUD/site inspector (hiển thị orderId/siteId + driveway tracking), và bắt đầu wiring Defend/Waves pipeline theo VS2 plan.
+
+---
+
+## Day 22 — Building HP (Durability) + RepairWork (time-only) + Debug Damage/Repair
+
+### Mục tiêu
+- [x] Bổ sung **HP/MaxHP** tối thiểu cho Building (durability) để support Damage/Repair.
+- [x] Data: đọc `hp` từ `Buildings.json` → map vào `BuildingDef.MaxHp`.
+- [x] Repair pipeline tối thiểu (time-only, không tiêu tài nguyên):
+  - [x] `IBuildOrderService.CreateRepairOrder(BuildingId)` tạo Repair order cho building bị hỏng.
+  - [x] Sinh job `JobArchetype.RepairWork` và executor xử lý repair theo thời gian.
+- [x] Role gating:
+  - [x] `RepairWork` chỉ cho NPC có `WorkRoleFlags.Build`.
+- [x] Debug test nhanh trong GameView:
+  - [x] Hotkey **K**: damage building dưới mouse (giảm HP).
+  - [x] Hotkey **R**: tạo repair order cho building dưới mouse.
+
+### Đã làm
+- [v] **Defs / States**
+  - `BuildingDef`: thêm `MaxHp`.
+  - `BuildingState`: thêm `HP/MaxHP` (durability).
+  - `DataRegistry`: parse field `hp` từ `Buildings.json` vào `BuildingDef.MaxHp` (clamp >= 1).
+- [v] **BuildOrderService — Repair Orders**
+  - Implement `CreateRepairOrder(BuildingId)`:
+    - Validate building tồn tại + `IsConstructed`.
+    - Fix-up `MaxHP` từ `DataRegistry` nếu missing; clamp `HP` hợp lệ.
+    - Không tạo duplicate repair order cho cùng building đang active.
+    - Repair time = time-only minimal (chunk-based).
+  - Tick repair:
+    - Ensure 1 `RepairWork` job per repair order.
+    - Complete order khi `HP >= MaxHP` hoặc target invalid.
+  - Cancel/Reset:
+    - Cancel repair job theo `orderId` khi huỷ order.
+    - `ClearAll()` clear tracking repair jobs.
+- [v] **Job System**
+  - `JobArchetype`: thêm `RepairWork`.
+  - `JobExecutorRegistry`: map `RepairWork` → `RepairWorkExecutor`.
+  - `JobBoard` + `JobScheduler`: gate `RepairWork` theo `WorkRoleFlags.Build`.
+- [v] **RepairWorkExecutor (NEW)**
+  - Di chuyển tới `DestBuilding.Anchor` bằng `GridAgentMoverLite.StepToward(ref NpcState, CellPos)` (deterministic X then Y).
+  - Khi đến nơi: mỗi ~4s heal theo chunk (~15% MaxHP/chunk), clamp tới MaxHP.
+  - Hardening: nếu job terminal (Cancelled/Failed/Completed) → cleanup state nội bộ.
+- [v] **DebugBuildingTool**
+  - Hotkeys:
+    - **K**: trừ HP (dmg=50) và notify `HP/MaxHP`.
+    - **R**: gọi `CreateRepairOrder(...)` và notify kết quả.
+
+### Kết quả / Acceptance
+- [v] Damage:
+  - Bấm **K** trên building constructed → HP giảm đúng, không xuống dưới 0.
+- [v] Repair:
+  - Bấm **R** khi `HP < MaxHP` → tạo repair order + spawn `RepairWork` job.
+  - NPC có role Build di chuyển tới anchor, repair theo chunk đến full HP → job Completed + order complete.
+- [v] Role gating:
+  - NPC không có `WorkRoleFlags.Build` không nhận `RepairWork`.
+
+### Ghi chú / Pitfalls
+- `GridAgentMoverLite.StepToward(...)` trả `false` nếu bước ra ngoài bounds → repair job sẽ không tới được nếu anchor invalid/out-of-bounds; cần đảm bảo anchor hợp lệ.
+- Durability là tối thiểu (Day22): repair **time-only**, chưa có cost/consumables và chưa có damage source từ combat (sẽ nối ở các day Defend/Waves).
+
+### Việc tiếp theo (Day 23)
+- Wiring Defend/Waves: spawn pipeline theo `Waves.json` + `SpawnGates` (RunStartRuntime), và damage apply lên Building HP trong combat loop.
+
+---

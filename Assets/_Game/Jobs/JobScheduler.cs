@@ -201,7 +201,8 @@ namespace SeasonalBastion
             {
                 JobArchetype.Harvest => (allowed & WorkRoleFlags.Harvest) != 0,
                 JobArchetype.HaulBasic => (allowed & WorkRoleFlags.HaulBasic) != 0,
-                JobArchetype.BuildDeliver or JobArchetype.BuildWork => (allowed & WorkRoleFlags.Build) != 0,
+                JobArchetype.BuildDeliver or JobArchetype.BuildWork or JobArchetype.RepairWork
+                                    => (allowed & WorkRoleFlags.Build) != 0,
                 JobArchetype.CraftAmmo => (allowed & WorkRoleFlags.Craft) != 0,
                 JobArchetype.ResupplyTower => (allowed & WorkRoleFlags.Armory) != 0,
                 _ => true,

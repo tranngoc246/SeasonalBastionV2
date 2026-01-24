@@ -8,6 +8,9 @@ namespace SeasonalBastion.Contracts
         public Dir4 Rotation;
         public int Level;
         public bool IsConstructed;
+        // VS2 Day22: durability
+        public int HP;
+        public int MaxHP;
         public int Wood;
         public int Food;
         public int Stone;

@@ -1,0 +1,2693 @@
+diff --git a/Assets/_Game/Build/BuildOrderService.cs b/Assets/_Game/Build/BuildOrderService.cs
+index 01bb76f..f6d4299 100644
+--- a/Assets/_Game/Build/BuildOrderService.cs
++++ b/Assets/_Game/Build/BuildOrderService.cs
+@@ -1,583 +1,804 @@
+-using SeasonalBastion.Contracts;
+-using System;
+-using System.Collections.Generic;
+-
+-namespace SeasonalBastion
+-{
+-    public sealed class BuildOrderService : IBuildOrderService, ITickable
+-    {
+-        private readonly GameServices _s;
+-        private int _nextOrderId = 1;
+-
+-        // Deterministic: ids always increase; iterate in insertion order
+-        private readonly List<int> _active = new();
+-        private readonly Dictionary<int, BuildOrder> _orders = new();
+-
+-        // Long-term safety: prevent ghost placeholder on cancel
+-        private readonly bool _destroyPlaceholderOnCancel = true;
+-
+-        // VS2 Day19: BuildOrderService acts as Job Provider for build pipeline.
+-        private const int CarryCap = 10; // keep consistent with HaulBasicExecutor
+-        private const int MaxPendingDeliveryJobsPerSite = 3;
+-
+-        // siteId.Value -> pending deliver job ids
+-        private readonly Dictionary<int, List<JobId>> _deliverJobsBySite = new();
+-        // siteId.Value -> active work job id
+-        private readonly Dictionary<int, JobId> _workJobBySite = new();
+-
+-        // reuse buffers
+-        private readonly List<BuildingId> _buildingIdsBuf = new(128);
+-
+-        public event Action<int> OnOrderCompleted;
+-
+-        public BuildOrderService(GameServices s) { _s = s; }
+-
+-        public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
+-        {
+-            // 1) Validate via PlacementService (single source of truth)
+-            var placement = _s.PlacementService;
+-            var vr = placement.ValidateBuilding(buildingDefId, anchor, rotation);
+-            if (!vr.Ok) return 0;
+-
+-            // 2) Read def for footprint + base level
+-            BuildingDef def = _s.DataRegistry.GetBuilding(buildingDefId);
+-            int w = Math.Max(1, def.SizeX);
+-            int h = Math.Max(1, def.SizeY);
+-            int level = Math.Max(1, def.BaseLevel);
+-
+-            // 3) Create placeholder building (not constructed yet)
+-            var bst = new BuildingState
+-            {
+-                DefId = buildingDefId,
+-                Anchor = anchor,
+-                Rotation = rotation,
+-                Level = level,
+-                IsConstructed = false
+-            };
+-            var buildingId = _s.WorldState.Buildings.Create(bst);
+-            bst.Id = buildingId;
+-            _s.WorldState.Buildings.Set(buildingId, bst);
+-
+-            // 4) Create build site state
+-            float workTotal = ComputeWorkSecondsTotal(def);
+-            var site = new BuildSiteState
+-            {
+-                BuildingDefId = buildingDefId,
+-                TargetLevel = level,
+-                Anchor = anchor,
+-                Rotation = rotation,
+-                IsActive = true,
+-                WorkSecondsDone = 0f,
+-                WorkSecondsTotal = Math.Max(0.1f, workTotal),
+-                DeliveredSoFar = BuildDeliveredMirror(def.BuildCostsL1),
+-                RemainingCosts = CloneCostsOrEmpty(def.BuildCostsL1) // VS2 Day18: delivery gate
+-            };
+-            var siteId = _s.WorldState.Sites.Create(site);
+-            site.Id = siteId;
+-            _s.WorldState.Sites.Set(siteId, site);
+-
+-            // 5) Occupy footprint as Site
+-            for (int dy = 0; dy < h; dy++)
+-                for (int dx = 0; dx < w; dx++)
+-                    _s.GridMap.SetSite(new CellPos(anchor.X + dx, anchor.Y + dy), siteId);
+-
+-            // 6) Create order
+-            int orderId = _nextOrderId++;
+-            var order = new BuildOrder
+-            {
+-                OrderId = orderId,
+-                Kind = BuildOrderKind.PlaceNew,
+-                BuildingDefId = buildingDefId,
+-                TargetBuilding = buildingId,
+-                Site = siteId,
+-                RequiredCost = default,
+-                Delivered = default,
+-                WorkSecondsRequired = site.WorkSecondsTotal,
+-                WorkSecondsDone = 0f,
+-                Completed = false
+-            };
+-
+-            _orders[orderId] = order;
+-            _active.Add(orderId);
+-
+-            // Notify: started construction (Site created)
+-            _s.NotificationService?.Push(
+-                key: $"BuildStart_{buildingId.Value}",
+-                title: "Construction",
+-                body: $"Started: {buildingDefId}",
+-                severity: NotificationSeverity.Info,
+-                payload: new NotificationPayload(buildingId, default, buildingDefId),
+-                cooldownSeconds: 0.25f,
+-                dedupeByKey: true
+-            );
+-
+-            return orderId;
+-        }
+-
+-        public int CreateUpgradeOrder(BuildingId building)
+-        {
+-            // VS#1/Day6 scope: not implemented yet -> return 0 instead of throwing
+-            _s.NotificationService?.Push(
+-                key: $"UpgradeNotImpl_{building.Value}",
+-                title: "Construction",
+-                body: "Upgrade is not available in VS#1.",
+-                severity: NotificationSeverity.Warning,
+-                payload: new NotificationPayload(building, default, "upgrade"),
+-                cooldownSeconds: 0.25f,
+-                dedupeByKey: true
+-            );
+-            return 0;
+-        }
+-
+-        public int CreateRepairOrder(BuildingId building)
+-        {
+-            // VS#1/Day6 scope: not implemented yet -> return 0 instead of throwing
+-            _s.NotificationService?.Push(
+-                key: $"RepairNotImpl_{building.Value}",
+-                title: "Construction",
+-                body: "Repair is not available in VS#1.",
+-                severity: NotificationSeverity.Warning,
+-                payload: new NotificationPayload(building, default, "repair"),
+-                cooldownSeconds: 0.25f,
+-                dedupeByKey: true
+-            );
+-            return 0;
+-        }
+-
+-        public bool TryGet(int orderId, out BuildOrder order) => _orders.TryGetValue(orderId, out order);
+-
+-        public void Cancel(int orderId)
+-        {
+-            if (!_orders.TryGetValue(orderId, out var o)) return;
+-            if (o.Completed) return;
+-
+-            if (o.Kind == BuildOrderKind.PlaceNew)
+-            {
+-                // Day19: cancel pending jobs for this site (avoid orphan jobs)
+-                CancelTrackedJobsForSite(o.Site);
+-
+-                // 1) Clear site occupancy + destroy site
+-                if (_s.WorldState.Sites.Exists(o.Site))
+-                {
+-                    var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
+-                    int w = Math.Max(1, def.SizeX);
+-                    int h = Math.Max(1, def.SizeY);
+-
+-                    var st = _s.WorldState.Sites.Get(o.Site);
+-                    for (int dy = 0; dy < h; dy++)
+-                        for (int dx = 0; dx < w; dx++)
+-                            _s.GridMap.ClearSite(new CellPos(st.Anchor.X + dx, st.Anchor.Y + dy));
+-
+-                    _s.WorldState.Sites.Destroy(o.Site);
+-                }
+-
+-                // 2) Optional: destroy placeholder building to avoid ghost state
+-                if (_destroyPlaceholderOnCancel && _s.WorldState.Buildings.Exists(o.TargetBuilding))
+-                {
+-                    _s.WorldState.Buildings.Destroy(o.TargetBuilding);
+-                }
+-
+-                _s.NotificationService?.Push(
+-                    key: $"BuildCancel_{o.TargetBuilding.Value}",
+-                    title: "Construction",
+-                    body: $"Cancelled: {o.BuildingDefId}",
+-                    severity: NotificationSeverity.Info,
+-                    payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
+-                    cooldownSeconds: 0.25f,
+-                    dedupeByKey: true
+-                );
+-            }
+-
+-            _orders.Remove(orderId);
+-            _active.Remove(orderId);
+-        }
+-
+-        public void Tick(float dt)
+-        {
+-            if (dt <= 0f) return;
+-
+-            var workplace = ResolveBuildWorkplace();
+-            if (workplace.Value == 0)
+-                return; // no build workplace => cannot create jobs deterministically
+-
+-            // Iterate deterministic by insertion order (orderId always increasing)
+-            for (int i = 0; i < _active.Count; i++)
+-            {
+-                int id = _active[i];
+-                if (!_orders.TryGetValue(id, out var o)) continue;
+-                if (o.Completed) continue;
+-                if (o.Kind != BuildOrderKind.PlaceNew) continue;
+-
+-                // Site might have been destroyed (edge case)
+-                if (!_s.WorldState.Sites.Exists(o.Site))
+-                {
+-                    CancelTrackedJobsForSite(o.Site);
+-                    o.Completed = true;
+-                    _orders[id] = o;
+-                    continue;
+-                }
+-
+-                var site = _s.WorldState.Sites.Get(o.Site);
+-
+-                // Day19: Ensure delivery/work jobs exist before JobScheduler tick
+-                var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
+-                EnsureBuildJobsForSite(o.Site, site, def, workplace);
+-
+-                // Sync order progress from site (executor will advance site.WorkSecondsDone)
+-                o.WorkSecondsDone = site.WorkSecondsDone;
+-                _orders[id] = o;
+-
+-                // Complete when:
+-                // - remaining costs are done
+-                // - and work seconds done >= total
+-                if (IsReadyToWork(site) && site.WorkSecondsDone + 1e-4f >= site.WorkSecondsTotal)
+-                {
+-                    CancelTrackedJobsForSite(o.Site);
+-
+-                    CompletePlaceOrder(ref o);
+-                    _orders[id] = o;
+-                    OnOrderCompleted?.Invoke(id);
+-                }
+-            }
+-
+-            // Cleanup completed orders (keep deterministic)
+-            for (int i = _active.Count - 1; i >= 0; i--)
+-            {
+-                int id = _active[i];
+-                if (_orders.TryGetValue(id, out var o) && o.Completed)
+-                    _active.RemoveAt(i);
+-            }
+-        }
+-
+-        private void CompletePlaceOrder(ref BuildOrder o)
+-        {
+-            if (o.Completed) return;
+-
+-            // Day19: cancel any leftover jobs for this site (safety)
+-            CancelTrackedJobsForSite(o.Site);
+-
+-            // read site + def
+-            var site = _s.WorldState.Sites.Get(o.Site);
+-            var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
+-
+-            int w = Math.Max(1, def.SizeX);
+-            int h = Math.Max(1, def.SizeY);
+-
+-            // 1) Clear site occupancy
+-            for (int dy = 0; dy < h; dy++)
+-                for (int dx = 0; dx < w; dx++)
+-                    _s.GridMap.ClearSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy));
+-
+-            // 2) Destroy site
+-            _s.WorldState.Sites.Destroy(o.Site);
+-
+-            // 3) Finalize building placeholder
+-            var b = _s.WorldState.Buildings.Get(o.TargetBuilding);
+-            b.IsConstructed = true;
+-            _s.WorldState.Buildings.Set(o.TargetBuilding, b);
+-
+-            // 4) Set building occupancy
+-            for (int dy = 0; dy < h; dy++)
+-                for (int dx = 0; dx < w; dx++)
+-                    _s.GridMap.SetBuilding(new CellPos(b.Anchor.X + dx, b.Anchor.Y + dy), o.TargetBuilding);
+-
+-            // 5) WorldIndex hook (if available)
+-            try { _s.WorldIndex?.OnBuildingCreated(o.TargetBuilding); } catch { }
+-
+-            // 6) Publish placed event on completion
+-            _s.EventBus.Publish(new BuildingPlacedEvent(o.BuildingDefId, o.TargetBuilding));
+-
+-            _s.NotificationService?.Push(
+-                key: $"BuildComplete_{o.TargetBuilding.Value}",
+-                title: "Construction",
+-                body: $"Completed: {o.BuildingDefId} (Lv {b.Level}) @ ({b.Anchor.X},{b.Anchor.Y})",
+-                severity: NotificationSeverity.Info,
+-                payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
+-                cooldownSeconds: 0.25f,
+-                dedupeByKey: true
+-            );
+-
+-            o.Completed = true;
+-        }
+-
+-        private static float ComputeWorkSecondsTotal(BuildingDef def)
+-        {
+-            // VS#1 simple deterministic formula:
+-            // base + area factor
+-            int w = Math.Max(1, def.SizeX);
+-            int h = Math.Max(1, def.SizeY);
+-            int area = w * h;
+-
+-            return 1.5f + area * 0.35f;
+-        }
+-
+-        public void ClearAll()
+-        {
+-            _nextOrderId = 1;
+-            _active.Clear();
+-            _orders.Clear();
+-            _deliverJobsBySite.Clear();
+-            _workJobBySite.Clear();
+-            _buildingIdsBuf.Clear();
+-        }
+-
+-        private static bool IsReadyToWork(in BuildSiteState site)
+-        {
+-            return site.RemainingCosts == null || site.RemainingCosts.Count == 0;
+-        }
+-
+-        private static List<CostDef> CloneCostsOrEmpty(IReadOnlyList<CostDef> src)
+-        {
+-            if (src == null || src.Count == 0) return new List<CostDef>(0);
+-
+-            var list = new List<CostDef>(src.Count);
+-            for (int i = 0; i < src.Count; i++)
+-            {
+-                var c = src[i];
+-                if (c.Amount > 0) list.Add(c);
+-            }
+-            return list;
+-        }
+-
+-        private BuildingId ResolveBuildWorkplace()
+-        {
+-            _buildingIdsBuf.Clear();
+-            foreach (var id in _s.WorldState.Buildings.Ids) _buildingIdsBuf.Add(id);
+-            _buildingIdsBuf.Sort((a, b) => a.Value.CompareTo(b.Value));
+-
+-            // Prefer HQ (constructed)
+-            for (int i = 0; i < _buildingIdsBuf.Count; i++)
+-            {
+-                var bid = _buildingIdsBuf[i];
+-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+-
+-                var bs = _s.WorldState.Buildings.Get(bid);
+-                if (!bs.IsConstructed) continue;
+-
+-                var def = _s.DataRegistry.GetBuilding(bs.DefId);
+-                if (def.IsHQ) return bid;
+-            }
+-
+-            // Fallback: any workplace with Build role (if you have such defs)
+-            for (int i = 0; i < _buildingIdsBuf.Count; i++)
+-            {
+-                var bid = _buildingIdsBuf[i];
+-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+-
+-                var bs = _s.WorldState.Buildings.Get(bid);
+-                if (!bs.IsConstructed) continue;
+-
+-                var def = _s.DataRegistry.GetBuilding(bs.DefId);
+-                if ((def.WorkRoles & WorkRoleFlags.Build) != 0) return bid;
+-            }
+-
+-            return default;
+-        }
+-
+-        private void EnsureBuildJobsForSite(SiteId siteId, BuildSiteState site, BuildingDef def, BuildingId workplace)
+-        {
+-            if (_s.JobBoard == null) return;
+-
+-            // prune stale tracked jobs
+-            if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
+-                PruneTerminal(list);
+-
+-            if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
+-            {
+-                if (!_s.JobBoard.TryGet(wid, out var wj) || IsTerminal(wj.Status))
+-                    _workJobBySite.Remove(siteId.Value);
+-            }
+-
+-            // Not ready => ensure delivery jobs, cancel work job
+-            if (!IsReadyToWork(site))
+-            {
+-                if (_workJobBySite.TryGetValue(siteId.Value, out var w))
+-                {
+-                    _s.JobBoard.Cancel(w);
+-                    _workJobBySite.Remove(siteId.Value);
+-                }
+-
+-                EnsureDeliveryJobs(siteId, site, def, workplace);
+-                return;
+-            }
+-
+-            // Ready => cancel delivery jobs, ensure 1 work job
+-            CancelDeliveryJobs(siteId);
+-
+-            if (!_workJobBySite.ContainsKey(siteId.Value))
+-            {
+-                var j = new Job
+-                {
+-                    Archetype = JobArchetype.BuildWork,
+-                    Status = JobStatus.Created,
+-                    Workplace = workplace,
+-
+-                    SourceBuilding = default,
+-                    DestBuilding = default,
+-                    Site = siteId,
+-                    Tower = default,
+-
+-                    ResourceType = 0,
+-                    Amount = 0,
+-
+-                    TargetCell = site.Anchor,
+-                    CreatedAt = 0
+-                };
+-
+-                var newId = _s.JobBoard.Enqueue(j);
+-                _workJobBySite[siteId.Value] = newId;
+-            }
+-        }
+-
+-        private void EnsureDeliveryJobs(SiteId siteId, BuildSiteState site, BuildingDef def, BuildingId workplace)
+-        {
+-            if (site.RemainingCosts == null || site.RemainingCosts.Count == 0) return;
+-
+-            if (!_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
+-                _deliverJobsBySite[siteId.Value] = list = new List<JobId>(MaxPendingDeliveryJobsPerSite);
+-
+-            int chunks = def.BuildChunksL1 <= 0 ? 1 : def.BuildChunksL1;
+-
+-            while (list.Count < MaxPendingDeliveryJobsPerSite)
+-            {
+-                int idx = PickNextRemainingIndex(site);
+-                if (idx < 0) break;
+-
+-                var rc = site.RemainingCosts[idx];
+-                if (rc.Amount <= 0) { site.RemainingCosts.RemoveAt(idx); continue; }
+-
+-                int totalForRes = GetTotalCostFromDef(def.BuildCostsL1, rc.Resource);
+-                int chunkAmt = (totalForRes + chunks - 1) / chunks; // ceil
+-                if (chunkAmt <= 0) chunkAmt = rc.Amount;
+-
+-                int want = rc.Amount < chunkAmt ? rc.Amount : chunkAmt;
+-                if (want > CarryCap) want = CarryCap;
+-
+-                var j = new Job
+-                {
+-                    Archetype = JobArchetype.BuildDeliver,
+-                    Status = JobStatus.Created,
+-                    Workplace = workplace,
+-
+-                    SourceBuilding = default,
+-                    DestBuilding = default,
+-                    Site = siteId,
+-                    Tower = default,
+-
+-                    ResourceType = rc.Resource,
+-                    Amount = want,
+-
+-                    TargetCell = site.Anchor,
+-                    CreatedAt = 0
+-                };
+-
+-                var jid = _s.JobBoard.Enqueue(j);
+-                list.Add(jid);
+-            }
+-        }
+-
+-        private static int PickNextRemainingIndex(in BuildSiteState site)
+-        {
+-            if (site.RemainingCosts == null || site.RemainingCosts.Count == 0) return -1;
+-
+-            int best = -1;
+-            int bestKey = int.MaxValue;
+-
+-            for (int i = 0; i < site.RemainingCosts.Count; i++)
+-            {
+-                var c = site.RemainingCosts[i];
+-                if (c.Amount <= 0) continue;
+-
+-                int key = (int)c.Resource;
+-                if (key < bestKey)
+-                {
+-                    bestKey = key;
+-                    best = i;
+-                }
+-            }
+-            return best;
+-        }
+-
+-        private static int GetTotalCostFromDef(IReadOnlyList<CostDef> costs, ResourceType rt)
+-        {
+-            if (costs == null) return 0;
+-            for (int i = 0; i < costs.Count; i++)
+-                if (costs[i].Resource == rt)
+-                    return costs[i].Amount;
+-            return 0;
+-        }
+-
+-        private void CancelTrackedJobsForSite(SiteId siteId)
+-        {
+-            CancelDeliveryJobs(siteId);
+-
+-            if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
+-            {
+-                _s.JobBoard.Cancel(wid);
+-                _workJobBySite.Remove(siteId.Value);
+-            }
+-        }
+-
+-        private void CancelDeliveryJobs(SiteId siteId)
+-        {
+-            if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
+-            {
+-                for (int i = 0; i < list.Count; i++)
+-                    _s.JobBoard.Cancel(list[i]);
+-                list.Clear();
+-            }
+-        }
+-
+-        private void PruneTerminal(List<JobId> list)
+-        {
+-            for (int i = list.Count - 1; i >= 0; i--)
+-            {
+-                var id = list[i];
+-                if (!_s.JobBoard.TryGet(id, out var j) || IsTerminal(j.Status))
+-                    list.RemoveAt(i);
+-            }
+-        }
+-
+-        private static bool IsTerminal(JobStatus s)
+-        {
+-            return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
+-        }
+-
+-        // VS2 Day18: helpers for site cost tracking (delivery gate)
+-        private static List<CostDef> CloneCostsOrEmpty(CostDef[] arr)
+-        {
+-            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
+-
+-            var list = new List<CostDef>(arr.Length);
+-            for (int i = 0; i < arr.Length; i++)
+-            {
+-                var c = arr[i];
+-                if (c == null) continue;
+-
+-                int amt = c.Amount;
+-                if (amt <= 0) continue;
+-
+-                list.Add(new CostDef { Resource = c.Resource, Amount = amt });
+-            }
+-            return list;
+-        }
+-
+-        private static List<CostDef> BuildDeliveredMirror(CostDef[] arr)
+-        {
+-            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
+-
+-            var list = new List<CostDef>(arr.Length);
+-            for (int i = 0; i < arr.Length; i++)
+-            {
+-                var c = arr[i];
+-                if (c == null) continue;
+-
+-                // keep only positive cost lines
+-                if (c.Amount <= 0) continue;
+-
+-                list.Add(new CostDef { Resource = c.Resource, Amount = 0 });
+-            }
+-            return list;
+-        }
+-    }
+-}
++using SeasonalBastion.Contracts;
++using System;
++using System.Collections.Generic;
++
++namespace SeasonalBastion
++{
++    public sealed class BuildOrderService : IBuildOrderService, ITickable
++    {
++        private readonly GameServices _s;
++        private int _nextOrderId = 1;
++
++        // Deterministic: ids always increase; iterate in insertion order
++        private readonly List<int> _active = new();
++        private readonly Dictionary<int, BuildOrder> _orders = new();
++
++        // Long-term safety: prevent ghost placeholder on cancel
++        private readonly bool _destroyPlaceholderOnCancel = true;
++
++        // VS2 Day19: BuildOrderService acts as Job Provider for build pipeline.
++        private const int CarryCap = 10; // keep consistent with HaulBasicExecutor
++        private const int MaxPendingDeliveryJobsPerSite = 3;
++
++        // siteId.Value -> pending deliver job ids
++        private readonly Dictionary<int, List<JobId>> _deliverJobsBySite = new();
++        // siteId.Value -> active work job id
++        private readonly Dictionary<int, JobId> _workJobBySite = new();
++
++        // reuse buffers
++        private readonly List<BuildingId> _buildingIdsBuf = new(128);
++
++        public event Action<int> OnOrderCompleted;
++
++        public BuildOrderService(GameServices s) { _s = s; }
++
++        public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
++        {
++            // 1) Validate via PlacementService (single source of truth)
++            var placement = _s.PlacementService;
++            var vr = placement.ValidateBuilding(buildingDefId, anchor, rotation);
++            if (!vr.Ok) return 0;
++
++            // 2) Read def for footprint + base level
++            BuildingDef def = _s.DataRegistry.GetBuilding(buildingDefId);
++            int w = Math.Max(1, def.SizeX);
++            int h = Math.Max(1, def.SizeY);
++            int level = Math.Max(1, def.BaseLevel);
++
++            // 3) Create placeholder building (not constructed yet)
++            var bst = new BuildingState
++            {
++                DefId = buildingDefId,
++                Anchor = anchor,
++                Rotation = rotation,
++                Level = level,
++                IsConstructed = false
++            };
++            var buildingId = _s.WorldState.Buildings.Create(bst);
++            bst.Id = buildingId;
++            _s.WorldState.Buildings.Set(buildingId, bst);
++
++            // 4) Create build site state
++            float workTotal = ComputeWorkSecondsTotal(def);
++            var site = new BuildSiteState
++            {
++                BuildingDefId = buildingDefId,
++                TargetLevel = level,
++                Anchor = anchor,
++                Rotation = rotation,
++                IsActive = true,
++                WorkSecondsDone = 0f,
++                WorkSecondsTotal = Math.Max(0.1f, workTotal),
++                DeliveredSoFar = BuildDeliveredMirror(def.BuildCostsL1),
++                RemainingCosts = CloneCostsOrEmpty(def.BuildCostsL1) // VS2 Day18: delivery gate
++            };
++            var siteId = _s.WorldState.Sites.Create(site);
++            site.Id = siteId;
++            _s.WorldState.Sites.Set(siteId, site);
++
++            // 5) Occupy footprint as Site
++            for (int dy = 0; dy < h; dy++)
++                for (int dx = 0; dx < w; dx++)
++                    _s.GridMap.SetSite(new CellPos(anchor.X + dx, anchor.Y + dy), siteId);
++
++            // 6) Create order
++            int orderId = _nextOrderId++;
++            var order = new BuildOrder
++            {
++                OrderId = orderId,
++                Kind = BuildOrderKind.PlaceNew,
++                BuildingDefId = buildingDefId,
++                TargetBuilding = buildingId,
++                Site = siteId,
++                RequiredCost = default,
++                Delivered = default,
++                WorkSecondsRequired = site.WorkSecondsTotal,
++                WorkSecondsDone = 0f,
++                Completed = false
++            };
++
++            _orders[orderId] = order;
++            _active.Add(orderId);
++
++            // Notify: started construction (Site created)
++            _s.NotificationService?.Push(
++                key: $"BuildStart_{buildingId.Value}",
++                title: "Construction",
++                body: $"Started: {buildingDefId}",
++                severity: NotificationSeverity.Info,
++                payload: new NotificationPayload(buildingId, default, buildingDefId),
++                cooldownSeconds: 0.25f,
++                dedupeByKey: true
++            );
++
++            return orderId;
++        }
++
++        public int CreateUpgradeOrder(BuildingId building)
++        {
++            // VS#1/Day6 scope: not implemented yet -> return 0 instead of throwing
++            _s.NotificationService?.Push(
++                key: $"UpgradeNotImpl_{building.Value}",
++                title: "Construction",
++                body: "Upgrade is not available in VS#1.",
++                severity: NotificationSeverity.Warning,
++                payload: new NotificationPayload(building, default, "upgrade"),
++                cooldownSeconds: 0.25f,
++                dedupeByKey: true
++            );
++            return 0;
++        }
++
++        public int CreateRepairOrder(BuildingId building)
++        {
++            if (building.Value == 0) return 0;
++            if (_s.WorldState == null || !_s.WorldState.Buildings.Exists(building)) return 0;
++
++            var bs = _s.WorldState.Buildings.Get(building);
++            if (!bs.IsConstructed)
++            {
++                _s.NotificationService?.Push(
++                    key: $"Repair_NotConstructed_{building.Value}",
++                    title: "Construction",
++                    body: $"Cannot repair: building #{building.Value} is not constructed yet.",
++                    severity: NotificationSeverity.Warning,
++                    payload: new NotificationPayload(building, default, "repair"),
++                    cooldownSeconds: 0.25f,
++                    dedupeByKey: true
++                );
++                return 0;
++            }
++
++            // Fix-up MaxHP if older states/defs were loaded
++            int max = bs.MaxHP;
++            if (max <= 0)
++            {
++                try { max = _s.DataRegistry.GetBuilding(bs.DefId).MaxHp; } catch { max = 100; }
++                if (max <= 0) max = 100;
++                bs.MaxHP = max;
++                if (bs.HP <= 0) bs.HP = max;
++                _s.WorldState.Buildings.Set(building, bs);
++            }
++
++            if (bs.HP >= bs.MaxHP)
++            {
++                _s.NotificationService?.Push(
++                    key: $"Repair_Full_{building.Value}",
++                    title: "Construction",
++                    body: $"Building #{building.Value} is already at full HP.",
++                    severity: NotificationSeverity.Info,
++                    payload: new NotificationPayload(building, default, "repair"),
++                    cooldownSeconds: 0.25f,
++                    dedupeByKey: true
++                );
++                return 0;
++            }
++
++            // Avoid duplicate repair orders for the same building
++            for (int i = 0; i < _active.Count; i++)
++            {
++                int oid = _active[i];
++                if (_orders.TryGetValue(oid, out var ex) && !ex.Completed && ex.Kind == BuildOrderKind.Repair && ex.TargetBuilding.Value == building.Value)
++                    return ex.OrderId;
++            }
++
++            int orderId = _nextOrderId++;
++
++            // Work time: based on missing HP percent, chunked (Deliverable C)
++            float required = ComputeRepairWorkSecondsRequired(bs.HP, bs.MaxHP);
++
++            var o = new BuildOrder
++            {
++                OrderId = orderId,
++                Kind = BuildOrderKind.Repair,
++                BuildingDefId = bs.DefId,
++                TargetBuilding = building,
++                Site = default,
++                RequiredCost = default,
++                Delivered = default,
++                WorkSecondsRequired = required,
++                WorkSecondsDone = 0f,
++                Completed = false
++            };
++
++            _orders[orderId] = o;
++            _active.Add(orderId);
++
++            _s.NotificationService?.Push(
++                key: $"Repair_Order_{building.Value}",
++                title: "Construction",
++                body: $"Repair order created for Building #{building.Value} ({bs.HP}/{bs.MaxHP}).",
++                severity: NotificationSeverity.Info,
++                payload: new NotificationPayload(building, default, "repair"),
++                cooldownSeconds: 0.25f,
++                dedupeByKey: true
++            );
++
++            return orderId;
++        }
++
++        public bool TryGet(int orderId, out BuildOrder order) => _orders.TryGetValue(orderId, out order);
++
++        public void Cancel(int orderId)
++        {
++            if (!_orders.TryGetValue(orderId, out var o)) return;
++            if (o.Completed) return;
++
++            if (o.Kind == BuildOrderKind.PlaceNew)
++            {
++                // Day19: cancel pending jobs for this site (avoid orphan jobs)
++                CancelTrackedJobsForSite(o.Site);
++
++                // 1) Clear site occupancy + destroy site
++                if (_s.WorldState.Sites.Exists(o.Site))
++                {
++                    var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
++                    int w = Math.Max(1, def.SizeX);
++                    int h = Math.Max(1, def.SizeY);
++
++                    var st = _s.WorldState.Sites.Get(o.Site);
++                    for (int dy = 0; dy < h; dy++)
++                        for (int dx = 0; dx < w; dx++)
++                            _s.GridMap.ClearSite(new CellPos(st.Anchor.X + dx, st.Anchor.Y + dy));
++
++                    _s.WorldState.Sites.Destroy(o.Site);
++                }
++
++                // 2) Optional: destroy placeholder building to avoid ghost state
++                if (_destroyPlaceholderOnCancel && _s.WorldState.Buildings.Exists(o.TargetBuilding))
++                {
++                    _s.WorldState.Buildings.Destroy(o.TargetBuilding);
++                }
++
++                _s.NotificationService?.Push(
++                    key: $"BuildCancel_{o.TargetBuilding.Value}",
++                    title: "Construction",
++                    body: $"Cancelled: {o.BuildingDefId}",
++                    severity: NotificationSeverity.Info,
++                    payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
++                    cooldownSeconds: 0.25f,
++                    dedupeByKey: true
++                );
++            }
++            else if (o.Kind == BuildOrderKind.Repair)
++            {
++                CancelTrackedJobsForRepair(orderId);
++
++                _s.NotificationService?.Push(
++                    key: $"RepairCancel_{o.TargetBuilding.Value}",
++                    title: "Construction",
++                    body: $"Cancelled repair for Building #{o.TargetBuilding.Value}",
++                    severity: NotificationSeverity.Info,
++                    payload: new NotificationPayload(o.TargetBuilding, default, "repair"),
++                    cooldownSeconds: 0.25f,
++                    dedupeByKey: true
++                );
++            }
++
++            _orders.Remove(orderId);
++            _active.Remove(orderId);
++        }
++
++        public void Tick(float dt)
++        {
++            if (dt <= 0f) return;
++
++            var workplace = ResolveBuildWorkplace();
++            if (workplace.Value == 0)
++                return; // no build workplace => cannot create jobs deterministically
++
++            // Iterate deterministic by insertion order (orderId always increasing)
++            for (int i = 0; i < _active.Count; i++)
++            {
++                int id = _active[i];
++                if (!_orders.TryGetValue(id, out var o)) continue;
++                if (o.Completed) continue;
++
++                switch (o.Kind)
++                {
++                    case BuildOrderKind.PlaceNew:
++                    {
++                        // Site might have been destroyed (edge case)
++                        if (!_s.WorldState.Sites.Exists(o.Site))
++                        {
++                            CancelTrackedJobsForSite(o.Site);
++                            o.Completed = true;
++                            _orders[id] = o;
++                            break;
++                        }
++
++                        var site = _s.WorldState.Sites.Get(o.Site);
++
++                        // Day19: Ensure delivery/work jobs exist before JobScheduler tick
++                        var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
++                        EnsureBuildJobsForSite(o.Site, site, def, workplace);
++
++                        // Sync order progress from site (executor will advance site.WorkSecondsDone)
++                        o.WorkSecondsDone = site.WorkSecondsDone;
++                        _orders[id] = o;
++
++                        // Complete when:
++                        // - remaining costs are done
++                        // - and work seconds done >= total
++                        if (IsReadyToWork(site) && site.WorkSecondsDone + 1e-4f >= site.WorkSecondsTotal)
++                        {
++                            CancelTrackedJobsForSite(o.Site);
++
++                            CompletePlaceOrder(ref o);
++                            _orders[id] = o;
++                            OnOrderCompleted?.Invoke(id);
++                        }
++                        break;
++                    }
++
++                    case BuildOrderKind.Repair:
++                    {
++                        if (o.TargetBuilding.Value == 0 || !_s.WorldState.Buildings.Exists(o.TargetBuilding))
++                        {
++                            CancelTrackedJobsForRepair(id);
++                            o.Completed = true;
++                            _orders[id] = o;
++                            break;
++                        }
++
++                        var bs = _s.WorldState.Buildings.Get(o.TargetBuilding);
++
++                        // Fix-up MaxHP if older states/defs were loaded
++                        if (bs.MaxHP <= 0)
++                        {
++                            int max = 100;
++                            try { max = _s.DataRegistry.GetBuilding(bs.DefId).MaxHp; } catch { }
++                            bs.MaxHP = max <= 0 ? 100 : max;
++                            if (bs.HP <= 0) bs.HP = bs.MaxHP;
++                            _s.WorldState.Buildings.Set(o.TargetBuilding, bs);
++                        }
++
++                        if (bs.HP >= bs.MaxHP)
++                        {
++                            CancelTrackedJobsForRepair(id);
++                            o.WorkSecondsDone = o.WorkSecondsRequired;
++                            o.Completed = true;
++                            _orders[id] = o;
++                            OnOrderCompleted?.Invoke(id);
++                            break;
++                        }
++
++                        // Ensure repair job exists before JobScheduler tick
++                        EnsureRepairJobForOrder(id, o.TargetBuilding, workplace);
++
++                        // If repair job finished, mark order done
++                        if (_repairWorkJobByOrder.TryGetValue(id, out var rjid) && rjid.Value != 0)
++                        {
++                            if (_s.JobBoard.TryGet(rjid, out var rj))
++                            {
++                                if (rj.Status == JobStatus.Completed)
++                                {
++                                    // ensure full HP (safety)
++                                    bs = _s.WorldState.Buildings.Get(o.TargetBuilding);
++                                    if (bs.HP < bs.MaxHP)
++                                    {
++                                        bs.HP = bs.MaxHP;
++                                        _s.WorldState.Buildings.Set(o.TargetBuilding, bs);
++                                    }
++                                    o.WorkSecondsDone = o.WorkSecondsRequired;
++                                    o.Completed = true;
++                                    _orders[id] = o;
++                                    CancelTrackedJobsForRepair(id);
++                                    OnOrderCompleted?.Invoke(id);
++                                }
++                                else if (rj.Status == JobStatus.Failed || rj.Status == JobStatus.Cancelled)
++                                {
++                                    // keep order active; it will recreate job next tick
++                                    _repairWorkJobByOrder.Remove(id);
++                                }
++                            }
++                        }
++                        break;
++                    }
++                }
++            }
++
++            // Cleanup completed orders (keep deterministic)
++            for (int i = _active.Count - 1; i >= 0; i--)
++            {
++                int id = _active[i];
++                if (_orders.TryGetValue(id, out var o) && o.Completed)
++                    _active.RemoveAt(i);
++            }
++        }
++
++
++        private void CompletePlaceOrder(ref BuildOrder o)
++        {
++
++            if (o.Completed) return;
++
++            // Day19: cancel any leftover jobs for this site (safety)
++            CancelTrackedJobsForSite(o.Site);
++
++            // read site + def
++            var site = _s.WorldState.Sites.Get(o.Site);
++            var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
++
++            int w = Math.Max(1, def.SizeX);
++            int h = Math.Max(1, def.SizeY);
++
++            // 1) Clear site occupancy
++            for (int dy = 0; dy < h; dy++)
++                for (int dx = 0; dx < w; dx++)
++                    _s.GridMap.ClearSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy));
++
++            // 2) Destroy site
++            _s.WorldState.Sites.Destroy(o.Site);
++
++            // 3) Finalize building placeholder
++            var b = _s.WorldState.Buildings.Get(o.TargetBuilding);
++            b.IsConstructed = true;
++            _s.WorldState.Buildings.Set(o.TargetBuilding, b);
++
++            // 4) Set building occupancy
++            for (int dy = 0; dy < h; dy++)
++                for (int dx = 0; dx < w; dx++)
++                    _s.GridMap.SetBuilding(new CellPos(b.Anchor.X + dx, b.Anchor.Y + dy), o.TargetBuilding);
++
++            // 5) WorldIndex hook (if available)
++            try { _s.WorldIndex?.OnBuildingCreated(o.TargetBuilding); } catch { }
++
++            // 6) Publish placed event on completion
++            _s.EventBus.Publish(new BuildingPlacedEvent(o.BuildingDefId, o.TargetBuilding));
++
++            _s.NotificationService?.Push(
++                key: $"BuildComplete_{o.TargetBuilding.Value}",
++                title: "Construction",
++                body: $"Completed: {o.BuildingDefId} (Lv {b.Level}) @ ({b.Anchor.X},{b.Anchor.Y})",
++                severity: NotificationSeverity.Info,
++                payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
++                cooldownSeconds: 0.25f,
++                dedupeByKey: true
++            );
++
++            o.Completed = true;
++        }
++
++        private static float ComputeWorkSecondsTotal(BuildingDef def)
++        {
++            // VS#1 simple deterministic formula:
++            // base + area factor
++            int w = Math.Max(1, def.SizeX);
++            int h = Math.Max(1, def.SizeY);
++            int area = w * h;
++
++            return 1.5f + area * 0.35f;
++        }
++
++        private static float ComputeRepairWorkSecondsRequired(int hp, int maxHp)
++        {
++            if (maxHp <= 0) return 4f;
++            if (hp < 0) hp = 0;
++            if (hp >= maxHp) return 0f;
++
++            // Deliverable C: RepairWorkChunkTime=4s; RepairRestoresPctPerChunk=15%
++            int missing = maxHp - hp;
++            // chunks = ceil( (missing/max) / 0.15 ) = ceil( missing*100 / (max*15) )
++            int denom = maxHp * 15;
++            int numer = missing * 100;
++            int chunks = (numer + denom - 1) / denom;
++            if (chunks < 1) chunks = 1;
++            return chunks * 4f;
++        }
++
++        public void ClearAll()
++        {
++            _nextOrderId = 1;
++            _active.Clear();
++            _orders.Clear();
++            _deliverJobsBySite.Clear();
++            _workJobBySite.Clear();
++            _repairWorkJobByOrder.Clear();
++            _buildingIdsBuf.Clear();
++        }
++
++        private static bool IsReadyToWork(in BuildSiteState site)
++        {
++            return site.RemainingCosts == null || site.RemainingCosts.Count == 0;
++        }
++
++        private static List<CostDef> CloneCostsOrEmpty(IReadOnlyList<CostDef> src)
++        {
++            if (src == null || src.Count == 0) return new List<CostDef>(0);
++
++            var list = new List<CostDef>(src.Count);
++            for (int i = 0; i < src.Count; i++)
++            {
++                var c = src[i];
++                if (c.Amount > 0) list.Add(c);
++            }
++            return list;
++        }
++
++        private BuildingId ResolveBuildWorkplace()
++        {
++            _buildingIdsBuf.Clear();
++            foreach (var id in _s.WorldState.Buildings.Ids) _buildingIdsBuf.Add(id);
++            _buildingIdsBuf.Sort((a, b) => a.Value.CompareTo(b.Value));
++
++            // Prefer HQ (constructed)
++            for (int i = 0; i < _buildingIdsBuf.Count; i++)
++            {
++                var bid = _buildingIdsBuf[i];
++                if (!_s.WorldState.Buildings.Exists(bid)) continue;
++
++                var bs = _s.WorldState.Buildings.Get(bid);
++                if (!bs.IsConstructed) continue;
++
++                var def = _s.DataRegistry.GetBuilding(bs.DefId);
++                if (def.IsHQ) return bid;
++            }
++
++            // Fallback: any workplace with Build role (if you have such defs)
++            for (int i = 0; i < _buildingIdsBuf.Count; i++)
++            {
++                var bid = _buildingIdsBuf[i];
++                if (!_s.WorldState.Buildings.Exists(bid)) continue;
++
++                var bs = _s.WorldState.Buildings.Get(bid);
++                if (!bs.IsConstructed) continue;
++
++                var def = _s.DataRegistry.GetBuilding(bs.DefId);
++                if ((def.WorkRoles & WorkRoleFlags.Build) != 0) return bid;
++            }
++
++            return default;
++        }
++
++        private void EnsureBuildJobsForSite(SiteId siteId, BuildSiteState site, BuildingDef def, BuildingId workplace)
++        {
++            if (_s.JobBoard == null) return;
++
++            // prune stale tracked jobs
++            if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
++                PruneTerminal(list);
++
++            if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
++            {
++                if (!_s.JobBoard.TryGet(wid, out var wj) || IsTerminal(wj.Status))
++                    _workJobBySite.Remove(siteId.Value);
++            }
++
++            // Not ready => ensure delivery jobs, cancel work job
++            if (!IsReadyToWork(site))
++            {
++                if (_workJobBySite.TryGetValue(siteId.Value, out var w))
++                {
++                    _s.JobBoard.Cancel(w);
++                    _workJobBySite.Remove(siteId.Value);
++                }
++
++                EnsureDeliveryJobs(siteId, site, def, workplace);
++                return;
++            }
++
++            // Ready => cancel delivery jobs, ensure 1 work job
++            CancelDeliveryJobs(siteId);
++
++            if (!_workJobBySite.ContainsKey(siteId.Value))
++            {
++                var j = new Job
++                {
++                    Archetype = JobArchetype.BuildWork,
++                    Status = JobStatus.Created,
++                    Workplace = workplace,
++
++                    SourceBuilding = default,
++                    DestBuilding = default,
++                    Site = siteId,
++                    Tower = default,
++
++                    ResourceType = 0,
++                    Amount = 0,
++
++                    TargetCell = site.Anchor,
++                    CreatedAt = 0
++                };
++
++                var newId = _s.JobBoard.Enqueue(j);
++                _workJobBySite[siteId.Value] = newId;
++            }
++        }
++
++        private void EnsureDeliveryJobs(SiteId siteId, BuildSiteState site, BuildingDef def, BuildingId workplace)
++        {
++            if (site.RemainingCosts == null || site.RemainingCosts.Count == 0) return;
++
++            if (!_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
++                _deliverJobsBySite[siteId.Value] = list = new List<JobId>(MaxPendingDeliveryJobsPerSite);
++
++            int chunks = def.BuildChunksL1 <= 0 ? 1 : def.BuildChunksL1;
++
++            while (list.Count < MaxPendingDeliveryJobsPerSite)
++            {
++                int idx = PickNextRemainingIndex(site);
++                if (idx < 0) break;
++
++                var rc = site.RemainingCosts[idx];
++                if (rc.Amount <= 0) { site.RemainingCosts.RemoveAt(idx); continue; }
++
++                int totalForRes = GetTotalCostFromDef(def.BuildCostsL1, rc.Resource);
++                int chunkAmt = (totalForRes + chunks - 1) / chunks; // ceil
++                if (chunkAmt <= 0) chunkAmt = rc.Amount;
++
++                int want = rc.Amount < chunkAmt ? rc.Amount : chunkAmt;
++                if (want > CarryCap) want = CarryCap;
++
++                var j = new Job
++                {
++                    Archetype = JobArchetype.BuildDeliver,
++                    Status = JobStatus.Created,
++                    Workplace = workplace,
++
++                    SourceBuilding = default,
++                    DestBuilding = default,
++                    Site = siteId,
++                    Tower = default,
++
++                    ResourceType = rc.Resource,
++                    Amount = want,
++
++                    TargetCell = site.Anchor,
++                    CreatedAt = 0
++                };
++
++                var jid = _s.JobBoard.Enqueue(j);
++                list.Add(jid);
++            }
++        }
++
++        private static int PickNextRemainingIndex(in BuildSiteState site)
++        {
++            if (site.RemainingCosts == null || site.RemainingCosts.Count == 0) return -1;
++
++            int best = -1;
++            int bestKey = int.MaxValue;
++
++            for (int i = 0; i < site.RemainingCosts.Count; i++)
++            {
++                var c = site.RemainingCosts[i];
++                if (c.Amount <= 0) continue;
++
++                int key = (int)c.Resource;
++                if (key < bestKey)
++                {
++                    bestKey = key;
++                    best = i;
++                }
++            }
++            return best;
++        }
++
++        private static int GetTotalCostFromDef(IReadOnlyList<CostDef> costs, ResourceType rt)
++        {
++            if (costs == null) return 0;
++            for (int i = 0; i < costs.Count; i++)
++                if (costs[i].Resource == rt)
++                    return costs[i].Amount;
++            return 0;
++        }
++
++        private void EnsureRepairJobForOrder(int orderId, BuildingId targetBuilding, BuildingId workplace)
++        {
++            if (_repairWorkJobByOrder.TryGetValue(orderId, out var existing) && existing.Value != 0)
++            {
++                if (_s.JobBoard.TryGet(existing, out var j) && !IsTerminal(j.Status))
++                    return;
++
++                _repairWorkJobByOrder.Remove(orderId);
++            }
++
++            if (!_s.WorldState.Buildings.Exists(targetBuilding)) return;
++            var bs = _s.WorldState.Buildings.Get(targetBuilding);
++
++            var job = new Job
++            {
++                Archetype = JobArchetype.RepairWork,
++                Status = JobStatus.Created,
++                Workplace = workplace,
++
++                SourceBuilding = default,
++                DestBuilding = targetBuilding,
++                Site = default,
++                Tower = default,
++
++                ResourceType = ResourceType.None,
++                Amount = 0,
++
++                TargetCell = bs.Anchor,
++                CreatedAt = 0
++            };
++
++            var jid = _s.JobBoard.Enqueue(job);
++            _repairWorkJobByOrder[orderId] = jid;
++        }
++
++        private void CancelTrackedJobsForRepair(int orderId)
++        {
++            if (_repairWorkJobByOrder.TryGetValue(orderId, out var jid) && jid.Value != 0)
++            {
++                _s.JobBoard.Cancel(jid);
++                _repairWorkJobByOrder.Remove(orderId);
++            }
++        }
++
++        private void CancelTrackedJobsForSite(SiteId siteId)
++        {
++            CancelDeliveryJobs(siteId);
++
++            if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
++            {
++                _s.JobBoard.Cancel(wid);
++                _workJobBySite.Remove(siteId.Value);
++            }
++        }
++
++        private void CancelDeliveryJobs(SiteId siteId)
++        {
++            if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
++            {
++                for (int i = 0; i < list.Count; i++)
++                    _s.JobBoard.Cancel(list[i]);
++                list.Clear();
++            }
++        }
++
++        private void PruneTerminal(List<JobId> list)
++        {
++            for (int i = list.Count - 1; i >= 0; i--)
++            {
++                var id = list[i];
++                if (!_s.JobBoard.TryGet(id, out var j) || IsTerminal(j.Status))
++                    list.RemoveAt(i);
++            }
++        }
++
++        private static bool IsTerminal(JobStatus s)
++        {
++            return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
++        }
++
++        // VS2 Day18: helpers for site cost tracking (delivery gate)
++        private static List<CostDef> CloneCostsOrEmpty(CostDef[] arr)
++        {
++            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
++
++            var list = new List<CostDef>(arr.Length);
++            for (int i = 0; i < arr.Length; i++)
++            {
++                var c = arr[i];
++                if (c == null) continue;
++
++                int amt = c.Amount;
++                if (amt <= 0) continue;
++
++                list.Add(new CostDef { Resource = c.Resource, Amount = amt });
++            }
++            return list;
++        }
++
++        private static List<CostDef> BuildDeliveredMirror(CostDef[] arr)
++        {
++            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
++
++            var list = new List<CostDef>(arr.Length);
++            for (int i = 0; i < arr.Length; i++)
++            {
++                var c = arr[i];
++                if (c == null) continue;
++
++                // keep only positive cost lines
++                if (c.Amount <= 0) continue;
++
++                list.Add(new CostDef { Resource = c.Resource, Amount = 0 });
++            }
++            return list;
++        }
++    }
++}
+diff --git a/Assets/_Game/Core/Contracts/World/States/BuildingState.cs b/Assets/_Game/Core/Contracts/World/States/BuildingState.cs
+index 326e0b5..ed7b84f 100644
+--- a/Assets/_Game/Core/Contracts/World/States/BuildingState.cs
++++ b/Assets/_Game/Core/Contracts/World/States/BuildingState.cs
+@@ -1,17 +1,23 @@
+-namespace SeasonalBastion.Contracts
+-{
+-    public struct BuildingState
+-    {
+-        public BuildingId Id;
+-        public string DefId;
+-        public CellPos Anchor;
+-        public Dir4 Rotation;
+-        public int Level;
+-        public bool IsConstructed;
+-        public int Wood;
+-        public int Food;
+-        public int Stone;
+-        public int Iron;
+-        public int Ammo;
+-    }
+-}
++namespace SeasonalBastion.Contracts
++{
++    public struct BuildingState
++    {
++        public BuildingId Id;
++        public string DefId;
++        public CellPos Anchor;
++        public Dir4 Rotation;
++        public int Level;
++        public bool IsConstructed;
++
++        // VS2 Day22: minimal building durability (used by combat + repair)
++        public int HP;
++        public int MaxHP;
++
++        // Storage (conceptual values stored directly on building for v0.1)
++        public int Wood;
++        public int Food;
++        public int Stone;
++        public int Iron;
++        public int Ammo;
++    }
++}
+diff --git a/Assets/_Game/Debug/Tools/DebugBuildingTool.cs b/Assets/_Game/Debug/Tools/DebugBuildingTool.cs
+index ee67ea2..7badc48 100644
+--- a/Assets/_Game/Debug/Tools/DebugBuildingTool.cs
++++ b/Assets/_Game/Debug/Tools/DebugBuildingTool.cs
+@@ -1,408 +1,458 @@
+-﻿using UnityEngine;
+-using UnityEngine.InputSystem;
+-using SeasonalBastion.Contracts;
+-
+-namespace SeasonalBastion.DebugTools
+-{
+-    public sealed class DebugBuildingTool : MonoBehaviour
+-    {
+-        [Header("Bootstrap (required)")]
+-        [SerializeField] private GameBootstrap _bootstrap;
+-
+-        [Header("Defs (ids must exist in DataRegistry)")]
+-        [SerializeField] private string _def1 = "HQ";
+-        [SerializeField] private string _def2 = "House";
+-        [SerializeField] private string _def3 = "Farm";
+-        [SerializeField] private string _def4 = "Lumber";
+-        [SerializeField] private string _def5 = "Warehouse";
+-
+-        [Header("Grid Mapping")]
+-        [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
+-        [SerializeField] private float _cellSize = 1f;
+-        [SerializeField] private bool _useXZ = false; // 2D: false
+-        [SerializeField] private float _planeY = 0f;
+-        [SerializeField] private float _planeZ = 0f; // 2D XY plane at z = planeZ
+-
+-        [SerializeField] private bool _hubControlled;
+-        public void SetHubControlled(bool v) => _hubControlled = v;
+-        public void SetEnabledFromHub(bool enabled) { _enabled = enabled; _cacheValid = false; _hasHover = false; _lastValidate = default; }
+-
+-        public Vector3 GridOrigin => _gridOrigin;
+-        public float CellSize => _cellSize;
+-        public bool UseXZ => _useXZ;
+-        public float PlaneY => _planeY;
+-        public float PlaneZ => _planeZ;
+-
+-        [Header("Gizmos")]
+-        [SerializeField] private bool _drawPreview = true;
+-        [SerializeField] private bool _drawPlacedBuildings = true;
+-        [SerializeField] private bool _drawDrivewayHint = true;
+-        [SerializeField] private float _gizmoHeight = 0.06f;
+-
+-        [Header("Preview Colors")]
+-        [SerializeField] private Color _okColor = new Color(0f, 1f, 0f, 1f);
+-        [SerializeField] private Color _failColor = new Color(1f, 0f, 0f, 1f);
+-        [SerializeField] private Color _drivewayColor = new Color(1f, 1f, 0f, 1f);
+-
+-        private InputAction _toggle;     // B
+-        private InputAction _click;      // LMB
+-        private InputAction _sel1, _sel2, _sel3, _sel4, _sel5; // 1..5
+-        private InputAction _rotL, _rotR; // Q/E
+-
+-        private Camera _cam;
+-        private bool _enabled;
+-
+-        private GameServices _s;
+-        private IGridMap _grid;
+-        private IPlacementService _place;
+-        private IDataRegistry _data;
+-        private INotificationService _noti;
+-
+-        private string _selectedDef;
+-        private CellPos _hoverCell;
+-        private bool _hasHover;
+-        private PlacementResult _lastValidate;
+-        private Dir4 _rotation = Dir4.N;
+-
+-        private bool _cacheValid;
+-        private CellPos _cacheCell;
+-        private string _cacheDef;
+-        private Dir4 _cacheRot;
+-
+-        private void Awake()
+-        {
+-            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+-            _cam = Camera.main;
+-
+-            _toggle = new InputAction("ToggleBuildingTool", InputActionType.Button, "<Keyboard>/b");
+-            _click = new InputAction("PlaceBuilding", InputActionType.Button, "<Mouse>/leftButton");
+-
+-            _sel1 = new InputAction("Sel1", InputActionType.Button, "<Keyboard>/1");
+-            _sel2 = new InputAction("Sel2", InputActionType.Button, "<Keyboard>/2");
+-            _sel3 = new InputAction("Sel3", InputActionType.Button, "<Keyboard>/3");
+-            _sel4 = new InputAction("Sel4", InputActionType.Button, "<Keyboard>/4");
+-            _sel5 = new InputAction("Sel5", InputActionType.Button, "<Keyboard>/5");
+-
+-            _rotL = new InputAction("RotL", InputActionType.Button, "<Keyboard>/q");
+-            _rotR = new InputAction("RotR", InputActionType.Button, "<Keyboard>/e");
+-
+-            _selectedDef = _def1;
+-        }
+-
+-        private void Start()
+-        {
+-            _s = _bootstrap.Services;
+-            _grid = _s.GridMap;
+-            _place = _s.PlacementService;
+-            _data = _s.DataRegistry;
+-            _noti = _s.NotificationService;
+-
+-            if (_cam == null) _cam = Camera.main;
+-        }
+-
+-        private void OnEnable()
+-        {
+-            _toggle.Enable();
+-            _click.Enable();
+-            _sel1.Enable(); _sel2.Enable(); _sel3.Enable(); _sel4.Enable(); _sel5.Enable();
+-            _rotL.Enable(); _rotR.Enable();
+-
+-            _toggle.performed += OnToggle;
+-            _click.performed += OnClick;
+-
+-            _sel1.performed += OnSel1;
+-            _sel2.performed += OnSel2;
+-            _sel3.performed += OnSel3;
+-            _sel4.performed += OnSel4;
+-            _sel5.performed += OnSel5;
+-
+-            _rotL.performed += OnRotL;
+-            _rotR.performed += OnRotR;
+-        }
+-
+-        private void OnDisable()
+-        {
+-            _toggle.performed -= OnToggle;
+-            _click.performed -= OnClick;
+-
+-            _sel1.performed -= OnSel1;
+-            _sel2.performed -= OnSel2;
+-            _sel3.performed -= OnSel3;
+-            _sel4.performed -= OnSel4;
+-            _sel5.performed -= OnSel5;
+-
+-            _rotL.performed -= OnRotL;
+-            _rotR.performed -= OnRotR;
+-
+-            _toggle.Disable();
+-            _click.Disable();
+-            _sel1.Disable(); _sel2.Disable(); _sel3.Disable(); _sel4.Disable(); _sel5.Disable();
+-            _rotL.Disable(); _rotR.Disable();
+-
+-            _hasHover = false;
+-            _cacheValid = false;
+-        }
+-
+-        private void Update()
+-        {
+-            if (!_enabled || _place == null)
+-            {
+-                _hasHover = false;
+-                _cacheValid = false;
+-                _lastValidate = default;
+-                return;
+-            }
+-
+-            if (!TryGetCellUnderMouse(out var c))
+-            {
+-                _hasHover = false;
+-                _cacheValid = false;
+-                _lastValidate = default;
+-                return;
+-            }
+-
+-            _hasHover = true;
+-            _hoverCell = c;
+-
+-            if (!_cacheValid || _cacheCell.X != c.X || _cacheCell.Y != c.Y || _cacheRot != _rotation || _cacheDef != _selectedDef)
+-            {
+-                _lastValidate = _place.ValidateBuilding(_selectedDef, _hoverCell, _rotation);
+-                _cacheValid = true;
+-                _cacheCell = c;
+-                _cacheDef = _selectedDef;
+-                _cacheRot = _rotation;
+-            }
+-        }
+-
+-        private void OnToggle(InputAction.CallbackContext _)
+-        {
+-            if (_hubControlled) return;
+-
+-            _enabled = !_enabled;
+-            _cacheValid = false;
+-
+-            _noti?.Push(
+-                key: "DebugBuildingTool",
+-                title: "Debug",
+-                body: _enabled ? "Building Tool: ON (1-5 select, Q/E rotate, LMB place)" : "Building Tool: OFF",
+-                severity: NotificationSeverity.Info,
+-                payload: default,
+-                cooldownSeconds: 0.2f,
+-                dedupeByKey: true
+-            );
+-        }
+-
+-        private void OnSel1(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def1); }
+-        private void OnSel2(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def2); }
+-        private void OnSel3(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def3); }
+-        private void OnSel4(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def4); }
+-        private void OnSel5(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def5); }
+-
+-        private void Select(string defId)
+-        {
+-            _selectedDef = defId;
+-            _cacheValid = false;
+-
+-            _noti?.Push(
+-                key: "Build_Selected",
+-                title: "Build",
+-                body: $"Selected: {defId}",
+-                severity: NotificationSeverity.Info,
+-                payload: default,
+-                cooldownSeconds: 0.2f,
+-                dedupeByKey: true
+-            );
+-        }
+-
+-        private void OnRotL(InputAction.CallbackContext _)
+-        {
+-            if (!_enabled) return;
+-            Rotate(-1);
+-        }
+-
+-        private void OnRotR(InputAction.CallbackContext _)
+-        {
+-            if (!_enabled) return;
+-            Rotate(+1);
+-        }
+-
+-        private void Rotate(int dir)
+-        {
+-            int v = (int)_rotation;
+-            v = (v + dir) % 4;
+-            if (v < 0) v += 4;
+-            _rotation = (Dir4)v;
+-            _cacheValid = false;
+-
+-            _noti?.Push(
+-                key: "Build_Rotation",
+-                title: "Build",
+-                body: $"Rotation: {_rotation} (Q/E)",
+-                severity: NotificationSeverity.Info,
+-                payload: default,
+-                cooldownSeconds: 0.15f,
+-                dedupeByKey: true
+-            );
+-        }
+-
+-        private void OnClick(InputAction.CallbackContext _)
+-        {
+-            if (!_enabled || !_hasHover || _place == null) return;
+-
+-            var vr = _place.ValidateBuilding(_selectedDef, _hoverCell, _rotation);
+-            if (!vr.Ok)
+-            {
+-                PushFail(vr.Reason);
+-                return;
+-            }
+-
+-            var id = _place.CommitBuilding(_selectedDef, _hoverCell, _rotation);
+-            if (id.Value == 0)
+-                _noti?.Push("Build_CommitFailed", "Build", "Commit failed (id=0)", NotificationSeverity.Error, default, 1.0f, true);
+-        }
+-
+-        private void PushFail(PlacementFailReason reason)
+-        {
+-            string key = reason switch
+-            {
+-                PlacementFailReason.OutOfBounds => "Build_OutOfBounds",
+-                PlacementFailReason.Overlap => "Build_Overlap",
+-                PlacementFailReason.BlockedBySite => "Build_BlockedBySite",
+-                PlacementFailReason.NoRoadConnection => "Build_NoRoad",
+-                PlacementFailReason.InvalidRotation => "Build_BadRot",
+-                _ => "Build_Unknown"
+-            };
+-
+-            _noti?.Push(key, "Build", reason.ToString(), NotificationSeverity.Warning, default, 1.5f, true);
+-        }
+-
+-        private bool TryGetCellUnderMouse(out CellPos cell)
+-        {
+-            cell = default;
+-            if (_cam == null) return false;
+-            if (Mouse.current == null) return false;
+-
+-            var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
+-
+-            Plane plane = _useXZ
+-                ? new Plane(Vector3.up, new Vector3(0f, _planeY, 0f))
+-                : new Plane(Vector3.forward, new Vector3(0f, 0f, _planeZ)); // XY at z=planeZ
+-
+-            if (!plane.Raycast(ray, out var enter)) return false;
+-
+-            Vector3 world = ray.GetPoint(enter);
+-            var local = world - _gridOrigin;
+-
+-            int x = Mathf.FloorToInt(local.x / _cellSize);
+-            int y = _useXZ ? Mathf.FloorToInt(local.z / _cellSize) : Mathf.FloorToInt(local.y / _cellSize);
+-
+-            cell = new CellPos(x, y);
+-            return true;
+-        }
+-
+-        private void OnDrawGizmos()
+-        {
+-            if (!_drawPreview && !_drawPlacedBuildings) return;
+-            if (_grid == null) return;
+-
+-            if (_drawPlacedBuildings)
+-            {
+-                DrawPlacedSiteCells();
+-                DrawPlacedBuildingCells();
+-            }
+-
+-            if (_drawPreview && _enabled && _hasHover)
+-            {
+-                DrawPreviewFootprint();
+-                DrawEntryHint();
+-                if (_drawDrivewayHint) DrawDrivewayHint();
+-            }
+-        }
+-
+-        private void DrawPlacedSiteCells()
+-        {
+-            Gizmos.color = new Color(1f, 0.6f, 0f, 1f);
+-            for (int y = 0; y < _grid.Height; y++)
+-                for (int x = 0; x < _grid.Width; x++)
+-                {
+-                    var c = new CellPos(x, y);
+-                    var occ = _grid.Get(c);
+-                    if (occ.Kind != CellOccupancyKind.Site) continue;
+-                    Gizmos.DrawCube(CellCenter(c), CellBoxSize(1f));
+-                }
+-        }
+-
+-        private void DrawPlacedBuildingCells()
+-        {
+-            Gizmos.color = Color.white;
+-            for (int y = 0; y < _grid.Height; y++)
+-                for (int x = 0; x < _grid.Width; x++)
+-                {
+-                    var c = new CellPos(x, y);
+-                    var occ = _grid.Get(c);
+-                    if (occ.Kind != CellOccupancyKind.Building) continue;
+-                    Gizmos.DrawCube(CellCenter(c), CellBoxSize(1f));
+-                }
+-        }
+-
+-        private void DrawPreviewFootprint()
+-        {
+-            int w = 1, h = 1;
+-            try
+-            {
+-                var def = _data.GetBuilding(_selectedDef);
+-                w = Mathf.Max(1, def.SizeX);
+-                h = Mathf.Max(1, def.SizeY);
+-            }
+-            catch { }
+-
+-            for (int dy = 0; dy < h; dy++)
+-                for (int dx = 0; dx < w; dx++)
+-                {
+-                    var c = new CellPos(_hoverCell.X + dx, _hoverCell.Y + dy);
+-                    bool inside = _grid.IsInside(c);
+-
+-                    Gizmos.color = inside ? (_lastValidate.Ok ? _okColor : _failColor) : _failColor;
+-                    Gizmos.DrawWireCube(CellCenter(c), CellBoxSize(1f));
+-                }
+-        }
+-
+-        private void DrawDrivewayHint()
+-        {
+-            var d = _lastValidate.SuggestedRoadCell;
+-            Gizmos.color = _lastValidate.Ok ? _drivewayColor : Color.red;
+-            Gizmos.DrawWireCube(CellCenter(d), CellBoxSize(0.6f));
+-        }
+-
+-        private void DrawEntryHint()
+-        {
+-            var entry = _lastValidate.SuggestedRoadCell;
+-            Gizmos.color = _lastValidate.Ok ? Color.yellow : Color.red;
+-            Gizmos.DrawWireCube(CellCenter(entry), CellBoxSize(0.6f));
+-        }
+-
+-        private Vector3 CellCenter(CellPos c)
+-        {
+-            float wx = _gridOrigin.x + (c.X + 0.5f) * _cellSize;
+-
+-            if (_useXZ)
+-            {
+-                float wy = _planeY + (_gizmoHeight * 0.5f);
+-                float wz = _gridOrigin.z + (c.Y + 0.5f) * _cellSize;
+-                return new Vector3(wx, wy, wz);
+-            }
+-            else
+-            {
+-                float wy = _gridOrigin.y + (c.Y + 0.5f) * _cellSize;
+-                return new Vector3(wx, wy, _planeZ);
+-            }
+-        }
+-
+-        private Vector3 CellBoxSize(float scale)
+-        {
+-            float s = _cellSize * Mathf.Max(0.0001f, scale);
+-            // XZ: thin by Y, XY: thin by Z
+-            return _useXZ ? new Vector3(s, _gizmoHeight, s) : new Vector3(s, s, _gizmoHeight);
+-        }
+-    }
+-}
++﻿using UnityEngine;
++using UnityEngine.InputSystem;
++using SeasonalBastion.Contracts;
++
++namespace SeasonalBastion.DebugTools
++{
++    public sealed class DebugBuildingTool : MonoBehaviour
++    {
++        [Header("Bootstrap (required)")]
++        [SerializeField] private GameBootstrap _bootstrap;
++
++        [Header("Defs (ids must exist in DataRegistry)")]
++        [SerializeField] private string _def1 = "HQ";
++        [SerializeField] private string _def2 = "House";
++        [SerializeField] private string _def3 = "Farm";
++        [SerializeField] private string _def4 = "Lumber";
++        [SerializeField] private string _def5 = "Warehouse";
++
++        [Header("Grid Mapping")]
++        [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
++        [SerializeField] private float _cellSize = 1f;
++        [SerializeField] private bool _useXZ = false; // 2D: false
++        [SerializeField] private float _planeY = 0f;
++        [SerializeField] private float _planeZ = 0f; // 2D XY plane at z = planeZ
++
++        [SerializeField] private bool _hubControlled;
++        public void SetHubControlled(bool v) => _hubControlled = v;
++        public void SetEnabledFromHub(bool enabled) { _enabled = enabled; _cacheValid = false; _hasHover = false; _lastValidate = default; }
++
++        public Vector3 GridOrigin => _gridOrigin;
++        public float CellSize => _cellSize;
++        public bool UseXZ => _useXZ;
++        public float PlaneY => _planeY;
++        public float PlaneZ => _planeZ;
++
++        [Header("Gizmos")]
++        [SerializeField] private bool _drawPreview = true;
++        [SerializeField] private bool _drawPlacedBuildings = true;
++        [SerializeField] private bool _drawDrivewayHint = true;
++        [SerializeField] private float _gizmoHeight = 0.06f;
++
++        [Header("Preview Colors")]
++        [SerializeField] private Color _okColor = new Color(0f, 1f, 0f, 1f);
++        [SerializeField] private Color _failColor = new Color(1f, 0f, 0f, 1f);
++        [SerializeField] private Color _drivewayColor = new Color(1f, 1f, 0f, 1f);
++
++        private InputAction _toggle;     // B
++        private InputAction _click;      // LMB
++        private InputAction _sel1, _sel2, _sel3, _sel4, _sel5; // 1..5
++        private InputAction _rotL, _rotR; // Q/E
++
++        private Camera _cam;
++        private bool _enabled;
++
++        private GameServices _s;
++        private IGridMap _grid;
++        private IPlacementService _place;
++        private IDataRegistry _data;
++        private INotificationService _noti;
++
++        private string _selectedDef;
++        private CellPos _hoverCell;
++        private bool _hasHover;
++        private PlacementResult _lastValidate;
++        private Dir4 _rotation = Dir4.N;
++
++        private bool _cacheValid;
++        private CellPos _cacheCell;
++        private string _cacheDef;
++        private Dir4 _cacheRot;
++
++        private void Awake()
++        {
++            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
++            _cam = Camera.main;
++
++            _toggle = new InputAction("ToggleBuildingTool", InputActionType.Button, "<Keyboard>/b");
++            _click = new InputAction("PlaceBuilding", InputActionType.Button, "<Mouse>/leftButton");
++
++            _sel1 = new InputAction("Sel1", InputActionType.Button, "<Keyboard>/1");
++            _sel2 = new InputAction("Sel2", InputActionType.Button, "<Keyboard>/2");
++            _sel3 = new InputAction("Sel3", InputActionType.Button, "<Keyboard>/3");
++            _sel4 = new InputAction("Sel4", InputActionType.Button, "<Keyboard>/4");
++            _sel5 = new InputAction("Sel5", InputActionType.Button, "<Keyboard>/5");
++
++            _rotL = new InputAction("RotL", InputActionType.Button, "<Keyboard>/q");
++            _rotR = new InputAction("RotR", InputActionType.Button, "<Keyboard>/e");
++
++            _damage = new InputAction("DamageBuilding", InputActionType.Button, "<Keyboard>/k");
++            _repair = new InputAction("RepairBuilding", InputActionType.Button, "<Keyboard>/r");
++
++            _selectedDef = _def1;
++        }
++
++        private void Start()
++        {
++            _s = _bootstrap.Services;
++            _grid = _s.GridMap;
++            _place = _s.PlacementService;
++            _data = _s.DataRegistry;
++            _noti = _s.NotificationService;
++
++            if (_cam == null) _cam = Camera.main;
++        }
++
++        private void OnEnable()
++        {
++            _toggle.Enable();
++            _click.Enable();
++            _sel1.Enable(); _sel2.Enable(); _sel3.Enable(); _sel4.Enable(); _sel5.Enable();
++            _rotL.Enable(); _rotR.Enable();
++
++            _toggle.performed += OnToggle;
++            _click.performed += OnClick;
++
++            _sel1.performed += OnSel1;
++            _sel2.performed += OnSel2;
++            _sel3.performed += OnSel3;
++            _sel4.performed += OnSel4;
++            _sel5.performed += OnSel5;
++
++            _rotL.performed += OnRotL;
++            _rotR.performed += OnRotR;
++        }
++
++        private void OnDisable()
++        {
++            _toggle.performed -= OnToggle;
++            _click.performed -= OnClick;
++
++            _sel1.performed -= OnSel1;
++            _sel2.performed -= OnSel2;
++            _sel3.performed -= OnSel3;
++            _sel4.performed -= OnSel4;
++            _sel5.performed -= OnSel5;
++
++            _rotL.performed -= OnRotL;
++            _rotR.performed -= OnRotR;
++
++            _toggle.Disable();
++            _click.Disable();
++            _sel1.Disable(); _sel2.Disable(); _sel3.Disable(); _sel4.Disable(); _sel5.Disable();
++            _rotL.Disable(); _rotR.Disable();
++
++            _hasHover = false;
++            _cacheValid = false;
++        }
++
++        private void Update()
++        {
++            if (!_enabled || _place == null)
++            {
++                _hasHover = false;
++                _cacheValid = false;
++                _lastValidate = default;
++                return;
++            }
++
++            if (!TryGetCellUnderMouse(out var c))
++            {
++                _hasHover = false;
++                _cacheValid = false;
++                _lastValidate = default;
++                return;
++            }
++
++            _hasHover = true;
++            _hoverCell = c;
++
++            if (!_cacheValid || _cacheCell.X != c.X || _cacheCell.Y != c.Y || _cacheRot != _rotation || _cacheDef != _selectedDef)
++            {
++                _lastValidate = _place.ValidateBuilding(_selectedDef, _hoverCell, _rotation);
++                _cacheValid = true;
++                _cacheCell = c;
++                _cacheDef = _selectedDef;
++                _cacheRot = _rotation;
++            }
++        }
++
++        private void OnToggle(InputAction.CallbackContext _)
++        {
++            if (_hubControlled) return;
++
++            _enabled = !_enabled;
++            _cacheValid = false;
++
++            _noti?.Push(
++                key: "DebugBuildingTool",
++                title: "Debug",
++                body: _enabled ? "Building Tool: ON (1-5 select, Q/E rotate, LMB place, K damage, R repair)" : "Building Tool: OFF",
++                severity: NotificationSeverity.Info,
++                payload: default,
++                cooldownSeconds: 0.2f,
++                dedupeByKey: true
++            );
++        }
++
++        private void OnSel1(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def1); }
++        private void OnSel2(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def2); }
++        private void OnSel3(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def3); }
++        private void OnSel4(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def4); }
++        private void OnSel5(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def5); }
++
++        private void Select(string defId)
++        {
++            _selectedDef = defId;
++            _cacheValid = false;
++
++            _noti?.Push(
++                key: "Build_Selected",
++                title: "Build",
++                body: $"Selected: {defId}",
++                severity: NotificationSeverity.Info,
++                payload: default,
++                cooldownSeconds: 0.2f,
++                dedupeByKey: true
++            );
++        }
++
++        private void OnRotL(InputAction.CallbackContext _)
++        {
++            if (!_enabled) return;
++            Rotate(-1);
++        }
++
++        private void OnRotR(InputAction.CallbackContext _)
++        {
++            if (!_enabled) return;
++            Rotate(+1);
++        }
++
++        private void Rotate(int dir)
++        {
++            int v = (int)_rotation;
++            v = (v + dir) % 4;
++            if (v < 0) v += 4;
++            _rotation = (Dir4)v;
++            _cacheValid = false;
++
++            _noti?.Push(
++                key: "Build_Rotation",
++                title: "Build",
++                body: $"Rotation: {_rotation} (Q/E)",
++                severity: NotificationSeverity.Info,
++                payload: default,
++                cooldownSeconds: 0.15f,
++                dedupeByKey: true
++            );
++        }
++
++        private void OnDamage(InputAction.CallbackContext _)
++        {
++            if (!_enabled || !_hasHover || _s == null) return;
++
++            var occ = _grid.Get(_hoverCell);
++            if (occ.Kind != CellOccupancyKind.Building || occ.Building.Value == 0)
++                return;
++
++            if (!_s.WorldState.Buildings.Exists(occ.Building)) return;
++            var bs = _s.WorldState.Buildings.Get(occ.Building);
++            if (bs.MaxHP <= 0) bs.MaxHP = 100;
++
++            int before = bs.HP;
++            int dmg = 50;
++            int after = before - dmg;
++            if (after < 0) after = 0;
++            bs.HP = after;
++            _s.WorldState.Buildings.Set(occ.Building, bs);
++
++            _noti?.Push(
++                key: $"DbgDamage_{occ.Building.Value}",
++                title: "Debug",
++                body: $"Damage Building #{occ.Building.Value}: {before}->{after} (-{dmg})",
++                severity: NotificationSeverity.Warning,
++                payload: default,
++                cooldownSeconds: 0.10f,
++                dedupeByKey: true
++            );
++        }
++
++        private void OnRepair(InputAction.CallbackContext _)
++        {
++            if (!_enabled || !_hasHover || _s == null) return;
++
++            var occ = _grid.Get(_hoverCell);
++            if (occ.Kind != CellOccupancyKind.Building || occ.Building.Value == 0)
++                return;
++
++            if (_s.BuildOrderService is not IBuildOrderService bos) return;
++            int orderId = bos.CreateRepairOrder(occ.Building);
++
++            if (orderId > 0)
++                _noti?.Push("DbgRepair_OK", "Debug", $"Repair order #{orderId} created for Building #{occ.Building.Value}", NotificationSeverity.Info, default, 0.10f, true);
++            else
++                _noti?.Push("DbgRepair_No", "Debug", $"No repair created (maybe full HP / not constructed)", NotificationSeverity.Info, default, 0.10f, true);
++        }
++
++        private void OnClick(InputAction.CallbackContext _)
++        {
++            if (!_enabled || !_hasHover || _place == null) return;
++
++            var vr = _place.ValidateBuilding(_selectedDef, _hoverCell, _rotation);
++            if (!vr.Ok)
++            {
++                PushFail(vr.Reason);
++                return;
++            }
++
++            var id = _place.CommitBuilding(_selectedDef, _hoverCell, _rotation);
++            if (id.Value == 0)
++                _noti?.Push("Build_CommitFailed", "Build", "Commit failed (id=0)", NotificationSeverity.Error, default, 1.0f, true);
++        }
++
++        private void PushFail(PlacementFailReason reason)
++        {
++            string key = reason switch
++            {
++                PlacementFailReason.OutOfBounds => "Build_OutOfBounds",
++                PlacementFailReason.Overlap => "Build_Overlap",
++                PlacementFailReason.BlockedBySite => "Build_BlockedBySite",
++                PlacementFailReason.NoRoadConnection => "Build_NoRoad",
++                PlacementFailReason.InvalidRotation => "Build_BadRot",
++                _ => "Build_Unknown"
++            };
++
++            _noti?.Push(key, "Build", reason.ToString(), NotificationSeverity.Warning, default, 1.5f, true);
++        }
++
++        private bool TryGetCellUnderMouse(out CellPos cell)
++        {
++            cell = default;
++            if (_cam == null) return false;
++            if (Mouse.current == null) return false;
++
++            var ray = _cam.ScreenPointToRay(Mouse.current.position.ReadValue());
++
++            Plane plane = _useXZ
++                ? new Plane(Vector3.up, new Vector3(0f, _planeY, 0f))
++                : new Plane(Vector3.forward, new Vector3(0f, 0f, _planeZ)); // XY at z=planeZ
++
++            if (!plane.Raycast(ray, out var enter)) return false;
++
++            Vector3 world = ray.GetPoint(enter);
++            var local = world - _gridOrigin;
++
++            int x = Mathf.FloorToInt(local.x / _cellSize);
++            int y = _useXZ ? Mathf.FloorToInt(local.z / _cellSize) : Mathf.FloorToInt(local.y / _cellSize);
++
++            cell = new CellPos(x, y);
++            return true;
++        }
++
++        private void OnDrawGizmos()
++        {
++            if (!_drawPreview && !_drawPlacedBuildings) return;
++            if (_grid == null) return;
++
++            if (_drawPlacedBuildings)
++            {
++                DrawPlacedSiteCells();
++                DrawPlacedBuildingCells();
++            }
++
++            if (_drawPreview && _enabled && _hasHover)
++            {
++                DrawPreviewFootprint();
++                DrawEntryHint();
++                if (_drawDrivewayHint) DrawDrivewayHint();
++            }
++        }
++
++        private void DrawPlacedSiteCells()
++        {
++            Gizmos.color = new Color(1f, 0.6f, 0f, 1f);
++            for (int y = 0; y < _grid.Height; y++)
++                for (int x = 0; x < _grid.Width; x++)
++                {
++                    var c = new CellPos(x, y);
++                    var occ = _grid.Get(c);
++                    if (occ.Kind != CellOccupancyKind.Site) continue;
++                    Gizmos.DrawCube(CellCenter(c), CellBoxSize(1f));
++                }
++        }
++
++        private void DrawPlacedBuildingCells()
++        {
++            Gizmos.color = Color.white;
++            for (int y = 0; y < _grid.Height; y++)
++                for (int x = 0; x < _grid.Width; x++)
++                {
++                    var c = new CellPos(x, y);
++                    var occ = _grid.Get(c);
++                    if (occ.Kind != CellOccupancyKind.Building) continue;
++                    Gizmos.DrawCube(CellCenter(c), CellBoxSize(1f));
++                }
++        }
++
++        private void DrawPreviewFootprint()
++        {
++            int w = 1, h = 1;
++            try
++            {
++                var def = _data.GetBuilding(_selectedDef);
++                w = Mathf.Max(1, def.SizeX);
++                h = Mathf.Max(1, def.SizeY);
++            }
++            catch { }
++
++            for (int dy = 0; dy < h; dy++)
++                for (int dx = 0; dx < w; dx++)
++                {
++                    var c = new CellPos(_hoverCell.X + dx, _hoverCell.Y + dy);
++                    bool inside = _grid.IsInside(c);
++
++                    Gizmos.color = inside ? (_lastValidate.Ok ? _okColor : _failColor) : _failColor;
++                    Gizmos.DrawWireCube(CellCenter(c), CellBoxSize(1f));
++                }
++        }
++
++        private void DrawDrivewayHint()
++        {
++            var d = _lastValidate.SuggestedRoadCell;
++            Gizmos.color = _lastValidate.Ok ? _drivewayColor : Color.red;
++            Gizmos.DrawWireCube(CellCenter(d), CellBoxSize(0.6f));
++        }
++
++        private void DrawEntryHint()
++        {
++            var entry = _lastValidate.SuggestedRoadCell;
++            Gizmos.color = _lastValidate.Ok ? Color.yellow : Color.red;
++            Gizmos.DrawWireCube(CellCenter(entry), CellBoxSize(0.6f));
++        }
++
++        private Vector3 CellCenter(CellPos c)
++        {
++            float wx = _gridOrigin.x + (c.X + 0.5f) * _cellSize;
++
++            if (_useXZ)
++            {
++                float wy = _planeY + (_gizmoHeight * 0.5f);
++                float wz = _gridOrigin.z + (c.Y + 0.5f) * _cellSize;
++                return new Vector3(wx, wy, wz);
++            }
++            else
++            {
++                float wy = _gridOrigin.y + (c.Y + 0.5f) * _cellSize;
++                return new Vector3(wx, wy, _planeZ);
++            }
++        }
++
++        private Vector3 CellBoxSize(float scale)
++        {
++            float s = _cellSize * Mathf.Max(0.0001f, scale);
++            // XZ: thin by Y, XY: thin by Z
++            return _useXZ ? new Vector3(s, _gizmoHeight, s) : new Vector3(s, s, _gizmoHeight);
++        }
++    }
++}
+diff --git a/Assets/_Game/Defs/Buildings/Buildings.json b/Assets/_Game/Defs/Buildings/Buildings.json
+index 5c81afd..df03012 100644
+--- a/Assets/_Game/Defs/Buildings/Buildings.json
++++ b/Assets/_Game/Defs/Buildings/Buildings.json
+@@ -1,109 +1,118 @@
+-{
+-  "buildings": [
+-    {
+-      "id": "HQ",
+-      "sizeX": 5,
+-      "sizeY": 5,
+-      "baseLevel": 1,
+-      "isHQ": true,
+-      "isWarehouse": true,
+-      "workRoles": ["Build", "HaulBasic"],
+-      "capWood": { "L1": 120, "L2": 180, "L3": 240 },
+-      "capFood": { "L1": 120, "L2": 180, "L3": 240 },
+-      "capStone": { "L1": 120, "L2": 180, "L3": 240 },
+-      "capIron": { "L1": 120, "L2": 180, "L3": 240 },
+-      "capAmmo": { "L1": 0, "L2": 0, "L3": 0 }
+-    },
+-    {
+-      "id": "House",
+-      "sizeX": 3,
+-      "sizeY": 3,
+-      "baseLevel": 1,
+-      "isHouse": true,
+-      "workRoles": [],
+-      "buildCostsL1": [ { "res": 0, "amt": 20 } ],
+-      "buildChunksL1": 2
+-    },
+-    {
+-      "id": "Farm",
+-      "sizeX": 3,
+-      "sizeY": 3,
+-      "baseLevel": 1,
+-      "isProducer": true,
+-      "workRoles": ["Harvest"],
+-      "buildCostsL1": [ { "res": 0, "amt": 25 } ],
+-      "buildChunksL1": 2,
+-      "capFood": { "L1": 30, "L2": 60, "L3": 90 }
+-    },
+-    {
+-      "id": "Lumber",
+-      "sizeX": 3,
+-      "sizeY": 3,
+-      "baseLevel": 1,
+-      "isProducer": true,
+-      "workRoles": ["Harvest"],
+-      "buildCostsL1": [ { "res": 0, "amt": 20 } ],
+-      "buildChunksL1": 2,
+-      "capWood": { "L1": 40, "L2": 80, "L3": 120 }
+-    },
+-    {
+-      "id": "Quarry",
+-      "sizeX": 3,
+-      "sizeY": 3,
+-      "baseLevel": 1,
+-      "isProducer": true,
+-      "workRoles": ["Harvest"],
+-      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 20 } ],
+-      "buildChunksL1": 3,
+-      "capStone": { "L1": 40, "L2": 80, "L3": 120 }
+-    },
+-    {
+-      "id": "IronHut",
+-      "sizeX": 3,
+-      "sizeY": 3,
+-      "baseLevel": 1,
+-      "isProducer": true,
+-      "workRoles": ["Harvest"],
+-      "buildCostsL1": [ { "res": 0, "amt": 30 }, { "res": 2, "amt": 20 } ],
+-      "buildChunksL1": 3,
+-      "capIron": { "L1": 30, "L2": 60, "L3": 90 }
+-    },
+-    {
+-      "id": "Forge",
+-      "sizeX": 3,
+-      "sizeY": 3,
+-      "baseLevel": 1,
+-      "isForge": true,
+-      "workRoles": ["Craft"],
+-      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 20 }, { "res": 3, "amt": 10 } ],
+-      "buildChunksL1": 3,
+-      "capAmmo": { "L1": 50, "L2": 100, "L3": 150 }
+-    },
+-    {
+-      "id": "Armory",
+-      "sizeX": 3,
+-      "sizeY": 3,
+-      "baseLevel": 1,
+-      "isArmory": true,
+-      "workRoles": ["Armory"],
+-      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 30 }, { "res": 3, "amt": 10 } ],
+-      "buildChunksL1": 3,
+-      "capAmmo": { "L1": 300, "L2": 600, "L3": 1000 }
+-    },
+-    {
+-      "id": "Warehouse",
+-      "sizeX": 3,
+-      "sizeY": 3,
+-      "baseLevel": 1,
+-      "isWarehouse": true,
+-      "workRoles": ["HaulBasic"],
+-      "buildCostsL1": [ { "res": 0, "amt": 30 }, { "res": 2, "amt": 20 } ],
+-      "buildChunksL1": 3,
+-      "capWood": { "L1": 300, "L2": 600, "L3": 1000 },
+-      "capFood": { "L1": 300, "L2": 600, "L3": 1000 },
+-      "capStone": { "L1": 300, "L2": 600, "L3": 1000 },
+-      "capIron": { "L1": 300, "L2": 600, "L3": 1000 },
+-      "capAmmo": { "L1": 0, "L2": 0, "L3": 0 }
+-    }
+-  ]
+-}
++{
++  "buildings": [
++    {
++      "id": "HQ",
++      "sizeX": 5,
++      "sizeY": 5,
++      "baseLevel": 1,
++      "hp": 1000,
++      "isHQ": true,
++      "isWarehouse": true,
++      "workRoles": ["Build", "HaulBasic"],
++      "capWood": { "L1": 120, "L2": 180, "L3": 240 },
++      "capFood": { "L1": 120, "L2": 180, "L3": 240 },
++      "capStone": { "L1": 120, "L2": 180, "L3": 240 },
++      "capIron": { "L1": 120, "L2": 180, "L3": 240 },
++      "capAmmo": { "L1": 0, "L2": 0, "L3": 0 }
++    },
++    {
++      "id": "House",
++      "sizeX": 3,
++      "sizeY": 3,
++      "baseLevel": 1,
++      "hp": 150,
++      "isHouse": true,
++      "workRoles": [],
++      "buildCostsL1": [ { "res": 0, "amt": 20 } ],
++      "buildChunksL1": 2
++    },
++    {
++      "id": "Farm",
++      "sizeX": 3,
++      "sizeY": 3,
++      "baseLevel": 1,
++      "hp": 240,
++      "isProducer": true,
++      "workRoles": ["Harvest"],
++      "buildCostsL1": [ { "res": 0, "amt": 25 } ],
++      "buildChunksL1": 2,
++      "capFood": { "L1": 30, "L2": 60, "L3": 90 }
++    },
++    {
++      "id": "Lumber",
++      "sizeX": 3,
++      "sizeY": 3,
++      "baseLevel": 1,
++      "hp": 220,
++      "isProducer": true,
++      "workRoles": ["Harvest"],
++      "buildCostsL1": [ { "res": 0, "amt": 20 } ],
++      "buildChunksL1": 2,
++      "capWood": { "L1": 40, "L2": 80, "L3": 120 }
++    },
++    {
++      "id": "Quarry",
++      "sizeX": 3,
++      "sizeY": 3,
++      "baseLevel": 1,
++      "hp": 260,
++      "isProducer": true,
++      "workRoles": ["Harvest"],
++      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 20 } ],
++      "buildChunksL1": 3,
++      "capStone": { "L1": 40, "L2": 80, "L3": 120 }
++    },
++    {
++      "id": "IronHut",
++      "sizeX": 3,
++      "sizeY": 3,
++      "baseLevel": 1,
++      "hp": 260,
++      "isProducer": true,
++      "workRoles": ["Harvest"],
++      "buildCostsL1": [ { "res": 0, "amt": 30 }, { "res": 2, "amt": 20 } ],
++      "buildChunksL1": 3,
++      "capIron": { "L1": 30, "L2": 60, "L3": 90 }
++    },
++    {
++      "id": "Forge",
++      "sizeX": 3,
++      "sizeY": 3,
++      "baseLevel": 1,
++      "hp": 300,
++      "isForge": true,
++      "workRoles": ["Craft"],
++      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 20 }, { "res": 3, "amt": 10 } ],
++      "buildChunksL1": 3,
++      "capAmmo": { "L1": 50, "L2": 100, "L3": 150 }
++    },
++    {
++      "id": "Armory",
++      "sizeX": 3,
++      "sizeY": 3,
++      "baseLevel": 1,
++      "hp": 340,
++      "isArmory": true,
++      "workRoles": ["Armory"],
++      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 30 }, { "res": 3, "amt": 10 } ],
++      "buildChunksL1": 3,
++      "capAmmo": { "L1": 300, "L2": 600, "L3": 1000 }
++    },
++    {
++      "id": "Warehouse",
++      "sizeX": 3,
++      "sizeY": 3,
++      "baseLevel": 1,
++      "hp": 300,
++      "isWarehouse": true,
++      "workRoles": ["HaulBasic"],
++      "buildCostsL1": [ { "res": 0, "amt": 30 }, { "res": 2, "amt": 20 } ],
++      "buildChunksL1": 3,
++      "capWood": { "L1": 300, "L2": 600, "L3": 1000 },
++      "capFood": { "L1": 300, "L2": 600, "L3": 1000 },
++      "capStone": { "L1": 300, "L2": 600, "L3": 1000 },
++      "capIron": { "L1": 300, "L2": 600, "L3": 1000 },
++      "capAmmo": { "L1": 0, "L2": 0, "L3": 0 }
++    }
++  ]
++}
+diff --git a/Assets/_Game/Jobs/Executors/RepairWorkExecutor.cs b/Assets/_Game/Jobs/Executors/RepairWorkExecutor.cs
+new file mode 100644
+index 0000000..2bed843
+--- /dev/null
++++ b/Assets/_Game/Jobs/Executors/RepairWorkExecutor.cs
+@@ -0,0 +1,108 @@
++using System.Collections.Generic;
++using SeasonalBastion.Contracts;
++
++namespace SeasonalBastion
++{
++    /// <summary>
++    /// VS2 Day22: Repair work executor (minimal).
++    /// - Move NPC to building anchor.
++    /// - Consume time (dt) and restore HP in fixed chunks.
++    /// - No resource consumption yet (plan allows time-only minimal).
++    /// </summary>
++    public sealed class RepairWorkExecutor : IJobExecutor
++    {
++        private readonly GameServices _s;
++
++        // runtime-only progress
++        private readonly Dictionary<int, float> _workByJob = new();
++
++        // deliverable C (locked): RepairWorkChunkTime=4s, RepairRestoresPctPerChunk=15%
++        private const float ChunkSeconds = 4f;
++        private const int HealPctPerChunk = 15;
++
++        public RepairWorkExecutor(GameServices s) { _s = s; }
++
++        public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
++        {
++            if (_s.WorldState == null || _s.AgentMover == null)
++            {
++                job.Status = JobStatus.Failed;
++                _workByJob.Remove(job.Id.Value);
++                return true;
++            }
++
++            var bid = job.DestBuilding;
++            if (bid.Value == 0 || !_s.WorldState.Buildings.Exists(bid))
++            {
++                job.Status = JobStatus.Cancelled;
++                _workByJob.Remove(job.Id.Value);
++                return true;
++            }
++
++            var bs = _s.WorldState.Buildings.Get(bid);
++
++            // Defensive fix-up (older saves / older states)
++            if (bs.MaxHP <= 0)
++            {
++                int max = 100;
++                try { max = _s.DataRegistry.GetBuilding(bs.DefId).MaxHp; } catch { }
++                bs.MaxHP = max <= 0 ? 100 : max;
++                if (bs.HP <= 0) bs.HP = bs.MaxHP;
++                _s.WorldState.Buildings.Set(bid, bs);
++            }
++
++            // Early-out: already full
++            if (bs.HP >= bs.MaxHP)
++            {
++                job.Status = JobStatus.Completed;
++                _workByJob.Remove(job.Id.Value);
++                return true;
++            }
++
++            // Move to anchor (deterministic grid step)
++            var target = bs.Anchor;
++            if (npcState.Cell.X != target.X || npcState.Cell.Y != target.Y)
++            {
++                bool arrived = _s.AgentMover.StepToward(ref npcState, target);
++                job.Status = JobStatus.InProgress;
++                return true; // progressed (moved)
++            }
++
++            // Work on repair
++            job.Status = JobStatus.InProgress;
++            if (dt < 0f) dt = 0f;
++
++            float acc = 0f;
++            _workByJob.TryGetValue(job.Id.Value, out acc);
++            acc += dt;
++
++            if (acc >= ChunkSeconds)
++            {
++                // Apply whole chunks
++                int chunks = (int)(acc / ChunkSeconds);
++                acc -= chunks * ChunkSeconds;
++
++                // ceil(MaxHP * 15%) with integer math
++                int healPerChunk = (bs.MaxHP * HealPctPerChunk + 99) / 100;
++                if (healPerChunk < 1) healPerChunk = 1;
++
++                int newHp = bs.HP + healPerChunk * chunks;
++                if (newHp >= bs.MaxHP)
++                {
++                    bs.HP = bs.MaxHP;
++                    _s.WorldState.Buildings.Set(bid, bs);
++
++                    job.Status = JobStatus.Completed;
++                    _workByJob.Remove(job.Id.Value);
++                    return true;
++                }
++
++                bs.HP = newHp;
++                _s.WorldState.Buildings.Set(bid, bs);
++            }
++
++            _workByJob[job.Id.Value] = acc;
++            return true;
++        }
++    }
++}
+diff --git a/Assets/_Game/Jobs/JobBoard.cs b/Assets/_Game/Jobs/JobBoard.cs
+index 5bafde0..fae2829 100644
+--- a/Assets/_Game/Jobs/JobBoard.cs
++++ b/Assets/_Game/Jobs/JobBoard.cs
+@@ -110,7 +110,7 @@ namespace SeasonalBastion
+             {
+                 JobArchetype.Harvest => (allowed & WorkRoleFlags.Harvest) != 0,
+                 JobArchetype.HaulBasic => (allowed & WorkRoleFlags.HaulBasic) != 0,
+-                JobArchetype.BuildDeliver or JobArchetype.BuildWork => (allowed & WorkRoleFlags.Build) != 0,
++                JobArchetype.BuildDeliver or JobArchetype.BuildWork or JobArchetype.RepairWork => (allowed & WorkRoleFlags.Build) != 0,
+                 JobArchetype.CraftAmmo => (allowed & WorkRoleFlags.Craft) != 0,
+                 JobArchetype.ResupplyTower => (allowed & WorkRoleFlags.Armory) != 0,
+                 _ => true,
+diff --git a/Assets/_Game/Jobs/JobScheduler.cs b/Assets/_Game/Jobs/JobScheduler.cs
+index d22dbd6..e942218 100644
+--- a/Assets/_Game/Jobs/JobScheduler.cs
++++ b/Assets/_Game/Jobs/JobScheduler.cs
+@@ -201,7 +201,7 @@ namespace SeasonalBastion
+             {
+                 JobArchetype.Harvest => (allowed & WorkRoleFlags.Harvest) != 0,
+                 JobArchetype.HaulBasic => (allowed & WorkRoleFlags.HaulBasic) != 0,
+-                JobArchetype.BuildDeliver or JobArchetype.BuildWork => (allowed & WorkRoleFlags.Build) != 0,
++                JobArchetype.BuildDeliver or JobArchetype.BuildWork or JobArchetype.RepairWork => (allowed & WorkRoleFlags.Build) != 0,
+                 JobArchetype.CraftAmmo => (allowed & WorkRoleFlags.Craft) != 0,
+                 JobArchetype.ResupplyTower => (allowed & WorkRoleFlags.Armory) != 0,
+                 _ => true,
+diff --git a/Assets/_Game/World/Ops/WorldOps.cs b/Assets/_Game/World/Ops/WorldOps.cs
+index 4e4ed34..5d3d49e 100644
+--- a/Assets/_Game/World/Ops/WorldOps.cs
++++ b/Assets/_Game/World/Ops/WorldOps.cs
+@@ -18,7 +18,7 @@ namespace SeasonalBastion
+         public BuildingId CreateBuilding(string buildingDefId, CellPos anchor, Dir4 rotation)
+         {
+             // TODO: create state from def
+-            var st = new BuildingState { DefId = buildingDefId, Anchor = anchor, Rotation = rotation };
++            var st = new BuildingState { DefId = buildingDefId, Anchor = anchor, Rotation = rotation, MaxHP = 1, HP = 1 };
+             var id = _w.Buildings.Create(st);
+ 
+             _bus.Publish(new BuildingPlacedEvent(buildingDefId, id));

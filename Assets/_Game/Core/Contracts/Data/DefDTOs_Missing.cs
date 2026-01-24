@@ -29,6 +29,8 @@ namespace SeasonalBastion.Contracts
         public int SizeX = 1;
         public int SizeY = 1;
         public int BaseLevel = 1;
+        // VS2 Day22: durability
+        public int MaxHp = 1;
 
         public bool IsHQ = false;
         public bool IsWarehouse = false;

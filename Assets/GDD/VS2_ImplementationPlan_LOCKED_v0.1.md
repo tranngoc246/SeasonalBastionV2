@@ -1,3 +1,7 @@
+# Promttitle: VS2 — VERTICAL SLICE #2 IMPLEMENTATION PLAN — LOCKED SPEC v0.1
+
+Mình gửi mục tiêu day ..., kiểm tra các file cần thiết, triển khai chuẩn, chi tiết, đầy đủ day ... giúp mình, nếu thiếu hoặc cần xác nhận gì thì nhắn mình trước khi code. Gửi các file, vị trí, các chỗ thay đổi hoặc thêm để mình copy vào dự án (không gửi patch, file zip)
+
 # VS2 — VERTICAL SLICE #2 IMPLEMENTATION PLAN — LOCKED SPEC v0.1
 
 > Mục tiêu VS2: từ nền tảng VS1 (Day 1–14), triển khai **“Playable Run Loop Year 1”** theo Deliverable B/C + Part 25–26 contracts:

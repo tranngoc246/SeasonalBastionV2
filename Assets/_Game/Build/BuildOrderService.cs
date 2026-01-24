@@ -25,6 +25,9 @@ namespace SeasonalBastion
         // siteId.Value -> active work job id
         private readonly Dictionary<int, JobId> _workJobBySite = new();
 
+        // Day22: orderId -> active repair work job id
+        private readonly Dictionary<int, JobId> _repairJobByOrder = new();
+
         // orderId -> driveway road cell auto-created by PlacementService (rollback on cancel)
         private readonly Dictionary<int, CellPos> _autoRoadByOrder = new();
         private bool _busSubscribed;
@@ -58,7 +61,9 @@ namespace SeasonalBastion
                 Anchor = anchor,
                 Rotation = rotation,
                 Level = level,
-                IsConstructed = false
+                IsConstructed = false,
+                MaxHP = Math.Max(1, def.MaxHp),
+                HP = Math.Max(1, def.MaxHp),
             };
             var buildingId = _s.WorldState.Buildings.Create(bst);
             bst.Id = buildingId;
@@ -137,17 +142,82 @@ namespace SeasonalBastion
 
         public int CreateRepairOrder(BuildingId building)
         {
-            // VS#1/Day6 scope: not implemented yet -> return 0 instead of throwing
+            EnsureBusSubscribed();
+
+            if (building.Value == 0) return 0;
+            if (_s.WorldState == null || _s.WorldState.Buildings == null) return 0;
+            if (!_s.WorldState.Buildings.Exists(building)) return 0;
+
+            var bs = _s.WorldState.Buildings.Get(building);
+            if (!bs.IsConstructed) return 0;
+
+            // fix-up max hp from def if missing
+            if (bs.MaxHP <= 0)
+            {
+                int mhp = 100;
+                try { mhp = Math.Max(1, _s.DataRegistry.GetBuilding(bs.DefId).MaxHp); } catch { }
+                bs.MaxHP = mhp;
+                if (bs.HP <= 0) bs.HP = bs.MaxHP;
+                _s.WorldState.Buildings.Set(building, bs);
+            }
+
+            if (bs.HP >= bs.MaxHP) return 0;
+
+            // prevent duplicate repair orders for same building
+            for (int i = 0; i < _active.Count; i++)
+            {
+                int id = _active[i];
+                if (!_orders.TryGetValue(id, out var oo)) continue;
+                if (oo.Completed) continue;
+                if (oo.Kind != BuildOrderKind.Repair) continue;
+                if (oo.TargetBuilding.Value == building.Value) return id;
+            }
+
+            int orderId = _nextOrderId++;
+            var order = new BuildOrder
+            {
+                OrderId = orderId,
+                Kind = BuildOrderKind.Repair,
+                BuildingDefId = bs.DefId,
+                TargetBuilding = building,
+                Site = default,
+                RequiredCost = default,
+                Delivered = default,
+
+                // time-only minimal: work seconds proportional to missing hp
+                WorkSecondsRequired = ComputeRepairSeconds(bs.HP, bs.MaxHP),
+                WorkSecondsDone = 0f,
+                Completed = false
+            };
+
+            _orders[orderId] = order;
+            _active.Add(orderId);
+
             _s.NotificationService?.Push(
-                key: $"RepairNotImpl_{building.Value}",
+                key: $"RepairStart_{building.Value}",
                 title: "Construction",
-                body: "Repair is not available in VS#1.",
-                severity: NotificationSeverity.Warning,
-                payload: new NotificationPayload(building, default, "repair"),
+                body: $"Repair started: {bs.DefId} ({bs.HP}/{bs.MaxHP})",
+                severity: NotificationSeverity.Info,
+                payload: new NotificationPayload(building, default, bs.DefId),
                 cooldownSeconds: 0.25f,
                 dedupeByKey: true
             );
-            return 0;
+
+            return orderId;
+        }
+
+        private static float ComputeRepairSeconds(int hp, int maxHp)
+        {
+            if (maxHp <= 0) return 6f;
+            int missing = maxHp - hp;
+            if (missing <= 0) return 0f;
+
+            // Day22 time-only minimal:
+            // 4s per "chunk", heal ~15% maxHP per chunk => number of chunks = ceil(missing / (0.15*maxHP))
+            const float ChunkSec = 4f;
+            int perChunk = Math.Max(1, (int)Math.Ceiling(maxHp * 0.15f));
+            int chunks = (missing + perChunk - 1) / perChunk;
+            return Math.Max(ChunkSec, chunks * ChunkSec);
         }
 
         public bool TryGet(int orderId, out BuildOrder order) => _orders.TryGetValue(orderId, out order);
@@ -201,6 +271,20 @@ namespace SeasonalBastion
                     key: $"BuildCancel_{o.TargetBuilding.Value}",
                     title: "Construction",
                     body: $"Cancelled: {o.BuildingDefId}",
+                    severity: NotificationSeverity.Info,
+                    payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
+            }
+            else if (o.Kind == BuildOrderKind.Repair)
+            {
+                CancelRepairJob(orderId);
+
+                _s.NotificationService?.Push(
+                    key: $"RepairCancel_{o.TargetBuilding.Value}",
+                    title: "Construction",
+                    body: $"Repair cancelled: {o.BuildingDefId}",
                     severity: NotificationSeverity.Info,
                     payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
                     cooldownSeconds: 0.25f,
@@ -289,7 +373,20 @@ namespace SeasonalBastion
                 int id = _active[i];
                 if (!_orders.TryGetValue(id, out var o)) continue;
                 if (o.Completed) continue;
-                if (o.Kind != BuildOrderKind.PlaceNew) continue;
+
+                if (o.Kind == BuildOrderKind.PlaceNew)
+                {
+                    // giữ nguyên toàn bộ code PlaceNew hiện có (không đổi)
+                }
+                else if (o.Kind == BuildOrderKind.Repair)
+                {
+                    TickRepairOrder(id, ref o, workplace);
+                    _orders[id] = o;
+                }
+                else
+                {
+                    continue;
+                }
 
                 // Site might have been destroyed (edge case)
                 if (!_s.WorldState.Sites.Exists(o.Site))
@@ -332,6 +429,83 @@ namespace SeasonalBastion
             }
         }
 
+        private void TickRepairOrder(int orderId, ref BuildOrder o, BuildingId workplace)
+        {
+            if (_s.JobBoard == null) return;
+
+            if (!_s.WorldState.Buildings.Exists(o.TargetBuilding))
+            {
+                CancelRepairJob(orderId);
+                o.Completed = true;
+                return;
+            }
+
+            var bs = _s.WorldState.Buildings.Get(o.TargetBuilding);
+            if (!bs.IsConstructed)
+            {
+                CancelRepairJob(orderId);
+                o.Completed = true;
+                return;
+            }
+
+            // fix-up hp
+            if (bs.MaxHP <= 0)
+            {
+                int mhp = 100;
+                try { mhp = Math.Max(1, _s.DataRegistry.GetBuilding(bs.DefId).MaxHp); } catch { }
+                bs.MaxHP = mhp;
+                if (bs.HP <= 0) bs.HP = bs.MaxHP;
+                _s.WorldState.Buildings.Set(o.TargetBuilding, bs);
+            }
+
+            if (bs.HP >= bs.MaxHP)
+            {
+                CancelRepairJob(orderId);
+                o.Completed = true;
+                _s.NotificationService?.Push(
+                    key: $"RepairDone_{o.TargetBuilding.Value}",
+                    title: "Construction",
+                    body: $"Repair completed: {bs.DefId}",
+                    severity: NotificationSeverity.Info,
+                    payload: new NotificationPayload(o.TargetBuilding, default, bs.DefId),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
+                return;
+            }
+
+            // ensure 1 repair job exists
+            if (_repairJobByOrder.TryGetValue(orderId, out var jid))
+            {
+                if (!_s.JobBoard.TryGet(jid, out var j) || IsTerminal(j.Status))
+                    _repairJobByOrder.Remove(orderId);
+            }
+
+            if (!_repairJobByOrder.ContainsKey(orderId))
+            {
+                var j = new Job
+                {
+                    Archetype = JobArchetype.RepairWork, // cần enum + executor (file khác)
+                    Status = JobStatus.Created,
+                    Workplace = workplace,
+
+                    SourceBuilding = default,
+                    DestBuilding = o.TargetBuilding,
+                    Site = default,
+                    Tower = default,
+
+                    ResourceType = 0,
+                    Amount = 0,
+
+                    TargetCell = bs.Anchor,
+                    CreatedAt = 0
+                };
+
+                var newId = _s.JobBoard.Enqueue(j);
+                _repairJobByOrder[orderId] = newId;
+            }
+        }
+
         private void CompletePlaceOrder(ref BuildOrder o)
         {
             if (o.Completed) return;
@@ -357,6 +531,16 @@ namespace SeasonalBastion
             // 3) Finalize building placeholder
             var b = _s.WorldState.Buildings.Get(o.TargetBuilding);
             b.IsConstructed = true;
+
+            // Day22: safety - init hp if missing
+            if (b.MaxHP <= 0)
+            {
+                int mhp = 100;
+                try { mhp = Math.Max(1, _s.DataRegistry.GetBuilding(b.DefId).MaxHp); } catch { }
+                b.MaxHP = mhp;
+            }
+            if (b.HP <= 0) b.HP = b.MaxHP;
+
             _s.WorldState.Buildings.Set(o.TargetBuilding, b);
 
             // 4) Set building occupancy
@@ -416,6 +600,7 @@ namespace SeasonalBastion
             _workJobBySite.Clear();
             _buildingIdsBuf.Clear();
             _autoRoadByOrder.Clear();
+            _repairJobByOrder.Clear();
         }
 
         private static bool IsReadyToWork(in BuildSiteState site)
@@ -612,6 +797,15 @@ namespace SeasonalBastion
             {
                 _s.JobBoard.Cancel(wid);
                 _workJobBySite.Remove(siteId.Value);
+            }
+        }
+
+        private void CancelRepairJob(int orderId)
+        {
+            if (_repairJobByOrder.TryGetValue(orderId, out var jid))
+            {
+                _s.JobBoard.Cancel(jid);
+                _repairJobByOrder.Remove(orderId);
             }
         }
 

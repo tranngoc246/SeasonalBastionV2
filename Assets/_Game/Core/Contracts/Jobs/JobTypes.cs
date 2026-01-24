@@ -10,6 +10,7 @@ namespace SeasonalBastion.Contracts
 
         BuildDeliver,
         BuildWork,
+        RepairWork,
 
         CraftAmmo,
         HaulAmmoToArmory,

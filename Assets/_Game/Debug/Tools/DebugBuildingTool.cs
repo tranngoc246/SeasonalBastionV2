@@ -50,6 +50,8 @@ namespace SeasonalBastion.DebugTools
         private InputAction _rotL, _rotR; // Q/E
 
         private InputAction _cancel;  // X (cancel build)
+        private InputAction _damage;  // K (damage building)
+        private InputAction _repair;  // R (request repair)
         private Camera _cam;
         private bool _enabled;
 
@@ -89,6 +91,8 @@ namespace SeasonalBastion.DebugTools
 
 
             _cancel = new InputAction("CancelBuild", InputActionType.Button, "<Keyboard>/x");
+            _damage = new InputAction("DamageBuilding", InputActionType.Button, "<Keyboard>/k");
+            _repair = new InputAction("RepairBuilding", InputActionType.Button, "<Keyboard>/r");
             _selectedDef = _def1;
         }
 
@@ -109,8 +113,10 @@ namespace SeasonalBastion.DebugTools
             _click.Enable();
             _sel1.Enable(); _sel2.Enable(); _sel3.Enable(); _sel4.Enable(); _sel5.Enable();
             _rotL.Enable(); _rotR.Enable();
-
             _cancel.Enable();
+            _damage.Enable();
+            _repair.Enable();
+
             _toggle.performed += OnToggle;
             _click.performed += OnClick;
 
@@ -123,29 +129,33 @@ namespace SeasonalBastion.DebugTools
             _rotL.performed += OnRotL;
             _rotR.performed += OnRotR;
             _cancel.performed += OnCancel;
+
+            _damage.performed += OnDamage;
+            _repair.performed += OnRepair;
         }
 
         private void OnDisable()
         {
             _toggle.performed -= OnToggle;
             _click.performed -= OnClick;
-
             _sel1.performed -= OnSel1;
             _sel2.performed -= OnSel2;
             _sel3.performed -= OnSel3;
             _sel4.performed -= OnSel4;
             _sel5.performed -= OnSel5;
-
             _rotL.performed -= OnRotL;
             _rotR.performed -= OnRotR;
-
             _cancel.performed -= OnCancel;
+            _damage.performed -= OnDamage;
+            _repair.performed -= OnRepair;
+
             _toggle.Disable();
             _click.Disable();
             _sel1.Disable(); _sel2.Disable(); _sel3.Disable(); _sel4.Disable(); _sel5.Disable();
             _rotL.Disable(); _rotR.Disable();
-
             _cancel.Disable();
+            _damage.Disable();
+            _repair.Disable();
             _hasHover = false;
             _cacheValid = false;
         }
@@ -252,7 +262,6 @@ namespace SeasonalBastion.DebugTools
             );
         }
 
-
         private void OnCancel(InputAction.CallbackContext _)
         {
             if (!_enabled || !_hasHover) return;
@@ -283,6 +292,42 @@ namespace SeasonalBastion.DebugTools
             var id = _place.CommitBuilding(_selectedDef, _hoverCell, _rotation);
             if (id.Value == 0)
                 _noti?.Push("Build_CommitFailed", "Build", "Commit failed (id=0)", NotificationSeverity.Error, default, 1.0f, true);
+        }
+
+        private void OnDamage(InputAction.CallbackContext _)
+        {
+            if (!_enabled || !_hasHover) return;
+            if (_s == null || _grid == null) return;
+
+            var occ = _grid.Get(_hoverCell);
+            if (occ.Kind != CellOccupancyKind.Building || occ.Building.Value == 0) return;
+            if (!_s.WorldState.Buildings.Exists(occ.Building)) return;
+
+            var bs = _s.WorldState.Buildings.Get(occ.Building);
+
+            // Day22: requires BuildingState.HP/MaxHP
+            if (bs.MaxHP <= 0) bs.MaxHP = 100;
+            if (bs.HP <= 0) bs.HP = bs.MaxHP;
+
+            bs.HP -= 50;
+            if (bs.HP < 0) bs.HP = 0;
+
+            _s.WorldState.Buildings.Set(occ.Building, bs);
+
+            _noti?.Push("Dbg_Damage", "Build", $"Damage {bs.DefId}: {bs.HP}/{bs.MaxHP}", NotificationSeverity.Warning, default, 0.10f, true);
+        }
+
+        private void OnRepair(InputAction.CallbackContext _)
+        {
+            if (!_enabled || !_hasHover) return;
+            if (_s == null || _grid == null) return;
+
+            var occ = _grid.Get(_hoverCell);
+            if (occ.Kind != CellOccupancyKind.Building || occ.Building.Value == 0) return;
+
+            int id = _s.BuildOrderService.CreateRepairOrder(occ.Building);
+            if (id > 0) _noti?.Push("Dbg_Repair", "Build", $"Repair order #{id} created", NotificationSeverity.Info, default, 0.10f, true);
+            else _noti?.Push("Dbg_Repair_Fail", "Build", "Repair order not created (maybe full HP / invalid)", NotificationSeverity.Warning, default, 0.25f, true);
         }
 
         private void PushFail(PlacementFailReason reason)

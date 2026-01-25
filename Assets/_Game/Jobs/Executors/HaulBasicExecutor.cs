@@ -56,8 +56,9 @@ namespace SeasonalBastion
                 EnsureSourceCandidate(ref job, rt, hasPrefState ? prefState.Anchor : npcState.Cell);
                 if (job.SourceBuilding.Value == 0)
                 {
-                    // No source available now => wait
-                    return false;
+                    job.Status = JobStatus.Cancelled;
+                    Cleanup(job.Id.Value);
+                    return true;
                 }
 
                 if (!_s.WorldState.Buildings.Exists(job.SourceBuilding))

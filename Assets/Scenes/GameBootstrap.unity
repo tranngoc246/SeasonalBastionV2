@@ -167,6 +167,106 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _hubControlled: 0
+--- !u!1 &190578709
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 190578710}
+  - component: {fileID: 190578711}
+  m_Layer: 0
+  m_Name: DebugTowerGizmos
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &190578710
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 190578709}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1732529964}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &190578711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 190578709}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4dec9b2173a63c74e876e7e5e4f2e303, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _bootstrap: {fileID: 1656749905}
+  _gridSource: {fileID: 1166508313}
+  _enabled: 1
+  _onlyWhenPlaying: 1
+  _drawLabels: 1
+  _boxScale: 0.85
+  _okColor: {r: 0.2, g: 0.8, b: 1, a: 1}
+  _lowColor: {r: 1, g: 0.85, b: 0.1, a: 1}
+  _emptyColor: {r: 1, g: 0.2, b: 0.2, a: 1}
+--- !u!1 &275288957
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 275288958}
+  - component: {fileID: 275288959}
+  m_Layer: 0
+  m_Name: DebugTowerAmmoHUD
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &275288958
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 275288957}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1732529964}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &275288959
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 275288957}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 493db3278d1d5384898f245cb0f6d852, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _enabled: 0
+  _toggleKey: 34
+  _devHookKey: 39
 --- !u!1 &311099401
 GameObject:
   m_ObjectHideFlags: 0
@@ -330,94 +430,6 @@ MonoBehaviour:
   _addAmountDefault: 50
   _hubControlled: 0
   _freezeFromKey: 20
---- !u!1 &385074214
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 385074215}
-  - component: {fileID: 385074216}
-  m_Layer: 0
-  m_Name: AutoPlaceOnPlay
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!4 &385074215
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 385074214}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1732529964}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &385074216
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 385074214}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8fa8fd2bf8b0fb246a85ca48c806b157, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _bootstrap: {fileID: 1656749905}
-  _runOnce: 1
-  _delayFrames: 1
-  _enforceNoRoadIslands: 1
-  _roads:
-  - From: {x: 9, y: 1}
-    To: {x: 9, y: 10}
-  - From: {x: 9, y: 0}
-    To: {x: 17, y: 0}
-  - From: {x: 10, y: 10}
-    To: {x: 15, y: 10}
-  - From: {x: 9, y: 5}
-    To: {x: 2, y: 5}
-  _buildings:
-  - DefId: HQ
-    Anchor: {x: 15, y: 2}
-    Rotation: 2
-  - DefId: House
-    Anchor: {x: 14, y: 12}
-    Rotation: 2
-  - DefId: Farm
-    Anchor: {x: 1, y: 1}
-    Rotation: 0
-  - DefId: Lumber
-    Anchor: {x: 5, y: 1}
-    Rotation: 0
-  - DefId: Warehouse
-    Anchor: {x: 1, y: 7}
-    Rotation: 2
-  - DefId: Warehouse
-    Anchor: {x: 5, y: 7}
-    Rotation: 2
-  - DefId: Quarry
-    Anchor: {x: 11, y: 2}
-    Rotation: 3
-  - DefId: IronHut
-    Anchor: {x: 11, y: 6}
-    Rotation: 3
-  - DefId: Forge
-    Anchor: {x: 17, y: 9}
-    Rotation: 3
-  - DefId: Armory
-    Anchor: {x: 10, y: 12}
-    Rotation: 2
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -631,8 +643,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _bootstrap: {fileID: 1656749905}
-  _def1: HQ
-  _def2: House
+  _def1: Armory
+  _def2: Forge
   _def3: Farm
   _def4: Lumber
   _def5: Warehouse
@@ -946,7 +958,6 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 385074215}
   - {fileID: 331910900}
   - {fileID: 1270570516}
   - {fileID: 311099403}
@@ -957,6 +968,8 @@ Transform:
   - {fileID: 360055333}
   - {fileID: 1725449633}
   - {fileID: 80928310}
+  - {fileID: 190578710}
+  - {fileID: 275288958}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807

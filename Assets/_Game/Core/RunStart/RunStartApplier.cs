@@ -111,12 +111,17 @@ namespace SeasonalBastion.RunStart
                     var b = cfg.initialBuildings[i];
                     if (b == null || b.anchor == null || string.IsNullOrEmpty(b.defId)) continue;
 
-                    // Canonical: input defId must exist in DataRegistry.
                     string defId = ResolveBuildingDefIdOrNull(s, b.defId);
                     if (string.IsNullOrEmpty(defId))
                     {
-                        // Optional tower: don't fail run-start if config includes it but defs not ready yet.
-                        if (IsArrowTowerLike(b.defId)) continue;
+                        // Tower is stored separately (TowerStore). If StartMapConfig includes TowerArrow but Buildings.json doesn't yet,
+                        // still create TowerState so Day25+ debug can work.
+                        if (IsArrowTowerLike(b.defId))
+                        {
+                            var desired = new CellPos(b.anchor.x, b.anchor.y);
+                            TryCreateArrowTowerStandalone(s, desired, b);
+                            continue;
+                        }
 
                         error = $"BuildingDef not found: {b.defId}";
                         return false;
@@ -345,9 +350,20 @@ namespace SeasonalBastion.RunStart
         {
             if (s.WorldState?.Towers == null) return;
 
-            // Arrow Tower L1 (Deliverable_C 6.2)
-            const int hpMax = 260;
-            const int ammoMax = 90;
+            // Arrow Tower L1 (Deliverable_C 6.2) - prefer TowerDef if present
+            int hpMax = 260;
+            int ammoMax = 90;
+
+            try
+            {
+                var tdef = s.DataRegistry.GetTower(TowerArrowDefId);
+                if (tdef != null)
+                {
+                    hpMax = Mathf.Max(1, tdef.MaxHp);
+                    ammoMax = Mathf.Max(0, tdef.AmmoMax);
+                }
+            }
+            catch { /* keep fallback */ }
 
             int ammo = ammoMax;
             if (b != null && b.initialStateOverrides != null)
@@ -380,6 +396,105 @@ namespace SeasonalBastion.RunStart
                 s.WorldState.Buildings.Set(building.Id, bs);
             }
             catch { }
+        }
+
+        private static void TryCreateArrowTowerStandalone(GameServices s, CellPos desiredCell, InitialBuildingDto b)
+        {
+            if (s == null || s.WorldState?.Towers == null) return;
+
+            // Pick a valid cell (prefer desired anchor; avoid overlapping buildings/sites deterministically)
+            if (!TryPickValidTowerCell(s, desiredCell, out var finalCell))
+                return;
+
+            // Prefer TowerDef from Towers.json (DataRegistry), fallback to balance constants
+            int hpMax = 260;
+            int ammoMax = 90;
+
+            try
+            {
+                var tdef = s.DataRegistry?.GetTower(TowerArrowDefId);
+                if (tdef != null)
+                {
+                    hpMax = Mathf.Max(1, tdef.MaxHp);
+                    ammoMax = Mathf.Max(0, tdef.AmmoMax);
+                }
+            }
+            catch { /* keep fallback */ }
+
+            int ammo = ammoMax;
+            if (b != null && b.initialStateOverrides != null)
+            {
+                if (!string.IsNullOrEmpty(b.initialStateOverrides.ammo)
+                    && b.initialStateOverrides.ammo.Equals("FULL", StringComparison.OrdinalIgnoreCase))
+                {
+                    ammo = ammoMax;
+                }
+                else if (b.initialStateOverrides.ammoPercent > 0f)
+                {
+                    ammo = ClampToInt(b.initialStateOverrides.ammoPercent * ammoMax, 0, ammoMax);
+                }
+            }
+
+            var st = new TowerState
+            {
+                Cell = finalCell,
+                Hp = hpMax,
+                HpMax = hpMax,
+                Ammo = ammo,
+                AmmoCap = ammoMax
+            };
+
+            var id = s.WorldState.Towers.Create(st);
+            st.Id = id;
+            s.WorldState.Towers.Set(id, st);
+
+            // Rebuild index so debug gizmos/hud see it immediately
+            try { s.WorldIndex?.RebuildAll(); } catch { }
+        }
+
+        /// <summary>
+        /// Tower is a single-cell marker store. Avoid overlapping Building/Site cells.
+        /// Deterministic: desired first, then ring scan.
+        /// </summary>
+        private static bool TryPickValidTowerCell(GameServices s, CellPos desired, out CellPos finalCell)
+        {
+            finalCell = desired;
+
+            if (s?.GridMap == null) return false;
+
+            bool IsOk(CellPos c)
+            {
+                if (!s.GridMap.IsInside(c)) return false;
+                var occ = s.GridMap.Get(c);
+
+                // Avoid placing tower marker on occupied building/site cells.
+                // Road/Empty is fine for gizmo marker.
+                return occ.Kind != CellOccupancyKind.Building && occ.Kind != CellOccupancyKind.Site;
+            }
+
+            if (IsOk(desired)) { finalCell = desired; return true; }
+
+            // Manhattan ring search, deterministic order
+            const int maxR = 8;
+            for (int r = 1; r <= maxR; r++)
+            {
+                for (int dy = -r; dy <= r; dy++)
+                {
+                    int dx1 = r - Mathf.Abs(dy);
+                    int dx2 = -dx1;
+
+                    var c1 = new CellPos(desired.X + dx1, desired.Y + dy);
+                    if (IsOk(c1)) { finalCell = c1; return true; }
+
+                    if (dx2 != dx1)
+                    {
+                        var c2 = new CellPos(desired.X + dx2, desired.Y + dy);
+                        if (IsOk(c2)) { finalCell = c2; return true; }
+                    }
+                }
+            }
+
+            return false;
         }
 
         private static int ClampToInt(float v, int min, int max)

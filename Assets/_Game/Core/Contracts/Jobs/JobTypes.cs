@@ -7,6 +7,7 @@ namespace SeasonalBastion.Contracts
 
         Harvest,
         HaulBasic,
+        HaulToForge,
 
         BuildDeliver,
         BuildWork,

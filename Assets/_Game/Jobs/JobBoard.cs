@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -48,6 +49,9 @@ namespace SeasonalBastion
 
             int n = q.Count;
             int candidate = 0;
+            int bestPri = int.MaxValue;
+            bool isArmory = (allowed & WorkRoleFlags.Armory) != 0;
+
             for (int i = 0; i < n; i++)
             {
                 int id = q.Dequeue();
@@ -56,8 +60,23 @@ namespace SeasonalBastion
 
                 _scanBuf.Add(id);
 
-                if (candidate == 0 && IsAllowed(allowed, j.Archetype))
+                if (!IsAllowed(allowed, j.Archetype))
+                    continue;
+
+                int pri = isArmory ? GetArmoryPriority(j.Archetype) : 0;
+
+                // Pick best priority; tie-break by earlier queue order (first seen)
+                if (pri < bestPri)
+                {
+                    bestPri = pri;
                     candidate = id;
+
+                    // Early-out: for Armory, if we found ResupplyTower (pri==0), it's the highest priority.
+                    if (isArmory && bestPri == 0)
+                    {
+                        // still need to continue scanning to restore queue order -> NO break here
+                    }
+                }
             }
 
             for (int i = 0; i < _scanBuf.Count; i++)
@@ -65,6 +84,17 @@ namespace SeasonalBastion
 
             if (candidate == 0) return false;
             return _jobs.TryGetValue(candidate, out job);
+        }
+
+        private static int GetArmoryPriority(JobArchetype a)
+        {
+            return a switch
+            {
+                JobArchetype.ResupplyTower => 0,
+                JobArchetype.HaulAmmoToArmory => 1,
+                JobArchetype.HaulToForge => 2,
+                _ => 3
+            };
         }
 
         public bool TryClaim(JobId id, NpcId npc)
@@ -110,9 +140,10 @@ namespace SeasonalBastion
             {
                 JobArchetype.Harvest => (allowed & WorkRoleFlags.Harvest) != 0,
                 JobArchetype.HaulBasic => (allowed & WorkRoleFlags.HaulBasic) != 0,
-                JobArchetype.BuildDeliver or JobArchetype.BuildWork or JobArchetype.RepairWork
-                                    => (allowed & WorkRoleFlags.Build) != 0,
+                JobArchetype.HaulToForge => (allowed & (WorkRoleFlags.HaulBasic | WorkRoleFlags.Armory)) != 0,
+                JobArchetype.BuildDeliver or JobArchetype.BuildWork => (allowed & WorkRoleFlags.Build) != 0,
                 JobArchetype.CraftAmmo => (allowed & WorkRoleFlags.Craft) != 0,
+                JobArchetype.HaulAmmoToArmory => (allowed & WorkRoleFlags.Armory) != 0,
                 JobArchetype.ResupplyTower => (allowed & WorkRoleFlags.Armory) != 0,
                 _ => true,
             };

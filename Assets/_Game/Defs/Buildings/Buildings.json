@@ -77,6 +77,10 @@
       "workRoles": ["Craft"],
       "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 20 }, { "res": 3, "amt": 10 } ],
       "buildChunksL1": 3,
+
+      "capWood": { "L1": 30, "L2": 60, "L3": 90 },
+      "capIron": { "L1": 30, "L2": 60, "L3": 90 },
+
       "capAmmo": { "L1": 50, "L2": 100, "L3": 150 }
     },
     {

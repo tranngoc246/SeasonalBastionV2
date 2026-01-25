@@ -535,3 +535,218 @@
 - Wiring Defend/Waves: spawn pipeline theo `Waves.json` + `SpawnGates` (RunStartRuntime), và damage apply lên Building HP trong combat loop.
 
 ---
+
+## Day 23 — Forge craft ammo (Recipe + Craft job) + Local Input Storage + Supply (Armory preferred)
+
+### Mục tiêu
+- [x] Forge sản xuất **Ammo** theo recipe (consume inputs, output ammo) theo thời gian.
+- [x] Input **phải nằm trong Forge**:
+  - [x] Forge có `capWood/capIron/capAmmo` (local storage).
+  - [x] NPC Craft tại Forge chỉ craft khi đủ input local.
+- [x] Supply pipeline:
+  - [x] Khi Forge thiếu input → tạo job vận chuyển input **từ kho gần nhất** vào Forge.
+  - [x] **Ưu tiên Armory** làm supply; nếu không có Armory worker thì **fallback HQ/Warehouse hauler**.
+- [x] Throttle + ổn định:
+  - [x] Không spam job: 1 pending supply job cho mỗi (Forge, ResourceType) + 1 pending craft job mỗi Forge.
+  - [x] Buffered hauling (Option 2): mỗi lần chở **đổ đầy đến mức buffer**, tránh tăng 1–2 đơn vị lắt nhắt.
+
+### Đã làm
+- [v] **Buildings.json**
+  - Bổ sung `capWood` + `capIron` cho **Forge** (theo level), enabling local input storage.
+- [v] **Job System (Contracts + Registry)**
+  - Thêm `JobArchetype.HaulToForge`.
+  - Register executor: `JobExecutorRegistry` map `HaulToForge` → `HaulToForgeExecutor`.
+  - Role gating:
+    - `JobBoard` + `JobScheduler`: `HaulToForge` allowed cho `WorkRoleFlags.Armory` **hoặc** `WorkRoleFlags.HaulBasic` (fallback).
+- [v] **HaulToForgeExecutor (NEW)**
+  - Job payload:
+    - `Workplace`: Armory ưu tiên, fallback HQ/Warehouse.
+    - `DestBuilding`: Forge.
+    - `ResourceType`: input cần chở (Wood/Iron).
+    - `Amount`: amount request (được clamp theo carry cap + free cap).
+  - Flow:
+    - Pick `SourceBuilding` = kho/HQ gần nhất có đủ (deterministic tie-break distance + id).
+    - Move source → remove resource → move dest (Forge) → add resource.
+  - Hardening:
+    - Cancel nếu Forge không store được loại resource hoặc Forge full.
+    - Best-effort claim keys để tránh collision (StorageSource/StorageDest).
+- [v] **CraftAmmoExecutor**
+  - Recipe (Day23 scope, locked):
+    - Input: **2 Iron + 1 Wood**
+    - Output: **10 Ammo**
+    - Time: **6s**
+  - Consume input **tại Forge** (local), sau `CraftTime` add ammo vào Forge.
+  - Nếu thiếu input local hoặc output full → job Cancelled (AmmoService sẽ enqueue supply rồi retry).
+- [v] **AmmoService (Job Provider)**
+  - Tick scan tất cả Forge constructed:
+    - Nếu thiếu input local → `EnsureSupplyJobToForge(...)` (Armory preferred, fallback Warehouse/HQ hauler).
+    - Nếu đủ input + đủ ammo space + có NPC tại Forge workplace → `TryStartCraft(...)` tạo `CraftAmmo` job.
+  - Anti-spam dicts:
+    - `_supplyJobByForgeAndType` + `_craftJobByForge`.
+- [v] **Buffered hauling tweak (Option 2)**
+  - `EnsureSupplyJobToForge(...)` đổi từ “need-only” sang “fill-to-buffer”:
+    - Iron target ~10, Wood target ~5 (clamp theo cap và carry cap), giảm số chuyến haul.
+- [v] **Tick wiring**
+  - Add `AmmoService.Tick(dt)` vào tick order (đảm bảo provider chạy mỗi frame).
+
+### Kết quả / Acceptance
+- [v] Khi kho có đủ Wood/Iron:
+  - Armory worker (nếu có) sẽ nhận `HaulToForge` và chở input vào Forge; nếu không có Armory worker thì HQ/Warehouse hauler sẽ chở.
+- [v] Khi Forge đủ input local:
+  - NPC Craft tại Forge craft theo thời gian, mỗi ~6s tăng **+10 Ammo** vào kho Forge.
+- [v] Buffered hauling:
+  - Forge input tăng theo “đợt” lên gần mức buffer (Iron ~10, Wood ~5) thay vì nhích 1–2 rồi dừng.
+
+### Ghi chú / Pitfalls
+- `HaulBasicExecutor` hiện bị “special-case” (Harvest → Warehouse/HQ) nên không reuse cho supply Forge; dùng `HaulToForge` riêng để tránh phá logic cũ.
+- Ưu tiên ResupplyTower trước HaulToForge cho Armory worker sẽ triển khai sau (Day Defend), không làm trong Day 23 để tránh mở rộng scope.
+
+### Việc tiếp theo (Day 24)
+- Wiring Defend/Waves spawn + combat damage apply lên Building HP, và chuẩn hoá resupply tower pipeline (Armory priority).
+
+---
+
+## Day 24 — Armory buffer + HaulAmmo (Forge → Armory)
+
+### Mục tiêu
+- [x] Ammo logistics chạy vào kho trung tâm (Armory).
+- [x] Armory buffer rule:
+  - [x] Target ammo trong Armory = **80% cap**.
+  - [x] Chỉ haul khi Forge có “dư” ammo: Forge ammo **>= 20% cap** và chỉ lấy phần **trên ngưỡng 20%** (không rút xuống dưới).
+- [x] HaulAmmo job + executor (transporters):
+  - [x] Chuyển ammo theo **chunk** (Deliverable C): **L1=40, L2=60, L3=80**.
+  - [x] Throttle: 1 pending job / Armory (tránh spam).
+
+### Đã làm
+- [v] **JobBoard**
+  - Cho phép `JobArchetype.HaulAmmoToArmory` chỉ claim bởi `WorkRoleFlags.Armory`.
+  - Update priority Armory: `ResupplyTower` ưu tiên cao nhất, sau đó `HaulAmmoToArmory`, rồi `HaulToForge` (giữ đúng hướng “resupply trước” về sau).
+- [v] **JobExecutorRegistry**
+  - Register mapping: `HaulAmmoToArmory` → `HaulAmmoToArmoryExecutor`.
+- [v] **HaulAmmoToArmoryExecutor (NEW)**
+  - Flow 2-phase:
+    - Move tới Forge → pickup Ammo (Remove).
+    - Move tới Armory → deposit Ammo (Add).
+  - Clamp amount theo:
+    - Requested chunk từ provider
+    - `Forge.Available` (chỉ lấy phần “takeable”)
+    - `Armory.FreeCap`
+  - Best-effort refund remainder về Forge nếu Armory full đột ngột.
+- [v] **AmmoService (Provider)**
+  - Bổ sung nhánh “Armory buffer”:
+    - Scan Armories constructed + có NPC workplace.
+    - Nếu ammo < target(80% cap) → pick Forge source gần nhất có takeable ammo (>= 20% cap).
+    - Enqueue `HaulAmmoToArmory` với `Workplace=Armory`, `SourceBuilding=Forge`, `DestBuilding=Armory`, `Amount=chunk`.
+  - Anti-spam: dict `_haulAmmoJobByArmory` (1 pending job mỗi Armory).
+
+### Kết quả / Acceptance
+- [v] Forge craft ammo (Day23) hoạt động → khi Forge ammo đạt ngưỡng, Armory bắt đầu nhận ammo.
+- [v] Ammo chuyển từ Forge sang Armory theo **chunk** (40/60/80) cho tới khi Armory đạt ~80% cap.
+- [v] Forge không bị “hút cạn”: luôn giữ lại tối thiểu **20% cap** ammo tại Forge.
+- [v] Queue ổn định, không spam job theo frame (1 job/armory).
+
+### Ghi chú / Pitfalls
+- `HaulBasicExecutor` không reuse được vì hardcode Harvest→Warehouse/HQ; Day24 dùng executor riêng để tránh phá logic cũ.
+- Priority ResupplyTower trước HaulAmmo/HaulToForge đã chuẩn bị sẵn cho day Defend (chưa bật Resupply provider trong Day24).
+
+### Việc tiếp theo (Day 25)
+- Wiring Defend/Waves + Combat damage apply lên Building HP và ResupplyTower provider dùng ammo trong Armory.
+
+---
+
+## Day 25 — Tower low-ammo monitor + request queue (HUD + Gizmos, no resupply yet)
+
+### Mục tiêu
+- [x] Tower tự tạo **Ammo Request** khi ammo thấp.
+  - [x] Threshold: `<= 25%` ammo cap
+  - [x] Cooldown per tower
+  - [x] Priority: `0 ammo` > `low ammo`
+- [x] Notifications/HUD: hiển thị low/empty ammo **không spam**.
+- [x] (Dev hook) Có cách test dù chưa có tower placement/combat thật.
+
+### Đã làm
+- [v] **AmmoService — Low ammo monitor + Request Queue**
+  - Thêm scan tower ammo theo tick (đọc từ `WorldState.Towers` / `WorldIndex.Towers`).
+  - Tính threshold theo `ammoCap` (ceil 25% và tối thiểu 1 nếu cap>0).
+  - Khi `ammo <= threshold` → enqueue request `Normal`; khi `ammo==0` → enqueue request `Urgent`.
+  - Cooldown riêng cho Low/Empty theo tower (không tạo request mỗi frame).
+  - Anti-dup: 1 pending request/tower; promote `Normal → Urgent` nếu tụt về 0 trong lúc đang pending.
+- [v] **NotificationService wiring (anti-spam)**
+  - Push theo key per tower (`TowerAmmo_Low_<id>`, `TowerAmmo_Empty_<id>`) + cooldown + dedupe để tránh spam.
+  - Severity theo trạng thái (empty > low) và có thể nâng severity khi Combat active (nếu hệ combat đã expose flag).
+- [v] **Debug HUD + Gizmos (Tower visibility)**
+  - `DebugTowerAmmoHUD`: hiển thị số tower, ammo/cap, trạng thái low/empty, và pending request (urgent/normal).
+  - `DebugTowerGizmos`: vẽ marker tower trong Scene View (XY), màu theo state (OK/LOW/EMPTY), có label ammo/cap.
+- [v] **RunStart tower creation (TowerStore)**
+  - Fix RunStart để **StartNewRun tạo TowerState** từ `Towers.json` (TowerStore) ngay cả khi `Buildings.json` chưa có TowerArrow.
+  - Dùng `TryPickValidTowerCell` để tránh overlap Building/Site; đặt deterministic theo vòng Manhattan.
+  - Rebuild `WorldIndexService` sau khi tạo tower để debug/hud nhìn thấy ngay.
+- [v] **DataRegistry towers hardening**
+  - Clamp `ammoMax/ammoPerShot` hợp lý:
+    - `ammoMax==0` → `ammoPerShot=0`
+    - `ammoMax>0` → `ammoPerShot` min 1, max `ammoMax`
+  - Default `needsAmmoThresholdPct` về 0.25 nếu thiếu/0, clamp01.
+  - Thêm `ValidateTowers()` đẩy lỗi vào `_loadErrors` để debug dễ thấy.
+
+### Kết quả / Acceptance
+- [v] StartNewRun chạy xong có Tower trong store/index → thấy marker bằng Gizmos trong Scene View.
+- [v] Dev hook / giảm ammo → khi ammo xuống `<=25%` tạo request đúng **1 lần/cooldown**.
+- [v] Khi ammo về 0 → request được ưu tiên (urgent) và notification không spam (cooldown + dedupe).
+- [v] DebugTowerAmmoHUD quan sát được state và queue.
+
+### Ghi chú / Pitfalls
+- Day 25 chỉ monitor + request queue; **NPC Armory chưa tự mang ammo tới tower** (resupply pipeline là Day 26).
+- Tower hiện tại là store riêng (TowerStore), không phải building prefab → “thấy tower” bằng Gizmos là đủ cho test.
+- Nếu Scene/Game view không thấy: bật nút **Gizmos** và đảm bảo Debug components đã có trong scene (DebugHUDHub/DebugTowerGizmos).
+
+### Việc tiếp theo (Day 26)
+- Implement **ResupplyTower**: consume request → tạo job → executor lấy ammo từ Armory/HQ/Warehouse → add vào `TowerState.Ammo` theo chunk, ưu tiên urgent.
+
+---
+
+## Day 26 — ResupplyTower job + executor (Armory → Tower)
+
+### Mục tiêu
+- [x] Transporter **resupply tower từ Armory** khi tower low/empty ammo.
+- [x] Provider chọn tower theo **priority (EMPTY > LOW)** + **distance tie-break**.
+- [x] Executor: **pickup ammo → move → deliver to tower**.
+
+### Đã làm
+- [v] **AmmoService — ResupplyTower provider**
+  - Consume request từ queue (ưu tiên `Urgent` trước `Normal`).
+  - Chọn tower theo:
+    - Priority: `EMPTY (ammo<=0)` > `LOW (ammo<=threshold)`.
+    - Tie-break: khoảng cách Manhattan từ Armory anchor tới tower cell, sau đó theo `TowerId` để deterministic.
+  - Gate tránh spam:
+    - 1 in-flight job / tower (anti-dup) và 1 in-flight job / armory (nếu cấu hình).
+    - Chỉ tạo job khi `ArmoryAmmo > 0` và có NPC `Workplace=Armory`.
+
+- [v] **ResupplyTowerExecutor (NEW)**
+  - Flow 2-phase:
+    1) Move tới Armory → `StorageService.Remove(Armory, Ammo, amount)` (pickup).
+    2) Move tới TowerCell → cộng ammo vào `TowerState.Ammo` (clamp theo `AmmoCap`) → `JobStatus.Completed`.
+  - Hardening:
+    - Nếu tower invalid/vanished hoặc armory không đủ ammo tại thời điểm pickup → cancel/fail deterministic + cleanup.
+    - Deliver luôn clamp theo free cap để không vượt `AmmoCap`; refund remainder về Armory nếu cần.
+
+- [v] **Job wiring**
+  - Bổ sung `JobArchetype.ResupplyTower` và map vào `JobExecutorRegistry`.
+  - Role gating: chỉ NPC có `WorkRoleFlags.Armory` claim job.
+
+- [v] **Debug / Test hooks**
+  - Test bằng cách drain ammo tower về low/empty để quan sát:
+    - Request được enqueue đúng priority.
+    - Job xuất hiện trong JobBoard.
+    - Armory ammo giảm khi pickup và tower ammo tăng khi deliver.
+
+### Kết quả / Acceptance
+- [v] Tower low ammo / empty → job `ResupplyTower` xuất hiện.
+- [v] NPC Armory thực hiện pickup ammo → di chuyển → deliver.
+- [v] Ammo của tower tăng lại; ammo Armory giảm tương ứng.
+
+### Ghi chú / Pitfalls
+- Khi stress-test (tower bắn tiêu hao lớn, ví dụ 10 ammo/shot), có thể gặp tình huống **tower về 0 lần 2 nhưng không có job mới** do cooldown `ReqCooldownEmpty` chặn enqueue request trong một khoảng ngắn. Với gameplay thực tế (1 ammo/shot) thì ít xảy ra.
+- Nếu về sau tăng DPS/burst, nên harden logic cooldown theo “state transition” (chỉ cooldown khi tower đang EMPTY liên tục; chuyển sang EMPTY phải enqueue ngay) để tránh miss request trong stress.
+
+### Việc tiếp theo (Day 27)
+- Defend/Waves wiring: đảm bảo tower resupply hoạt động ổn định trong combat loop, polish debug HUD (show in-flight jobs + cooldown timers), và cân nhắc hardening cooldown theo state transition nếu DPS cao.

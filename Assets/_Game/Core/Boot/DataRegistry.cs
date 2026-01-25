@@ -422,6 +422,20 @@ namespace SeasonalBastion
                 if (string.IsNullOrEmpty(id)) { _loadErrors.Add($"Towers[{i}] has empty id"); continue; }
                 if (!seen.Add(id)) _loadErrors.Add($"Duplicate Tower id '{id}' in Towers.json");
 
+                int ammoMax = Mathf.Max(0, tj.ammoMax);
+                int ammoPerShot = tj.ammoPerShot;
+
+                if (ammoMax <= 0) ammoPerShot = 0;
+                else
+                {
+                    if (ammoPerShot <= 0) ammoPerShot = 1;
+                    if (ammoPerShot > ammoMax) ammoPerShot = ammoMax;
+                }
+
+                float thrPct = tj.needsAmmoThresholdPct;
+                if (thrPct <= 0f) thrPct = 0.25f;
+                thrPct = Mathf.Clamp01(thrPct);
+
                 var def = new TowerDef
                 {
                     DefId = id,
@@ -435,9 +449,9 @@ namespace SeasonalBastion
                     Aoe = tj.aoe ?? string.Empty,
                     DotDps = Mathf.Max(0, tj.dotDps),
                     DotSec = Mathf.Max(0, tj.dotSec),
-                    AmmoMax = Mathf.Max(0, tj.ammoMax),
-                    AmmoPerShot = Mathf.Max(1, tj.ammoPerShot),
-                    NeedsAmmoThresholdPct = Mathf.Clamp01(tj.needsAmmoThresholdPct),
+                    AmmoMax = ammoMax,
+                    AmmoPerShot = ammoPerShot,
+                    NeedsAmmoThresholdPct = thrPct,
                     BuildCost = ToCosts(tj.buildCost, ctx: $"Tower '{id}' buildCost"),
                     BuildChunks = Mathf.Max(1, tj.buildChunks),
                     Unlock = ToUnlock(tj.unlock, $"Tower '{id}' unlock")
@@ -446,6 +460,8 @@ namespace SeasonalBastion
                 _towers[id] = def;
                 added++;
             }
+
+            ValidateTowers();
 
             Debug.Log($"[DataRegistry] Loaded Towers: {added} (TextAsset: {ta.name})");
         }
@@ -884,6 +900,33 @@ namespace SeasonalBastion
                 outArr[i] = new WaveEntryDef { EnemyId = enemyId, Count = Mathf.Max(1, e != null ? e.count : 1) };
             }
             return outArr;
+        }
+
+        private void ValidateTowers()
+        {
+            foreach (var kv in _towers)
+            {
+                var id = kv.Key;
+                var d = kv.Value;
+
+                if (d.Rof <= 0f)
+                    _loadErrors.Add($"Tower '{id}': rof<=0 (shots/sec). Must be > 0.");
+
+                if (d.AmmoMax < 0)
+                    _loadErrors.Add($"Tower '{id}': ammoMax<0");
+
+                if (d.AmmoMax == 0 && d.AmmoPerShot != 0)
+                    _loadErrors.Add($"Tower '{id}': ammoMax=0 but ammoPerShot!=0 (expected 0).");
+
+                if (d.AmmoMax > 0 && d.AmmoPerShot <= 0)
+                    _loadErrors.Add($"Tower '{id}': ammoMax>0 but ammoPerShot<=0");
+
+                if (d.AmmoMax > 0 && d.AmmoPerShot > d.AmmoMax)
+                    _loadErrors.Add($"Tower '{id}': ammoPerShot({d.AmmoPerShot}) > ammoMax({d.AmmoMax})");
+
+                if (d.NeedsAmmoThresholdPct <= 0f || d.NeedsAmmoThresholdPct > 1f)
+                    _loadErrors.Add($"Tower '{id}': needsAmmoThresholdPct out of range (0..1]");
+            }
         }
     }
 }

@@ -1,12 +1,4 @@
-// AUTO-GENERATED TEMPLATE from PART 25 (LOCKED v0.1)
-// Source: PART25_Technical_InterfacesPack_Services_Events_DTOs_LOCKED_SPEC_v0.1.md
-// Notes:
-// - Contracts only: interfaces/enums/structs/DTO/events.
-// - Do not put runtime logic here.
-// - Namespace kept unified to minimize cross-namespace friction.
-
 using System;
-using System.Collections.Generic;
 
 namespace SeasonalBastion.Contracts
 {
@@ -23,8 +15,8 @@ namespace SeasonalBastion.Contracts
         void ForceSeasonDay(Season s, int dayIndex);
 
         // Time events
-        event System.Action<Season,int> OnSeasonDayChanged;
-        event System.Action<Phase> OnPhaseChanged;
-        event System.Action OnDayEnded;
+        event Action<Season,int> OnSeasonDayChanged;
+        event Action<Phase> OnPhaseChanged;
+        event Action OnDayEnded;
     }
 }

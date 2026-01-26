@@ -750,3 +750,208 @@
 
 ### Việc tiếp theo (Day 27)
 - Defend/Waves wiring: đảm bảo tower resupply hoạt động ổn định trong combat loop, polish debug HUD (show in-flight jobs + cooldown timers), và cân nhắc hardening cooldown theo state transition nếu DPS cao.
+
+---
+
+## Day 27 — Combat map lanes/spawn gates (từ StartMapConfig)
+
+### Mục tiêu
+- [x] Parse spawn points/gates từ `StartMapConfig` (StartMapConfig v0.1).
+- [x] Runtime lane table: `laneId → start cell → direction → target HQ`.
+- [x] Debug: spawn 1 enemy theo lane, enemy có target.
+
+### Đã làm
+- [v] **Khởi tạo RunStartRuntime (fix root-cause HUD báo null)**
+  - `GameServicesFactory` tạo `services.RunStartRuntime = new RunStartRuntime()` để RunStart có nơi cache `SpawnGates/Zones/Lanes`.
+  - Khắc phục tình trạng `DebugHUDHub` hiển thị `RunStartRuntime = null` (không debug được lane).
+
+- [v] **RunStartRuntime — lane table runtime**
+  - Bổ sung `Lanes: Dictionary<int, LaneRuntime>` và struct `LaneRuntime { laneId, startCell, dirToHQ, targetHQ }`.
+  - Giữ nguyên các cache cũ: `SpawnGates`, `Zones`, `BuildableRect`.
+
+- [v] **RunStartApplier — build lane table từ StartMapConfig**
+  - Clear `RunStartRuntime.Lanes` khi apply config.
+  - Sau khi spawn buildings (đã có HQ), resolve `targetHQ` theo rule mới:
+    - Target là **1 cell kề footprint HQ (4-neighbor, nằm ngoài footprint)**.
+    - Ưu tiên cell theo hướng `dirToHQ` của gate (deterministic), fallback sang các cạnh còn lại theo thứ tự cố định nếu cell ưu tiên invalid.
+    - Check occupancy bằng `GridMap.Get(cell).Kind` (không dùng `HasBuilding`).
+  - Từ `cfg.spawnGates[]`: map vào `RunStartRuntime.Lanes[laneId] = LaneRuntime(...)`.
+
+- [v] **DebugCombatLaneHUD (NEW) + wiring vào DebugHUDHub**
+  - Thêm module debug trong Home tab:
+    - Hiển thị `Lane count` + list lanes (start/dir/targetHQ).
+    - Cho phép nhập `EnemyDefId` + `LaneId` và bấm **Spawn** để spawn 1 enemy vào `WorldState.Enemies`.
+    - Log ra `(spawn cell, laneId, targetHQ, dir)` để verify.
+
+- [v] **Fix compile/hardening nhỏ**
+  - Tránh lỗi CS0136 (trùng tên biến `hqTarget` trong scope lồng nhau) bằng đổi tên biến local (vd: `hqAdjTarget`).
+  - Sửa kiểm tra footprint/occupancy targetHQ theo API `GridMap` hiện tại (`CellOccupancyKind.Building/Site`).
+
+### Kết quả / Acceptance
+- [v] F1 → Home hiển thị:
+  - `Day27: Combat Lanes (from StartMapConfig)` + `Lane count` và từng lane có `start/dir/targetHQ`.
+- [v] Bấm **Spawn** theo lane:
+  - Enemy được tạo trong `WorldState.Enemies`.
+  - Console log xác nhận enemy có `laneId` + `targetHQ` đúng rule “cell kề footprint HQ”.
+
+### Ghi chú / Pitfalls
+- `RunStartRuntime` phải được khởi tạo từ `GameServicesFactory`; nếu null thì mọi cache spawnGates/lanes sẽ không có chỗ ghi.
+- `targetHQ` hiện là “cell kề footprint HQ” (không bắt buộc road). Nếu về sau muốn enemy chỉ target vào road/entry cụ thể, cần thêm rule gate theo road connectivity.
+
+### Việc tiếp theo (Day 28)
+- Wiring movement/steering tối thiểu cho enemy theo lane → tiến về `targetHQ` (deterministic step), và chuẩn bị hook vào WaveDirector/spawn schedule.
+
+---
+
+## Day 28 — WaveDirector schedule + Defend day trigger
+
+### Mục tiêu
+- [x] Vào **Defend day** (Autumn/Winter) thì wave chạy theo defs.
+- [x] Wave schedule: spawn theo interval/group.
+- [x] Events: `WaveStarted` / `WaveEnded`.
+- [x] Pause handling: timing wave theo **RunClock.TimeScale**.
+
+### Đã làm
+- [v] **WaveCalendarResolver (Hướng A — tránh cyclic asmdef)**
+  - Giữ `IWaveCalendarResolver` ở `Game.Contracts`.
+  - Implement resolver ở **Game.Boot** (cùng assembly với `DataRegistry`) để scan wave defs theo (Year/Season/Day) mà không buộc `Game.Combat` reference `DataRegistry`.
+  - Expose resolver qua `GameServices.WaveCalendarResolver`.
+
+- [v] **WaveDirector — schedule + pause**
+  - `StartDayWaves(year, season, day)` resolve danh sách wave theo calendar (sort deterministic).
+  - Spawn theo entry/interval; có gap giữa group và giữa wave (nếu có nhiều wave trong ngày).
+  - Tick dùng `scaledDt = dt * RunClock.TimeScale`; `TimeScale <= 0` thì dừng tiến trình (pause).
+
+- [v] **CombatService — Defend trigger + events**
+  - Khi vào **Defend** hoặc đổi day trong Defend → gọi `WaveDirector.StartDayWaves(...)`.
+  - Publish `WaveStartedEvent(waveId)` / `WaveEndedEvent(waveId)` qua `IEventBus`.
+
+- [v] **DebugRunClockHUD (Day28 test) + wiring**
+  - Home tab có panel RunClock: hiển thị Year/Season/Day/Phase + DayTimer.
+  - Buttons: Pause/1x/2x/3x + Force `Spring/Summer/Autumn/Winter D1` + Prev/Next Day để test nhanh.
+  - `DebugHUDHub` wire module này (không rải hotkey riêng).
+
+### Kết quả / Acceptance
+- [v] Force `Autumn D1` / `Winter D1` → Phase=Defend → wave auto-start theo defs.
+- [v] Spawn diễn ra theo schedule; pause/resume ảnh hưởng trực tiếp tới timing wave.
+- [v] `WaveStarted` và `WaveEnded` được emit đúng.
+
+### Ghi chú / Pitfalls
+- Notification trong project hiện tại chủ yếu dùng `NotificationService.Push(...)` trực tiếp; nếu muốn hiện noti cho wave thì cần bridge từ events → push (tuỳ policy UI).
+
+### Việc tiếp theo (Day 29)
+- Enemy movement/steering theo lane tới `targetHQ`, và nối combat/damage loop.
+
+---
+
+## Day 29 — Enemy: move + attack HQ/buildings (gizmos-only)
+
+### Mục tiêu
+- [x] Enemy di chuyển theo grid 4-dir tới target.
+- [x] Enemy tới target và gây damage lên HQ / buildings.
+- [x] Enemy chết cleanup.
+- [x] HQ HP về 0 → Defeat.
+- [x] Debug: chỉ cần hiển thị enemy bằng Gizmos trong Scene View (không cần prefab/renderer).
+
+### Đã làm
+- [v] **EnemySystem (NEW)**
+  - Runtime state tối thiểu per-enemy:
+    - `Hp`
+    - `MoveProgress01` (tích luỹ bước theo dt)
+    - `AttackCooldown` (map runtime theo `EnemyId`)
+  - Resolve target theo **lane runtime table**:
+    - Đọc trực tiếp `RunStartRuntime.Lanes[laneId].TargetHQ` và `DirToHQ` (single source of truth từ Day 27).
+  - Movement:
+    - Ưu tiên greedy step giảm Manhattan (4-dir) nếu neighbor walkable.
+    - Fallback BFS minimal khi greedy không tìm được bước tiến (treat blocked as wall).
+    - Clamp số bước mỗi tick để tránh “teleport” khi dt lớn.
+  - Attack:
+    - Khi tới `TargetHQ` → đánh HQ theo interval (dmg từ enemy def hoặc default safe).
+    - Nếu bước kế tiếp bị chặn bởi building → đánh building (giảm HP) theo interval (v0.1).
+    - Khi `HQ.HP <= 0` → gọi `RunOutcomeService.Defeat()`.
+  - Cleanup:
+    - Nếu `Hp <= 0` → remove khỏi store + clear runtime cooldown.
+
+- [v] **CombatService wiring**
+  - Khởi tạo `EnemySystem` và tick trong combat loop (cùng với WaveDirector).
+  - Enemy tick dùng `RunClock.TimeScale` (pause => không tiến hành move/attack).
+
+- [v] **DebugEnemyGizmos (NEW)**
+  - Vẽ Gizmos sphere theo `CellPos` (hỗ trợ XY/XZ qua `_useXZ`).
+  - Draw theo thứ tự `EnemyId` tăng dần để deterministic quan sát.
+  - (Optional) Editor label `E#id` để debug nhanh.
+
+### Kết quả / Acceptance
+- [v] Debug HUD (Day27) spawn enemy theo lane → enemy di chuyển về `LaneRuntime.TargetHQ`.
+- [v] Khi enemy chạm target → log “hit HQ” và HQ HP giảm.
+- [v] HQ HP về 0 → Defeat được trigger.
+- [v] Scene View thấy enemy bằng Gizmos (không cần prefab).
+
+### Ghi chú / Pitfalls
+- Một số layout có thể khiến enemy “kẹt”/đứng xa HQ nếu:
+  - `TargetHQ` bị blocked, hoặc đường đi bị blocked bởi building/site.
+  - BFS treat blocked là wall (v0.1) và chưa có cơ chế siege/phá tường đầy đủ.
+  → Đây vẫn nằm trong scope Day29 (movement/attack tối thiểu); hardening nâng cấp sẽ làm ở các day combat tiếp theo.
+
+### Việc tiếp theo (Day 30)
+- Enemy combat polish: target selection (building vs HQ), siege rules nếu bị blocked lâu, và damage/aggro cho towers.
+
+---
+
+## Day 30 — TowerCombatSystem: target + fire + consume ammo
+
+### Mục tiêu
+- [x] Tower bắn enemy trong range và tiêu ammo.
+- [x] Target selection deterministic:
+  - [x] Nearest in range, tie-break theo `EnemyId` (ổn định giữa các frame).
+- [x] Fire interval + damage.
+- [x] Consume ammo; ammo = 0 thì không bắn.
+- [x] Low-ammo request (Day25/26) vẫn hoạt động ổn định khi tower tiêu hao ammo.
+
+### Đã làm
+- [v] **TowerCombatSystem (implement)**
+  - Tick theo `scaledDt = dt * RunClock.TimeScale` (Pause => không fire).
+  - Duyệt tower deterministic theo `TowerId` tăng dần.
+  - Target selection:
+    - Scan enemies deterministic theo `EnemyId` tăng dần.
+    - Pick enemy có `dist^2` nhỏ nhất trong range; tie-break `EnemyId`.
+  - Fire:
+    - `fireInterval = 1 / rof`; quản lý cooldown per-tower.
+    - Apply damage lên `EnemyState.Hp`; nếu `Hp <= 0` → destroy enemy (cleanup).
+  - Ammo:
+    - Gate: `tower.Ammo < AmmoPerShot` → skip fire.
+    - Khi fire: trừ ammo theo `AmmoPerShot`, clamp >= 0.
+    - Mirror ammo sang `BuildingState.Ammo` (nếu tower được represent bởi Building) để HUD/debug nhất quán.
+
+- [v] **CombatService wiring**
+  - Thêm `_towers` vào loop combat.
+  - Tick order khuyến nghị để test:
+    1) WaveDirector spawn
+    2) TowerCombatSystem fire
+    3) EnemySystem move/attack
+
+- [v] **Debug rõ ràng (SceneView Gizmos)**
+  - `DebugTowerCombatGizmos`:
+    - Vẽ wire-range quanh tower.
+    - Vẽ line tới target hiện tại (theo cùng rule deterministic).
+    - Giúp verify nhanh: tower chỉ bắn khi có ammo và target trong range.
+
+### Kết quả / Acceptance
+- [v] Khi enemy vào range:
+  - Tower chọn đúng target (nearest, tie EnemyId) và bắn theo interval.
+  - Enemy bị giảm HP và chết (remove khỏi store).
+- [v] Ammo giảm đúng theo số phát bắn; khi ammo về 0 tower ngừng bắn.
+- [v] Khi ammo giảm xuống low/empty:
+  - AmmoService vẫn enqueue request theo threshold/cooldown (Day25) và ResupplyTower vẫn có thể refill (Day26) nếu Armory có ammo.
+- [v] Debug:
+  - SceneView thấy range + line target, dễ đối chiếu hành vi tower khi spawn enemy theo lane.
+
+### Ghi chú / Pitfalls
+- Nếu tower được spawn như “TowerStore riêng” (không mapping 1-1 với Building), mirror ammo sang Building chỉ là best-effort; source of truth vẫn là `WorldState.Towers`.
+- Với dt lớn / timeScale cao: cần clamp cooldown/step để tránh “burst fire” quá nhanh (hiện đã gate theo cooldown per-tower).
+
+### Việc tiếp theo (Day 31)
+- Tower ↔ Enemy polish:
+  - Ưu tiên target theo threat (vd: enemy gần HQ nhất) nếu spec yêu cầu.
+  - Thêm projectile/FX (nếu mở scope) và damage apply rõ ràng lên Building durability khi enemy siege.
+

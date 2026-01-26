@@ -17,6 +17,10 @@ namespace SeasonalBastion.RunStart
 
         public readonly List<SpawnGate> SpawnGates = new(4);
         public readonly Dictionary<string, ZoneRect> Zones = new();
+
+        // Day27: lanes/spawn gates runtime table
+        // laneId -> lane runtime (start cell, dir to HQ, target cell)
+        public readonly Dictionary<int, LaneRuntime> Lanes = new(8);
     }
 
     public readonly struct IntRect
@@ -48,6 +52,23 @@ namespace SeasonalBastion.RunStart
             Lane = lane;
             Cell = cell;
             DirToHQ = dirToHQ;
+        }
+    }
+
+    // Day27: resolved lane runtime row
+    public readonly struct LaneRuntime
+    {
+        public readonly int LaneId;
+        public readonly CellPos StartCell;
+        public readonly Dir4 DirToHQ;
+        public readonly CellPos TargetHQ;
+
+        public LaneRuntime(int laneId, CellPos startCell, Dir4 dirToHQ, CellPos targetHQ)
+        {
+            LaneId = laneId;
+            StartCell = startCell;
+            DirToHQ = dirToHQ;
+            TargetHQ = targetHQ;
         }
     }
 

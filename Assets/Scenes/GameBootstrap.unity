@@ -122,6 +122,57 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &61755694
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 61755695}
+  - component: {fileID: 61755696}
+  m_Layer: 0
+  m_Name: DebugEnemyGizmos
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &61755695
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 61755694}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1732529964}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &61755696
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 61755694}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0cab1df8e99a0054e852705227344ea9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _gridOrigin: {x: 0, y: 0, z: 0}
+  _cellSize: 1
+  _useXZ: 0
+  _planeY: 0
+  _planeZ: 0
+  _thin: 0.05
+  _radiusScale: 0.18
 --- !u!1 &80928309
 GameObject:
   m_ObjectHideFlags: 0
@@ -166,7 +217,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 29b1ee504ae4f9245a23e6d07a82f1f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _hubControlled: 0
+  _hubControlled: 1
 --- !u!1 &190578709
 GameObject:
   m_ObjectHideFlags: 0
@@ -298,7 +349,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _cameraOverride: {fileID: 519420031}
   _mappingSource: {fileID: 1166508313}
-  _gridOrigin: {x: -9, y: -5, z: 0}
+  _gridOrigin: {x: 0, y: 0, z: 0}
   _cellSize: 1
   _useXZ: 0
   _planeY: 0
@@ -369,6 +420,8 @@ MonoBehaviour:
   _storageHud: {fileID: 360055334}
   _notiHud: {fileID: 606999408}
   _worldIndexHud: {fileID: 1725449634}
+  _combatLaneHud: {fileID: 1858788889}
+  _runClockHud: {fileID: 80928311}
   _toggleUiKey: 94
   _modeBuildKey: 95
   _modeRoadKey: 96
@@ -561,7 +614,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 17, y: 27, z: -10}
+  m_LocalPosition: {x: 30, y: 33, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -648,7 +701,7 @@ MonoBehaviour:
   _def3: Farm
   _def4: Lumber
   _def5: Warehouse
-  _gridOrigin: {x: -9, y: -5, z: 0}
+  _gridOrigin: {x: 0, y: 0, z: 0}
   _cellSize: 1
   _useXZ: 0
   _planeY: 0
@@ -772,7 +825,7 @@ MonoBehaviour:
   _spawnBurstCount: 1
   _mappingSource: {fileID: 1166508313}
   _cameraOverride: {fileID: 519420031}
-  _gridOrigin: {x: -9, y: -5, z: 0}
+  _gridOrigin: {x: 0, y: 0, z: 0}
   _cellSize: 1
   _useXZ: 0
   _planeY: 0
@@ -825,7 +878,7 @@ MonoBehaviour:
   _bootstrap: {fileID: 1656749905}
   _mappingSource: {fileID: 1166508313}
   _cameraOverride: {fileID: 519420031}
-  _gridOrigin: {x: -9, y: -5, z: 0}
+  _gridOrigin: {x: 0, y: 0, z: 0}
   _cellSize: 1
   _useXZ: 0
   _planeY: 0
@@ -970,8 +1023,108 @@ Transform:
   - {fileID: 80928310}
   - {fileID: 190578710}
   - {fileID: 275288958}
+  - {fileID: 1858788888}
+  - {fileID: 61755695}
+  - {fileID: 1914285963}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1858788887
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1858788888}
+  - component: {fileID: 1858788889}
+  m_Layer: 0
+  m_Name: DebugCombatLaneHUD
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1858788888
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1858788887}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1732529964}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1858788889
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1858788887}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 705d892e5031b924d8869875dc044217, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _bootstrap: {fileID: 1656749905}
+  _enemyDefId: Swarmling
+  _laneId: 0
+  _hubControlled: 0
+--- !u!1 &1914285962
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1914285963}
+  - component: {fileID: 1914285964}
+  m_Layer: 0
+  m_Name: DebugTowerCombatGizmos
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1914285963
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1914285962}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1732529964}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1914285964
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1914285962}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 918a03f66ec36d94388d5f12126226ac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _gridOrigin: {x: 0, y: 0, z: 0}
+  _cellSize: 1
+  _useXZ: 0
+  _planeY: 0
+  _planeZ: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

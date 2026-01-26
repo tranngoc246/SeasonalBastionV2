@@ -1,4 +1,5 @@
 using SeasonalBastion.Contracts;
+using SeasonalBastion.RunStart;
 
 namespace SeasonalBastion
 {
@@ -14,6 +15,9 @@ namespace SeasonalBastion
             services.DataValidator = new DataValidator();
             services.RunClock = new RunClockService(services.EventBus);
             services.NotificationService = new NotificationService(services.EventBus);
+
+            // RunStart
+            services.RunStartRuntime = new RunStartRuntime();
 
             // World
             services.WorldState = new WorldState();
@@ -58,6 +62,7 @@ namespace SeasonalBastion
             // Ammo & Combat
             services.AmmoService = new AmmoService(services);
             services.CombatService = new CombatService(services);
+            services.WaveCalendarResolver = new WaveCalendarResolver(services.DataRegistry);
 
             // Rewards & Outcome
             services.RewardService = new RewardService(services);

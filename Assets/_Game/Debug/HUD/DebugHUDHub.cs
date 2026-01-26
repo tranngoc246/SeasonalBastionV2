@@ -46,6 +46,8 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private DebugStorageHUD _storageHud;
         [SerializeField] private DebugNotificationsHUD _notiHud;
         [SerializeField] private DebugWorldIndexHUD _worldIndexHud;
+        [SerializeField] private DebugCombatLaneHUD _combatLaneHud;
+        [SerializeField] private DebugRunClockHUD _runClockHud;
 
         [Header("Hotkeys (Hub only)")]
         [SerializeField] private Key _toggleUiKey = Key.F1;
@@ -87,6 +89,9 @@ namespace SeasonalBastion.DebugTools
             if (_storageHud == null) _storageHud = FindObjectOfType<DebugStorageHUD>(true);
             if (_notiHud == null) _notiHud = FindObjectOfType<DebugNotificationsHUD>(true);
             if (_worldIndexHud == null) _worldIndexHud = FindObjectOfType<DebugWorldIndexHUD>(true);
+            if (_combatLaneHud == null) _combatLaneHud = FindObjectOfType<DebugCombatLaneHUD>(true);
+            if (_runClockHud == null) _runClockHud = FindObjectOfType<DebugRunClockHUD>(true);
+
 
             // Hub-control: disable standalone HUD + disable standalone toggle hotkeys
             if (_buildTool != null) _buildTool.SetHubControlled(true);
@@ -96,6 +101,8 @@ namespace SeasonalBastion.DebugTools
             if (_storageHud != null) _storageHud.SetHubControlled(true);
             if (_notiHud != null) _notiHud.SetHubControlled(true);
             if (_worldIndexHud != null) _worldIndexHud.SetHubControlled(true);
+            if (_combatLaneHud != null) _combatLaneHud.SetHubControlled(true);
+            if (_runClockHud != null) _runClockHud.SetHubControlled(true);
 
             ApplyMode(_mode);
         }
@@ -142,7 +149,7 @@ namespace SeasonalBastion.DebugTools
         {
             if (!_showUi) return;
 
-            GUILayout.BeginArea(new Rect(10, 10, 620, 720), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(10, 10, 620, (Screen.height - 20)), GUI.skin.box);
 
             GUILayout.Label("[DebugHUDHub] F1 UI | F2 Build | F3 Road | F4 NPC | F5 Storage | F6 Noti | F7 Index | Esc None");
             GUILayout.Label($"Mode: {_mode}    Tab: {_tab}");
@@ -255,6 +262,22 @@ namespace SeasonalBastion.DebugTools
                     GUILayout.Label($"...({_dataErrors.Count - show} more)");
                 GUILayout.EndScrollView();
             }
+
+            GUILayout.Space(10);
+            if (_runClockHud != null)
+                _runClockHud.DrawHubGUI();
+            else
+                GUILayout.Label("DebugRunClockHUD: missing (add component to scene if you want clock controls)");
+
+
+            if (_combatLaneHud != null)
+                _combatLaneHud.DrawHubGUI();
+            else
+            {
+                GUILayout.Space(10);
+                GUILayout.Label("DebugCombatLaneHUD: missing (add component to scene if you want lane spawn debug)");
+            }
+
         }
     }
 }

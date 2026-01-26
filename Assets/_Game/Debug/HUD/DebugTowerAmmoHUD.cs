@@ -51,7 +51,7 @@ namespace SeasonalBastion.DebugTools
         {
             if (!_enabled) return;
 
-            GUILayout.BeginArea(new Rect(12, 12, 420, Screen.height - 24), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(10, 740, 620, 200), GUI.skin.box);
             GUILayout.Label("DebugTowerAmmoHUD (Day25)");
             GUILayout.Label($"Toggle HUD: {_toggleKey} | Toggle DevHook: {_devHookKey}");
 

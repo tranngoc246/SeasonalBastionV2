@@ -1,6 +1,6 @@
 # Promttitle: VS2 — VERTICAL SLICE #2 IMPLEMENTATION PLAN — LOCKED SPEC v0.1
 
-Mình gửi mục tiêu day ..., kiểm tra các file cần thiết, triển khai chuẩn, chi tiết, đầy đủ day ... giúp mình, nếu thiếu hoặc cần xác nhận gì thì nhắn mình trước khi code. Gửi các file, vị trí, các chỗ thay đổi hoặc thêm để mình copy vào dự án (không gửi patch, file zip)
+Mình gửi mục tiêu day ..., kiểm tra các file cần thiết, triển khai chuẩn, chi tiết, đầy đủ day ... giúp mình, nếu thiếu hoặc cần xác nhận gì thì tạm dừng, nhắn mình trước khi code (cần kiểm tra kỹ các file asmdef để tránh lỗi vòng lặp, phần debug cần rõ ràng). Gửi các file, vị trí, các chỗ thay đổi hoặc thêm để mình copy vào dự án (không gửi patch, file zip)
 
 # VS2 — VERTICAL SLICE #2 IMPLEMENTATION PLAN — LOCKED SPEC v0.1
 

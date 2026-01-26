@@ -40,6 +40,7 @@ namespace SeasonalBastion
         public IBuildOrderService BuildOrderService;
         public IAmmoService AmmoService;
         public ICombatService CombatService;
+        public IWaveCalendarResolver WaveCalendarResolver;
 
         // Rewards/Save
         public IRewardService RewardService;

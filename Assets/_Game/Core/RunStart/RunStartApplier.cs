@@ -1,4 +1,4 @@
-using SeasonalBastion.Contracts;
+﻿using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -66,6 +66,7 @@ namespace SeasonalBastion.RunStart
 
                 s.RunStartRuntime.SpawnGates.Clear();
                 s.RunStartRuntime.Zones.Clear();
+                s.RunStartRuntime.Lanes.Clear(); // Day27
 
                 if (cfg.spawnGates != null)
                 {
@@ -176,6 +177,34 @@ namespace SeasonalBastion.RunStart
                 }
             }
 
+            // Day27: Build lane table (laneId -> start cell -> dir -> target HQ)
+            if (s.RunStartRuntime != null)
+            {
+                // Resolve HQ target cell (center of HQ footprint)
+                if (TryResolveHQTargetCell(s, out var hqTarget))
+                {
+                    // Prefer cfg.spawnGates as source of truth (same as SpawnGates cache)
+                    if (cfg.spawnGates != null)
+                    {
+                        for (int i = 0; i < cfg.spawnGates.Length; i++)
+                        {
+                            var g = cfg.spawnGates[i];
+                            if (g == null || g.cell == null) continue;
+
+                            int laneId = g.lane;
+                            var start = new CellPos(g.cell.x, g.cell.y);
+                            var dir = ParseDir4(g.dirToHQ);
+
+                            if (TryResolveHQTargetCellAdjacent(s, dir, out var hqAdjTarget))
+                            {
+                                s.RunStartRuntime.Lanes[laneId] = new LaneRuntime(laneId, start, dir, hqAdjTarget);
+                            }
+                        }
+                    }
+                }
+            }
+
+
             // 3) Starting storage (Deliverable_B 2.3)
             ApplyStartingStorage(s);
 
@@ -209,6 +238,166 @@ namespace SeasonalBastion.RunStart
                 }
             }
 
+            return true;
+        }
+
+        // Day27: Resolve HQ target as an OUTSIDE cell adjacent to HQ footprint (4-neighbor).
+        // Prefer the side implied by dirToHQ (enemy approaches HQ along dirToHQ).
+        private static bool TryResolveHQTargetCellAdjacent(GameServices s, Dir4 dirToHQ, out CellPos target)
+        {
+            target = default;
+            if (s == null || s.WorldState == null || s.DataRegistry == null || s.GridMap == null) return false;
+
+            // 1) Find constructed HQ (deterministic by smallest BuildingId)
+            BuildingId best = default;
+            int bestId = int.MaxValue;
+
+            foreach (var id in s.WorldState.Buildings.Ids)
+            {
+                if (!s.WorldState.Buildings.Exists(id)) continue;
+                var st = s.WorldState.Buildings.Get(id);
+                if (!st.IsConstructed) continue;
+
+                bool isHQ = false;
+                try
+                {
+                    var def = s.DataRegistry.GetBuilding(st.DefId);
+                    isHQ = def.IsHQ;
+                }
+                catch { }
+
+                if (!isHQ && !string.Equals(st.DefId, "HQ", System.StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (id.Value < bestId)
+                {
+                    best = id;
+                    bestId = id.Value;
+                }
+            }
+
+            if (best.Value == 0) return false;
+
+            var hq = s.WorldState.Buildings.Get(best);
+
+            int w = 1, h = 1;
+            try
+            {
+                var def = s.DataRegistry.GetBuilding(hq.DefId);
+                w = System.Math.Max(1, def.SizeX);
+                h = System.Math.Max(1, def.SizeY);
+            }
+            catch { }
+
+            // 2) Pick preferred adjacent cell based on approach direction:
+            // If enemy moves N to reach HQ, it approaches HQ from the SOUTH side => target just below HQ footprint.
+            int midX = (w - 1) / 2;
+            int midY = (h - 1) / 2;
+
+            CellPos pref;
+            switch (dirToHQ)
+            {
+                case Dir4.N: pref = new CellPos(hq.Anchor.X + midX, hq.Anchor.Y - 1); break;          // south of HQ
+                case Dir4.S: pref = new CellPos(hq.Anchor.X + midX, hq.Anchor.Y + h); break;          // north of HQ
+                case Dir4.E: pref = new CellPos(hq.Anchor.X - 1, hq.Anchor.Y + midY); break;          // west of HQ
+                case Dir4.W: pref = new CellPos(hq.Anchor.X + w, hq.Anchor.Y + midY); break;          // east of HQ
+                default: pref = new CellPos(hq.Anchor.X + midX, hq.Anchor.Y - 1); break;
+            }
+
+            if (IsGoodTargetCell(s, pref))
+            {
+                target = pref;
+                return true;
+            }
+
+            // 3) Fallback: any valid adjacent cell around footprint (deterministic order)
+            // Order: South, West, North, East (you can change, but keep deterministic)
+            var candidates = new CellPos[]
+            {
+        new CellPos(hq.Anchor.X + midX, hq.Anchor.Y - 1),
+        new CellPos(hq.Anchor.X - 1, hq.Anchor.Y + midY),
+        new CellPos(hq.Anchor.X + midX, hq.Anchor.Y + h),
+        new CellPos(hq.Anchor.X + w, hq.Anchor.Y + midY),
+            };
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (!IsGoodTargetCell(s, candidates[i])) continue;
+                target = candidates[i];
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsGoodTargetCell(GameServices s, CellPos c)
+        {
+            var grid = s.GridMap;
+            if (!grid.IsInside(c)) return false;
+
+            // Không nằm trong footprint building nào
+            var occ = grid.Get(c).Kind;
+            if (occ == CellOccupancyKind.Building || occ == CellOccupancyKind.Site)
+                return false;
+
+            // Có thể cho phép đứng trên road hoặc ground đều OK. (Nếu bạn muốn bắt buộc road, bật check dưới)
+            // if (!grid.IsRoad(c)) return false;
+
+            return true;
+        }
+
+        // Day27: Resolve HQ target as center cell of HQ footprint (deterministic)
+        private static bool TryResolveHQTargetCell(GameServices s, out CellPos target)
+        {
+            target = default;
+            if (s == null || s.WorldState == null || s.DataRegistry == null) return false;
+
+            BuildingId best = default;
+            int bestId = int.MaxValue;
+
+            // Find constructed HQ by tag, fallback by DefId == "HQ"
+            foreach (var id in s.WorldState.Buildings.Ids)
+            {
+                if (!s.WorldState.Buildings.Exists(id)) continue;
+                var st = s.WorldState.Buildings.Get(id);
+                if (!st.IsConstructed) continue;
+
+                bool isHQ = false;
+                try
+                {
+                    var def = s.DataRegistry.GetBuilding(st.DefId);
+                    isHQ = def.IsHQ;
+                }
+                catch
+                {
+                    // ignore
+                }
+
+                if (!isHQ && !string.Equals(st.DefId, "HQ", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (id.Value < bestId)
+                {
+                    best = id;
+                    bestId = id.Value;
+                }
+            }
+
+            if (best.Value == 0) return false;
+
+            var hq = s.WorldState.Buildings.Get(best);
+
+            int w = 3, h = 3;
+            try
+            {
+                var def = s.DataRegistry.GetBuilding(hq.DefId);
+                w = Math.Max(1, def.SizeX);
+                h = Math.Max(1, def.SizeY);
+            }
+            catch { }
+
+            // center cell (integer)
+            target = new CellPos(hq.Anchor.X + (w - 1) / 2, hq.Anchor.Y + (h - 1) / 2);
             return true;
         }
 

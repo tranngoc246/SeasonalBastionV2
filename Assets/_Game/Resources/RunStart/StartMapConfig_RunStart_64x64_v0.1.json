@@ -16,337 +16,135 @@
     }
   },
   "roads": [
-    {
-      "x": 32,
-      "y": 22
-    },
-    {
-      "x": 32,
-      "y": 23
-    },
-    {
-      "x": 32,
-      "y": 24
-    },
-    {
-      "x": 32,
-      "y": 25
-    },
-    {
-      "x": 32,
-      "y": 26
-    },
-    {
-      "x": 32,
-      "y": 27
-    },
-    {
-      "x": 32,
-      "y": 28
-    },
-    {
-      "x": 32,
-      "y": 29
-    },
-    {
-      "x": 32,
-      "y": 30
-    },
-    {
-      "x": 33,
-      "y": 30
-    },
-    {
-      "x": 34,
-      "y": 30
-    },
-    {
-      "x": 35,
-      "y": 30
-    },
-    {
-      "x": 36,
-      "y": 30
-    },
-    {
-      "x": 32,
-      "y": 31
-    },
-    {
-      "x": 22,
-      "y": 32
-    },
-    {
-      "x": 23,
-      "y": 32
-    },
-    {
-      "x": 24,
-      "y": 32
-    },
-    {
-      "x": 25,
-      "y": 32
-    },
-    {
-      "x": 26,
-      "y": 32
-    },
-    {
-      "x": 27,
-      "y": 32
-    },
-    {
-      "x": 28,
-      "y": 32
-    },
-    {
-      "x": 29,
-      "y": 32
-    },
-    {
-      "x": 30,
-      "y": 32
-    },
-    {
-      "x": 31,
-      "y": 32
-    },
-    {
-      "x": 32,
-      "y": 32
-    },
-    {
-      "x": 33,
-      "y": 32
-    },
-    {
-      "x": 34,
-      "y": 32
-    },
-    {
-      "x": 35,
-      "y": 32
-    },
-    {
-      "x": 36,
-      "y": 32
-    },
-    {
-      "x": 37,
-      "y": 32
-    },
-    {
-      "x": 38,
-      "y": 32
-    },
-    {
-      "x": 39,
-      "y": 32
-    },
-    {
-      "x": 40,
-      "y": 32
-    },
-    {
-      "x": 41,
-      "y": 32
-    },
-    {
-      "x": 42,
-      "y": 32
-    },
-    {
-      "x": 32,
-      "y": 33
-    },
-    {
-      "x": 32,
-      "y": 34
-    },
-    {
-      "x": 33,
-      "y": 34
-    },
-    {
-      "x": 34,
-      "y": 34
-    },
-    {
-      "x": 32,
-      "y": 35
-    },
-    {
-      "x": 32,
-      "y": 36
-    },
-    {
-      "x": 32,
-      "y": 37
-    },
-    {
-      "x": 32,
-      "y": 38
-    },
-    {
-      "x": 32,
-      "y": 39
-    },
-    {
-      "x": 32,
-      "y": 40
-    },
-    {
-      "x": 32,
-      "y": 41
-    },
-    {
-      "x": 32,
-      "y": 42
-    }
+    { "x": 32, "y": 22 },
+    { "x": 32, "y": 23 },
+    { "x": 32, "y": 24 },
+    { "x": 32, "y": 25 },
+    { "x": 32, "y": 26 },
+    { "x": 32, "y": 27 },
+    { "x": 32, "y": 28 },
+    { "x": 32, "y": 29 },
+    { "x": 32, "y": 30 },
+    { "x": 33, "y": 30 },
+    { "x": 34, "y": 30 },
+    { "x": 35, "y": 30 },
+    { "x": 36, "y": 30 },
+    { "x": 32, "y": 31 },
+    { "x": 22, "y": 32 },
+    { "x": 23, "y": 32 },
+    { "x": 24, "y": 32 },
+    { "x": 25, "y": 32 },
+    { "x": 26, "y": 32 },
+    { "x": 27, "y": 32 },
+    { "x": 28, "y": 32 },
+    { "x": 29, "y": 32 },
+    { "x": 30, "y": 32 },
+    { "x": 31, "y": 32 },
+    { "x": 32, "y": 32 },
+    { "x": 33, "y": 32 },
+    { "x": 34, "y": 32 },
+    { "x": 35, "y": 32 },
+    { "x": 36, "y": 32 },
+    { "x": 37, "y": 32 },
+    { "x": 38, "y": 32 },
+    { "x": 39, "y": 32 },
+    { "x": 40, "y": 32 },
+    { "x": 41, "y": 32 },
+    { "x": 42, "y": 32 },
+    { "x": 32, "y": 33 },
+    { "x": 32, "y": 34 },
+    { "x": 33, "y": 34 },
+    { "x": 34, "y": 34 },
+    { "x": 32, "y": 35 },
+    { "x": 32, "y": 36 },
+    { "x": 32, "y": 37 },
+    { "x": 32, "y": 38 },
+    { "x": 32, "y": 39 },
+    { "x": 32, "y": 40 },
+    { "x": 32, "y": 41 },
+    { "x": 32, "y": 42 }
   ],
   "spawnGates": [
-    {
-      "lane": 0,
-      "cell": {
-        "x": 32,
-        "y": 63
-      },
-      "dirToHQ": "S"
-    },
-    {
-      "lane": 1,
-      "cell": {
-        "x": 63,
-        "y": 32
-      },
-      "dirToHQ": "W"
-    },
-    {
-      "lane": 2,
-      "cell": {
-        "x": 0,
-        "y": 32
-      },
-      "dirToHQ": "E"
-    }
+    { "lane": 0, "cell": { "x": 32, "y": 63 }, "dirToHQ": "S" },
+    { "lane": 1, "cell": { "x": 63, "y": 32 }, "dirToHQ": "W" },
+    { "lane": 2, "cell": { "x": 0, "y": 32 }, "dirToHQ": "E" }
   ],
   "zones": [
     {
       "zoneId": "zone_farm_start",
       "type": "FarmPlots",
       "ownerBuildingHint": "Farm",
-      "cellsRect": {
-        "xMin": 34,
-        "yMin": 26,
-        "xMax": 39,
-        "yMax": 27
-      },
+      "cellsRect": { "xMin": 34, "yMin": 26, "xMax": 39, "yMax": 27 },
       "cellCount": 12
     },
     {
       "zoneId": "zone_forest_start",
       "type": "ForestTiles",
       "ownerBuildingHint": "Lumber",
-      "cellsRect": {
-        "xMin": 20,
-        "yMin": 26,
-        "xMax": 23,
-        "yMax": 29
-      },
+      "cellsRect": { "xMin": 20, "yMin": 26, "xMax": 23, "yMax": 29 },
       "cellCount": 16
     }
   ],
   "initialBuildings": [
     {
       "defId": "HQ",
-      "anchor": {
-        "x": 30,
-        "y": 30
-      },
+      "anchor": { "x": 30, "y": 30 },
       "rotation": "N",
-      "notes": "HQ 3x3. Entry side assumed South so EntryAnchor near (31,29), road at (32,29) within driveway=1."
+      "notes": "HQ 5x5. Kept central. Spacing rule: other buildings placed with >=1 empty cell gap from HQ footprint."
     },
     {
       "defId": "House",
-      "anchor": {
-        "x": 29,
-        "y": 30
-      },
+      "anchor": { "x": 26, "y": 36 },
       "rotation": "N",
-      "notes": "House 2x2. Entry assumed East; road at x=32 within driveway=1 via EntryAnchor near (31,30)."
+      "notes": "House 3x3. Positioned NW of HQ with >=1-cell gap from HQ and other buildings."
     },
     {
       "defId": "House",
-      "anchor": {
-        "x": 29,
-        "y": 33
-      },
+      "anchor": { "x": 36, "y": 36 },
       "rotation": "N",
-      "notes": "Second house 2x2, same entry orientation."
+      "notes": "House 3x3. Positioned NE of HQ with >=1-cell gap from HQ and other buildings."
     },
     {
       "defId": "Farm",
-      "anchor": {
-        "x": 34,
-        "y": 30
-      },
+      "anchor": { "x": 36, "y": 30 },
       "rotation": "N",
-      "notes": "Farmhouse 2x2. Entry assumed North; road at y=32 adjacent to entry anchor (x≈35,y=32). Links to zone_farm_start."
+      "notes": "Farm 3x3. East of HQ with a 1-cell gap. Links to zone_farm_start."
     },
     {
       "defId": "Lumber",
-      "anchor": {
-        "x": 24,
-        "y": 30
-      },
+      "anchor": { "x": 20, "y": 30 },
       "rotation": "N",
-      "notes": "LumberCamp 2x2. Entry assumed North; road at y=32 adjacent. Links to zone_forest_start."
+      "notes": "Lumber 3x3. West side near zone_forest_start, with >=1-cell gap to other buildings. Links to zone_forest_start."
     },
     {
       "defId": "TowerArrow",
-      "anchor": {
-        "x": 31,
-        "y": 37
-      },
+      "anchor": { "x": 31, "y": 37 },
       "rotation": "N",
-      "initialStateOverrides": {
-        "ammo": "FULL",
-        "ammoPercent": 1.0
-      },
-      "notes": "1x1 tower off-road, entry assumed East so road cell (32,37) is adjacent."
+      "initialStateOverrides": { "ammo": "FULL", "ammoPercent": 1.0 },
+      "notes": "TowerArrow 3x3 (normalized). Placed north of HQ with >=1-cell gap from houses and HQ."
     }
   ],
   "initialNpcs": [
     {
       "npcDefId": "npc_villager_t1",
-      "spawnCell": {
-        "x": 31,
-        "y": 31
-      },
+      "spawnCell": { "x": 31, "y": 31 },
       "assignedWorkplaceDefId": "HQ",
       "jobProfile": "HQ_Build_Repair_HaulBasic",
       "notes": "HQ NPC: can HaulBasic immediately; Build/Repair later."
     },
     {
       "npcDefId": "npc_villager_t1",
-      "spawnCell": {
-        "x": 35,
-        "y": 31
-      },
+      "spawnCell": { "x": 37, "y": 31 },
       "assignedWorkplaceDefId": "Farm",
       "jobProfile": "Harvest_Food",
-      "notes": "Farm worker."
+      "notes": "Farm worker. Spawn moved to stay near updated Farm anchor."
     },
     {
       "npcDefId": "npc_villager_t1",
-      "spawnCell": {
-        "x": 25,
-        "y": 31
-      },
+      "spawnCell": { "x": 21, "y": 31 },
       "assignedWorkplaceDefId": "Lumber",
       "jobProfile": "Harvest_Wood",
-      "notes": "Lumber worker."
+      "notes": "Lumber worker. Spawn moved to stay near updated Lumber anchor."
     }
   ],
   "startHints": [

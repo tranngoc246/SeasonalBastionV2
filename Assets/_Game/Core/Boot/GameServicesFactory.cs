@@ -66,10 +66,11 @@ namespace SeasonalBastion
 
             // Rewards & Outcome
             services.RewardService = new RewardService(services);
-            services.RunOutcomeService = new RunOutcomeService(services.EventBus);
+            services.RunOutcomeService = new RunOutcomeService(services.EventBus, services.WorldState, services.DataRegistry);
 
             // Save
-            services.SaveService = new SaveService(new SaveMigrator(), services.DataRegistry);
+            var saveMigrator = new SaveMigrator();
+            services.SaveService = new SaveService(new SaveMigrator(), services.DataRegistry, services.GridMap);
 
             return services;
         }

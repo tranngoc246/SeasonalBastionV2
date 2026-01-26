@@ -74,6 +74,7 @@ namespace SeasonalBastion.DebugTools
         private bool _dataLastOk = true;
         private string _dataLastSummary = "Not validated";
 
+        private DebugSaveLoadHUD _saveLoadHUD = new DebugSaveLoadHUD();
 
         private void Awake()
         {
@@ -269,7 +270,6 @@ namespace SeasonalBastion.DebugTools
             else
                 GUILayout.Label("DebugRunClockHUD: missing (add component to scene if you want clock controls)");
 
-
             if (_combatLaneHud != null)
                 _combatLaneHud.DrawHubGUI();
             else
@@ -277,6 +277,10 @@ namespace SeasonalBastion.DebugTools
                 GUILayout.Space(10);
                 GUILayout.Label("DebugCombatLaneHUD: missing (add component to scene if you want lane spawn debug)");
             }
+
+            GUILayout.Space(10);
+            if (_gs != null) _saveLoadHUD.Draw(_gs);
+            else GUILayout.Label("SaveLoadHUD: GameServices is null");
 
         }
     }

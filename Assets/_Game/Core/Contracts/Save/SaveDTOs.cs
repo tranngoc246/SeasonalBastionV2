@@ -1,11 +1,3 @@
-// AUTO-GENERATED TEMPLATE from PART 25 (LOCKED v0.1)
-// Source: PART25_Technical_InterfacesPack_Services_Events_DTOs_LOCKED_SPEC_v0.1.md
-// Notes:
-// - Contracts only: interfaces/enums/structs/DTO/events.
-// - Do not put runtime logic here.
-// - Namespace kept unified to minimize cross-namespace friction.
-
-using System;
 using System.Collections.Generic;
 
 namespace SeasonalBastion.Contracts
@@ -19,6 +11,9 @@ namespace SeasonalBastion.Contracts
         public int dayIndex;
         public float timeScale;
 
+        public int yearIndex;    
+        public float dayTimer;   
+
         public WorldDTO world;
         public BuildDTO build;
         public CombatDTO combat;
@@ -29,7 +24,7 @@ namespace SeasonalBastion.Contracts
     {
         public int schemaVersion;
         public int currency;
-        public System.Collections.Generic.List<string> unlockIds;
-        public System.Collections.Generic.Dictionary<string,int> perkLevels;
+        public List<string> unlockIds;
+        public Dictionary<string,int> perkLevels;
     }
 }

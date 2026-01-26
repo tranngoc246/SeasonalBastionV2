@@ -20,6 +20,8 @@ namespace SeasonalBastion
 
         private float _dayTimer;
 
+        public float DayTimerSeconds => _dayTimer;
+
         // VS2 additions (not in contract): used by debug HUD and runtime logic.
         public int YearIndex { get; private set; } = 1; // 1-based
         public float DayElapsedSeconds => _dayTimer;
@@ -235,6 +237,26 @@ namespace SeasonalBastion
         private static Phase PhaseFromSeason(Season s)
         {
             return (s == Season.Autumn || s == Season.Winter) ? Phase.Defend : Phase.Build;
+        }
+
+        public void LoadSnapshot(int yearIndex, string seasonText, int dayIndex, float dayTimerSeconds, float timeScale)
+        {
+            YearIndex = Math.Max(1, yearIndex);
+
+            if (!Enum.TryParse<Season>(seasonText, out var s))
+                s = Season.Spring;
+
+            CurrentSeason = s;
+            DayIndex = Math.Max(1, dayIndex);
+
+            _dayTimer = Math.Max(0f, dayTimerSeconds);
+            SetTimeScale(timeScale);
+
+            // phase rule: Autumn/Winter => Defend, else Build
+            CurrentPhase = (CurrentSeason == Season.Autumn || CurrentSeason == Season.Winter) ? Phase.Defend : Phase.Build;
+
+            // Optional: emit event so systems re-latch safely
+            _bus.Publish(new DayStartedEvent(CurrentSeason, DayIndex, YearIndex, CurrentPhase));
         }
     }
 }

@@ -955,3 +955,77 @@
   - Ưu tiên target theo threat (vd: enemy gần HQ nhất) nếu spec yêu cầu.
   - Thêm projectile/FX (nếu mở scope) và damage apply rõ ràng lên Building durability khi enemy siege.
 
+  ---
+
+## Day 31 — RunOutcome + Save/Load tối thiểu
+
+### Mục tiêu
+- [x] Chốt run outcome theo luật tối thiểu:
+  - [x] **Defeat**: HQ HP <= 0
+  - [x] **Victory**: sống hết **Winter – Year 1** (theo scope VS2 hiện tại)
+- [x] Save/Load tối thiểu:
+  - [x] Serialize **clock snapshot** (year/season/day/phase + dayTimer + timeScale)
+  - [x] Serialize **world snapshot**: buildings + build sites + storage + npc + tower ammo + roads
+  - [x] Combat state: **reset khi load** (enemy/wave state optional → scope đơn giản)
+- [x] Debug rõ ràng để test nhanh trong Game View.
+
+### Đã làm
+- [v] **RunOutcomeService**
+  - Theo dõi HQ HP từ `WorldState` mỗi tick.
+  - Khi HQ HP <= 0:
+    - Set `Outcome = RunOutcome.Defeat`
+    - Emit event/run-ended callback để các hệ khác có thể phản ứng (UI/stop loop).
+  - Victory condition (scope VS2):
+    - Khi clock rollover qua hết Winter (Year 1) → `Outcome = RunOutcome.Victory`.
+  - Chuẩn hoá enum: dùng `RunOutcome.Ongoing` làm trạng thái mặc định (không dùng `None`).
+
+- [v] **SaveService / SaveMigrator**
+  - Lưu run ra file: `Application.persistentDataPath/run_save.json`
+  - DTO theo PART25: `RunSaveDTO` + `WorldDTO/BuildDTO/CombatDTO/RewardsDTO` (data-only).
+  - Migrator:
+    - `schemaVersion` stored + validate tối thiểu.
+    - Khi gặp schema cũ/thiếu field: fill default để không crash.
+
+- [v] **SaveLoadApplier**
+  - Apply theo thứ tự an toàn:
+    1) Clear runtime transient (jobs/enemy/combat runtime).
+    2) Apply clock snapshot.
+    3) Apply world:
+       - Buildings + Sites
+       - Storage
+       - NPC
+       - Towers (ammo + hp nếu có)
+       - **Roads**: rebuild lại road cells vào `GridMap`.
+  - Sau apply:
+    - Rebuild các caches/indices cần thiết (nếu có) để gameplay tiếp tục chạy.
+
+- [v] **Road persistence fix**
+  - Trước đó: log “Save roads = X” nhưng “Load roads = 0”.
+  - Đã fix để roads serialize/deserialize ổn định và apply lại vào `GridMap` đúng thứ tự.
+  - Bổ sung log chẩn đoán số lượng road trong save và sau apply.
+
+- [v] **Debug HUD**
+  - Thêm module Save/Load (nút Save / Load / DeleteRunSave + hiển thị `persistentDataPath`).
+  - Dùng để verify nhanh: Save → Stop Play → Play → Load.
+
+### Kết quả / Acceptance
+- [x] Save → quit (Stop Play) → load:
+  - World được phục hồi: buildings/sites/roads/tower ammo… đúng như lúc save.
+  - Clock tiếp tục chạy với đúng year/season/day/phase và dayTimer.
+  - Không crash khi file thiếu field (migrator default).
+- [x] Enemy/wave:
+  - Khi load: enemy spawn lại từ đầu (reset combat runtime) — **đúng scope Day31** vì “enemy/wave state optional”.
+
+### Ghi chú / Pitfalls
+- `Application.persistentDataPath` trên Editor (Windows) thường nằm ở:
+  - `%USERPROFILE%/AppData/LocalLow/<CompanyName>/<ProductName>/run_save.json`
+  - (có thể in ra path trong log/HUD để mở nhanh).
+- Nếu muốn “resume combat” đúng 100% (giữ enemy positions + wave timers):
+  - Cần serialize thêm `CombatDTO` mở rộng + enemy list + wave director internal timers (scope ngoài Day31).
+
+### Việc tiếp theo
+- Hardening Save/Load:
+  - Validate DTO không kéo `UnityEngine` types vào `Game.Contracts`.
+  - Add checksum / sanity checks nếu cần.
+- RunOutcome UI:
+  - Hiện panel thắng/thua + nút New Run / Continue.

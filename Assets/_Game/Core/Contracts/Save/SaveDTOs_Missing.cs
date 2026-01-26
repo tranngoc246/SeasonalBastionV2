@@ -1,20 +1,23 @@
-// PATCH v0.1.1 — Missing contract types to unblock compilation (Unity 2022.3)
-// This patch only adds placeholder contract DTOs/Ids/States referenced by Part 25 interfaces.
-// Keep these as pure data (no UnityEngine, no runtime logic).
 using System;
 using System.Collections.Generic;
-using UnityEngine.UIElements;
 
 namespace SeasonalBastion.Contracts
 {
+    [Serializable]
+    public struct CellPosI32
+    {
+        public int x;
+        public int y;
+        public CellPosI32(int x, int y) { this.x = x; this.y = y; }
+    }
 
-    /// <summary>Minimal DTO groupings referenced by save/load contracts. Expand later.</summary>
     public sealed class WorldDTO
     {
         public List<BuildingState> Buildings = new();
         public List<NpcState> Npcs = new();
         public List<TowerState> Towers = new();
         public List<EnemyState> Enemies = new();
+        public List<CellPosI32> Roads = new(); 
     }
 
     public sealed class BuildDTO

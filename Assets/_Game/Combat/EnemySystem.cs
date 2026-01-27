@@ -296,7 +296,6 @@ namespace SeasonalBastion
             }
 
             cd = DefaultAttackIntervalSec;
-            Debug.Log($"[EnemySystem] Enemy {enemy.Id.Value} hit HQ for {dmg}. HQ HP={hp}");
         }
 
         private void TryAttackBuilding(BuildingId bid, int dmg, ref float cd)

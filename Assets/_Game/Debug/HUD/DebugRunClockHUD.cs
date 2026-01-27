@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion.DebugTools
@@ -7,9 +7,7 @@ namespace SeasonalBastion.DebugTools
     /// Minimal RunClock debug panel:
     /// - Show Year/Season/Day/Phase + remaining seconds
     /// - Buttons for time scale (0/1/2/3)
-    /// - Day28: ForceSeasonDay quick jump buttons (Autumn/Winter defend trigger)
-    ///
-    /// Drawn by DebugHUDHub (no standalone hotkey).
+    /// - VS3 Day32: quick jump to Winter Year2 for Victory test
     /// </summary>
     public sealed class DebugRunClockHUD : MonoBehaviour
     {
@@ -47,18 +45,23 @@ namespace SeasonalBastion.DebugTools
             float rem = impl != null ? impl.DayRemainingSeconds : 0f;
             float el = impl != null ? impl.DayElapsedSeconds : 0f;
 
-            GUILayout.Label("=== RunClock (Day28 test) ===");
+            var outcomeSvc = _gs?.RunOutcomeService;
+            var outcome = outcomeSvc != null ? outcomeSvc.Outcome : RunOutcome.Ongoing;
+
+            GUILayout.Label("=== RunClock (VS3 Day32) ===");
             GUILayout.Label($"Year: {year}  | Season: {clock.CurrentSeason}  | Day: {clock.DayIndex}  | Phase: {clock.CurrentPhase}");
             GUILayout.Label($"TimeScale: {clock.TimeScale:0.##}   (DefendSpeedUnlocked: {clock.DefendSpeedUnlocked})");
+            GUILayout.Label($"RunOutcome: {outcome}");
+            GUILayout.Label("Victory rule: End of Winter (Day 4) of Year 2");
 
             if (impl != null)
                 GUILayout.Label($"DayTimer: {el:0.0}s / {len:0.0}s   (Remaining: {rem:0.0}s)");
             else
-                GUILayout.Label("(RunClockService not found: cannot show day timer / force season)");
+                GUILayout.Label("(RunClockService not found: cannot show day timer / jump)");
 
             GUILayout.Space(4);
 
-            // TimeScale controls (pause-aware wave timing)
+            // TimeScale controls
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Pause (0x)", GUILayout.Width(110))) clock.SetTimeScale(0f);
             if (GUILayout.Button("1x", GUILayout.Width(60))) clock.SetTimeScale(1f);
@@ -66,11 +69,39 @@ namespace SeasonalBastion.DebugTools
             if (GUILayout.Button("3x", GUILayout.Width(60))) clock.SetTimeScale(3f);
             GUILayout.EndHorizontal();
 
-            // Day28: ForceSeasonDay buttons
             if (impl != null)
             {
                 GUILayout.Space(6);
-                GUILayout.Label("Force Season/Day (trigger Defend):");
+                GUILayout.Label("Quick jump (for acceptance tests):");
+
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Jump: Winter Y2 D4 (Start)", GUILayout.Width(220)))
+                {
+                    impl.LoadSnapshot(
+                        yearIndex: 2,
+                        seasonText: Season.Winter.ToString(),
+                        dayIndex: 4,
+                        dayTimerSeconds: 0f,
+                        timeScale: 1f
+                    );
+                }
+
+                if (GUILayout.Button("Jump: Winter Y2 D4 (Near End)", GUILayout.Width(220)))
+                {
+                    // Set timer near end so DayEnded triggers quickly -> Victory
+                    float nearEnd = Mathf.Max(0f, impl.DayLengthSeconds - 0.2f);
+                    impl.LoadSnapshot(
+                        yearIndex: 2,
+                        seasonText: Season.Winter.ToString(),
+                        dayIndex: 4,
+                        dayTimerSeconds: nearEnd,
+                        timeScale: 1f
+                    );
+                }
+                GUILayout.EndHorizontal();
+
+                GUILayout.Space(6);
+                GUILayout.Label("Force Season/Day (Year giữ nguyên):");
 
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Spring D1", GUILayout.Width(90))) impl.ForceSeasonDay(Season.Spring, 1);
@@ -93,8 +124,6 @@ namespace SeasonalBastion.DebugTools
                 }
                 GUILayout.EndHorizontal();
             }
-
-            GUILayout.Label("Rule: Enter Defend (Autumn/Winter) -> wave auto-start. Pause stops wave timer.");
         }
     }
 }

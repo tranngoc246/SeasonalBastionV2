@@ -191,6 +191,30 @@ namespace SeasonalBastion
             _s.EventBus?.Publish(new WaveEndedEvent(waveId));
         }
 
+        // Day33: called by SaveLoadApplier after clock snapshot restored.
+        // Reset-wave option: restart day waves if Defend.
+        public void ResetAfterLoad(CombatDTO dto)
+        {
+            // Relatch current clock
+            _latchedPhase = _s.RunClock.CurrentPhase;
+            _latchedSeason = _s.RunClock.CurrentSeason;
+            _latchedDay = _s.RunClock.DayIndex;
+            _latchedYear = GetYearIndexOr1();
+
+            bool shouldDefend = (_latchedPhase == Phase.Defend);
+            if (dto != null) shouldDefend |= dto.IsDefendActive;
+
+            if (shouldDefend)
+            {
+                // keep existing enemies (restored from save) and restart waves
+                OnDefendPhaseStarted();
+            }
+            else
+            {
+                OnDefendPhaseEnded();
+            }
+        }
+
         private int GetYearIndexOr1()
         {
             if (_s.RunClock is RunClockService rc) return Math.Max(1, rc.YearIndex);

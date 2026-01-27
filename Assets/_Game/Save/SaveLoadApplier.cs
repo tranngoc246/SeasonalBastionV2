@@ -155,6 +155,20 @@ namespace SeasonalBastion
                     }
                 }
 
+                // 6.5) Restore enemies (Day33)
+                if (dto.world.Enemies != null)
+                {
+                    dto.world.Enemies.Sort((a, b) => a.Id.Value.CompareTo(b.Id.Value));
+
+                    for (int i = 0; i < dto.world.Enemies.Count; i++)
+                    {
+                        var e = dto.world.Enemies[i];
+                        var created = s.WorldState.Enemies.Create(e);
+                        e.Id = created;
+                        s.WorldState.Enemies.Set(created, e);
+                    }
+                }
+
                 // 7) Rebuild index
                 s.WorldIndex?.RebuildAll();
 
@@ -174,6 +188,12 @@ namespace SeasonalBastion
                     // fallback
                     s.RunClock?.ForceSeasonDay(ParseSeason(dto.season), dto.dayIndex);
                     s.RunClock?.SetTimeScale(dto.timeScale);
+                }
+
+                // 9) Day33: reset combat/wave state after load
+                if (s.CombatService is CombatService cs)
+                {
+                    cs.ResetAfterLoad(dto.combat);
                 }
 
                 return true;

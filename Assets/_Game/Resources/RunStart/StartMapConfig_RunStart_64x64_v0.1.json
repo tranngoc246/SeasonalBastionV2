@@ -16,20 +16,47 @@
     }
   },
   "roads": [
-    { "x": 32, "y": 22 },
-    { "x": 32, "y": 23 },
-    { "x": 32, "y": 24 },
-    { "x": 32, "y": 25 },
-    { "x": 32, "y": 26 },
-    { "x": 32, "y": 27 },
+    { "x": 28, "y": 28 },
+    { "x": 29, "y": 28 },
+    { "x": 30, "y": 28 },
+    { "x": 31, "y": 28 },
     { "x": 32, "y": 28 },
-    { "x": 32, "y": 29 },
-    { "x": 32, "y": 30 },
-    { "x": 33, "y": 30 },
-    { "x": 34, "y": 30 },
-    { "x": 35, "y": 30 },
+    { "x": 33, "y": 28 },
+    { "x": 34, "y": 28 },
+    { "x": 35, "y": 28 },
+    { "x": 36, "y": 28 },
+
+    { "x": 28, "y": 29 },
+    { "x": 36, "y": 29 },
+
+    { "x": 28, "y": 30 },
     { "x": 36, "y": 30 },
-    { "x": 32, "y": 31 },
+
+    { "x": 28, "y": 31 },
+    { "x": 36, "y": 31 },
+
+    { "x": 0, "y": 32 },
+    { "x": 1, "y": 32 },
+    { "x": 2, "y": 32 },
+    { "x": 3, "y": 32 },
+    { "x": 4, "y": 32 },
+    { "x": 5, "y": 32 },
+    { "x": 6, "y": 32 },
+    { "x": 7, "y": 32 },
+    { "x": 8, "y": 32 },
+    { "x": 9, "y": 32 },
+    { "x": 10, "y": 32 },
+    { "x": 11, "y": 32 },
+    { "x": 12, "y": 32 },
+    { "x": 13, "y": 32 },
+    { "x": 14, "y": 32 },
+    { "x": 15, "y": 32 },
+    { "x": 16, "y": 32 },
+    { "x": 17, "y": 32 },
+    { "x": 18, "y": 32 },
+    { "x": 19, "y": 32 },
+    { "x": 20, "y": 32 },
+    { "x": 21, "y": 32 },
     { "x": 22, "y": 32 },
     { "x": 23, "y": 32 },
     { "x": 24, "y": 32 },
@@ -37,13 +64,7 @@
     { "x": 26, "y": 32 },
     { "x": 27, "y": 32 },
     { "x": 28, "y": 32 },
-    { "x": 29, "y": 32 },
-    { "x": 30, "y": 32 },
-    { "x": 31, "y": 32 },
-    { "x": 32, "y": 32 },
-    { "x": 33, "y": 32 },
-    { "x": 34, "y": 32 },
-    { "x": 35, "y": 32 },
+
     { "x": 36, "y": 32 },
     { "x": 37, "y": 32 },
     { "x": 38, "y": 32 },
@@ -51,18 +72,74 @@
     { "x": 40, "y": 32 },
     { "x": 41, "y": 32 },
     { "x": 42, "y": 32 },
-    { "x": 32, "y": 33 },
-    { "x": 32, "y": 34 },
-    { "x": 33, "y": 34 },
-    { "x": 34, "y": 34 },
-    { "x": 32, "y": 35 },
+    { "x": 43, "y": 32 },
+    { "x": 44, "y": 32 },
+    { "x": 45, "y": 32 },
+    { "x": 46, "y": 32 },
+    { "x": 47, "y": 32 },
+    { "x": 48, "y": 32 },
+    { "x": 49, "y": 32 },
+    { "x": 50, "y": 32 },
+    { "x": 51, "y": 32 },
+    { "x": 52, "y": 32 },
+    { "x": 53, "y": 32 },
+    { "x": 54, "y": 32 },
+    { "x": 55, "y": 32 },
+    { "x": 56, "y": 32 },
+    { "x": 57, "y": 32 },
+    { "x": 58, "y": 32 },
+    { "x": 59, "y": 32 },
+    { "x": 60, "y": 32 },
+    { "x": 61, "y": 32 },
+    { "x": 62, "y": 32 },
+    { "x": 63, "y": 32 },
+
+    { "x": 28, "y": 33 },
+    { "x": 36, "y": 33 },
+
+    { "x": 28, "y": 34 },
+    { "x": 36, "y": 34 },
+
+    { "x": 28, "y": 35 },
+    { "x": 36, "y": 35 },
+
+    { "x": 28, "y": 36 },
+    { "x": 29, "y": 36 },
+    { "x": 30, "y": 36 },
+    { "x": 31, "y": 36 },
     { "x": 32, "y": 36 },
+    { "x": 33, "y": 36 },
+    { "x": 34, "y": 36 },
+    { "x": 35, "y": 36 },
+    { "x": 36, "y": 36 },
+
     { "x": 32, "y": 37 },
     { "x": 32, "y": 38 },
     { "x": 32, "y": 39 },
     { "x": 32, "y": 40 },
     { "x": 32, "y": 41 },
-    { "x": 32, "y": 42 }
+    { "x": 32, "y": 42 },
+    { "x": 32, "y": 43 },
+    { "x": 32, "y": 44 },
+    { "x": 32, "y": 45 },
+    { "x": 32, "y": 46 },
+    { "x": 32, "y": 47 },
+    { "x": 32, "y": 48 },
+    { "x": 32, "y": 49 },
+    { "x": 32, "y": 50 },
+    { "x": 32, "y": 51 },
+    { "x": 32, "y": 52 },
+    { "x": 32, "y": 53 },
+    { "x": 32, "y": 54 },
+    { "x": 32, "y": 55 },
+    { "x": 32, "y": 56 },
+    { "x": 32, "y": 57 },
+    { "x": 32, "y": 58 },
+    { "x": 32, "y": 59 },
+    { "x": 32, "y": 60 },
+    { "x": 32, "y": 61 },
+    { "x": 32, "y": 62 },
+    { "x": 32, "y": 63 }
   ],
   "spawnGates": [
     { "lane": 0, "cell": { "x": 32, "y": 63 }, "dirToHQ": "S" },
@@ -74,14 +151,14 @@
       "zoneId": "zone_farm_start",
       "type": "FarmPlots",
       "ownerBuildingHint": "bld_farmhouse_t1",
-      "cellsRect": { "xMin": 34, "yMin": 26, "xMax": 39, "yMax": 27 },
+      "cellsRect": { "xMin": 41, "yMin": 33, "xMax": 46, "yMax": 34 },
       "cellCount": 12
     },
     {
       "zoneId": "zone_forest_start",
       "type": "ForestTiles",
       "ownerBuildingHint": "bld_lumbercamp_t1",
-      "cellsRect": { "xMin": 20, "yMin": 26, "xMax": 23, "yMax": 29 },
+      "cellsRect": { "xMin": 18, "yMin": 35, "xMax": 21, "yMax": 38 },
       "cellCount": 16
     }
   ],
@@ -90,61 +167,61 @@
       "defId": "bld_hq_t1",
       "anchor": { "x": 30, "y": 30 },
       "rotation": "N",
-      "notes": "HQ 5x5. Kept central. Spacing rule: other buildings placed with >=1 empty cell gap from HQ footprint."
+      "notes": "HQ 5x5 fixed. Roads are kept >=1 empty cell away from HQ footprint."
     },
     {
       "defId": "bld_house_t1",
-      "anchor": { "x": 26, "y": 36 },
-      "rotation": "N",
-      "notes": "House 3x3. Positioned NW of HQ with >=1-cell gap from HQ and other buildings."
+      "anchor": { "x": 28, "y": 38 },
+      "rotation": "S",
+      "notes": "House 3x3. Driveway/Entry = (29,37) (EMPTY). Adjacent road at (29,36)."
     },
     {
       "defId": "bld_house_t1",
-      "anchor": { "x": 36, "y": 36 },
+      "anchor": { "x": 29, "y": 24 },
       "rotation": "N",
-      "notes": "House 3x3. Positioned NE of HQ with >=1-cell gap from HQ and other buildings."
+      "notes": "House 3x3. Driveway/Entry = (30,27) (EMPTY). Adjacent road at (30,28)."
     },
     {
       "defId": "bld_farmhouse_t1",
-      "anchor": { "x": 36, "y": 30 },
-      "rotation": "N",
-      "notes": "Farm 3x3. East of HQ with a 1-cell gap. Links to zone_farm_start."
+      "anchor": { "x": 38, "y": 35 },
+      "rotation": "W",
+      "notes": "Farm 3x3. Driveway/Entry = (37,36) (EMPTY). Adjacent road at (36,36). Links zone_farm_start."
     },
     {
       "defId": "bld_lumbercamp_t1",
-      "anchor": { "x": 20, "y": 30 },
-      "rotation": "N",
-      "notes": "Lumber 3x3. West side near zone_forest_start, with >=1-cell gap to other buildings. Links to zone_forest_start."
+      "anchor": { "x": 24, "y": 35 },
+      "rotation": "E",
+      "notes": "Lumber 3x3. Driveway/Entry = (27,36) (EMPTY). Adjacent road at (28,36). Links zone_forest_start."
     },
     {
       "defId": "bld_tower_arrow_t1",
-      "anchor": { "x": 31, "y": 37 },
-      "rotation": "N",
+      "anchor": { "x": 34, "y": 38 },
+      "rotation": "S",
       "initialStateOverrides": { "ammo": "FULL", "ammoPercent": 1.0 },
-      "notes": "TowerArrow 3x3 (normalized). Placed north of HQ with >=1-cell gap from houses and HQ."
+      "notes": "Tower 3x3. Driveway/Entry = (35,37) (EMPTY). Adjacent road at (35,36)."
     }
   ],
   "initialNpcs": [
     {
       "npcDefId": "npc_villager_t1",
-      "spawnCell": { "x": 31, "y": 31 },
+      "spawnCell": { "x": 29, "y": 29 },
       "assignedWorkplaceDefId": "bld_hq_t1",
       "jobProfile": "HQ_Build_Repair_HaulBasic",
-      "notes": "HQ NPC: can HaulBasic immediately; Build/Repair later."
+      "notes": "Spawn near HQ, not on road, not in footprint."
     },
     {
       "npcDefId": "npc_villager_t1",
-      "spawnCell": { "x": 37, "y": 31 },
+      "spawnCell": { "x": 37, "y": 35 },
       "assignedWorkplaceDefId": "bld_farmhouse_t1",
       "jobProfile": "Harvest_Food",
-      "notes": "Farm worker. Spawn moved to stay near updated Farm anchor."
+      "notes": "Spawn near farm, not on road."
     },
     {
       "npcDefId": "npc_villager_t1",
-      "spawnCell": { "x": 21, "y": 31 },
+      "spawnCell": { "x": 27, "y": 35 },
       "assignedWorkplaceDefId": "bld_lumbercamp_t1",
       "jobProfile": "Harvest_Wood",
-      "notes": "Lumber worker. Spawn moved to stay near updated Lumber anchor."
+      "notes": "Spawn near lumber, not on road."
     }
   ],
   "startHints": [
@@ -169,6 +246,7 @@
     "Driveway conversion happens on commit; converts at most 1 cell",
     "HQ workplace roles: Build/Repair/HaulBasic",
     "Warehouse cannot store Ammo (not placed at start)",
-    "Tower starts with full ammo"
+    "Tower starts with full ammo",
+    "Start layout invariant: Buildings keep >=1 empty cell gap from all roads/buildings; road-connect via driveway (entry outside footprint)."
   ]
 }

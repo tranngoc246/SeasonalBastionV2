@@ -53,6 +53,12 @@ namespace SeasonalBastion
                     build = new BuildFile(),
                 };
 
+                file.combat = new CombatFile
+                {
+                    currentWaveIndex = 0, // Reset-wave option: always restart from begin
+                    isDefendActive = (clock.CurrentPhase == Phase.Defend)
+                };
+
                 // Buildings
                 foreach (var id in world.Buildings.Ids)
                 {
@@ -148,6 +154,22 @@ namespace SeasonalBastion
                     });
                 }
 
+                // Enemies (Day33: persist enemies so load reset-wave can "carry" leftovers)
+                foreach (var id in world.Enemies.Ids)
+                {
+                    var e = world.Enemies.Get(id);
+                    file.world.enemies.Add(new SaveEnemy
+                    {
+                        id = e.Id.Value,
+                        defId = e.DefId,
+                        cellX = e.Cell.X,
+                        cellY = e.Cell.Y,
+                        hp = e.Hp,
+                        lane = e.Lane,
+                        move01 = e.MoveProgress01
+                    });
+                }
+
                 // Roads
                 if (_grid != null)
                 {
@@ -202,6 +224,16 @@ namespace SeasonalBastion
                     combat = new CombatDTO(),
                     rewards = new RewardsDTO(),
                 };
+
+                // Day33: combat snapshot minimal (reset-wave option)
+                // If file has combat, use it; else derive from season/phase.
+                dto.combat.CurrentWaveIndex = file.combat != null ? file.combat.currentWaveIndex : 0;
+
+                bool derivedDefend =
+                    dto.season == Season.Autumn.ToString() ||
+                    dto.season == Season.Winter.ToString();
+
+                dto.combat.IsDefendActive = file.combat != null ? file.combat.isDefendActive : derivedDefend;
 
                 // Roads
                 if (file.roads != null)
@@ -318,6 +350,24 @@ namespace SeasonalBastion
                     }
                 }
 
+                // Enemies
+                if (file.world?.enemies != null)
+                {
+                    for (int i = 0; i < file.world.enemies.Count; i++)
+                    {
+                        var e = file.world.enemies[i];
+                        dto.world.Enemies.Add(new EnemyState
+                        {
+                            Id = new EnemyId(e.id),
+                            DefId = e.defId,
+                            Cell = new CellPos(e.cellX, e.cellY),
+                            Hp = e.hp,
+                            Lane = e.lane,
+                            MoveProgress01 = e.move01
+                        });
+                    }
+                }
+
                 if (!_migrator.TryMigrate(dto, out var migrated))
                     return new SaveResult(SaveResultCode.IncompatibleSchema, "Migrate failed");
 
@@ -415,6 +465,7 @@ namespace SeasonalBastion
             public float dayTimer;
             public WorldFile world;
             public BuildFile build;
+            public CombatFile combat; 
             public List<CellPosI32> roads = new();
         }
 
@@ -424,6 +475,7 @@ namespace SeasonalBastion
             public List<SaveBuilding> buildings = new();
             public List<SaveNpc> npcs = new();
             public List<SaveTower> towers = new();
+            public List<SaveEnemy> enemies = new();
         }
 
         [Serializable]
@@ -500,6 +552,24 @@ namespace SeasonalBastion
         {
             public string key;
             public int value;
+        }
+
+        [Serializable]
+        private sealed class CombatFile
+        {
+            public int currentWaveIndex;
+            public bool isDefendActive;
+        }
+
+        [Serializable]
+        private struct SaveEnemy
+        {
+            public int id;
+            public string defId;
+            public int cellX, cellY;
+            public int hp;
+            public int lane;
+            public float move01;
         }
     }
 }

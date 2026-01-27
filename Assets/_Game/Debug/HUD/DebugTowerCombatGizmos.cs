@@ -40,7 +40,16 @@ namespace SeasonalBastion.DebugTools
             var data = s.DataRegistry;
 
             if (w.Towers == null || w.Enemies == null || w.Buildings == null) return;
-            if (w.Towers.Count <= 0) return;
+            if (w.Towers.Count <= 0)
+            {
+                // No TowerStore entries -> nothing to draw (avoid silent fail)
+                // Keep this as a warning in-editor so you know why gizmos missing.
+#if UNITY_EDITOR
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawSphere(_gridOrigin, 0.1f);
+#endif
+                return;
+            }
 
             // deterministic lists
             _towers.Clear();
@@ -59,7 +68,7 @@ namespace SeasonalBastion.DebugTools
                 var t = w.Towers.Get(tid);
 
                 if (!TryResolveTowerDefId(s, t.Cell, out var towerDefId))
-                    towerDefId = "TowerArrow";
+                    towerDefId = "bld_tower_arrow_t1";
 
                 TowerDef tdef = null;
                 try { tdef = data.GetTower(towerDefId); }
@@ -99,6 +108,7 @@ namespace SeasonalBastion.DebugTools
 
             int bestD2 = int.MaxValue;
             int bestId = int.MaxValue;
+            bool found = false;
 
             for (int i = 0; i < _enemies.Count; i++)
             {
@@ -119,10 +129,11 @@ namespace SeasonalBastion.DebugTools
                     bestD2 = d2;
                     bestId = idv;
                     best = eid;
+                    found = true;
                 }
             }
 
-            return best.Value != 0;
+            return found;
         }
 
         private bool TryResolveTowerDefId(GameServices s, CellPos towerAnchor, out string towerDefId)

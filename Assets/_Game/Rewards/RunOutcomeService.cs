@@ -1,5 +1,4 @@
-﻿// _Game/Rewards/RunOutcomeService.cs
-using System;
+﻿using System;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
@@ -38,7 +37,7 @@ namespace SeasonalBastion
             if (Outcome != RunOutcome.Ongoing) return;
             if (_world?.Buildings == null) return;
 
-            // Defeat rule: any HQ HP <= 0
+            // Defeat rule: HQ HP <= 0
             foreach (var id in _world.Buildings.Ids)
             {
                 var b = _world.Buildings.Get(id);
@@ -56,8 +55,9 @@ namespace SeasonalBastion
         {
             if (Outcome != RunOutcome.Ongoing) return;
 
-            // Victory rule (v0.1): survive hết Winter Y1 (Winter has 4 days in current RunClock)
-            if (e.YearIndex == 1 && e.Season == Season.Winter && e.DayIndex >= 4)
+            // VS3/GDD: Victory = survive hết Winter (day cuối) của Year 2.
+            // Calendar hiện tại: Winter có 4 ngày (Day 1..4).
+            if (e.YearIndex == 2 && e.Season == Season.Winter && e.DayIndex >= 4)
             {
                 Victory();
             }
@@ -66,6 +66,8 @@ namespace SeasonalBastion
         private bool IsHQ(string defId)
         {
             if (string.IsNullOrEmpty(defId)) return false;
+
+            // Fallback hard-coded (data hiện tại dùng bld_hq_t1)
             if (defId == "bld_hq_t1") return true;
 
             try
@@ -83,6 +85,7 @@ namespace SeasonalBastion
         {
             if (Outcome != RunOutcome.Ongoing) return;
             Outcome = RunOutcome.Defeat;
+            _bus?.Publish(new RunEndedEvent(Outcome));
             OnRunEnded?.Invoke(Outcome);
         }
 
@@ -90,6 +93,7 @@ namespace SeasonalBastion
         {
             if (Outcome != RunOutcome.Ongoing) return;
             Outcome = RunOutcome.Victory;
+            _bus?.Publish(new RunEndedEvent(Outcome));
             OnRunEnded?.Invoke(Outcome);
         }
 
@@ -97,6 +101,7 @@ namespace SeasonalBastion
         {
             if (Outcome != RunOutcome.Ongoing) return;
             Outcome = RunOutcome.Abort;
+            _bus?.Publish(new RunEndedEvent(Outcome));
             OnRunEnded?.Invoke(Outcome);
         }
     }

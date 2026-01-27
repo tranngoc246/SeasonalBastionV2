@@ -5,23 +5,53 @@
       "sizeX": 5,
       "sizeY": 5,
       "baseLevel": 1,
+      "hp": 1000,
       "isHQ": true,
       "isWarehouse": true,
-      "workRoles": ["Build", "HaulBasic"],
-      "capWood": { "L1": 120, "L2": 180, "L3": 240 },
-      "capFood": { "L1": 120, "L2": 180, "L3": 240 },
-      "capStone": { "L1": 120, "L2": 180, "L3": 240 },
-      "capIron": { "L1": 120, "L2": 180, "L3": 240 },
-      "capAmmo": { "L1": 0, "L2": 0, "L3": 0 }
+      "workRoles": [
+        "Build",
+        "HaulBasic"
+      ],
+      "capWood": {
+        "L1": 120,
+        "L2": 180,
+        "L3": 240
+      },
+      "capFood": {
+        "L1": 120,
+        "L2": 180,
+        "L3": 240
+      },
+      "capStone": {
+        "L1": 120,
+        "L2": 180,
+        "L3": 240
+      },
+      "capIron": {
+        "L1": 120,
+        "L2": 180,
+        "L3": 240
+      },
+      "capAmmo": {
+        "L1": 0,
+        "L2": 0,
+        "L3": 0
+      }
     },
     {
       "id": "bld_house_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
+      "hp": 150,
       "isHouse": true,
       "workRoles": [],
-      "buildCostsL1": [ { "res": 0, "amt": 20 } ],
+      "buildCostsL1": [
+        {
+          "res": 0,
+          "amt": 20
+        }
+      ],
       "buildChunksL1": 2
     },
     {
@@ -29,85 +59,219 @@
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
+      "hp": 240,
       "isProducer": true,
-      "workRoles": ["Harvest"],
-      "buildCostsL1": [ { "res": 0, "amt": 25 } ],
-      "buildChunksL1": 2,
-      "capFood": { "L1": 30, "L2": 60, "L3": 90 }
+      "workRoles": [
+        "Harvest"
+      ],
+      "capFood": {
+        "L1": 30,
+        "L2": 60,
+        "L3": 90
+      },
+      "buildCostsL1": [
+        {
+          "res": 0,
+          "amt": 25
+        }
+      ],
+      "buildChunksL1": 2
     },
     {
       "id": "bld_lumbercamp_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
+      "hp": 220,
       "isProducer": true,
-      "workRoles": ["Harvest"],
-      "buildCostsL1": [ { "res": 0, "amt": 20 } ],
-      "buildChunksL1": 2,
-      "capWood": { "L1": 40, "L2": 80, "L3": 120 }
+      "workRoles": [
+        "Harvest"
+      ],
+      "capWood": {
+        "L1": 40,
+        "L2": 80,
+        "L3": 120
+      },
+      "buildCostsL1": [
+        {
+          "res": 0,
+          "amt": 20
+        }
+      ],
+      "buildChunksL1": 2
     },
     {
       "id": "bld_quarry_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
+      "hp": 260,
       "isProducer": true,
-      "workRoles": ["Harvest"],
-      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 20 } ],
-      "buildChunksL1": 3,
-      "capStone": { "L1": 40, "L2": 80, "L3": 120 }
+      "workRoles": [
+        "Harvest"
+      ],
+      "capStone": {
+        "L1": 40,
+        "L2": 80,
+        "L3": 120
+      },
+      "buildCostsL1": [
+        {
+          "res": 0,
+          "amt": 25
+        },
+        {
+          "res": 2,
+          "amt": 20
+        }
+      ],
+      "buildChunksL1": 3
     },
     {
       "id": "bld_ironhut_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
+      "hp": 260,
       "isProducer": true,
-      "workRoles": ["Harvest"],
-      "buildCostsL1": [ { "res": 0, "amt": 30 }, { "res": 2, "amt": 20 } ],
-      "buildChunksL1": 3,
-      "capIron": { "L1": 30, "L2": 60, "L3": 90 }
+      "workRoles": [
+        "Harvest"
+      ],
+      "capIron": {
+        "L1": 30,
+        "L2": 60,
+        "L3": 90
+      },
+      "buildCostsL1": [
+        {
+          "res": 0,
+          "amt": 30
+        },
+        {
+          "res": 2,
+          "amt": 20
+        }
+      ],
+      "buildChunksL1": 3
     },
     {
       "id": "bld_forge_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
+      "hp": 300,
       "isForge": true,
-      "workRoles": ["Craft"],
-      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 20 }, { "res": 3, "amt": 10 } ],
-      "buildChunksL1": 3,
-
-      "capWood": { "L1": 30, "L2": 60, "L3": 90 },
-      "capIron": { "L1": 30, "L2": 60, "L3": 90 },
-
-      "capAmmo": { "L1": 50, "L2": 100, "L3": 150 }
+      "workRoles": [
+        "Craft"
+      ],
+      "capWood": {
+        "L1": 30,
+        "L2": 60,
+        "L3": 90
+      },
+      "capIron": {
+        "L1": 30,
+        "L2": 60,
+        "L3": 90
+      },
+      "capAmmo": {
+        "L1": 50,
+        "L2": 100,
+        "L3": 150
+      },
+      "buildCostsL1": [
+        {
+          "res": 0,
+          "amt": 25
+        },
+        {
+          "res": 2,
+          "amt": 20
+        },
+        {
+          "res": 3,
+          "amt": 10
+        }
+      ],
+      "buildChunksL1": 3
     },
     {
       "id": "bld_armory_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
+      "hp": 340,
       "isArmory": true,
-      "workRoles": ["Armory"],
-      "buildCostsL1": [ { "res": 0, "amt": 25 }, { "res": 2, "amt": 30 }, { "res": 3, "amt": 10 } ],
-      "buildChunksL1": 3,
-      "capAmmo": { "L1": 300, "L2": 600, "L3": 1000 }
+      "workRoles": [
+        "Armory"
+      ],
+      "capAmmo": {
+        "L1": 300,
+        "L2": 600,
+        "L3": 1000
+      },
+      "buildCostsL1": [
+        {
+          "res": 0,
+          "amt": 25
+        },
+        {
+          "res": 2,
+          "amt": 30
+        },
+        {
+          "res": 3,
+          "amt": 10
+        }
+      ],
+      "buildChunksL1": 3
     },
     {
       "id": "bld_warehouse_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
+      "hp": 300,
       "isWarehouse": true,
-      "workRoles": ["HaulBasic"],
-      "buildCostsL1": [ { "res": 0, "amt": 30 }, { "res": 2, "amt": 20 } ],
-      "buildChunksL1": 3,
-      "capWood": { "L1": 300, "L2": 600, "L3": 1000 },
-      "capFood": { "L1": 300, "L2": 600, "L3": 1000 },
-      "capStone": { "L1": 300, "L2": 600, "L3": 1000 },
-      "capIron": { "L1": 300, "L2": 600, "L3": 1000 },
-      "capAmmo": { "L1": 0, "L2": 0, "L3": 0 }
+      "workRoles": [
+        "HaulBasic"
+      ],
+      "capWood": {
+        "L1": 300,
+        "L2": 600,
+        "L3": 1000
+      },
+      "capFood": {
+        "L1": 300,
+        "L2": 600,
+        "L3": 1000
+      },
+      "capStone": {
+        "L1": 300,
+        "L2": 600,
+        "L3": 1000
+      },
+      "capIron": {
+        "L1": 300,
+        "L2": 600,
+        "L3": 1000
+      },
+      "capAmmo": {
+        "L1": 0,
+        "L2": 0,
+        "L3": 0
+      },
+      "buildCostsL1": [
+        {
+          "res": 0,
+          "amt": 30
+        },
+        {
+          "res": 2,
+          "amt": 20
+        }
+      ],
+      "buildChunksL1": 3
     }
   ]
 }

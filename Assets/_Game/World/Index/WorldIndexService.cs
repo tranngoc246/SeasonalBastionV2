@@ -184,7 +184,7 @@ namespace SeasonalBastion
                 || string.Equals(defId, "bld_ironhut_t1", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(defId, "bld_forge_t1", StringComparison.OrdinalIgnoreCase);
 
-            IsHouse = string.Equals(defId, "bld_warehouse_t1", StringComparison.OrdinalIgnoreCase);
+            IsHouse = string.Equals(defId, "bld_house_t1", StringComparison.OrdinalIgnoreCase);
             isForge = string.Equals(defId, "bld_forge_t1", StringComparison.OrdinalIgnoreCase);
             isArmory = string.Equals(defId, "bld_armory_t1", StringComparison.OrdinalIgnoreCase);
             isTower = false;

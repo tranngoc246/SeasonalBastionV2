@@ -249,14 +249,16 @@ namespace SeasonalBastion
             CurrentSeason = s;
             DayIndex = Math.Max(1, dayIndex);
 
-            _dayTimer = Math.Max(0f, dayTimerSeconds);
-            SetTimeScale(timeScale);
-
             // phase rule: Autumn/Winter => Defend, else Build
             CurrentPhase = (CurrentSeason == Season.Autumn || CurrentSeason == Season.Winter) ? Phase.Defend : Phase.Build;
 
+            _dayTimer = Math.Max(0f, dayTimerSeconds);
+
+            // Apply timeScale AFTER phase is set, so Defend clamp rule is correct.
+            SetTimeScaleInternal(timeScale, forced: true);
+
             // Optional: emit event so systems re-latch safely
-            _bus.Publish(new DayStartedEvent(CurrentSeason, DayIndex, YearIndex, CurrentPhase));
+            _bus?.Publish(new DayStartedEvent(CurrentSeason, DayIndex, YearIndex, CurrentPhase));
         }
     }
 }

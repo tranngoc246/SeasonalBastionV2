@@ -155,6 +155,16 @@ namespace SeasonalBastion.RunStart
                         IsConstructed = true
                     };
 
+                    try
+                    {
+                        int hpMax = Mathf.Max(1, def.MaxHp);
+                        st.HP = hpMax; 
+                    }
+                    catch
+                    {
+                        st.HP = 1;
+                    }
+
                     var id = s.WorldState.Buildings.Create(st);
                     st.Id = id;
                     s.WorldState.Buildings.Set(id, st);
@@ -163,6 +173,8 @@ namespace SeasonalBastion.RunStart
                     for (int dy = 0; dy < h; dy++)
                         for (int dx = 0; dx < w; dx++)
                             s.GridMap.SetBuilding(new CellPos(st.Anchor.X + dx, st.Anchor.Y + dy), id);
+
+                    PromoteRunStartEntryRoads(s, st, w, h);
 
                     // WorldIndex bookkeeping
                     try { s.WorldIndex?.OnBuildingCreated(id); } catch { }
@@ -527,6 +539,57 @@ namespace SeasonalBastion.RunStart
                 'S' => Dir4.S,
                 'W' => Dir4.W,
                 _ => Dir4.N
+            };
+        }
+
+        private const string HQ_DEFID = "bld_hq_t1";
+
+        private static void PromoteRunStartEntryRoads(GameServices s, BuildingState b, int w, int h)
+        {
+            // Safety
+            if (s == null || s.GridMap == null) return;
+
+            // HQ wants 4 entry cells (N/E/S/W), regardless of rotation.
+            if (string.Equals(b.DefId, HQ_DEFID, StringComparison.OrdinalIgnoreCase))
+            {
+                PromoteRoadIfPossible(s, ComputeEntryOutsideFootprint(b.Anchor, w, h, Dir4.N));
+                PromoteRoadIfPossible(s, ComputeEntryOutsideFootprint(b.Anchor, w, h, Dir4.S));
+                PromoteRoadIfPossible(s, ComputeEntryOutsideFootprint(b.Anchor, w, h, Dir4.E));
+                PromoteRoadIfPossible(s, ComputeEntryOutsideFootprint(b.Anchor, w, h, Dir4.W));
+                return;
+            }
+
+            // Normal buildings: single entry based on rotation
+            PromoteRoadIfPossible(s, ComputeEntryOutsideFootprint(b.Anchor, w, h, b.Rotation));
+        }
+
+        private static void PromoteRoadIfPossible(GameServices s, CellPos cell)
+        {
+            // Only promote if inside and not occupied by building/site; if already road => keep.
+            if (!s.GridMap.IsInside(cell)) return;
+
+            // Don't overwrite building footprint
+            var occ = s.GridMap.Get(cell);
+            if (occ.Kind == CellOccupancyKind.Building) return;
+            if (occ.Kind == CellOccupancyKind.Site) return;
+
+            if (!s.GridMap.IsRoad(cell))
+                s.GridMap.SetRoad(cell, true);
+        }
+
+        // Entry/Driveway = middle of the FRONT edge, 1 cell OUTSIDE footprint (deterministic).
+        private static CellPos ComputeEntryOutsideFootprint(CellPos anchor, int w, int h, Dir4 rot)
+        {
+            int cx = w / 2;
+            int cy = h / 2;
+
+            return rot switch
+            {
+                Dir4.N => new CellPos(anchor.X + cx, anchor.Y + h),     // outside north
+                Dir4.S => new CellPos(anchor.X + cx, anchor.Y - 1),     // outside south
+                Dir4.E => new CellPos(anchor.X + w, anchor.Y + cy),    // outside east
+                Dir4.W => new CellPos(anchor.X - 1, anchor.Y + cy),    // outside west
+                _ => new CellPos(anchor.X + cx, anchor.Y + h),
             };
         }
 

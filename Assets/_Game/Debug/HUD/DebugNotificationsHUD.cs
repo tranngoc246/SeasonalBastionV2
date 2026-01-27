@@ -2,6 +2,8 @@
 using SeasonalBastion.Contracts;
 using UnityEngine;
 
+namespace SeasonalBastion.DebugTools
+{
 public sealed class DebugNotificationsHUD : MonoBehaviour
 {
     [SerializeField] private GameBootstrap _bootstrap;
@@ -90,4 +92,5 @@ public sealed class DebugNotificationsHUD : MonoBehaviour
         if (SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
         DrawHubGUI();
     }
+}
 }

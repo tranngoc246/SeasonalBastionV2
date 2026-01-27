@@ -29,12 +29,6 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private bool _hubControlled;
         public void SetHubControlled(bool v) => _hubControlled = v;
         public void SetEnabledFromHub(bool enabled) { _enabled = enabled; }
-
-        private InputAction _toggle; // N
-        private InputAction _spawn;  // P
-        private InputAction _click;  // LMB
-        private InputAction _release; // R
-
         private Camera _cam;
         private bool _enabled;
 
@@ -57,12 +51,6 @@ namespace SeasonalBastion.DebugTools
         {
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
-            if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
-
-            _toggle = new InputAction("ToggleNpcTool", InputActionType.Button, "<Keyboard>/n");
-            _spawn = new InputAction("SpawnNpc", InputActionType.Button, "<Keyboard>/p");
-            _click = new InputAction("AssignNpc", InputActionType.Button, "<Mouse>/leftButton");
-            _release = new InputAction("ReleaseAllClaimsSelectedNpc", InputActionType.Button, "<Keyboard>/r");
         }
 
         private void Start()
@@ -82,33 +70,13 @@ namespace SeasonalBastion.DebugTools
 
         private void OnEnable()
         {
-            _toggle.Enable();
-            _spawn.Enable();
-            _click.Enable();
-            _release.Enable();
-
-            _toggle.performed += OnToggle;
-            _spawn.performed += OnSpawn;
-            _click.performed += OnClick;
-            _release.performed += OnReleaseAllClaims;
-
+            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+            if (_cam == null) _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
         }
 
         private void OnDisable()
         {
-            _toggle.performed -= OnToggle;
-            _spawn.performed -= OnSpawn;
-            _click.performed -= OnClick;
-            _release.performed -= OnReleaseAllClaims;
-
-            _toggle.Disable();
-            _spawn.Disable();
-            _click.Disable();
-            _release.Disable();
-
-            _enabled = false;
-            _hasSelectedNpc = false;
-            _hasHover = false;
+            // no-op
         }
 
         private void Update()
@@ -131,7 +99,21 @@ namespace SeasonalBastion.DebugTools
             }
 
             _hasHover = TryGetCellUnderMouse(out _hoverCell);
-        }
+        
+            // ---- Input polling (Option B: no InputActions in tool) ----
+            var kb = Keyboard.current;
+            var mouse = Mouse.current;
+
+            if (kb != null)
+            {
+                if (kb.nKey.wasPressedThisFrame) OnToggle(default);
+                if (kb.pKey.wasPressedThisFrame) OnSpawn(default);
+                if (kb.cKey.wasPressedThisFrame) OnReleaseAllClaims(default);
+            }
+
+            if (_enabled && mouse != null && mouse.leftButton.wasPressedThisFrame)
+                OnClick(default);
+}
 
         private void OnToggle(InputAction.CallbackContext _)
         {
@@ -412,19 +394,6 @@ namespace SeasonalBastion.DebugTools
 
             if (tmp.Count > show)
                 GUILayout.Label($"... ({tmp.Count - show} more)");
-        }
-
-        private void OnGUI()
-        {
-            if (DebugHubState.Enabled) return;
-
-            if (_world == null) return;
-
-            GUILayout.BeginArea(new Rect(10f, 300f, 520f, 220f), GUI.skin.box);
-
-            DrawHubGUI();
-
-            GUILayout.EndArea();
         }
 
         private bool TryGetCellUnderMouse(out CellPos cell)

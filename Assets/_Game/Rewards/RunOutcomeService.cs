@@ -66,7 +66,7 @@ namespace SeasonalBastion
         private bool IsHQ(string defId)
         {
             if (string.IsNullOrEmpty(defId)) return false;
-            if (defId == "HQ") return true;
+            if (defId == "bld_hq_t1") return true;
 
             try
             {

@@ -77,7 +77,7 @@ namespace SeasonalBastion
                 if (!TryResolveTowerDefId(t.Cell, out var towerDefId))
                 {
                     // fallback: common v0.1
-                    towerDefId = "TowerArrow";
+                    towerDefId = "bld_tower_arrow_t1";
                 }
 
                 TowerDef tdef;

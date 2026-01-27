@@ -213,7 +213,7 @@ namespace SeasonalBastion
 
                 if (!st.IsConstructed) continue;
 
-                bool isHQ = string.Equals(st.DefId, "HQ", StringComparison.OrdinalIgnoreCase);
+                bool isHQ = string.Equals(st.DefId, "bld_hq_t1", StringComparison.OrdinalIgnoreCase);
                 if (!isHQ)
                 {
                     // If defs use tags, try them (safe)

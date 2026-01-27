@@ -10,11 +10,11 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private GameBootstrap _bootstrap;
 
         [Header("Defs (ids must exist in DataRegistry)")]
-        [SerializeField] private string _def1 = "HQ";
-        [SerializeField] private string _def2 = "House";
-        [SerializeField] private string _def3 = "Farm";
-        [SerializeField] private string _def4 = "Lumber";
-        [SerializeField] private string _def5 = "Warehouse";
+        [SerializeField] private string _def1 = "bld_armory_t1";
+        [SerializeField] private string _def2 = "bld_forge_t1";
+        [SerializeField] private string _def3 = "bld_farmhouse_t1";
+        [SerializeField] private string _def4 = "bld_lumbercamp_t1";
+        [SerializeField] private string _def5 = "bld_warehouse_t1";
 
         [Header("Grid Mapping")]
         [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
@@ -43,15 +43,6 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private Color _okColor = new Color(0f, 1f, 0f, 1f);
         [SerializeField] private Color _failColor = new Color(1f, 0f, 0f, 1f);
         [SerializeField] private Color _drivewayColor = new Color(1f, 1f, 0f, 1f);
-
-        private InputAction _toggle;     // B
-        private InputAction _click;      // LMB
-        private InputAction _sel1, _sel2, _sel3, _sel4, _sel5; // 1..5
-        private InputAction _rotL, _rotR; // Q/E
-
-        private InputAction _cancel;  // X (cancel build)
-        private InputAction _damage;  // K (damage building)
-        private InputAction _repair;  // R (request repair)
         private Camera _cam;
         private bool _enabled;
 
@@ -76,24 +67,7 @@ namespace SeasonalBastion.DebugTools
         {
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _cam = Camera.main;
-
-            _toggle = new InputAction("ToggleBuildingTool", InputActionType.Button, "<Keyboard>/b");
-            _click = new InputAction("PlaceBuilding", InputActionType.Button, "<Mouse>/leftButton");
-
-            _sel1 = new InputAction("Sel1", InputActionType.Button, "<Keyboard>/1");
-            _sel2 = new InputAction("Sel2", InputActionType.Button, "<Keyboard>/2");
-            _sel3 = new InputAction("Sel3", InputActionType.Button, "<Keyboard>/3");
-            _sel4 = new InputAction("Sel4", InputActionType.Button, "<Keyboard>/4");
-            _sel5 = new InputAction("Sel5", InputActionType.Button, "<Keyboard>/5");
-
-            _rotL = new InputAction("RotL", InputActionType.Button, "<Keyboard>/q");
-            _rotR = new InputAction("RotR", InputActionType.Button, "<Keyboard>/e");
-
-
-            _cancel = new InputAction("CancelBuild", InputActionType.Button, "<Keyboard>/x");
-            _damage = new InputAction("DamageBuilding", InputActionType.Button, "<Keyboard>/k");
-            _repair = new InputAction("RepairBuilding", InputActionType.Button, "<Keyboard>/r");
-            _selectedDef = _def1;
+            _cacheValid = false;
         }
 
         private void Start()
@@ -109,60 +83,28 @@ namespace SeasonalBastion.DebugTools
 
         private void OnEnable()
         {
-            _toggle.Enable();
-            _click.Enable();
-            _sel1.Enable(); _sel2.Enable(); _sel3.Enable(); _sel4.Enable(); _sel5.Enable();
-            _rotL.Enable(); _rotR.Enable();
-            _cancel.Enable();
-            _damage.Enable();
-            _repair.Enable();
-
-            _toggle.performed += OnToggle;
-            _click.performed += OnClick;
-
-            _sel1.performed += OnSel1;
-            _sel2.performed += OnSel2;
-            _sel3.performed += OnSel3;
-            _sel4.performed += OnSel4;
-            _sel5.performed += OnSel5;
-
-            _rotL.performed += OnRotL;
-            _rotR.performed += OnRotR;
-            _cancel.performed += OnCancel;
-
-            _damage.performed += OnDamage;
-            _repair.performed += OnRepair;
+            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+            if (_cam == null) _cam = Camera.main;
         }
 
         private void OnDisable()
         {
-            _toggle.performed -= OnToggle;
-            _click.performed -= OnClick;
-            _sel1.performed -= OnSel1;
-            _sel2.performed -= OnSel2;
-            _sel3.performed -= OnSel3;
-            _sel4.performed -= OnSel4;
-            _sel5.performed -= OnSel5;
-            _rotL.performed -= OnRotL;
-            _rotR.performed -= OnRotR;
-            _cancel.performed -= OnCancel;
-            _damage.performed -= OnDamage;
-            _repair.performed -= OnRepair;
-
-            _toggle.Disable();
-            _click.Disable();
-            _sel1.Disable(); _sel2.Disable(); _sel3.Disable(); _sel4.Disable(); _sel5.Disable();
-            _rotL.Disable(); _rotR.Disable();
-            _cancel.Disable();
-            _damage.Disable();
-            _repair.Disable();
-            _hasHover = false;
-            _cacheValid = false;
+            // no-op (hotkeys handled by DebugHUDHub + polling)
         }
 
         private void Update()
         {
-            if (!_enabled || _place == null)
+            ResolveServices();
+
+            if (!_enabled)
+            {
+                _hasHover = false;
+                _cacheValid = false;
+                _lastValidate = default;
+                return;
+            }
+
+            if (_place == null || _grid == null)
             {
                 _hasHover = false;
                 _cacheValid = false;
@@ -189,6 +131,49 @@ namespace SeasonalBastion.DebugTools
                 _cacheDef = _selectedDef;
                 _cacheRot = _rotation;
             }
+        
+            // ---- Input polling (Option B: no InputActions in tool) ----
+            if (_enabled)
+            {
+                var kb = Keyboard.current;
+                var mouse = Mouse.current;
+                if (kb != null)
+                {
+                    if (kb.digit1Key.wasPressedThisFrame) OnSel1(default);
+                    if (kb.digit2Key.wasPressedThisFrame) OnSel2(default);
+                    if (kb.digit3Key.wasPressedThisFrame) OnSel3(default);
+                    if (kb.digit4Key.wasPressedThisFrame) OnSel4(default);
+                    if (kb.digit5Key.wasPressedThisFrame) OnSel5(default);
+
+                    if (kb.qKey.wasPressedThisFrame) OnRotL(default);
+                    if (kb.eKey.wasPressedThisFrame) OnRotR(default);
+
+                    if (kb.xKey.wasPressedThisFrame) OnCancel(default);
+                    if (kb.kKey.wasPressedThisFrame) OnDamage(default);
+                    if (kb.rKey.wasPressedThisFrame) OnRepair(default);
+
+                    // standalone toggle (only if not hub-controlled)
+                    if (kb.bKey.wasPressedThisFrame) OnToggle(default);
+                }
+
+                if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+                    OnClick(default);
+            }
+}
+
+        private void ResolveServices()
+        {
+            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+            if (_bootstrap == null) return;
+
+            _s ??= _bootstrap.Services;
+            if (_s == null) return;
+
+            _grid ??= _s.GridMap;
+            _place ??= _s.PlacementService;
+            _noti ??= _s.NotificationService;
+
+            if (_cam == null) _cam = Camera.main;
         }
 
         private void OnToggle(InputAction.CallbackContext _)
@@ -371,6 +356,8 @@ namespace SeasonalBastion.DebugTools
 
         private void OnDrawGizmos()
         {
+            ResolveServices();
+
             if (!_drawPreview && !_drawPlacedBuildings) return;
             if (_grid == null) return;
 

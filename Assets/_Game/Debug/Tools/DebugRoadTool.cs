@@ -61,28 +61,19 @@ namespace SeasonalBastion.DebugTools
         {
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
-            if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
-
-            _toggleTool = new InputAction("ToggleRoadTool", InputActionType.Button, "<Keyboard>/r");
-            _click = new InputAction("PlaceRoadClick", InputActionType.Button, "<Mouse>/leftButton");
+            _anyRoadCacheValid = false;
         }
+
 
         private void OnEnable()
         {
-            _toggleTool.Enable();
-            _click.Enable();
-
-            _toggleTool.performed += OnToggle;
-            _click.performed += OnClick;
+            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+            if (_cam == null) _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
         }
 
         private void OnDisable()
         {
-            _toggleTool.performed -= OnToggle;
-            _click.performed -= OnClick;
-
-            _toggleTool.Disable();
-            _click.Disable();
+            // no-op
         }
 
         private void Start()
@@ -162,7 +153,14 @@ namespace SeasonalBastion.DebugTools
                 _hoverCanRemove = false;
                 _hoverWouldSplitIfRemoved = false;
             }
-        }
+        
+            // ---- Input polling (Option B: no InputActions in tool) ----
+            var kb = Keyboard.current;
+            var mouse = Mouse.current;
+
+            if (kb != null && kb.rKey.wasPressedThisFrame) OnToggle(default);
+            if (_enabled && mouse != null && mouse.leftButton.wasPressedThisFrame) OnClick(default);
+}
 
         private void OnToggle(InputAction.CallbackContext _)
         {

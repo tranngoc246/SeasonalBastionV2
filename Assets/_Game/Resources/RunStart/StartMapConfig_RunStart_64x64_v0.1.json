@@ -73,51 +73,51 @@
     {
       "zoneId": "zone_farm_start",
       "type": "FarmPlots",
-      "ownerBuildingHint": "Farm",
+      "ownerBuildingHint": "bld_farmhouse_t1",
       "cellsRect": { "xMin": 34, "yMin": 26, "xMax": 39, "yMax": 27 },
       "cellCount": 12
     },
     {
       "zoneId": "zone_forest_start",
       "type": "ForestTiles",
-      "ownerBuildingHint": "Lumber",
+      "ownerBuildingHint": "bld_lumbercamp_t1",
       "cellsRect": { "xMin": 20, "yMin": 26, "xMax": 23, "yMax": 29 },
       "cellCount": 16
     }
   ],
   "initialBuildings": [
     {
-      "defId": "HQ",
+      "defId": "bld_hq_t1",
       "anchor": { "x": 30, "y": 30 },
       "rotation": "N",
       "notes": "HQ 5x5. Kept central. Spacing rule: other buildings placed with >=1 empty cell gap from HQ footprint."
     },
     {
-      "defId": "House",
+      "defId": "bld_house_t1",
       "anchor": { "x": 26, "y": 36 },
       "rotation": "N",
       "notes": "House 3x3. Positioned NW of HQ with >=1-cell gap from HQ and other buildings."
     },
     {
-      "defId": "House",
+      "defId": "bld_house_t1",
       "anchor": { "x": 36, "y": 36 },
       "rotation": "N",
       "notes": "House 3x3. Positioned NE of HQ with >=1-cell gap from HQ and other buildings."
     },
     {
-      "defId": "Farm",
+      "defId": "bld_farmhouse_t1",
       "anchor": { "x": 36, "y": 30 },
       "rotation": "N",
       "notes": "Farm 3x3. East of HQ with a 1-cell gap. Links to zone_farm_start."
     },
     {
-      "defId": "Lumber",
+      "defId": "bld_lumbercamp_t1",
       "anchor": { "x": 20, "y": 30 },
       "rotation": "N",
       "notes": "Lumber 3x3. West side near zone_forest_start, with >=1-cell gap to other buildings. Links to zone_forest_start."
     },
     {
-      "defId": "TowerArrow",
+      "defId": "bld_tower_arrow_t1",
       "anchor": { "x": 31, "y": 37 },
       "rotation": "N",
       "initialStateOverrides": { "ammo": "FULL", "ammoPercent": 1.0 },
@@ -128,21 +128,21 @@
     {
       "npcDefId": "npc_villager_t1",
       "spawnCell": { "x": 31, "y": 31 },
-      "assignedWorkplaceDefId": "HQ",
+      "assignedWorkplaceDefId": "bld_hq_t1",
       "jobProfile": "HQ_Build_Repair_HaulBasic",
       "notes": "HQ NPC: can HaulBasic immediately; Build/Repair later."
     },
     {
       "npcDefId": "npc_villager_t1",
       "spawnCell": { "x": 37, "y": 31 },
-      "assignedWorkplaceDefId": "Farm",
+      "assignedWorkplaceDefId": "bld_farmhouse_t1",
       "jobProfile": "Harvest_Food",
       "notes": "Farm worker. Spawn moved to stay near updated Farm anchor."
     },
     {
       "npcDefId": "npc_villager_t1",
       "spawnCell": { "x": 21, "y": 31 },
-      "assignedWorkplaceDefId": "Lumber",
+      "assignedWorkplaceDefId": "bld_lumbercamp_t1",
       "jobProfile": "Harvest_Wood",
       "notes": "Lumber worker. Spawn moved to stay near updated Lumber anchor."
     }

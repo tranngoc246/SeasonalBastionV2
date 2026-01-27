@@ -325,6 +325,12 @@ namespace SeasonalBastion
             EnsureArmoryAmmoBuffer();    // Day24
         }
 
+        public void ClearAll()
+        {
+            _urgent.Clear();
+            _normal.Clear();
+        }
+
         // ----------------- helpers -----------------
 
         // ----------------- Day26: ResupplyTower provider -----------------
@@ -916,7 +922,7 @@ namespace SeasonalBastion
             foreach (var bid in _s.WorldState.Buildings.Ids)
             {
                 var bs = _s.WorldState.Buildings.Get(bid);
-                if (bs.IsConstructed && bs.DefId == "HQ")
+                if (bs.IsConstructed && bs.DefId == "bld_hq_t1")
                 {
                     center = bs.Anchor;
                     foundHQ = true;
@@ -958,7 +964,7 @@ namespace SeasonalBastion
 
             // Use a real TowerDef for realistic cap/hp
             TowerDef def;
-            try { def = _s.DataRegistry.GetTower("TowerArrow"); }
+            try { def = _s.DataRegistry.GetTower("bld_tower_arrow_t1"); }
             catch { def = null; }
 
             int ammoCap = def != null ? def.AmmoMax : 60;

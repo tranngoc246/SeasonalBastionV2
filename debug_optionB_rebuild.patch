@@ -1,0 +1,2178 @@
+--- a/Debug/HUD/DebugCombatLaneHUD.cs+++ b/Debug/HUD/DebugCombatLaneHUD.cs@@ -1,129 +1,101 @@-using SeasonalBastion;
+ using SeasonalBastion.Contracts;
+-using SeasonalBastion.RunStart;
+ using UnityEngine;
+ 
+-public sealed class DebugCombatLaneHUD : MonoBehaviour
++namespace SeasonalBastion.DebugTools
+ {
+-    [SerializeField] private GameBootstrap _bootstrap;
++    public sealed class DebugCombatLaneHUD : DebugModuleBase
++    {
++        [Header("Debug Spawn")]
++        [SerializeField] private string _enemyDefId = "Swarmling";
++        [SerializeField] private int _laneId = 0;
+ 
+-    [Header("Debug Spawn")]
+-    [SerializeField] private string _enemyDefId = "Swarmling";
+-    [SerializeField] private int _laneId = 0;
++        public override string Title => "Combat Lane";
++        public override DebugModuleKind Kind => DebugModuleKind.Hud;
++        public override int Priority => 20;
+ 
+-    [SerializeField] private bool _hubControlled;
+-    public void SetHubControlled(bool v) => _hubControlled = v;
++        public override void DrawHubGUI()
++        {
++            var s = Ctx?.Services;
++            if (s == null)
++            {
++                GUILayout.Label("GameServices = null");
++                return;
++            }
+ 
+-    private GameServices _gs;
++            var rs = s.RunStartRuntime;
++            if (rs == null)
++            {
++                GUILayout.Label("RunStartRuntime = null");
++                return;
++            }
+ 
+-    private void Awake()
+-    {
+-        if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+-    }
++            GUILayout.Space(6);
++            GUILayout.Label("Day27: Combat Lanes (from StartMapConfig)");
+ 
+-    private void TryResolve()
+-    {
+-        if (_bootstrap == null) return;
+-        _gs ??= _bootstrap.Services;
+-    }
++            if (rs.Lanes == null || rs.Lanes.Count == 0)
++            {
++                GUILayout.Label("Lane table: EMPTY (did RunStartApplier build lanes?)");
++            }
++            else
++            {
++                GUILayout.Label($"Lane count: {rs.Lanes.Count}");
++                foreach (var kv in rs.Lanes)
++                {
++                    var ln = kv.Value;
++                    GUILayout.Label($"- Lane {ln.LaneId}: start=({ln.StartCell.X},{ln.StartCell.Y}) dir={ln.DirToHQ} targetHQ=({ln.TargetHQ.X},{ln.TargetHQ.Y})");
++                }
++            }
+ 
+-    public void DrawHubGUI()
+-    {
+-        TryResolve();
+-        if (_gs == null)
+-        {
+-            GUILayout.Label("GameServices = null");
+-            return;
++            GUILayout.Space(8);
++            GUILayout.Label("Spawn 1 enemy by lane (debug)");
++
++            GUILayout.BeginHorizontal();
++            GUILayout.Label("EnemyDefId:", GUILayout.Width(90));
++            _enemyDefId = GUILayout.TextField(_enemyDefId, GUILayout.Width(160));
++            GUILayout.EndHorizontal();
++
++            GUILayout.BeginHorizontal();
++            GUILayout.Label("LaneId:", GUILayout.Width(90));
++            var laneStr = GUILayout.TextField(_laneId.ToString(), GUILayout.Width(60));
++            if (int.TryParse(laneStr, out var parsedLane)) _laneId = parsedLane;
++            GUILayout.EndHorizontal();
++
++            GUILayout.BeginHorizontal();
++            if (GUILayout.Button("Spawn", GUILayout.Width(120)))
++                TrySpawnEnemy(s, _enemyDefId, _laneId);
++            GUILayout.EndHorizontal();
+         }
+ 
+-        var rs = _gs.RunStartRuntime;
+-        if (rs == null)
++        private void TrySpawnEnemy(GameServices s, string enemyDefId, int laneId)
+         {
+-            GUILayout.Label("RunStartRuntime = null");
+-            return;
++            if (s == null || s.WorldState == null || s.DataRegistry == null) return;
++            var rs = s.RunStartRuntime;
++            if (rs == null || rs.Lanes == null) return;
++
++            if (!rs.Lanes.TryGetValue(laneId, out var lane))
++            {
++                Debug.LogWarning($"[DebugCombatLaneHUD] Lane {laneId} not found in lane table.");
++                return;
++            }
++
++            EnemyDef def;
++            try { def = s.DataRegistry.GetEnemy(enemyDefId); }
++            catch
++            {
++                Debug.LogWarning($"[DebugCombatLaneHUD] EnemyDef not found: '{enemyDefId}'");
++                return;
++            }
++
++            var st = new EnemyState
++            {
++                DefId = enemyDefId,
++                Cell = lane.StartCell,
++                Hp = def.MaxHp,
++                Lane = laneId,
++                MoveProgress01 = 0f
++            };
++
++            s.WorldState.Enemies.Create(st);
+         }
+-
+-        GUILayout.Space(10);
+-        GUILayout.Label("Day27: Combat Lanes (from StartMapConfig)");
+-
+-        if (rs.Lanes == null || rs.Lanes.Count == 0)
+-        {
+-            GUILayout.Label("Lane table: EMPTY (did RunStartApplier build lanes?)");
+-        }
+-        else
+-        {
+-            GUILayout.Label($"Lane count: {rs.Lanes.Count}");
+-            foreach (var kv in rs.Lanes)
+-            {
+-                var ln = kv.Value;
+-                GUILayout.Label($"- Lane {ln.LaneId}: start=({ln.StartCell.X},{ln.StartCell.Y}) dir={ln.DirToHQ} targetHQ=({ln.TargetHQ.X},{ln.TargetHQ.Y})");
+-            }
+-        }
+-
+-        GUILayout.Space(8);
+-        GUILayout.Label("Spawn 1 enemy by lane (debug)");
+-
+-        GUILayout.BeginHorizontal();
+-        GUILayout.Label("EnemyDefId:", GUILayout.Width(90));
+-        _enemyDefId = GUILayout.TextField(_enemyDefId, GUILayout.Width(140));
+-        GUILayout.EndHorizontal();
+-
+-        GUILayout.BeginHorizontal();
+-        GUILayout.Label("LaneId:", GUILayout.Width(90));
+-        var laneStr = GUILayout.TextField(_laneId.ToString(), GUILayout.Width(60));
+-        if (int.TryParse(laneStr, out var parsedLane)) _laneId = parsedLane;
+-        GUILayout.EndHorizontal();
+-
+-        GUILayout.BeginHorizontal();
+-        if (GUILayout.Button("Spawn", GUILayout.Width(120)))
+-            TrySpawnEnemy(_enemyDefId, _laneId);
+-        GUILayout.EndHorizontal();
+-    }
+-
+-    private void TrySpawnEnemy(string enemyDefId, int laneId)
+-    {
+-        if (_gs == null || _gs.WorldState == null || _gs.DataRegistry == null) return;
+-        var rs = _gs.RunStartRuntime;
+-        if (rs == null || rs.Lanes == null) return;
+-
+-        if (!rs.Lanes.TryGetValue(laneId, out var lane))
+-        {
+-            Debug.LogWarning($"[DebugCombatLaneHUD] Lane {laneId} not found in lane table.");
+-            return;
+-        }
+-
+-        EnemyDef def;
+-        try { def = _gs.DataRegistry.GetEnemy(enemyDefId); }
+-        catch
+-        {
+-            Debug.LogWarning($"[DebugCombatLaneHUD] EnemyDef not found: '{enemyDefId}'");
+-            return;
+-        }
+-
+-        // Spawn EnemyState directly (so HP is correct)
+-        var st = new EnemyState
+-        {
+-            DefId = enemyDefId,
+-            Cell = lane.StartCell,
+-            Hp = def.MaxHp,
+-            Lane = laneId,
+-            MoveProgress01 = 0f
+-        };
+-
+-        var id = _gs.WorldState.Enemies.Create(st);
+-        st.Id = id;
+-        _gs.WorldState.Enemies.Set(id, st);
+-
+-        Debug.Log($"[DebugCombatLaneHUD] Spawned enemy '{enemyDefId}' id={id.Value} lane={laneId} spawn=({lane.StartCell.X},{lane.StartCell.Y}) targetHQ=({lane.TargetHQ.X},{lane.TargetHQ.Y}) dir={lane.DirToHQ}");
+-    }
+-
+-    private void OnGUI()
+-    {
+-        if (SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
+-
+-        // Standalone fallback (rarely used)
+-        GUILayout.BeginArea(new Rect(10, 10, 520, 240), GUI.skin.box);
+-        DrawHubGUI();
+-        GUILayout.EndArea();
+     }
+ }
+--- a/Debug/HUD/DebugEnemyGizmos.cs+++ b/Debug/HUD/DebugEnemyGizmos.cs@@ -8,8 +8,11 @@     /// Day29: SceneView gizmos for enemies (cell-based).
+     /// Attach to any GameObject in scene.
+     /// </summary>
+-    public sealed class DebugEnemyGizmos : MonoBehaviour
++    public sealed class DebugEnemyGizmos : DebugModuleBase
+     {
++        public override string Title => "Enemy Gizmos";
++        public override DebugModuleKind Kind => DebugModuleKind.Gizmo;
++        public override int Priority => 100;
+         [Header("Mapping")]
+         [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
+         [SerializeField] private float _cellSize = 1f;
+@@ -28,7 +31,7 @@             _boot = FindObjectOfType<GameBootstrap>();
+         }
+ 
+-        private void OnDrawGizmos()
++        public override void DrawGizmos()
+         {
+             if (_boot == null) _boot = FindObjectOfType<GameBootstrap>();
+             var s = _boot != null ? _boot.Services : null;
+--- a/Debug/HUD/DebugHUDHub.cs+++ b/Debug/HUD/DebugHUDHub.cs@@ -1,10 +1,10 @@ using System.Collections.Generic;
+ using SeasonalBastion.Contracts;
+ using UnityEngine;
+-using UnityEngine.InputSystem;
+ 
+ namespace SeasonalBastion.DebugTools
+ {
++    // Keep enums stable for existing references (and DebugInputRouter).
+     public enum DebugHubTab
+     {
+         Home = 0,
+@@ -29,44 +29,33 @@     }
+ 
+     /// <summary>
+-    /// Single Debug HUD Hub (Level 2):
+-    /// - Only ONE panel on screen
+-    /// - Hub owns all mode toggles (F-keys)
+-    /// - Tools become hub-controlled: no standalone toggles, no extra HUD panels
++    /// Option B (Rebuild): Debug Hub + DebugRoot + Modules
++    /// - Central hotkeys (DebugInputRouter)
++    /// - Auto-register modules (DebugRoot)
++    /// - Tools no longer own InputActions; only active tool reads keyboard/mouse
+     /// </summary>
+     public sealed class DebugHUDHub : MonoBehaviour
+     {
+-        [Header("Bootstrap")]
++        [Header("Bootstrap (optional; DebugRoot preferred)")]
+         [SerializeField] private GameBootstrap _bootstrap;
+ 
+-        [Header("Modules (optional auto-find)")]
+-        [SerializeField] private DebugBuildingTool _buildTool;
+-        [SerializeField] private DebugRoadTool _roadTool;
+-        [SerializeField] private DebugNpcTool _npcTool;
+-        [SerializeField] private DebugStorageHUD _storageHud;
+-        [SerializeField] private DebugNotificationsHUD _notiHud;
+-        [SerializeField] private DebugWorldIndexHUD _worldIndexHud;
+-        [SerializeField] private DebugCombatLaneHUD _combatLaneHud;
+-        [SerializeField] private DebugRunClockHUD _runClockHud;
+-
+-        [Header("Hotkeys (Hub only)")]
+-        [SerializeField] private Key _toggleUiKey = Key.F1;
+-        [SerializeField] private Key _modeBuildKey = Key.F2;
+-        [SerializeField] private Key _modeRoadKey = Key.F3;
+-        [SerializeField] private Key _modeNpcKey = Key.F4;
+-        [SerializeField] private Key _modeStorageKey = Key.F5;
+-
+-        [SerializeField] private Key _tabNotiKey = Key.F6;
+-        [SerializeField] private Key _tabWorldIndexKey = Key.F7;
+-
+-        [SerializeField] private Key _clearModeKey = Key.Escape;
+-
+-        [Header("State")]
++        [Header("Root (optional auto-find)")]
++        [SerializeField] private DebugRoot _root;
++
++        [Header("UI")]
+         [SerializeField] private bool _showUi = true;
+         [SerializeField] private DebugHubMode _mode = DebugHubMode.None;
+         [SerializeField] private DebugHubTab _tab = DebugHubTab.Home;
+ 
++        // Router owns hotkeys
++        private readonly DebugInputRouter _router = new DebugInputRouter();
++
+         private GameServices _gs;
++
++        // quick cache by kind
++        private readonly List<IDebugModule> _tools = new List<IDebugModule>(16);
++        private readonly List<IDebugModule> _huds = new List<IDebugModule>(32);
++        private readonly List<IDebugModule> _gizmos = new List<IDebugModule>(16);
+ 
+         // --- Data validation HUD (Day17) ---
+         private readonly List<string> _dataErrors = new List<string>(128);
+@@ -74,38 +63,27 @@         private bool _dataLastOk = true;
+         private string _dataLastSummary = "Not validated";
+ 
+-        private DebugSaveLoadHUD _saveLoadHUD = new DebugSaveLoadHUD();
++        private readonly DebugSaveLoadHUD _saveLoadHUD = new DebugSaveLoadHUD();
+ 
+         private void Awake()
+         {
+             DebugHubState.Enabled = true;
+ 
+-            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+-            _gs = _bootstrap != null ? _bootstrap.Services : null;
+-
+-            if (_buildTool == null) _buildTool = FindObjectOfType<DebugBuildingTool>(true);
+-            if (_roadTool == null) _roadTool = FindObjectOfType<DebugRoadTool>(true);
+-            if (_npcTool == null) _npcTool = FindObjectOfType<DebugNpcTool>(true);
+-
+-            if (_storageHud == null) _storageHud = FindObjectOfType<DebugStorageHUD>(true);
+-            if (_notiHud == null) _notiHud = FindObjectOfType<DebugNotificationsHUD>(true);
+-            if (_worldIndexHud == null) _worldIndexHud = FindObjectOfType<DebugWorldIndexHUD>(true);
+-            if (_combatLaneHud == null) _combatLaneHud = FindObjectOfType<DebugCombatLaneHUD>(true);
+-            if (_runClockHud == null) _runClockHud = FindObjectOfType<DebugRunClockHUD>(true);
+-
+-
+-            // Hub-control: disable standalone HUD + disable standalone toggle hotkeys
+-            if (_buildTool != null) _buildTool.SetHubControlled(true);
+-            if (_roadTool != null) _roadTool.SetHubControlled(true);
+-            if (_npcTool != null) _npcTool.SetHubControlled(true);
+-
+-            if (_storageHud != null) _storageHud.SetHubControlled(true);
+-            if (_notiHud != null) _notiHud.SetHubControlled(true);
+-            if (_worldIndexHud != null) _worldIndexHud.SetHubControlled(true);
+-            if (_combatLaneHud != null) _combatLaneHud.SetHubControlled(true);
+-            if (_runClockHud != null) _runClockHud.SetHubControlled(true);
+-
+-            ApplyMode(_mode);
++            if (_root == null) _root = FindObjectOfType<DebugRoot>(true);
++            if (_root == null)
++            {
++                // fallback legacy: still allow UI to show, but modules won't auto-register
++                if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>(true);
++                _gs = _bootstrap != null ? _bootstrap.Services : null;
++            }
++            else
++            {
++                _gs = _root.Ctx != null ? _root.Ctx.Services : null;
++                RebuildModuleLists();
++                // keep gizmos enabled by default, tools off, huds on when UI visible
++                ApplyMode(_mode);
++                ApplyHudEnabled(_showUi);
++            }
+         }
+ 
+         private void OnDestroy()
+@@ -115,48 +93,116 @@ 
+         private void Update()
+         {
+-            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+-            _gs ??= _bootstrap != null ? _bootstrap.Services : null;
+-
+-            var kb = Keyboard.current;
+-            if (kb == null) return;
+-
+-            if (kb[_toggleUiKey].wasPressedThisFrame)
+-                _showUi = !_showUi;
+-
+-            if (kb[_clearModeKey].wasPressedThisFrame)
+-                ApplyMode(DebugHubMode.None);
+-
+-            if (kb[_modeBuildKey].wasPressedThisFrame) { ApplyMode(DebugHubMode.Build); _tab = DebugHubTab.Home; }
+-            if (kb[_modeRoadKey].wasPressedThisFrame) { ApplyMode(DebugHubMode.Road); _tab = DebugHubTab.Home; }
+-            if (kb[_modeNpcKey].wasPressedThisFrame) { ApplyMode(DebugHubMode.Npc); _tab = DebugHubTab.Npc; }
+-            if (kb[_modeStorageKey].wasPressedThisFrame) { ApplyMode(DebugHubMode.Storage); _tab = DebugHubTab.Storage; }
+-
+-            if (kb[_tabNotiKey].wasPressedThisFrame) _tab = DebugHubTab.Notifications;
+-            if (kb[_tabWorldIndexKey].wasPressedThisFrame) _tab = DebugHubTab.WorldIndex;
++            // refresh services
++            if (_root == null) _root = FindObjectOfType<DebugRoot>(true);
++            if (_root != null)
++            {
++                _gs = _root.Ctx != null ? _root.Ctx.Services : null;
++                // if hierarchy changed, user can call RebuildModuleLists() manually by toggling UI
++            }
++            else
++            {
++                if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>(true);
++                _gs ??= _bootstrap != null ? _bootstrap.Services : null;
++            }
++
++            _router.TickHotkeys(this);
++        }
++
++        public void ToggleUI()
++        {
++            _showUi = !_showUi;
++            ApplyHudEnabled(_showUi);
++        }
++
++        public void SetMode(DebugHubMode m)
++        {
++            ApplyMode(m);
++            if (m == DebugHubMode.Npc) _tab = DebugHubTab.Npc;
++            if (m == DebugHubMode.Storage) _tab = DebugHubTab.Storage;
++            if (m == DebugHubMode.Build || m == DebugHubMode.Road) _tab = DebugHubTab.Home;
++        }
++
++        public void SetTab(DebugHubTab t) => _tab = t;
++
++        private void RebuildModuleLists()
++        {
++            _tools.Clear();
++            _huds.Clear();
++            _gizmos.Clear();
++
++            if (_root == null) return;
++
++            var ms = _root.Modules;
++            for (int i = 0; i < ms.Count; i++)
++            {
++                var m = ms[i];
++                if (!m.VisibleInHub) continue;
++
++                switch (m.Kind)
++                {
++                    case DebugModuleKind.Tool: _tools.Add(m); break;
++                    case DebugModuleKind.Hud: _huds.Add(m); break;
++                    case DebugModuleKind.Gizmo: _gizmos.Add(m); break;
++                }
++            }
++        }
++
++        private void ApplyHudEnabled(bool uiVisible)
++        {
++            if (_root == null) return;
++            // HUD modules are enabled when UI visible so they can tick if needed.
++            for (int i = 0; i < _huds.Count; i++)
++                _huds[i].SetEnabled(uiVisible);
+         }
+ 
+         private void ApplyMode(DebugHubMode m)
+         {
+             _mode = m;
+ 
+-            if (_buildTool != null) _buildTool.SetEnabledFromHub(m == DebugHubMode.Build);
+-            if (_roadTool != null) _roadTool.SetEnabledFromHub(m == DebugHubMode.Road);
+-            if (_npcTool != null) _npcTool.SetEnabledFromHub(m == DebugHubMode.Npc);
+-            if (_storageHud != null) _storageHud.SetEnabledFromHub(m == DebugHubMode.Storage);
++            if (_root == null) return;
++
++            // Tools: only one active
++            for (int i = 0; i < _tools.Count; i++)
++                _tools[i].SetEnabled(false);
++
++            switch (m)
++            {
++                case DebugHubMode.Build: EnableToolByType("Build"); break;
++                case DebugHubMode.Road: EnableToolByType("Road"); break;
++                case DebugHubMode.Npc: EnableToolByType("Npc"); break;
++                case DebugHubMode.Storage: EnableToolByType("Storage"); break;
++            }
++        }
++
++        private void EnableToolByType(string hint)
++        {
++            for (int i = 0; i < _tools.Count; i++)
++            {
++                var t = _tools[i];
++                if (t.Title.Contains(hint))
++                {
++                    t.SetEnabled(true);
++                    return;
++                }
++            }
+         }
+ 
+         private void OnGUI()
+         {
+             if (!_showUi) return;
+ 
+-            GUILayout.BeginArea(new Rect(10, 10, 620, (Screen.height - 20)), GUI.skin.box);
+-
+-            GUILayout.Label("[DebugHUDHub] F1 UI | F2 Build | F3 Road | F4 NPC | F5 Storage | F6 Noti | F7 Index | Esc None");
++            if (_root != null && (_tools.Count == 0 && _huds.Count == 0 && _gizmos.Count == 0))
++                RebuildModuleLists();
++
++            GUILayout.BeginArea(new Rect(10, 10, 640, (Screen.height - 20)), GUI.skin.box);
++
++            GUILayout.Label("[DebugHub] F1 UI | F2 Build | F3 Road | F4 NPC | F5 Storage | F6 Noti | F7 Index | Esc None");
+             GUILayout.Label($"Mode: {_mode}    Tab: {_tab}");
+ 
+             GUILayout.Space(6);
+ 
++            // tabs
+             GUILayout.BeginHorizontal();
+             if (GUILayout.Button("Home", GUILayout.Width(90))) _tab = DebugHubTab.Home;
+             if (GUILayout.Button("Noti (F6)", GUILayout.Width(120))) _tab = DebugHubTab.Notifications;
+@@ -165,123 +211,132 @@             if (GUILayout.Button("Storage", GUILayout.Width(110))) _tab = DebugHubTab.Storage;
+             GUILayout.EndHorizontal();
+ 
+-            GUILayout.Space(8);
+-
++            GUILayout.Space(6);
++
++            // quick tool buttons
++            GUILayout.BeginHorizontal();
++            if (GUILayout.Button("Tool: None", GUILayout.Width(120))) SetMode(DebugHubMode.None);
++            if (GUILayout.Button("Tool: Build", GUILayout.Width(120))) SetMode(DebugHubMode.Build);
++            if (GUILayout.Button("Tool: Road", GUILayout.Width(120))) SetMode(DebugHubMode.Road);
++            if (GUILayout.Button("Tool: NPC", GUILayout.Width(120))) SetMode(DebugHubMode.Npc);
++            if (GUILayout.Button("Tool: Storage", GUILayout.Width(120))) SetMode(DebugHubMode.Storage);
++            GUILayout.EndHorizontal();
++
++            GUILayout.Space(6);
++
++            // gizmo toggles
++            if (_gizmos.Count > 0)
++            {
++                GUILayout.Label("Gizmos:");
++                GUILayout.BeginHorizontal();
++                for (int i = 0; i < _gizmos.Count; i++)
++                {
++                    var g = _gizmos[i];
++                    bool en = g.IsEnabled;
++                    bool newEn = GUILayout.Toggle(en, g.Title, GUILayout.Width(150));
++                    if (newEn != en) g.SetEnabled(newEn);
++                }
++                GUILayout.EndHorizontal();
++                GUILayout.Space(6);
++            }
++
++            // draw active tab
+             switch (_tab)
+             {
+-                case DebugHubTab.Home:
+-                    DrawHome();
+-                    break;
+-
+-                case DebugHubTab.Notifications:
+-                    if (_notiHud != null) _notiHud.DrawHubGUI();
+-                    else GUILayout.Label("DebugNotificationsHUD not found in scene.");
+-                    break;
+-
+-                case DebugHubTab.WorldIndex:
+-                    if (_worldIndexHud != null) _worldIndexHud.DrawHubGUI();
+-                    else GUILayout.Label("DebugWorldIndexHUD not found in scene.");
+-                    break;
+-
+-                case DebugHubTab.Npc:
+-                    if (_npcTool != null) _npcTool.DrawHubGUI();
+-                    else GUILayout.Label("DebugNpcTool not found in scene.");
+-                    break;
+-
+-                case DebugHubTab.Storage:
+-                    if (_storageHud != null) _storageHud.DrawHubGUI();
+-                    else GUILayout.Label("DebugStorageHUD not found in scene.");
+-                    break;
++                case DebugHubTab.Home: DrawHome(); break;
++                case DebugHubTab.Notifications: DrawHudByType("Notifications"); break;
++                case DebugHubTab.WorldIndex: DrawHudByType("World Index"); break;
++                case DebugHubTab.Npc: DrawToolByType("Npc"); break;
++                case DebugHubTab.Storage: DrawToolByType("Storage"); break;
+             }
+ 
+             GUILayout.EndArea();
+         }
+ 
+-        private void ValidateDataNow()
+-        {
+-            _dataErrors.Clear();
+-
++        private void DrawToolByType(string hint)
++        {
++            for (int i = 0; i < _tools.Count; i++)
++            {
++                var t = _tools[i];
++                if (t.Title.Contains(hint))
++                {
++                    t.DrawHubGUI();
++                    return;
++                }
++            }
++
++            GUILayout.Label($"Tool '{hint}' not found (add module under DebugRoot).");
++        }
++
++        private void DrawHudByType(string hint)
++        {
++            for (int i = 0; i < _huds.Count; i++)
++            {
++                var h = _huds[i];
++                if (h.Title.Contains(hint))
++                {
++                    h.DrawHubGUI();
++                    return;
++                }
++            }
++
++            GUILayout.Label($"HUD '{hint}' not found (add module under DebugRoot).");
++        }
++
++        private void DrawHome()
++        {
+             if (_gs == null)
+             {
+-                _dataLastOk = false;
+-                _dataLastSummary = "GameServices is null";
+-                _dataErrors.Add(_dataLastSummary);
++                GUILayout.Label("DebugHub: GameServices = null");
+                 return;
+             }
+ 
+-            var validator = _gs.DataValidator;
+-            var registry = _gs.DataRegistry;
+-            if (validator == null || registry == null)
+-            {
+-                _dataLastOk = false;
+-                _dataLastSummary = "Missing DataValidator/DataRegistry";
+-                _dataErrors.Add(_dataLastSummary);
+-                return;
+-            }
+-
+-            _dataLastOk = validator.ValidateAll(registry, _dataErrors);
+-            _dataLastSummary = _dataLastOk ? "OK" : $"FAIL ({_dataErrors.Count} errors)";
++            // --- run clock ---
++            DrawHudByType("Run Clock");
++            GUILayout.Space(6);
++
++            // --- lanes / combat ---
++            DrawHudByType("Combat Lane");
++            GUILayout.Space(6);
++
++            // --- tower ammo ---
++            DrawHudByType("Tower Ammo");
++            GUILayout.Space(6);
++
++            // save/load quick
++            _saveLoadHUD.Draw(_gs);
++
++            GUILayout.Space(10);
++
++            DrawDataValidation();
++        }
++
++        private void DrawDataValidation()
++        {
++            GUILayout.Space(10);
++            GUILayout.Label("=== Data Validation (Day17) ===");
++
++            GUILayout.Label(_dataLastSummary);
++            GUILayout.BeginHorizontal();
++            if (GUILayout.Button("Validate Now", GUILayout.Width(160)))
++            {
++                _dataErrors.Clear();
++                var r = (_gs != null && _gs.DataValidator != null) ? _gs.DataValidator.ValidateAll(_dataErrors) : default;
++
++                _dataLastOk = r.Ok;
++                _dataLastSummary = (_gs == null || _gs.DataValidator == null)
++                    ? "DataValidator = null"
++                    : (r.Ok ? $"OK ({r.Count} checks)" : $"FAIL ({r.Count} checks)");
++            }
++            GUILayout.EndHorizontal();
+ 
+             if (!_dataLastOk)
+             {
+-                try
+-                {
+-                    _gs.NotificationService?.Push("data_invalid", "Data INVALID", _dataLastSummary, NotificationSeverity.Error, default, cooldownSeconds: 0f, dedupeByKey: true);
+-                }
+-                catch { }
+-            }
+-        }
+-
+-        private void DrawHome()
+-        {
+-            GUILayout.Label("Active Modules:");
+-            GUILayout.Label($"BuildTool: {(_buildTool != null ? "OK" : "missing")}  | RoadTool: {(_roadTool != null ? "OK" : "missing")}  | NpcTool: {(_npcTool != null ? "OK" : "missing")}");
+-            GUILayout.Label($"NotiHUD: {(_notiHud != null ? "OK" : "missing")}  | WorldIndexHUD: {(_worldIndexHud != null ? "OK" : "missing")}  | StorageHUD: {(_storageHud != null ? "OK" : "missing")}");
+-
+-            GUILayout.Space(8);
+-            GUILayout.Label("Notes:");
+-            GUILayout.Label("- All old standalone toggle keys are disabled (B/R/N/H/I/S).");
+-            GUILayout.Label("- Tools only respond to inputs when their mode is active.");
+-
+-            GUILayout.Space(10);
+-            GUILayout.Label("Day17: Data Validator");
+-
+-            GUILayout.BeginHorizontal();
+-            if (GUILayout.Button("Validate Data", GUILayout.Width(140)))
+-                ValidateDataNow();
+-            GUILayout.Label($"Result: {_dataLastSummary}");
+-            GUILayout.EndHorizontal();
+-
+-            if (!_dataLastOk)
+-            {
+-                GUILayout.Label("Errors:");
+-                _dataScroll = GUILayout.BeginScrollView(_dataScroll, GUILayout.Height(240));
+-                int show = Mathf.Min(_dataErrors.Count, 50);
+-                for (int i = 0; i < show; i++)
+-                    GUILayout.Label("- " + _dataErrors[i]);
+-                if (_dataErrors.Count > show)
+-                    GUILayout.Label($"...({_dataErrors.Count - show} more)");
++                _dataScroll = GUILayout.BeginScrollView(_dataScroll, GUILayout.Height(200));
++                for (int i = 0; i < _dataErrors.Count; i++)
++                    GUILayout.Label(_dataErrors[i]);
+                 GUILayout.EndScrollView();
+             }
+-
+-            GUILayout.Space(10);
+-            if (_runClockHud != null)
+-                _runClockHud.DrawHubGUI();
+-            else
+-                GUILayout.Label("DebugRunClockHUD: missing (add component to scene if you want clock controls)");
+-
+-            if (_combatLaneHud != null)
+-                _combatLaneHud.DrawHubGUI();
+-            else
+-            {
+-                GUILayout.Space(10);
+-                GUILayout.Label("DebugCombatLaneHUD: missing (add component to scene if you want lane spawn debug)");
+-            }
+-
+-            GUILayout.Space(10);
+-            if (_gs != null) _saveLoadHUD.Draw(_gs);
+-            else GUILayout.Label("SaveLoadHUD: GameServices is null");
+-
+         }
+     }
+ }
+--- a/Debug/HUD/DebugNotificationsHUD.cs+++ b/Debug/HUD/DebugNotificationsHUD.cs@@ -1,93 +1,61 @@-﻿using SeasonalBastion;
+ using SeasonalBastion.Contracts;
+ using UnityEngine;
+ 
+-public sealed class DebugNotificationsHUD : MonoBehaviour
++namespace SeasonalBastion.DebugTools
+ {
+-    [SerializeField] private GameBootstrap _bootstrap;
++    public sealed class DebugNotificationsHUD : DebugModuleBase
++    {
++        private int _counter;
+ 
+-    private INotificationService _noti;
+-    private int _counter;
++        public override string Title => "Notifications";
++        public override DebugModuleKind Kind => DebugModuleKind.Hud;
++        public override int Priority => 30;
+ 
+-    [SerializeField] private bool _hubControlled;
++        public override void DrawHubGUI()
++        {
++            var noti = Ctx?.Services?.NotificationService;
++            if (noti == null)
++            {
++                GUILayout.Label("NotificationService = null");
++                return;
++            }
+ 
+-    public void SetHubControlled(bool v) => _hubControlled = v;
++            GUILayout.Label("=== Notifications ===");
++            GUILayout.BeginHorizontal();
++            if (GUILayout.Button("Push 5", GUILayout.Width(120))) PushFive(noti);
++            if (GUILayout.Button("Spam (cooldown test)", GUILayout.Width(180))) Spam(noti);
++            GUILayout.EndHorizontal();
++        }
+ 
+-    private void Awake()
+-    {
+-        if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+-    }
++        private void PushFive(INotificationService noti)
++        {
++            for (int i = 0; i < 5; i++)
++            {
++                _counter++;
++                noti.Push(
++                    key: "test_" + _counter,
++                    title: "TEST",
++                    body: "Msg #" + _counter,
++                    severity: NotificationSeverity.Info,
++                    payload: default,
++                    cooldownSeconds: 0f,
++                    dedupeByKey: false
++                );
++            }
++        }
+ 
+-    private void TryResolve()
+-    {
+-        _noti ??= _bootstrap != null ? _bootstrap.Services?.NotificationService : null;
+-    }
+-
+-    // Hub buttons prove max3/cooldown behavior
+-    public void PushFive()
+-    {
+-        TryResolve();
+-        if (_noti == null) return;
+-
+-        for (int i = 0; i < 5; i++)
++        private void Spam(INotificationService noti)
+         {
+             _counter++;
+-            _noti.Push(
+-                key: "test_" + _counter,
+-                title: "TEST",
+-                body: "Msg #" + _counter,
+-                severity: NotificationSeverity.Info,
++            noti.Push(
++                key: "spam",
++                title: "SPAM",
++                body: "This should respect cooldown + max visible rules.",
++                severity: NotificationSeverity.Warning,
+                 payload: default,
+-                cooldownSeconds: 0f,
+-                dedupeByKey: false
++                cooldownSeconds: 3f,
++                dedupeByKey: true
+             );
+         }
+     }
+-
+-    public void Spam()
+-    {
+-        TryResolve();
+-        if (_noti == null) return;
+-
+-        _noti.Push(
+-            key: "spam",
+-            title: "SPAM",
+-            body: "Try spam",
+-            severity: NotificationSeverity.Warning,
+-            payload: default,
+-            cooldownSeconds: 3f,
+-            dedupeByKey: true
+-        );
+-    }
+-
+-    // Hub render
+-    public void DrawHubGUI()
+-    {
+-        TryResolve();
+-        if (_noti == null)
+-        {
+-            GUILayout.Label("NotificationService = null");
+-            return;
+-        }
+-
+-        GUILayout.Label("Notifications (max 3, newest-first)");
+-        GUILayout.BeginHorizontal();
+-        if (GUILayout.Button("Push 5 (test max3)", GUILayout.Width(180))) PushFive();
+-        if (GUILayout.Button("Spam (cooldown key)", GUILayout.Width(180))) Spam();
+-        GUILayout.EndHorizontal();
+-
+-        var list = _noti.GetVisible();
+-        for (int i = 0; i < list.Count; i++)
+-        {
+-            var n = list[i];
+-            GUILayout.Label($"[{i}] {n.Severity} | {n.Title} | {n.Body} | key={n.Key}");
+-        }
+-    }
+-
+-    // Standalone OnGUI disabled when hub enabled
+-    private void OnGUI()
+-    {
+-        if (SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
+-        DrawHubGUI();
+-    }
+-}+}
+--- a/Debug/HUD/DebugRunClockHUD.cs+++ b/Debug/HUD/DebugRunClockHUD.cs@@ -3,41 +3,19 @@ 
+ namespace SeasonalBastion.DebugTools
+ {
+-    /// <summary>
+-    /// Minimal RunClock debug panel:
+-    /// - Show Year/Season/Day/Phase + remaining seconds
+-    /// - Buttons for time scale (0/1/2/3)
+-    /// - Day28: ForceSeasonDay quick jump buttons (Autumn/Winter defend trigger)
+-    ///
+-    /// Drawn by DebugHUDHub (no standalone hotkey).
+-    /// </summary>
+-    public sealed class DebugRunClockHUD : MonoBehaviour
++    /// <summary>RunClock debug panel (Hub-driven).</summary>
++    public sealed class DebugRunClockHUD : DebugModuleBase
+     {
+-        [SerializeField] private bool _hubControlled;
+-        private GameServices _gs;
++        public override string Title => "Run Clock";
++        public override DebugModuleKind Kind => DebugModuleKind.Hud;
++        public override int Priority => 10;
+ 
+-        private void Awake()
++        public override void DrawHubGUI()
+         {
+-            _gs = FindObjectOfType<GameBootstrap>()?.Services;
+-        }
+-
+-        public void SetHubControlled(bool v) => _hubControlled = v;
+-
+-        private void TryResolveServices()
+-        {
+-            if (_gs != null) return;
+-            var bootstrap = FindObjectOfType<GameBootstrap>();
+-            if (bootstrap != null) _gs = bootstrap.Services;
+-        }
+-
+-        public void DrawHubGUI()
+-        {
+-            TryResolveServices();
+-
+-            var clock = _gs?.RunClock;
++            var clock = Ctx?.Services?.RunClock;
+             if (clock == null)
+             {
+-                GUILayout.Label("RunClock: missing");
++                GUILayout.Label("RunClock: null");
+                 return;
+             }
+ 
+@@ -47,54 +25,26 @@             float rem = impl != null ? impl.DayRemainingSeconds : 0f;
+             float el = impl != null ? impl.DayElapsedSeconds : 0f;
+ 
+-            GUILayout.Label("=== RunClock (Day28 test) ===");
+-            GUILayout.Label($"Year: {year}  | Season: {clock.CurrentSeason}  | Day: {clock.DayIndex}  | Phase: {clock.CurrentPhase}");
+-            GUILayout.Label($"TimeScale: {clock.TimeScale:0.##}   (DefendSpeedUnlocked: {clock.DefendSpeedUnlocked})");
++            GUILayout.Label("=== RunClock ===");
++            GUILayout.Label($"Year: {year}  Season: {clock.CurrentSeason}  Day: {clock.DayIndex}  Phase: {clock.CurrentPhase}");
++            if (impl != null) GUILayout.Label($"Day: {el:0.0}s elapsed | {rem:0.0}s remaining | len {len:0.0}s");
++            GUILayout.Label($"TimeScale: {clock.TimeScale:0.##}");
+ 
+-            if (impl != null)
+-                GUILayout.Label($"DayTimer: {el:0.0}s / {len:0.0}s   (Remaining: {rem:0.0}s)");
+-            else
+-                GUILayout.Label("(RunClockService not found: cannot show day timer / force season)");
+-
+-            GUILayout.Space(4);
+-
+-            // TimeScale controls (pause-aware wave timing)
+             GUILayout.BeginHorizontal();
+-            if (GUILayout.Button("Pause (0x)", GUILayout.Width(110))) clock.SetTimeScale(0f);
++            if (GUILayout.Button("Pause", GUILayout.Width(90))) clock.SetTimeScale(0f);
+             if (GUILayout.Button("1x", GUILayout.Width(60))) clock.SetTimeScale(1f);
+             if (GUILayout.Button("2x", GUILayout.Width(60))) clock.SetTimeScale(2f);
+             if (GUILayout.Button("3x", GUILayout.Width(60))) clock.SetTimeScale(3f);
+             GUILayout.EndHorizontal();
+ 
+-            // Day28: ForceSeasonDay buttons
+-            if (impl != null)
+-            {
+-                GUILayout.Space(6);
+-                GUILayout.Label("Force Season/Day (trigger Defend):");
+-
+-                GUILayout.BeginHorizontal();
+-                if (GUILayout.Button("Spring D1", GUILayout.Width(90))) impl.ForceSeasonDay(Season.Spring, 1);
+-                if (GUILayout.Button("Summer D1", GUILayout.Width(90))) impl.ForceSeasonDay(Season.Summer, 1);
+-                if (GUILayout.Button("Autumn D1", GUILayout.Width(90))) impl.ForceSeasonDay(Season.Autumn, 1);
+-                if (GUILayout.Button("Winter D1", GUILayout.Width(90))) impl.ForceSeasonDay(Season.Winter, 1);
+-                GUILayout.EndHorizontal();
+-
+-                GUILayout.BeginHorizontal();
+-                if (GUILayout.Button("Prev Day", GUILayout.Width(90)))
+-                {
+-                    int d = clock.DayIndex - 1;
+-                    if (d < 1) d = 1;
+-                    impl.ForceSeasonDay(clock.CurrentSeason, d);
+-                }
+-                if (GUILayout.Button("Next Day", GUILayout.Width(90)))
+-                {
+-                    int d = clock.DayIndex + 1;
+-                    impl.ForceSeasonDay(clock.CurrentSeason, d);
+-                }
+-                GUILayout.EndHorizontal();
+-            }
+-
+-            GUILayout.Label("Rule: Enter Defend (Autumn/Winter) -> wave auto-start. Pause stops wave timer.");
++            GUILayout.Space(6);
++            GUILayout.Label("Jump (debug):");
++            GUILayout.BeginHorizontal();
++            if (GUILayout.Button("Spring D1", GUILayout.Width(110))) clock.ForceSeasonDay(Season.Spring, 1);
++            if (GUILayout.Button("Summer D1", GUILayout.Width(110))) clock.ForceSeasonDay(Season.Summer, 1);
++            if (GUILayout.Button("Autumn D1", GUILayout.Width(110))) clock.ForceSeasonDay(Season.Autumn, 1);
++            if (GUILayout.Button("Winter D1", GUILayout.Width(110))) clock.ForceSeasonDay(Season.Winter, 1);
++            GUILayout.EndHorizontal();
+         }
+     }
+ }
+--- a/Debug/HUD/DebugStorageHUD.cs+++ b/Debug/HUD/DebugStorageHUD.cs@@ -5,7 +5,7 @@ 
+ namespace SeasonalBastion.DebugTools
+ {
+-    public sealed class DebugStorageHUD : MonoBehaviour
++    public sealed class DebugStorageHUD : MonoBehaviour, IDebugModule
+     {
+         [SerializeField] private bool _enabled = true;
+         [SerializeField] private Key _toggleKey = Key.S;
+@@ -376,6 +376,30 @@ 
+             DrawFlowDebugUI(bid);
+         }
++        // ======================
++        // IDebugModule (Option B)
++        // ======================
++        public string Title => "Storage Tool";
++        public DebugModuleKind Kind => DebugModuleKind.Tool;
++        public int Priority => 3;
++        public bool VisibleInHub => true;
++
++        public bool IsEnabled => _enabled;
++
++        public void SetEnabled(bool enabled)
++        {
++            _enabled = enabled;
++            _hubControlled = true;
++        }
++
++        public void Bind(DebugContext ctx)
++        {
++            _hubControlled = true;
++            _gs = ctx != null ? ctx.Services : _gs;
++        }
++
++        public void Tick(float dt) { } // Update() already handles hotkeys when enabled
++        public void DrawGizmos() { }
+ 
+         private void OnGUI()
+         {
+--- a/Debug/HUD/DebugTowerAmmoHUD.cs+++ b/Debug/HUD/DebugTowerAmmoHUD.cs@@ -1,111 +1,45 @@ using UnityEngine;
+-using UnityEngine.InputSystem;
+-using SeasonalBastion.Contracts;
+ 
+ namespace SeasonalBastion.DebugTools
+ {
+-    public sealed class DebugTowerAmmoHUD : MonoBehaviour
++    public sealed class DebugTowerAmmoHUD : DebugModuleBase
+     {
+-        [SerializeField] private bool _enabled = true;
+-        [SerializeField] private Key _toggleKey = Key.T;     // show/hide HUD
+-        [SerializeField] private Key _devHookKey = Key.Y;    // toggle dev hook
++        public override string Title => "Tower Ammo";
++        public override DebugModuleKind Kind => DebugModuleKind.Hud;
++        public override int Priority => 25;
+ 
+-        private GameServices _gs;
+-
+-        private void Awake()
++        public override void DrawHubGUI()
+         {
+-            _gs = FindObjectOfType<GameBootstrap>()?.Services;
+-        }
+-
+-        private void Update()
+-        {
+-            TryResolveServices();
+-
+-            var kb = Keyboard.current;
+-            if (kb == null) return;
+-
+-            if (kb[_toggleKey].wasPressedThisFrame)
+-                _enabled = !_enabled;
+-
+-            if (!_enabled) return;
+-
+-            if (kb[_devHookKey].wasPressedThisFrame)
++            var s = Ctx?.Services;
++            if (s == null || s.WorldState == null || s.WorldIndex == null || s.AmmoService == null)
+             {
+-                if (_gs != null && _gs.AmmoService is AmmoService a)
+-                {
+-                    a.DevHook_Enabled = !a.DevHook_Enabled;
+-                }
+-            }
+-        }
+-
+-        private void TryResolveServices()
+-        {
+-            if (_gs != null) return;
+-
+-            var bootstrap = FindObjectOfType<GameBootstrap>();
+-            if (bootstrap != null)
+-                _gs = bootstrap.Services;
+-        }
+-
+-        private void OnGUI()
+-        {
+-            if (!_enabled) return;
+-
+-            GUILayout.BeginArea(new Rect(10, 740, 620, 200), GUI.skin.box);
+-            GUILayout.Label("DebugTowerAmmoHUD (Day25)");
+-            GUILayout.Label($"Toggle HUD: {_toggleKey} | Toggle DevHook: {_devHookKey}");
+-
+-            if (_gs == null || _gs.WorldState == null || _gs.WorldIndex == null || _gs.AmmoService == null)
+-            {
+-                GUILayout.Label("GameServices/WorldState/WorldIndex/AmmoService = null");
+-                GUILayout.EndArea();
++                GUILayout.Label("AmmoHUD: missing services");
+                 return;
+             }
+ 
+-            bool devHook = false;
+-            if (_gs.AmmoService is AmmoService a) devHook = a.DevHook_Enabled;
++            GUILayout.Label("=== Tower Ammo (Day25) ===");
+ 
+-            GUILayout.Label($"PendingRequests = {_gs.AmmoService.PendingRequests} | DevHook = {devHook}");
+-
+-            var towers = _gs.WorldIndex.Towers;
+-            if (towers == null || towers.Count == 0)
++            if (s.AmmoService is AmmoService a)
+             {
+-                GUILayout.Label("No towers indexed.");
+-                GUILayout.EndArea();
+-                return;
++                GUILayout.Label($"DevHook_Enabled: {a.DevHook_Enabled}");
++                if (GUILayout.Button("Toggle DevHook", GUILayout.Width(160)))
++                    a.DevHook_Enabled = !a.DevHook_Enabled;
+             }
+ 
+-            GUILayout.Space(8);
+-            GUILayout.Label("Towers low/empty (<=25%):");
++            int towerCount = s.WorldIndex.Towers != null ? s.WorldIndex.Towers.Count : 0;
++            GUILayout.Label($"Towers indexed: {towerCount}");
+ 
+-            int shown = 0;
+-            for (int i = 0; i < towers.Count; i++)
++            if (towerCount > 0)
+             {
+-                var tid = towers[i];
+-                if (!_gs.WorldState.Towers.Exists(tid)) continue;
+-
+-                var ts = _gs.WorldState.Towers.Get(tid);
+-                if (ts.AmmoCap <= 0) continue;
+-
+-                int thr = (ts.AmmoCap * 25 + 99) / 100;
+-                if (thr < 1) thr = 1;
+-
+-                bool empty = ts.Ammo <= 0;
+-                bool low = (ts.Ammo > 0 && ts.Ammo <= thr);
+-
+-                if (!empty && !low) continue;
+-
+-                string tag = empty ? "EMPTY" : "LOW";
+-                GUILayout.Label($"Tower {tid.Value}: {tag}  Ammo {ts.Ammo}/{ts.AmmoCap}");
+-
+-                shown++;
+-                if (shown >= 10) break; // avoid huge HUD
++                int max = towerCount < 10 ? towerCount : 10;
++                for (int i = 0; i < max; i++)
++                {
++                    var bid = s.WorldIndex.Towers[i];
++                    var bst = s.WorldState.Buildings.Get(bid);
++                    GUILayout.Label($"- Tower {bid.Value}: def={bst.DefId} ammo={bst.TowerAmmo}/{bst.TowerAmmoMax} req={(bst.TowerAmmoNeed ? "YES" : "NO")}");
++                }
++                if (towerCount > max) GUILayout.Label("...");
+             }
+-
+-            if (shown == 0)
+-                GUILayout.Label("(none)");
+-
+-            GUILayout.EndArea();
+         }
+     }
+ }
+--- a/Debug/HUD/DebugTowerCombatGizmos.cs+++ b/Debug/HUD/DebugTowerCombatGizmos.cs@@ -11,8 +11,11 @@     /// - Draw line to current deterministic target (nearest in range, tie by EnemyId)
+     /// This recomputes selection for visualization (no dependency on TowerCombatSystem internals).
+     /// </summary>
+-    public sealed class DebugTowerCombatGizmos : MonoBehaviour
++    public sealed class DebugTowerCombatGizmos : DebugModuleBase
+     {
++        public override string Title => "Tower Combat Gizmos";
++        public override DebugModuleKind Kind => DebugModuleKind.Gizmo;
++        public override int Priority => 100;
+         [Header("Mapping")]
+         [SerializeField] private Vector3 _gridOrigin = Vector3.zero;
+         [SerializeField] private float _cellSize = 1f;
+@@ -30,7 +33,7 @@             _boot = FindObjectOfType<GameBootstrap>();
+         }
+ 
+-        private void OnDrawGizmos()
++        public override void DrawGizmos()
+         {
+             if (_boot == null) _boot = FindObjectOfType<GameBootstrap>();
+             var s = _boot != null ? _boot.Services : null;
+--- a/Debug/HUD/DebugWorldIndexHUD.cs+++ b/Debug/HUD/DebugWorldIndexHUD.cs@@ -1,121 +1,96 @@-using SeasonalBastion;
+ using SeasonalBastion.Contracts;
+ using UnityEngine;
+ 
+-public sealed class DebugWorldIndexHUD : MonoBehaviour
++namespace SeasonalBastion.DebugTools
+ {
+-    [SerializeField] private GameBootstrap _bootstrap;
++    public sealed class DebugWorldIndexHUD : DebugModuleBase
++    {
++        public override string Title => "World Index";
++        public override DebugModuleKind Kind => DebugModuleKind.Hud;
++        public override int Priority => 40;
+ 
+-    private IWorldIndex _index;
+-    private IWorldState _world;
++        public override void DrawHubGUI()
++        {
++            var s = Ctx?.Services;
++            var index = s?.WorldIndex;
++            var world = s?.WorldState;
+ 
+-    [SerializeField] private bool _hubControlled;
+-    public void SetHubControlled(bool v) => _hubControlled = v;
++            if (index == null)
++            {
++                GUILayout.Label("WorldIndex = null");
++                return;
++            }
+ 
+-    private void Awake()
+-    {
+-        if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+-    }
++            GUILayout.Label("WorldIndex (derived lists)");
++            GUILayout.Label($"Warehouses: {index.Warehouses.Count} | Producers: {index.Producers.Count} | Houses: {index.Houses.Count} | Forges: {index.Forges.Count} | Armories: {index.Armories.Count} | Towers: {index.Towers.Count}");
+ 
+-    private void TryResolve()
+-    {
+-        if (_bootstrap == null) return;
+-        _index ??= _bootstrap.Services?.WorldIndex;
+-        _world ??= _bootstrap.Services?.WorldState;
+-    }
++            DrawList("Warehouses", index.Warehouses);
++            DrawList("Producers", index.Producers);
++            DrawList("Houses", index.Houses);
+ 
+-    public void DrawHubGUI()
+-    {
+-        TryResolve();
+-        if (_index == null)
+-        {
+-            GUILayout.Label("WorldIndex = null");
+-            return;
++            // VS2 Day18: Build Sites progress (delivery gate)
++            if (world != null && world.Sites != null)
++            {
++                GUILayout.Space(6);
++                GUILayout.Label($"Build Sites: {world.Sites.Count}");
++
++                // Best-effort: if store exposes Ids enumeration, show first 10
++                try
++                {
++                    int shown = 0;
++                    foreach (var sid in world.Sites.Ids)
++                    {
++                        if (shown >= 10) break;
++                        var st = world.Sites.Get(sid);
++                        GUILayout.Label($"- Site {sid.Value}: {st.BuildingDefId} @ ({st.Anchor.X},{st.Anchor.Y}) {(st.IsReadyToWork ? "[READY]" : "[WAIT_COST]")}");
++                        GUILayout.Label("  " + FormatCostProgress(st));
++                        shown++;
++                    }
++                    if (world.Sites.Count > 10) GUILayout.Label("  ...");
++                }
++                catch
++                {
++                    // If current IEntityStore doesn't expose Ids, we still show count.
++                }
++            }
+         }
+ 
+-        GUILayout.Label("WorldIndex (derived lists)");
+-        GUILayout.Label($"Warehouses: {_index.Warehouses.Count} | Producers: {_index.Producers.Count} | Houses: {_index.Houses.Count} | Forges: {_index.Forges.Count} | Armories: {_index.Armories.Count} | Towers: {_index.Towers.Count}");
++        private static void DrawList(string label, System.Collections.Generic.IReadOnlyList<BuildingId> list)
++        {
++            if (list == null || list.Count == 0) return;
+ 
+-        DrawList("Warehouses", _index.Warehouses);
+-        DrawList("Producers", _index.Producers);
+-        DrawList("Houses", _index.Houses);
++            int max = list.Count < 10 ? list.Count : 10;
++            string s = "";
++            for (int i = 0; i < max; i++)
++            {
++                s += list[i].Value;
++                if (i != max - 1) s += ", ";
++            }
++            if (list.Count > max) s += " ...";
++            GUILayout.Label($"{label}: [{s}]");
++        }
+ 
+-        // VS2 Day18: Build Sites progress (delivery gate)
+-        if (_world != null && _world.Sites != null)
++        // VS2 Day18: Build Site cost progress formatting
++        private static string FormatCostProgress(BuildSiteState st)
+         {
+-            GUILayout.Space(6);
+-            GUILayout.Label($"Build Sites: {_world.Sites.Count}");
++            int[] delivered = new int[5];
++            int[] remaining = new int[5];
+ 
+-            // Best-effort: if store exposes Ids enumeration, show first 10
+-            try
++            if (st.DeliveredSoFar != null) Accum(st.DeliveredSoFar, delivered);
++            if (st.RemainingCosts != null) Accum(st.RemainingCosts, remaining);
++
++            return $"Cost: W {delivered[0]}/{delivered[0] + remaining[0]} | F {delivered[1]}/{delivered[1] + remaining[1]} | S {delivered[2]}/{delivered[2] + remaining[2]} | I {delivered[3]}/{delivered[3] + remaining[3]}";
++        }
++
++        private static void Accum(CostDef[] costs, int[] outArr)
++        {
++            for (int i = 0; i < costs.Length; i++)
+             {
+-                int shown = 0;
+-                foreach (var sid in _world.Sites.Ids)
+-                {
+-                    if (shown >= 10) break;
+-                    var st = _world.Sites.Get(sid);
+-                    GUILayout.Label($"- Site {sid.Value}: {st.BuildingDefId} @ ({st.Anchor.X},{st.Anchor.Y}) {(st.IsReadyToWork ? "[READY]" : "[WAIT_COST]")}");
+-                    GUILayout.Label("  " + FormatCostProgress(st));
+-                    shown++;
+-                }
+-                if (_world.Sites.Count > 10) GUILayout.Label("  ...");
+-            }
+-            catch
+-            {
+-                // If current IEntityStore doesn't expose Ids, we still show count.
++                var c = costs[i];
++                int idx = (int)c.Res;
++                if (idx < 0 || idx >= outArr.Length) continue;
++                outArr[idx] += c.Amt;
+             }
+         }
+     }
+-
+-    private static void DrawList(string label, System.Collections.Generic.IReadOnlyList<BuildingId> list)
+-    {
+-        if (list == null || list.Count == 0) return;
+-
+-        int max = list.Count < 10 ? list.Count : 10;
+-        string s = "";
+-        for (int i = 0; i < max; i++)
+-        {
+-            s += list[i].Value;
+-            if (i != max - 1) s += ", ";
+-        }
+-        if (list.Count > max) s += " ...";
+-        GUILayout.Label($"{label}: [{s}]");
+-    }
+-
+-    // VS2 Day18: Build Site cost progress formatting
+-    private static string FormatCostProgress(BuildSiteState st)
+-    {
+-        // totals = delivered + remaining (no need to store TotalCosts)
+-        int[] delivered = new int[5];
+-        int[] remaining = new int[5];
+-
+-        if (st.DeliveredSoFar != null) Accum(st.DeliveredSoFar, delivered);
+-        if (st.RemainingCosts != null) Accum(st.RemainingCosts, remaining);
+-
+-        return $"Cost: W {delivered[0]}/{delivered[0] + remaining[0]} | F {delivered[1]}/{delivered[1] + remaining[1]} | S {delivered[2]}/{delivered[2] + remaining[2]} | I {delivered[3]}/{delivered[3] + remaining[3]} | A {delivered[4]}/{delivered[4] + remaining[4]}";
+-    }
+-
+-    private static void Accum(System.Collections.Generic.List<CostDef> list, int[] arr)
+-    {
+-        for (int i = 0; i < list.Count; i++)
+-        {
+-            var c = list[i];
+-            if (c == null) continue;
+-
+-            int idx = (int)c.Resource;
+-            if (idx < 0 || idx >= arr.Length) continue;
+-
+-            arr[idx] += c.Amount;
+-        }
+-    }
+-
+-    private void OnGUI()
+-    {
+-        if (SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
+-
+-        // Standalone fallback (rarely used)
+-        GUILayout.BeginArea(new Rect(10, 10, 520, 180), GUI.skin.box);
+-        DrawHubGUI();
+-        GUILayout.EndArea();
+-    }
+ }
+--- a/Debug/Tools/DebugBuildingTool.cs+++ b/Debug/Tools/DebugBuildingTool.cs@@ -4,7 +4,7 @@ 
+ namespace SeasonalBastion.DebugTools
+ {
+-    public sealed class DebugBuildingTool : MonoBehaviour
++    public sealed class DebugBuildingTool : MonoBehaviour, IDebugModule
+     {
+         [Header("Bootstrap (required)")]
+         [SerializeField] private GameBootstrap _bootstrap;
+@@ -43,15 +43,6 @@         [SerializeField] private Color _okColor = new Color(0f, 1f, 0f, 1f);
+         [SerializeField] private Color _failColor = new Color(1f, 0f, 0f, 1f);
+         [SerializeField] private Color _drivewayColor = new Color(1f, 1f, 0f, 1f);
+-
+-        private InputAction _toggle;     // B
+-        private InputAction _click;      // LMB
+-        private InputAction _sel1, _sel2, _sel3, _sel4, _sel5; // 1..5
+-        private InputAction _rotL, _rotR; // Q/E
+-
+-        private InputAction _cancel;  // X (cancel build)
+-        private InputAction _damage;  // K (damage building)
+-        private InputAction _repair;  // R (request repair)
+         private Camera _cam;
+         private bool _enabled;
+ 
+@@ -76,25 +67,9 @@         {
+             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+             _cam = Camera.main;
+-
+-            _toggle = new InputAction("ToggleBuildingTool", InputActionType.Button, "<Keyboard>/b");
+-            _click = new InputAction("PlaceBuilding", InputActionType.Button, "<Mouse>/leftButton");
+-
+-            _sel1 = new InputAction("Sel1", InputActionType.Button, "<Keyboard>/1");
+-            _sel2 = new InputAction("Sel2", InputActionType.Button, "<Keyboard>/2");
+-            _sel3 = new InputAction("Sel3", InputActionType.Button, "<Keyboard>/3");
+-            _sel4 = new InputAction("Sel4", InputActionType.Button, "<Keyboard>/4");
+-            _sel5 = new InputAction("Sel5", InputActionType.Button, "<Keyboard>/5");
+-
+-            _rotL = new InputAction("RotL", InputActionType.Button, "<Keyboard>/q");
+-            _rotR = new InputAction("RotR", InputActionType.Button, "<Keyboard>/e");
+-
+-
+-            _cancel = new InputAction("CancelBuild", InputActionType.Button, "<Keyboard>/x");
+-            _damage = new InputAction("DamageBuilding", InputActionType.Button, "<Keyboard>/k");
+-            _repair = new InputAction("RepairBuilding", InputActionType.Button, "<Keyboard>/r");
+             _selectedDef = _def1;
+         }
++
+ 
+         private void Start()
+         {
+@@ -107,60 +82,7 @@             if (_cam == null) _cam = Camera.main;
+         }
+ 
+-        private void OnEnable()
+-        {
+-            _toggle.Enable();
+-            _click.Enable();
+-            _sel1.Enable(); _sel2.Enable(); _sel3.Enable(); _sel4.Enable(); _sel5.Enable();
+-            _rotL.Enable(); _rotR.Enable();
+-            _cancel.Enable();
+-            _damage.Enable();
+-            _repair.Enable();
+-
+-            _toggle.performed += OnToggle;
+-            _click.performed += OnClick;
+-
+-            _sel1.performed += OnSel1;
+-            _sel2.performed += OnSel2;
+-            _sel3.performed += OnSel3;
+-            _sel4.performed += OnSel4;
+-            _sel5.performed += OnSel5;
+-
+-            _rotL.performed += OnRotL;
+-            _rotR.performed += OnRotR;
+-            _cancel.performed += OnCancel;
+-
+-            _damage.performed += OnDamage;
+-            _repair.performed += OnRepair;
+-        }
+-
+-        private void OnDisable()
+-        {
+-            _toggle.performed -= OnToggle;
+-            _click.performed -= OnClick;
+-            _sel1.performed -= OnSel1;
+-            _sel2.performed -= OnSel2;
+-            _sel3.performed -= OnSel3;
+-            _sel4.performed -= OnSel4;
+-            _sel5.performed -= OnSel5;
+-            _rotL.performed -= OnRotL;
+-            _rotR.performed -= OnRotR;
+-            _cancel.performed -= OnCancel;
+-            _damage.performed -= OnDamage;
+-            _repair.performed -= OnRepair;
+-
+-            _toggle.Disable();
+-            _click.Disable();
+-            _sel1.Disable(); _sel2.Disable(); _sel3.Disable(); _sel4.Disable(); _sel5.Disable();
+-            _rotL.Disable(); _rotR.Disable();
+-            _cancel.Disable();
+-            _damage.Disable();
+-            _repair.Disable();
+-            _hasHover = false;
+-            _cacheValid = false;
+-        }
+-
+-        private void Update()
++                        private void Update()
+         {
+             if (!_enabled || _place == null)
+             {
+@@ -189,31 +111,34 @@                 _cacheDef = _selectedDef;
+                 _cacheRot = _rotation;
+             }
+-        }
+-
+-        private void OnToggle(InputAction.CallbackContext _)
+-        {
+-            if (_hubControlled) return;
+-
+-            _enabled = !_enabled;
+-            _cacheValid = false;
+-
+-            _noti?.Push(
+-                key: "DebugBuildingTool",
+-                title: "Debug",
+-                body: _enabled ? "Building Tool: ON (1-5 select, Q/E rotate, LMB place)" : "Building Tool: OFF",
+-                severity: NotificationSeverity.Info,
+-                payload: default,
+-                cooldownSeconds: 0.2f,
+-                dedupeByKey: true
+-            );
+-        }
+-
+-        private void OnSel1(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def1); }
+-        private void OnSel2(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def2); }
+-        private void OnSel3(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def3); }
+-        private void OnSel4(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def4); }
+-        private void OnSel5(InputAction.CallbackContext _) { if (!_enabled) return; Select(_def5); }
++
++            // --- Hub-controlled input (no InputActions) ---
++            var kb = Keyboard.current;
++            if (kb != null)
++            {
++                if (kb.digit1Key.wasPressedThisFrame) OnSel1();
++                if (kb.digit2Key.wasPressedThisFrame) OnSel2();
++                if (kb.digit3Key.wasPressedThisFrame) OnSel3();
++                if (kb.digit4Key.wasPressedThisFrame) OnSel4();
++                if (kb.digit5Key.wasPressedThisFrame) OnSel5();
++
++                if (kb.qKey.wasPressedThisFrame) OnRotL();
++                if (kb.eKey.wasPressedThisFrame) OnRotR();
++
++                if (kb.xKey.wasPressedThisFrame) OnCancel();
++                if (kb.kKey.wasPressedThisFrame) OnDamage();
++                if (kb.rKey.wasPressedThisFrame) OnRepair();
++            }
++
++            var mouse = Mouse.current;
++            if (mouse != null && mouse.leftButton.wasPressedThisFrame) OnClick();
++        }
++
++                private void OnSel1() { if (!_enabled) return; Select(_def1); }
++        private void OnSel2() { if (!_enabled) return; Select(_def2); }
++        private void OnSel3() { if (!_enabled) return; Select(_def3); }
++        private void OnSel4() { if (!_enabled) return; Select(_def4); }
++        private void OnSel5() { if (!_enabled) return; Select(_def5); }
+ 
+         private void Select(string defId)
+         {
+@@ -231,13 +156,13 @@             );
+         }
+ 
+-        private void OnRotL(InputAction.CallbackContext _)
++        private void OnRotL()
+         {
+             if (!_enabled) return;
+             Rotate(-1);
+         }
+ 
+-        private void OnRotR(InputAction.CallbackContext _)
++        private void OnRotR()
+         {
+             if (!_enabled) return;
+             Rotate(+1);
+@@ -262,7 +187,7 @@             );
+         }
+ 
+-        private void OnCancel(InputAction.CallbackContext _)
++        private void OnCancel()
+         {
+             if (!_enabled || !_hasHover) return;
+             if (_s == null || _grid == null) return;
+@@ -278,7 +203,7 @@             }
+         }
+ 
+-        private void OnClick(InputAction.CallbackContext _)
++        private void OnClick()
+         {
+             if (!_enabled || !_hasHover || _place == null) return;
+ 
+@@ -294,7 +219,7 @@                 _noti?.Push("Build_CommitFailed", "Build", "Commit failed (id=0)", NotificationSeverity.Error, default, 1.0f, true);
+         }
+ 
+-        private void OnDamage(InputAction.CallbackContext _)
++        private void OnDamage()
+         {
+             if (!_enabled || !_hasHover) return;
+             if (_s == null || _grid == null) return;
+@@ -317,7 +242,7 @@             _noti?.Push("Dbg_Damage", "Build", $"Damage {bs.DefId}: {bs.HP}/{bs.MaxHP}", NotificationSeverity.Warning, default, 0.10f, true);
+         }
+ 
+-        private void OnRepair(InputAction.CallbackContext _)
++        private void OnRepair()
+         {
+             if (!_enabled || !_hasHover) return;
+             if (_s == null || _grid == null) return;
+@@ -367,6 +292,55 @@ 
+             cell = new CellPos(x, y);
+             return true;
++        }
++        // ======================
++        // IDebugModule (Option B)
++        // ======================
++        public string Title => "Build Tool";
++        public DebugModuleKind Kind => DebugModuleKind.Tool;
++        public int Priority => 0;
++        public bool VisibleInHub => true;
++
++        public bool IsEnabled => _enabled;
++
++        public void SetEnabled(bool enabled)
++        {
++            _enabled = enabled;
++            _cacheValid = false;
++            _hasHover = false;
++            _lastValidate = default;
++        }
++
++        public void Bind(DebugContext ctx)
++        {
++            if (_bootstrap == null) _bootstrap = ctx != null ? ctx.Bootstrap : null;
++            _cam = ctx != null ? ctx.Cam : _cam;
++
++            if (_bootstrap != null && _bootstrap.Services != null)
++            {
++                _s = _bootstrap.Services;
++                _grid = _s.GridMap;
++                _place = _s.PlacementService;
++                _data = _s.DataRegistry;
++                _noti = _s.NotificationService;
++            }
++        }
++
++        public void Tick(float dt) { } // Update() drives hover + input
++        public void DrawGizmos() { }   // uses OnDrawGizmos()
++        public void DrawHubGUI()
++        {
++            GUILayout.Label("=== Build Tool ===");
++            GUILayout.Label("LMB: place | 1-5 select | Q/E rotate | X cancel site | K damage building | R repair order");
++            GUILayout.BeginHorizontal();
++            if (GUILayout.Button("HQ", GUILayout.Width(80))) _selectedDef = _def1;
++            if (GUILayout.Button("House", GUILayout.Width(80))) _selectedDef = _def2;
++            if (GUILayout.Button("Farm", GUILayout.Width(80))) _selectedDef = _def3;
++            if (GUILayout.Button("Lumber", GUILayout.Width(80))) _selectedDef = _def4;
++            if (GUILayout.Button("Warehouse", GUILayout.Width(110))) _selectedDef = _def5;
++            GUILayout.EndHorizontal();
++            GUILayout.Label($"SelectedDef: {_selectedDef}  Rot: {_rotation}");
++            GUILayout.Label($"Enabled: {_enabled}  Hover: {(_hasHover ? $"({_hoverCell.X},{_hoverCell.Y})" : "(none)")}");
+         }
+ 
+         private void OnDrawGizmos()
+--- a/Debug/Tools/DebugNpcTool.cs+++ b/Debug/Tools/DebugNpcTool.cs@@ -6,7 +6,7 @@ 
+ namespace SeasonalBastion.DebugTools
+ {
+-    public sealed class DebugNpcTool : MonoBehaviour
++    public sealed class DebugNpcTool : MonoBehaviour, IDebugModule
+     {
+         [Header("Bootstrap (required)")]
+         [SerializeField] private GameBootstrap _bootstrap;
+@@ -29,11 +29,6 @@         [SerializeField] private bool _hubControlled;
+         public void SetHubControlled(bool v) => _hubControlled = v;
+         public void SetEnabledFromHub(bool enabled) { _enabled = enabled; }
+-
+-        private InputAction _toggle; // N
+-        private InputAction _spawn;  // P
+-        private InputAction _click;  // LMB
+-        private InputAction _release; // R
+ 
+         private Camera _cam;
+         private bool _enabled;
+@@ -56,14 +51,9 @@         private void Awake()
+         {
+             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+-            _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
+-            if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
+-
+-            _toggle = new InputAction("ToggleNpcTool", InputActionType.Button, "<Keyboard>/n");
+-            _spawn = new InputAction("SpawnNpc", InputActionType.Button, "<Keyboard>/p");
+-            _click = new InputAction("AssignNpc", InputActionType.Button, "<Mouse>/leftButton");
+-            _release = new InputAction("ReleaseAllClaimsSelectedNpc", InputActionType.Button, "<Keyboard>/r");
+-        }
++            _cam = Camera.main;
++        }
++
+ 
+         private void Start()
+         {
+@@ -80,38 +70,7 @@             if (_cam == null) _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
+         }
+ 
+-        private void OnEnable()
+-        {
+-            _toggle.Enable();
+-            _spawn.Enable();
+-            _click.Enable();
+-            _release.Enable();
+-
+-            _toggle.performed += OnToggle;
+-            _spawn.performed += OnSpawn;
+-            _click.performed += OnClick;
+-            _release.performed += OnReleaseAllClaims;
+-
+-        }
+-
+-        private void OnDisable()
+-        {
+-            _toggle.performed -= OnToggle;
+-            _spawn.performed -= OnSpawn;
+-            _click.performed -= OnClick;
+-            _release.performed -= OnReleaseAllClaims;
+-
+-            _toggle.Disable();
+-            _spawn.Disable();
+-            _click.Disable();
+-            _release.Disable();
+-
+-            _enabled = false;
+-            _hasSelectedNpc = false;
+-            _hasHover = false;
+-        }
+-
+-        private void Update()
++                        private void Update()
+         {
+             // Sync mapping (always, so Hub UI has hover)
+             if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
+@@ -133,24 +92,7 @@             _hasHover = TryGetCellUnderMouse(out _hoverCell);
+         }
+ 
+-        private void OnToggle(InputAction.CallbackContext _)
+-        {
+-            if (_hubControlled) return;
+-
+-            _enabled = !_enabled;
+-
+-            _noti?.Push(
+-                key: "DebugNpcTool",
+-                title: "Debug",
+-                body: _enabled ? "NPC Tool: ON (P spawn, HUD select, LMB assign)" : "NPC Tool: OFF",
+-                severity: NotificationSeverity.Info,
+-                payload: default,
+-                cooldownSeconds: 0.2f,
+-                dedupeByKey: true
+-            );
+-        }
+-
+-        private void OnSpawn(InputAction.CallbackContext _)
++                private void OnSpawn()
+         {
+             if (!_enabled) return;
+ 
+@@ -184,7 +126,7 @@             }
+         }
+ 
+-        private void OnClick(InputAction.CallbackContext _)
++        private void OnClick()
+         {
+             if (!_enabled) return;
+             if (!_hasSelectedNpc) return;
+@@ -235,7 +177,7 @@                 NotificationSeverity.Info, default, 0.15f, true);
+         }
+ 
+-        private void OnReleaseAllClaims(InputAction.CallbackContext _)
++        private void OnReleaseAllClaims()
+         {
+             if (!_enabled) return;
+ 
+@@ -412,6 +354,59 @@ 
+             if (tmp.Count > show)
+                 GUILayout.Label($"... ({tmp.Count - show} more)");
++
++            // --- Hub-controlled input (no InputActions) ---
++            if (!_enabled) return;
++
++            var kb = Keyboard.current;
++            if (kb != null)
++            {
++                if (kb.pKey.wasPressedThisFrame) OnSpawn();
++                if (kb.rKey.wasPressedThisFrame) OnReleaseAllClaims();
++            }
++
++            var mouse = Mouse.current;
++            if (mouse != null && mouse.leftButton.wasPressedThisFrame) OnClick();
++        }
++        // ======================
++        // IDebugModule (Option B)
++        // ======================
++        public string Title => "Npc Tool";
++        public DebugModuleKind Kind => DebugModuleKind.Tool;
++        public int Priority => 2;
++        public bool VisibleInHub => true;
++
++        public bool IsEnabled => _enabled;
++
++        public void SetEnabled(bool enabled)
++        {
++            _enabled = enabled;
++            _hasHover = false;
++            _hasSelected = false;
++        }
++
++        public void Bind(DebugContext ctx)
++        {
++            if (_bootstrap == null) _bootstrap = ctx != null ? ctx.Bootstrap : null;
++            _cam = ctx != null ? ctx.Cam : _cam;
++
++            if (_bootstrap != null && _bootstrap.Services != null)
++            {
++                _s = _bootstrap.Services;
++                _world = _s.WorldState;
++                _grid = _s.GridMap;
++                _noti = _s.NotificationService;
++            }
++        }
++
++        public void Tick(float dt) { }
++        public void DrawGizmos() { }
++        public void DrawHubGUI()
++        {
++            GUILayout.Label("=== NPC Tool ===");
++            GUILayout.Label("LMB: select | P: spawn | R: release all claims (selected)");
++            if (_hasSelected) GUILayout.Label($"Selected NPC: {_selectedNpc.Value}");
++            else GUILayout.Label("Selected NPC: (none)");
+         }
+ 
+         private void OnGUI()
+--- a/Debug/Tools/DebugRoadTool.cs+++ b/Debug/Tools/DebugRoadTool.cs@@ -5,7 +5,7 @@ 
+ namespace SeasonalBastion.DebugTools
+ {
+-    public sealed class DebugRoadTool : MonoBehaviour
++    public sealed class DebugRoadTool : MonoBehaviour, IDebugModule
+     {
+         [Header("Bootstrap (required)")]
+         [SerializeField] private GameBootstrap _bootstrap;
+@@ -30,9 +30,6 @@         [SerializeField] private bool _hubControlled;
+         public void SetHubControlled(bool v) => _hubControlled = v;
+         public void SetEnabledFromHub(bool enabled) { _enabled = enabled; _anyRoadCacheValid = false; _lastHoverValid = false; }
+-
+-        private InputAction _toggleTool;  // R
+-        private InputAction _click;       // LMB
+         private bool _enabled;
+ 
+         private IPlacementService _placement;
+@@ -60,32 +57,11 @@         private void Awake()
+         {
+             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+-            _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
+-            if (_mappingSource == null) _mappingSource = FindObjectOfType<DebugBuildingTool>();
+-
+-            _toggleTool = new InputAction("ToggleRoadTool", InputActionType.Button, "<Keyboard>/r");
+-            _click = new InputAction("PlaceRoadClick", InputActionType.Button, "<Mouse>/leftButton");
+-        }
+-
+-        private void OnEnable()
+-        {
+-            _toggleTool.Enable();
+-            _click.Enable();
+-
+-            _toggleTool.performed += OnToggle;
+-            _click.performed += OnClick;
+-        }
+-
+-        private void OnDisable()
+-        {
+-            _toggleTool.performed -= OnToggle;
+-            _click.performed -= OnClick;
+-
+-            _toggleTool.Disable();
+-            _click.Disable();
+-        }
+-
+-        private void Start()
++            _cam = Camera.main;
++        }
++
++
++                        private void Start()
+         {
+             var services = _bootstrap.Services;
+ 
+@@ -162,28 +138,19 @@                 _hoverCanRemove = false;
+                 _hoverWouldSplitIfRemoved = false;
+             }
+-        }
+-
+-        private void OnToggle(InputAction.CallbackContext _)
+-        {
+-            if (_hubControlled) return;
+-
+-            _enabled = !_enabled;
+-            _anyRoadCacheValid = false;
+-            _lastHoverValid = false;
+-
+-            _noti?.Push(
+-                key: "DebugRoadTool",
+-                title: "Debug",
+-                body: _enabled ? "Road Tool: ON (R toggle, LMB place/remove)" : "Road Tool: OFF (R toggle)",
+-                severity: NotificationSeverity.Info,
+-                payload: default,
+-                cooldownSeconds: 0.2f,
+-                dedupeByKey: true
+-            );
+-        }
+-
+-        private void OnClick(InputAction.CallbackContext _)
++
++            var kb = Keyboard.current;
++            if (kb != null)
++            {
++                if (kb.rKey.wasPressedThisFrame) _paintMode = !_paintMode;
++                if (kb.eKey.wasPressedThisFrame) _eraseMode = !_eraseMode;
++            }
++
++            var mouse = Mouse.current;
++            if (mouse != null && mouse.leftButton.wasPressedThisFrame) OnClick();
++        }
++
++                private void OnClick()
+         {
+             if (!_enabled) return;
+             if (_placement == null || _grid == null) return;
+@@ -351,6 +318,46 @@             cell = new CellPos(x, y);
+             return true;
+         }
++        // ======================
++        // IDebugModule (Option B)
++        // ======================
++        public string Title => "Road Tool";
++        public DebugModuleKind Kind => DebugModuleKind.Tool;
++        public int Priority => 1;
++        public bool VisibleInHub => true;
++
++        public bool IsEnabled => _enabled;
++
++        public void SetEnabled(bool enabled)
++        {
++            _enabled = enabled;
++            _hasHover = false;
++            _cacheValid = false;
++            _lastValidate = default;
++        }
++
++        public void Bind(DebugContext ctx)
++        {
++            if (_bootstrap == null) _bootstrap = ctx != null ? ctx.Bootstrap : null;
++            _cam = ctx != null ? ctx.Cam : _cam;
++
++            if (_bootstrap != null && _bootstrap.Services != null)
++            {
++                _s = _bootstrap.Services;
++                _grid = _s.GridMap;
++                _roads = _s.RoadService;
++                _noti = _s.NotificationService;
++            }
++        }
++
++        public void Tick(float dt) { }
++        public void DrawGizmos() { }
++        public void DrawHubGUI()
++        {
++            GUILayout.Label("=== Road Tool ===");
++            GUILayout.Label("LMB: paint/erase | R: toggle paint | E: toggle erase");
++            GUILayout.Label($"Enabled: {_enabled}  Paint:{_paintMode}  Erase:{_eraseMode}  Hover:{(_hasHover ? $"({_hoverCell.X},{_hoverCell.Y})" : "(none)")}");
++        }
+ 
+         private void OnDrawGizmos()
+         {
+--- a/Debug/Tools/DebugTowerGizmos.cs+++ b/Debug/Tools/DebugTowerGizmos.cs@@ -9,8 +9,11 @@     /// XY grid supported via DebugGridUtil (PlaneZ).
+     /// </summary>
+     [ExecuteAlways]
+-    public sealed class DebugTowerGizmos : MonoBehaviour
++    public sealed class DebugTowerGizmos : DebugModuleBase
+     {
++        public override string Title => "Tower Gizmos";
++        public override DebugModuleKind Kind => DebugModuleKind.Gizmo;
++        public override int Priority => 100;
+         [Header("Bootstrap (optional auto-find)")]
+         [SerializeField] private GameBootstrap _bootstrap;
+ 
+@@ -29,7 +32,7 @@ 
+         private DebugGridMap _map;
+ 
+-        private void OnDrawGizmos()
++        public override void DrawGizmos()
+         {
+             if (!_enabled) return;
+             if (_onlyWhenPlaying && !Application.isPlaying) return;
+--- a/Debug/_Core/IDebugModule.cs+++ b/Debug/_Core/IDebugModule.cs@@ -0,0 +1,29 @@+using UnityEngine;
++
++namespace SeasonalBastion.DebugTools
++{
++    public enum DebugModuleKind { Hud, Tool, Gizmo }
++
++    /// <summary>
++    /// Debug module contract:
++    /// - Bind once (DebugRoot)
++    /// - Hub toggles SetEnabled
++    /// - Tick/DrawHubGUI/DrawGizmos only called when enabled (by DebugRoot/DebugHUDHub)
++    /// </summary>
++    public interface IDebugModule
++    {
++        string Title { get; }
++        DebugModuleKind Kind { get; }
++        int Priority { get; }
++        bool VisibleInHub { get; }
++
++        bool IsEnabled { get; }
++        void SetEnabled(bool enabled);
++
++        void Bind(DebugContext ctx);
++
++        void Tick(float dt);
++        void DrawHubGUI();
++        void DrawGizmos();
++    }
++}
+--- a/Debug/_Core/DebugModuleBase.cs+++ b/Debug/_Core/DebugModuleBase.cs@@ -0,0 +1,26 @@+using UnityEngine;
++
++namespace SeasonalBastion.DebugTools
++{
++    /// <summary>Base class to keep modules tiny. No Update/OnGUI here: DebugRoot/Hub drives calls.</summary>
++    public abstract class DebugModuleBase : MonoBehaviour, IDebugModule
++    {
++        [SerializeField] private bool _enabled;
++        protected DebugContext Ctx { get; private set; }
++
++        public abstract string Title { get; }
++        public abstract DebugModuleKind Kind { get; }
++        public virtual int Priority => 0;
++        public virtual bool VisibleInHub => true;
++
++        public bool IsEnabled => _enabled;
++
++        public virtual void SetEnabled(bool enabled) => _enabled = enabled;
++
++        public virtual void Bind(DebugContext ctx) => Ctx = ctx;
++
++        public virtual void Tick(float dt) { }
++        public virtual void DrawHubGUI() { }
++        public virtual void DrawGizmos() { }
++    }
++}
+--- a/Debug/_Core/DebugContext.cs+++ b/Debug/_Core/DebugContext.cs@@ -0,0 +1,24 @@+using UnityEngine;
++
++namespace SeasonalBastion.DebugTools
++{
++    /// <summary>Single place to access bootstrap/services/camera. Debug modules should NOT FindObjectOfType.</summary>
++    public sealed class DebugContext
++    {
++        public GameBootstrap Bootstrap { get; }
++        public GameServices Services { get; private set; }
++        public Camera Cam { get; private set; }
++
++        public DebugContext(GameBootstrap bootstrap)
++        {
++            Bootstrap = bootstrap;
++            Refresh();
++        }
++
++        public void Refresh()
++        {
++            Services = Bootstrap != null ? Bootstrap.Services : null;
++            if (Cam == null) Cam = Camera.main;
++        }
++    }
++}
+--- a/Debug/_Core/DebugRoot.cs+++ b/Debug/_Core/DebugRoot.cs@@ -0,0 +1,78 @@+using System.Collections.Generic;
++using UnityEngine;
++
++namespace SeasonalBastion.DebugTools
++{
++    /// <summary>
++    /// Debug root: auto-registers modules under this hierarchy and ticks enabled modules.
++    /// Attach this to a single Debug GameObject.
++    /// </summary>
++    public sealed class DebugRoot : MonoBehaviour
++    {
++        [SerializeField] private GameBootstrap _bootstrap;
++
++        private readonly List<IDebugModule> _modules = new List<IDebugModule>(64);
++        private DebugContext _ctx;
++
++        public DebugContext Ctx => _ctx;
++        public IReadOnlyList<IDebugModule> Modules => _modules;
++
++        private void Awake()
++        {
++            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
++            _ctx = new DebugContext(_bootstrap);
++
++            CollectModules();
++        }
++
++        private void CollectModules()
++        {
++            _modules.Clear();
++
++            // include inactive children so you can keep modules disabled by default
++            var behaviours = GetComponentsInChildren<MonoBehaviour>(true);
++            for (int i = 0; i < behaviours.Length; i++)
++            {
++                if (behaviours[i] is IDebugModule m)
++                {
++                    m.Bind(_ctx);
++                    _modules.Add(m);
++                }
++            }
++
++            _modules.Sort((a, b) =>
++            {
++                int p = a.Priority.CompareTo(b.Priority);
++                if (p != 0) return p;
++                return string.CompareOrdinal(a.Title, b.Title);
++            });
++        }
++
++        private void Update()
++        {
++            _ctx.Refresh();
++
++            // tick enabled modules (tools/hud/gizmos may opt in)
++            float dt = Time.unscaledDeltaTime;
++            if (dt <= 0f) return;
++
++            for (int i = 0; i < _modules.Count; i++)
++            {
++                var m = _modules[i];
++                if (!m.IsEnabled) continue;
++                m.Tick(dt);
++            }
++        }
++
++        private void OnDrawGizmos()
++        {
++            if (_modules == null) return;
++            for (int i = 0; i < _modules.Count; i++)
++            {
++                var m = _modules[i];
++                if (!m.IsEnabled) continue;
++                m.DrawGizmos();
++            }
++        }
++    }
++}
+--- a/Debug/_Core/DebugInputRouter.cs+++ b/Debug/_Core/DebugInputRouter.cs@@ -0,0 +1,36 @@+using UnityEngine;
++using UnityEngine.InputSystem;
++
++namespace SeasonalBastion.DebugTools
++{
++    /// <summary>Central hotkey router for DebugHUDHub. Tools should NOT own InputActions.</summary>
++    public sealed class DebugInputRouter
++    {
++        // Hub hotkeys
++        public Key ToggleUiKey = Key.F1;
++        public Key ModeBuildKey = Key.F2;
++        public Key ModeRoadKey = Key.F3;
++        public Key ModeNpcKey = Key.F4;
++        public Key ModeStorageKey = Key.F5;
++        public Key TabNotiKey = Key.F6;
++        public Key TabWorldIndexKey = Key.F7;
++        public Key ClearModeKey = Key.Escape;
++
++        public void TickHotkeys(DebugHUDHub hub)
++        {
++            var kb = Keyboard.current;
++            if (kb == null || hub == null) return;
++
++            if (kb[ToggleUiKey].wasPressedThisFrame) hub.ToggleUI();
++            if (kb[ClearModeKey].wasPressedThisFrame) hub.SetMode(DebugHubMode.None);
++
++            if (kb[ModeBuildKey].wasPressedThisFrame) hub.SetMode(DebugHubMode.Build);
++            if (kb[ModeRoadKey].wasPressedThisFrame) hub.SetMode(DebugHubMode.Road);
++            if (kb[ModeNpcKey].wasPressedThisFrame) hub.SetMode(DebugHubMode.Npc);
++            if (kb[ModeStorageKey].wasPressedThisFrame) hub.SetMode(DebugHubMode.Storage);
++
++            if (kb[TabNotiKey].wasPressedThisFrame) hub.SetTab(DebugHubTab.Notifications);
++            if (kb[TabWorldIndexKey].wasPressedThisFrame) hub.SetTab(DebugHubTab.WorldIndex);
++        }
++    }
++}

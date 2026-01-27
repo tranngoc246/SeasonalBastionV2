@@ -112,15 +112,30 @@ namespace SeasonalBastion.DebugTools
         {
             DebugHubState.Enabled = false;
         }
-
         private void Update()
         {
+            // Hub no longer polls hotkeys here (handled by DebugInputRouter).
+            // Update only resolves services and auto-finds modules if needed.
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _gs ??= _bootstrap != null ? _bootstrap.Services : null;
 
-            var kb = Keyboard.current;
-            if (kb == null) return;
+            if (_buildTool == null) _buildTool = FindObjectOfType<DebugBuildingTool>();
+            if (_roadTool == null) _roadTool = FindObjectOfType<DebugRoadTool>();
+            if (_npcTool == null) _npcTool = FindObjectOfType<DebugNpcTool>();
 
+            if (_storageHud == null) _storageHud = FindObjectOfType<DebugStorageHUD>();
+            if (_notiHud == null) _notiHud = FindObjectOfType<DebugNotificationsHUD>();
+            if (_worldIndexHud == null) _worldIndexHud = FindObjectOfType<DebugWorldIndexHUD>();
+            if (_combatLaneHud == null) _combatLaneHud = FindObjectOfType<DebugCombatLaneHUD>();
+            if (_runClockHud == null) _runClockHud = FindObjectOfType<DebugRunClockHUD>();
+
+            ApplyMode(_mode);
+        }
+
+
+        
+        public void HandleHotkeys(Keyboard kb)
+        {
             if (kb[_toggleUiKey].wasPressedThisFrame)
                 _showUi = !_showUi;
 
@@ -136,7 +151,7 @@ namespace SeasonalBastion.DebugTools
             if (kb[_tabWorldIndexKey].wasPressedThisFrame) _tab = DebugHubTab.WorldIndex;
         }
 
-        private void ApplyMode(DebugHubMode m)
+private void ApplyMode(DebugHubMode m)
         {
             _mode = m;
 
@@ -148,8 +163,8 @@ namespace SeasonalBastion.DebugTools
 
         private void OnGUI()
         {
+            DebugHubState.Enabled = _showUi;
             if (!_showUi) return;
-
             GUILayout.BeginArea(new Rect(10, 10, 620, (Screen.height - 20)), GUI.skin.box);
 
             GUILayout.Label("[DebugHUDHub] F1 UI | F2 Build | F3 Road | F4 NPC | F5 Storage | F6 Noti | F7 Index | Esc None");

@@ -1,7 +1,7 @@
 {
   "towers": [
     {
-      "id": "TowerArrow",
+      "id": "bld_tower_arrow_t1",
       "tier": 1,
       "hp": 260,
       "range": 5,
@@ -28,7 +28,7 @@
       }
     },
     {
-      "id": "TowerCannon",
+      "id": "bld_tower_cannon_t1",
       "tier": 1,
       "hp": 320,
       "range": 4,
@@ -59,7 +59,7 @@
       }
     },
     {
-      "id": "TowerFrost",
+      "id": "bld_tower_frost_t1",
       "tier": 1,
       "hp": 300,
       "range": 5,
@@ -92,7 +92,7 @@
       }
     },
     {
-      "id": "TowerFire",
+      "id": "bld_tower_fire_t1",
       "tier": 1,
       "hp": 340,
       "range": 5,
@@ -126,7 +126,7 @@
       }
     },
     {
-      "id": "TowerSniper",
+      "id": "bld_tower_sniper_t1",
       "tier": 1,
       "hp": 300,
       "range": 8,

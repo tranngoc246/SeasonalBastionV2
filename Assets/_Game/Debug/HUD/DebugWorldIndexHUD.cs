@@ -2,6 +2,8 @@ using SeasonalBastion;
 using SeasonalBastion.Contracts;
 using UnityEngine;
 
+namespace SeasonalBastion.DebugTools
+{
 public sealed class DebugWorldIndexHUD : MonoBehaviour
 {
     [SerializeField] private GameBootstrap _bootstrap;
@@ -118,4 +120,5 @@ public sealed class DebugWorldIndexHUD : MonoBehaviour
         DrawHubGUI();
         GUILayout.EndArea();
     }
+}
 }

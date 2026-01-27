@@ -41,8 +41,6 @@ namespace SeasonalBastion
 
         private bool HasRoadInCross(CellPos entry)
         {
-            if (_grid.IsInside(entry) && _grid.IsRoad(entry)) return true;
-
             var n = Add(entry, 0, 1);
             var e = Add(entry, 1, 0);
             var s = Add(entry, 0, -1);
@@ -110,11 +108,14 @@ namespace SeasonalBastion
 
             // 2) entry/road connectivity (len=1)
 
-            // If entry is outside map -> cannot connect (treat as NoRoadConnection)
+            // If entry is outside map -> cannot connect
             if (!_grid.IsInside(entry))
                 return new PlacementResult(false, PlacementFailReason.NoRoadConnection, entry);
 
-            // Entry cell must not be blocked by Building/Site (it can be Empty or Road)
+            // Driveway (entry) MUST be empty cell (NOT road, NOT site, NOT building).
+            if (_grid.IsRoad(entry))
+                return new PlacementResult(false, PlacementFailReason.Overlap, entry);
+
             var entryOcc = _grid.Get(entry);
             if (entryOcc.Kind == CellOccupancyKind.Site)
                 return new PlacementResult(false, PlacementFailReason.BlockedBySite, entry);
@@ -122,7 +123,10 @@ namespace SeasonalBastion
             if (entryOcc.Kind == CellOccupancyKind.Building)
                 return new PlacementResult(false, PlacementFailReason.Overlap, entry);
 
-            // Pass if road exists in entry cross (entry or N/E/S/W)
+            if (entryOcc.Kind != CellOccupancyKind.Empty)
+                return new PlacementResult(false, PlacementFailReason.Overlap, entry);
+
+            // Road must be adjacent (N/E/S/W) to driveway (entry).
             if (!HasRoadInCross(entry))
                 return new PlacementResult(false, PlacementFailReason.NoRoadConnection, entry);
 
@@ -143,14 +147,18 @@ namespace SeasonalBastion
             var driveway = vr.SuggestedRoadCell;
             bool drivewayWasCreated = false;
 
-            if (_grid.IsInside(driveway) && !_grid.IsRoad(driveway))
+            if (_grid.IsInside(driveway))
             {
-                var occ = _grid.Get(driveway);
-                if (occ.Kind == CellOccupancyKind.Empty || occ.Kind == CellOccupancyKind.Road)
+                // Validate already ensures driveway is Empty & not road, but we guard anyway.
+                if (!_grid.IsRoad(driveway))
                 {
-                    _grid.SetRoad(driveway, true);
-                    _bus.Publish(new RoadPlacedEvent(driveway));
-                    drivewayWasCreated = true;
+                    var occ = _grid.Get(driveway);
+                    if (occ.Kind == CellOccupancyKind.Empty)
+                    {
+                        _grid.SetRoad(driveway, true);
+                        _bus.Publish(new RoadPlacedEvent(driveway));
+                        drivewayWasCreated = true;
+                    }
                 }
             }
 

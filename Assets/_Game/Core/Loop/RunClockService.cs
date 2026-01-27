@@ -28,8 +28,8 @@ namespace SeasonalBastion
         public float DayLengthSeconds => GetSecondsPerDay(CurrentSeason);
         public float DayRemainingSeconds => Math.Max(0f, DayLengthSeconds - _dayTimer);
 
-        private const float SecondsPerDayDev = 80f;
-        private const float SecondsPerDayDefend = 20f;
+        private const float SecondsPerDayDev = 180f;
+        private const float SecondsPerDayDefend = 120f;
 
         // Index by (int)Season
         private static readonly int[] DaysPerSeason = { 6, 6, 4, 4 };

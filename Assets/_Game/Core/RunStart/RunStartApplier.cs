@@ -13,7 +13,7 @@ namespace SeasonalBastion.RunStart
     {
         // Option 1 (canonical): StartMapConfig MUST use canonical DefIds from Buildings.json.
         // No alias/remap here. Single-source-of-truth = DataRegistry.Buildings.
-        private const string TowerArrowDefId = "TowerArrow";
+        private const string TowerArrowDefId = "bld_tower_arrow_t1";
 
         public static bool TryApply(GameServices s, string jsonOrMarkdown, out string error)
         {
@@ -266,7 +266,7 @@ namespace SeasonalBastion.RunStart
                 }
                 catch { }
 
-                if (!isHQ && !string.Equals(st.DefId, "HQ", System.StringComparison.OrdinalIgnoreCase))
+                if (!isHQ && !string.Equals(st.DefId, "bld_hq_t1", System.StringComparison.OrdinalIgnoreCase))
                     continue;
 
                 if (id.Value < bestId)
@@ -373,7 +373,7 @@ namespace SeasonalBastion.RunStart
                     // ignore
                 }
 
-                if (!isHQ && !string.Equals(st.DefId, "HQ", StringComparison.OrdinalIgnoreCase))
+                if (!isHQ && !string.Equals(st.DefId, "bld_hq_t1", StringComparison.OrdinalIgnoreCase))
                     continue;
 
                 if (id.Value < bestId)

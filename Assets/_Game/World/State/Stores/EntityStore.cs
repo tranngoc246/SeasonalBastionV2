@@ -7,6 +7,7 @@ namespace SeasonalBastion
     public abstract class EntityStore<TId, TState> : IEntityStore<TId, TState>
     {
         protected readonly Dictionary<int, TState> _map = new();
+        protected readonly List<int> _ids = new();
         protected int _nextId = 1;
 
         public abstract int ToInt(TId id);
@@ -20,15 +21,24 @@ namespace SeasonalBastion
         public TId Create(TState state)
         {
             var id = FromInt(_nextId++);
-            _map[ToInt(id)] = state;
+            var key = ToInt(id);
+            _map[key] = state;
+
+            _ids.Add(key);
             return id;
         }
 
-        public void Destroy(TId id) => _map.Remove(ToInt(id));
+        public void Destroy(TId id)
+        {
+            var key = ToInt(id);
+            if (_map.Remove(key))
+                _ids.Remove(key);
+        }
 
         public virtual void ClearAll()
         {
             _map.Clear();
+            _ids.Clear();
             _nextId = 1;
         }
 
@@ -36,7 +46,11 @@ namespace SeasonalBastion
 
         public IEnumerable<TId> Ids
         {
-            get { foreach (var k in _map.Keys) yield return FromInt(k); }
+            get
+            {
+                for (int i = 0; i < _ids.Count; i++)
+                    yield return FromInt(_ids[i]);
+            }
         }
     }
 }

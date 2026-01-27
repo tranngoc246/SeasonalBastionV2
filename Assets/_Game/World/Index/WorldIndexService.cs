@@ -173,20 +173,20 @@ namespace SeasonalBastion
             }
 
             // VS#1 fallback by known ids (keeps game playable even if defs are minimal).
-            isHQ = string.Equals(defId, "HQ", StringComparison.OrdinalIgnoreCase);
-            isWarehouse = string.Equals(defId, "Warehouse", StringComparison.OrdinalIgnoreCase);
+            isHQ = string.Equals(defId, "bld_hq_t1", StringComparison.OrdinalIgnoreCase);
+            isWarehouse = string.Equals(defId, "bld_warehouse_t1", StringComparison.OrdinalIgnoreCase);
 
             // Producers in v0.1 (Buildings.json): Farm, Lumber, Quarry, IronHut, Forge
             isProducer =
-                   string.Equals(defId, "Farm", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(defId, "Lumber", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(defId, "Quarry", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(defId, "IronHut", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(defId, "Forge", StringComparison.OrdinalIgnoreCase);
+                   string.Equals(defId, "bld_farmhouse_t1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(defId, "bld_lumbercamp_t1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(defId, "bld_quarry_t1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(defId, "bld_ironhut_t1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(defId, "bld_forge_t1", StringComparison.OrdinalIgnoreCase);
 
-            IsHouse = string.Equals(defId, "House", StringComparison.OrdinalIgnoreCase);
-            isForge = string.Equals(defId, "Forge", StringComparison.OrdinalIgnoreCase);
-            isArmory = string.Equals(defId, "Armory", StringComparison.OrdinalIgnoreCase);
+            IsHouse = string.Equals(defId, "bld_warehouse_t1", StringComparison.OrdinalIgnoreCase);
+            isForge = string.Equals(defId, "bld_forge_t1", StringComparison.OrdinalIgnoreCase);
+            isArmory = string.Equals(defId, "bld_armory_t1", StringComparison.OrdinalIgnoreCase);
             isTower = false;
         }
 

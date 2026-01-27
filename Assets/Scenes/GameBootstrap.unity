@@ -696,11 +696,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _bootstrap: {fileID: 1656749905}
-  _def1: Armory
-  _def2: Forge
-  _def3: Farm
-  _def4: Lumber
-  _def5: Warehouse
+  _def1: bld_hq_t1
+  _def2: bld_house_t1
+  _def3: bld_farmhouse_t1
+  _def4: bld_lumbercamp_t1
+  _def5: bld_warehouse_t1
   _gridOrigin: {x: 0, y: 0, z: 0}
   _cellSize: 1
   _useXZ: 0
@@ -710,7 +710,7 @@ MonoBehaviour:
   _drawPreview: 1
   _drawPlacedBuildings: 1
   _drawDrivewayHint: 1
-  _gizmoHeight: 1
+  _gizmoHeight: 0.06
   _okColor: {r: 0, g: 1, b: 0, a: 1}
   _failColor: {r: 1, g: 0, b: 0, a: 1}
   _drivewayColor: {r: 1, g: 1, b: 0, a: 1}
@@ -981,7 +981,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _bootstrap: {fileID: 1656749905}
-  _hubControlled: 0
+  _hubControlled: 1
 --- !u!1 &1732529963
 GameObject:
   m_ObjectHideFlags: 0

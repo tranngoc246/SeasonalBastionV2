@@ -1,6 +1,7 @@
+using log4net;
+using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
-using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
@@ -26,6 +27,12 @@ namespace SeasonalBastion
                 s.WorldState?.Enemies?.ClearAll();
 
                 s.GridMap?.ClearAll();
+
+                s.NotificationService?.ClearAll(); 
+                s.JobBoard?.ClearAll(); 
+                s.ClaimService?.ClearAll(); 
+                s.BuildOrderService?.ClearAll(); 
+                (s.AmmoService as AmmoService)?.ClearAll(); 
 
                 // 2) Restore roads
                 if (s.GridMap != null && dto.world.Roads != null)
@@ -142,6 +149,8 @@ namespace SeasonalBastion
                         var n = dto.world.Npcs[i];
                         var created = s.WorldState.Npcs.Create(n);
                         n.Id = created;
+                        n.CurrentJob = default;
+                        n.IsIdle = true;
                         s.WorldState.Npcs.Set(created, n);
                     }
                 }

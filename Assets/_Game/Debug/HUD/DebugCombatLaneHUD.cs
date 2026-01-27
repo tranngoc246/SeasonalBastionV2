@@ -3,6 +3,8 @@ using SeasonalBastion.Contracts;
 using SeasonalBastion.RunStart;
 using UnityEngine;
 
+namespace SeasonalBastion.DebugTools
+{
 public sealed class DebugCombatLaneHUD : MonoBehaviour
 {
     [SerializeField] private GameBootstrap _bootstrap;
@@ -126,4 +128,5 @@ public sealed class DebugCombatLaneHUD : MonoBehaviour
         DrawHubGUI();
         GUILayout.EndArea();
     }
+}
 }

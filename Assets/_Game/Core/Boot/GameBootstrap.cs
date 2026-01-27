@@ -54,7 +54,7 @@
         private void Update()
         {
             if (_loop == null) return;
-            _loop.Tick(Time.deltaTime);
+            _loop.Tick(Time.unscaledDeltaTime);
         }
 
         private void OnDestroy()

@@ -1,7 +1,7 @@
 {
   "buildings": [
     {
-      "id": "HQ",
+      "id": "bld_hq_t1",
       "sizeX": 5,
       "sizeY": 5,
       "baseLevel": 1,
@@ -15,7 +15,7 @@
       "capAmmo": { "L1": 0, "L2": 0, "L3": 0 }
     },
     {
-      "id": "House",
+      "id": "bld_house_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
@@ -25,7 +25,7 @@
       "buildChunksL1": 2
     },
     {
-      "id": "Farm",
+      "id": "bld_farmhouse_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
@@ -36,7 +36,7 @@
       "capFood": { "L1": 30, "L2": 60, "L3": 90 }
     },
     {
-      "id": "Lumber",
+      "id": "bld_lumbercamp_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
@@ -47,7 +47,7 @@
       "capWood": { "L1": 40, "L2": 80, "L3": 120 }
     },
     {
-      "id": "Quarry",
+      "id": "bld_quarry_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
@@ -58,7 +58,7 @@
       "capStone": { "L1": 40, "L2": 80, "L3": 120 }
     },
     {
-      "id": "IronHut",
+      "id": "bld_ironhut_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
@@ -69,7 +69,7 @@
       "capIron": { "L1": 30, "L2": 60, "L3": 90 }
     },
     {
-      "id": "Forge",
+      "id": "bld_forge_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
@@ -84,7 +84,7 @@
       "capAmmo": { "L1": 50, "L2": 100, "L3": 150 }
     },
     {
-      "id": "Armory",
+      "id": "bld_armory_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,
@@ -95,7 +95,7 @@
       "capAmmo": { "L1": 300, "L2": 600, "L3": 1000 }
     },
     {
-      "id": "Warehouse",
+      "id": "bld_warehouse_t1",
       "sizeX": 3,
       "sizeY": 3,
       "baseLevel": 1,

@@ -439,35 +439,35 @@ namespace SeasonalBastion
 
         private static bool IsWarehouseWorkplace(string defId)
         {
-            return EqualsIgnoreCase(defId, "Warehouse")
-                || EqualsIgnoreCase(defId, "HQ");
+            return EqualsIgnoreCase(defId, "bld_warehouse_t1")
+                || EqualsIgnoreCase(defId, "bld_hq_t1");
         }
 
         // Harvest subset ONLY (do not include Forge)
         private static bool IsHarvestProducer(string defId)
         {
-            return EqualsIgnoreCase(defId, "Farm")
-                || EqualsIgnoreCase(defId, "Lumber")
-                || EqualsIgnoreCase(defId, "Quarry")
-                || EqualsIgnoreCase(defId, "IronHut");
+            return EqualsIgnoreCase(defId, "bld_farmhouse_t1")
+                || EqualsIgnoreCase(defId, "bld_lumbercamp_t1")
+                || EqualsIgnoreCase(defId, "bld_quarry_t1")
+                || EqualsIgnoreCase(defId, "bld_ironhut_t1");
         }
 
         private static ResourceType HarvestResourceType(string defId)
         {
-            if (EqualsIgnoreCase(defId, "Farm")) return ResourceType.Food;
-            if (EqualsIgnoreCase(defId, "Lumber")) return ResourceType.Wood;
-            if (EqualsIgnoreCase(defId, "Quarry")) return ResourceType.Stone;
-            if (EqualsIgnoreCase(defId, "IronHut")) return ResourceType.Iron;
+            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return ResourceType.Food;
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return ResourceType.Wood;
+            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return ResourceType.Stone;
+            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return ResourceType.Iron;
             return ResourceType.Food;
         }
 
         private static int HarvestLocalCap(string defId, int level)
         {
             // Local Storage Caps (LOCKED)
-            if (EqualsIgnoreCase(defId, "Farm")) return level == 1 ? 30 : level == 2 ? 60 : 90;
-            if (EqualsIgnoreCase(defId, "Lumber")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "Quarry")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "IronHut")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return level == 1 ? 30 : level == 2 ? 60 : 90;
             return 0;
         }
 
@@ -475,7 +475,7 @@ namespace SeasonalBastion
         private static int DestCap(string defId, int level, ResourceType rt)
         {
             // Warehouse: 300/600/1000 each (Wood/Food/Stone/Iron), Ammo=0
-            if (EqualsIgnoreCase(defId, "Warehouse"))
+            if (EqualsIgnoreCase(defId, "bld_warehouse_t1"))
             {
                 return rt switch
                 {
@@ -486,7 +486,7 @@ namespace SeasonalBastion
             }
 
             // HQ: 120/180/240 each (core only), Ammo=0
-            if (EqualsIgnoreCase(defId, "HQ"))
+            if (EqualsIgnoreCase(defId, "bld_hq_t1"))
             {
                 return rt switch
                 {

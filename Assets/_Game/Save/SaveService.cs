@@ -39,6 +39,7 @@ namespace SeasonalBastion
                 if (world == null || clock == null)
                     return new SaveResult(SaveResultCode.Failed, "world/clock null");
 
+                var rc = clock as RunClockService;
                 var file = new RunSaveFile
                 {
                     schemaVersion = CurrentSchemaVersion,
@@ -46,6 +47,8 @@ namespace SeasonalBastion
                     season = clock.CurrentSeason.ToString(),
                     dayIndex = clock.DayIndex,
                     timeScale = clock.TimeScale,
+                    yearIndex = rc != null ? rc.YearIndex : 1,
+                    dayTimer = rc != null ? rc.DayTimerSeconds : 0f,
                     world = new WorldFile(),
                     build = new BuildFile(),
                 };
@@ -192,6 +195,8 @@ namespace SeasonalBastion
                     season = file.season,
                     dayIndex = file.dayIndex,
                     timeScale = file.timeScale,
+                    yearIndex = file.yearIndex,
+                    dayTimer = file.dayTimer,
                     world = new WorldDTO(),
                     build = new BuildDTO(),
                     combat = new CombatDTO(),
@@ -406,6 +411,8 @@ namespace SeasonalBastion
             public string season;
             public int dayIndex;
             public float timeScale;
+            public int yearIndex;
+            public float dayTimer;
             public WorldFile world;
             public BuildFile build;
             public List<CellPosI32> roads = new();

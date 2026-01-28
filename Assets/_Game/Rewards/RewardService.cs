@@ -1,9 +1,4 @@
-// AUTO-GENERATED SKELETON TEMPLATE from PART 26 (LOCKED v0.1)
-// Source: PART26_Concrete_Class_Skeletons_Scaffolds_LOCKED_SPEC_v0.1.md
-// Notes: Runtime scaffolds only. Fill TODOs during implementation.
-
 using System;
-using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
@@ -15,11 +10,32 @@ namespace SeasonalBastion
         public bool IsSelectionActive { get; private set; }
         public RewardOffer CurrentOffer { get; private set; }
 
-        public event System.Action OnSelectionStarted;
-        public event System.Action<string> OnRewardChosen;
-        public event System.Action OnSelectionEnded;
+        public event Action OnSelectionStarted;
+        public event Action<string> OnRewardChosen;
+        public event Action OnSelectionEnded;
 
-        public RewardService(GameServices s){ _s = s; }
+        private readonly IEventBus _bus;
+        private static readonly int[] DaysPerSeason = { 6, 6, 4, 4 };
+
+        public RewardService(GameServices s)
+        { 
+            _s = s;
+
+            // Day35: end-season reward hook (placeholder event)
+            _bus?.Subscribe<DayEndedEvent>(OnDayEnded);
+        }
+
+        private void OnDayEnded(DayEndedEvent ev)
+        {
+            // end season when dayIndex == maxDays of that season
+            int idx = (int)ev.Season;
+            int max = (idx >= 0 && idx < DaysPerSeason.Length) ? DaysPerSeason[idx] : 1;
+
+            if (ev.DayIndex == max)
+            {
+                _bus?.Publish(new EndSeasonRewardRequested(ev.Season, ev.YearIndex, ev.DayIndex));
+            }
+        }
 
         public RewardOffer GenerateOffer(int dayIndex, int seed)
         {

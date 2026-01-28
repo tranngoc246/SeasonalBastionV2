@@ -24,6 +24,15 @@ namespace SeasonalBastion
         // Runtime per-enemy cooldown (key = EnemyId.Value)
         private readonly Dictionary<int, float> _attackCd = new();
 
+        // Day34: path fail streak -> fallback step to avoid stuck
+        private readonly Dictionary<int, int> _pathFailStreak = new();
+
+        // Day34 tuning
+        private const int PathFailThreshold = 6;   // N lần fail liên tiếp mới bật fallback mạnh
+        private const int LocalBfsRadius = 6;      // BFS radius nhỏ
+        private const int LocalSide = LocalBfsRadius * 2 + 1;
+        private const int LocalMaxNodes = LocalSide * LocalSide;
+
         // Cached HQ building id (smallest id that matches HQ)
         private BuildingId _hqId;
         private bool _hqCached;
@@ -131,12 +140,34 @@ namespace SeasonalBastion
 
                 while (progress >= 1f && stepsLeft-- > 0)
                 {
-                    // Decide next cell toward target
                     if (!TryFindNextStep(st.Cell, hqTargetCell, out var next))
                     {
-                        // No path => try attack adjacent blocking building (v0.1)
-                        TryAttackAdjacentBlockingBuilding(ref st, def, ref cd);
-                        break;
+                        // Day34: path fail streak -> fallback step (dirToHQ / local BFS radius)
+                        int streak = 0;
+                        _pathFailStreak.TryGetValue(key, out streak);
+                        streak++;
+
+                        bool recovered = false;
+
+                        // Khi fail đủ N lần: cố gắng "đẩy" enemy đi theo dirToHQ hoặc local BFS để thoát kẹt
+                        if (streak >= PathFailThreshold)
+                        {
+                            if (TryFallbackNextStep(st.Cell, hqTargetCell, laneDir, out var fbNext))
+                            {
+                                next = fbNext;
+                                recovered = true;
+                                streak = 0; // reset sau khi recover
+                            }
+                        }
+
+                        _pathFailStreak[key] = streak;
+
+                        if (!recovered)
+                        {
+                            // Không recover được -> hành vi cũ: cố gắng đập công trình đang chặn
+                            TryAttackAdjacentBlockingBuilding(ref st, def, ref cd);
+                            break;
+                        }
                     }
 
                     // If next is blocked by building: attack building instead of moving
@@ -157,6 +188,9 @@ namespace SeasonalBastion
                         Lane = st.Lane,
                         MoveProgress01 = 0f
                     };
+
+                    // Day34: moved successfully => reset path fail streak
+                    _pathFailStreak[key] = 0;
 
                     progress -= 1f;
 
@@ -304,7 +338,10 @@ namespace SeasonalBastion
             if (dmg <= 0) { cd = DefaultAttackIntervalSec; return; }
 
             var w = _s.WorldState;
-            if (w == null || w.Buildings == null) return;
+            var grid = _s.GridMap;
+            var data = _s.DataRegistry;
+
+            if (w == null || w.Buildings == null || grid == null || data == null) return;
             if (bid.Value == 0 || !w.Buildings.Exists(bid)) return;
 
             var b = w.Buildings.Get(bid);
@@ -312,10 +349,33 @@ namespace SeasonalBastion
 
             int hp = Mathf.Max(0, b.HP - dmg);
             b.HP = hp;
+
+            // Day34: nếu building về 0 HP -> clear occupancy để enemy không kẹt vĩnh viễn
+            if (hp <= 0)
+            {
+                // Không tự ý destroy entity (tránh ripple), chỉ clear footprint + mark not constructed
+                b.IsConstructed = false;
+
+                try
+                {
+                    var def = data.GetBuilding(b.DefId);
+                    int wdx = Mathf.Max(1, def.SizeX);
+                    int hdy = Mathf.Max(1, def.SizeY);
+
+                    for (int dy = 0; dy < hdy; dy++)
+                        for (int dx = 0; dx < wdx; dx++)
+                            grid.ClearBuilding(new CellPos(b.Anchor.X + dx, b.Anchor.Y + dy));
+                }
+                catch
+                {
+                    // Nếu defs lỗi, vẫn cố clear đúng anchor cell (an toàn tối thiểu)
+                    grid.ClearBuilding(b.Anchor);
+                }
+            }
+
             w.Buildings.Set(bid, b);
 
             cd = DefaultAttackIntervalSec;
-            Debug.Log($"[EnemySystem] Enemy hit Building {bid.Value} for {dmg}. HP={hp}");
         }
 
         private void TryAttackAdjacentBlockingBuilding(ref EnemyState enemy, EnemyDef def, ref float cd)
@@ -516,12 +576,196 @@ namespace SeasonalBastion
 
         private static bool CellsEqual(CellPos a, CellPos b) => a.X == b.X && a.Y == b.Y;
 
+        // Day34: fallback step to avoid stuck (dirToHQ first, else local BFS radius)
+        private bool TryFallbackNextStep(CellPos from, CellPos target, Dir4 dirToHQ, out CellPos next)
+        {
+            next = from;
+            var grid = _s.GridMap;
+            if (grid == null) return false;
+
+            // 1) Prefer stepping by dirToHQ (then left/right/opposite) if not blocked
+            if (TryStepByDirPreference(from, dirToHQ, out next))
+                return true;
+
+            // 2) Local BFS within radius: find a reachable cell that improves (or best) Manhattan-to-target
+            return TryLocalBfsEscape(from, target, LocalBfsRadius, out next);
+        }
+
+        private bool TryStepByDirPreference(CellPos from, Dir4 dirToHQ, out CellPos next)
+        {
+            next = from;
+            var grid = _s.GridMap;
+            if (grid == null) return false;
+
+            var d0 = dirToHQ;
+            var d1 = DirLeft(dirToHQ);
+            var d2 = DirRight(dirToHQ);
+            var d3 = DirOpp(dirToHQ);
+
+            Span<Dir4> order = stackalloc Dir4[4] { d0, d1, d2, d3 };
+
+            for (int i = 0; i < order.Length; i++)
+            {
+                var c = Step(from, order[i]);
+                if (!grid.IsInside(c)) continue;
+                if (grid.IsBlocked(c)) continue;
+                next = c;
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryLocalBfsEscape(CellPos from, CellPos target, int radius, out CellPos next)
+        {
+            next = from;
+            var grid = _s.GridMap;
+            if (grid == null) return false;
+
+            int side = radius * 2 + 1;
+            int max = side * side;
+
+            // bounding square (clamped by grid inside check later)
+            int minX = from.X - radius;
+            int minY = from.Y - radius;
+
+            Span<byte> visited = stackalloc byte[max];
+            Span<CellPos> nodes = stackalloc CellPos[max];
+            Span<int> prev = stackalloc int[max];
+            Span<byte> depth = stackalloc byte[max];
+            Span<int> q = stackalloc int[max];
+
+            int nodeCount = 0;
+            int qh = 0, qt = 0;
+
+            int FromLocalIdx(CellPos c) => (c.X - minX) + (c.Y - minY) * side;
+
+            // seed
+            nodes[nodeCount] = from;
+            prev[nodeCount] = -1;
+            depth[nodeCount] = 0;
+
+            int startLocal = FromLocalIdx(from);
+            if (startLocal < 0 || startLocal >= max) return false;
+
+            visited[startLocal] = 1;
+            q[qt++] = nodeCount;
+            nodeCount++;
+
+            // Track best node by Manhattan-to-target (prefer smaller), then shallower depth
+            int bestNode = 0;
+            int bestD = Manhattan(from, target);
+
+            while (qh < qt)
+            {
+                int curNode = q[qh++];
+                var cur = nodes[curNode];
+
+                byte curDepth = depth[curNode];
+                if (curDepth >= radius) continue;
+
+                // N,E,S,W deterministic
+                Span<CellPos> nb = stackalloc CellPos[4]
+                {
+            new CellPos(cur.X, cur.Y + 1),
+            new CellPos(cur.X + 1, cur.Y),
+            new CellPos(cur.X, cur.Y - 1),
+            new CellPos(cur.X - 1, cur.Y),
+        };
+
+                for (int i = 0; i < 4; i++)
+                {
+                    var c = nb[i];
+                    if (!grid.IsInside(c)) continue;
+                    if (grid.IsBlocked(c)) continue;
+
+                    int li = FromLocalIdx(c);
+                    if (li < 0 || li >= max) continue;
+                    if (visited[li] != 0) continue;
+
+                    visited[li] = 1;
+
+                    if (nodeCount >= max) continue; // safety cap
+                    nodes[nodeCount] = c;
+                    prev[nodeCount] = curNode;
+                    depth[nodeCount] = (byte)(curDepth + 1);
+
+                    int d = Manhattan(c, target);
+                    if (d < bestD)
+                    {
+                        bestD = d;
+                        bestNode = nodeCount;
+                    }
+
+                    q[qt++] = nodeCount;
+                    nodeCount++;
+                    if (nodeCount >= max) break;
+                }
+
+                if (nodeCount >= max) break;
+            }
+
+            if (bestNode == 0) return false; // no improvement found within radius
+
+            // reconstruct first step from bestNode back to start(0)
+            int step = bestNode;
+            int p = prev[step];
+            while (p > 0)
+            {
+                step = p;
+                p = prev[step];
+            }
+
+            next = nodes[step];
+            return !CellsEqual(next, from);
+        }
+
+        private static CellPos Step(CellPos c, Dir4 dir)
+        {
+            return dir switch
+            {
+                Dir4.N => new CellPos(c.X, c.Y + 1),
+                Dir4.E => new CellPos(c.X + 1, c.Y),
+                Dir4.S => new CellPos(c.X, c.Y - 1),
+                Dir4.W => new CellPos(c.X - 1, c.Y),
+                _ => c
+            };
+        }
+
+        private static Dir4 DirLeft(Dir4 d) => d switch
+        {
+            Dir4.N => Dir4.W,
+            Dir4.E => Dir4.N,
+            Dir4.S => Dir4.E,
+            Dir4.W => Dir4.S,
+            _ => Dir4.N
+        };
+
+        private static Dir4 DirRight(Dir4 d) => d switch
+        {
+            Dir4.N => Dir4.E,
+            Dir4.E => Dir4.S,
+            Dir4.S => Dir4.W,
+            Dir4.W => Dir4.N,
+            _ => Dir4.S
+        };
+
+        private static Dir4 DirOpp(Dir4 d) => d switch
+        {
+            Dir4.N => Dir4.S,
+            Dir4.E => Dir4.W,
+            Dir4.S => Dir4.N,
+            Dir4.W => Dir4.E,
+            _ => Dir4.S
+        };
+
         private void CleanupEnemy(EnemyId id)
         {
             var w = _s.WorldState;
             if (w == null || w.Enemies == null) return;
 
             _attackCd.Remove(id.Value);
+            _pathFailStreak.Remove(id.Value); // Day34
             w.Enemies.Destroy(id);
         }
     }

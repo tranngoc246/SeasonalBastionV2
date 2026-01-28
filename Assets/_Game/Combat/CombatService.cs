@@ -22,6 +22,24 @@ namespace SeasonalBastion
 
         public bool IsActive { get; private set; }
 
+        // Day34: expose wave debug counters for Debug HUD
+        public bool HasActiveWave => _waves != null && _waves.HasActiveWave;
+        public string ActiveWaveId => _waves != null ? _waves.ActiveWaveId : null;
+        public int ActiveWavePlanned => _waves != null ? _waves.ActivePlanned : 0;
+        public int ActiveWaveSpawned => _waves != null ? _waves.ActiveSpawned : 0;
+        public int AliveEnemyCount => _waves != null ? _waves.AliveCount : (_s.WorldState?.Enemies?.Count ?? 0);
+        public bool ActiveWaveSpawnDone => _waves != null && _waves.SpawnDone;
+        public float ActiveWaveResolveElapsed => _waves != null ? _waves.ResolveElapsedSec : 0f;
+        public float ActiveWaveResolveTimeout => _waves != null ? _waves.ResolveTimeoutSec : 0f;
+
+        public bool ActiveWaveIsBoss => _waves != null && _waves.ActiveIsBoss;
+
+        // Day34: debug action
+        public void ForceResolveWave()
+        {
+            _waves?.ForceResolveActiveWave();
+        }
+
         public event Action<string> OnWaveStarted;
         public event Action<string> OnWaveEnded;
 

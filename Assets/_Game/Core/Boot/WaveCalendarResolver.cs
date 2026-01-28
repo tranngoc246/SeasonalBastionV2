@@ -58,6 +58,9 @@ namespace SeasonalBastion
                 return string.CompareOrdinal(a.DefId, b.DefId);
             });
 
+            // Day35: inject boss wave (minimal) if boss enemy is scheduled for this calendar
+            TryInjectBossWave(year, season, day, list);
+
             _cache[key] = list;
             return list;
         }
@@ -66,6 +69,54 @@ namespace SeasonalBastion
         {
             // year: 1..n, season: 0..3, day: 1..?
             unchecked { return (year * 100000) + ((int)season * 1000) + day; }
+        }
+
+        private void TryInjectBossWave(int year, Season season, int day, List<WaveDef> list)
+        {
+            // Nếu đã có boss wave trong day này thì thôi
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i] != null && list[i].IsBoss)
+                    return;
+            }
+
+            // Boss data-driven nằm trong EnemyDef (isBoss + year/season/day)
+            if (!(_reg is DataRegistry dr)) return;
+
+            string bossEnemyId = null;
+
+            foreach (var eid in dr.GetAllEnemyIds())
+            {
+                if (string.IsNullOrEmpty(eid)) continue;
+                if (!dr.TryGetEnemy(eid, out var ed) || ed == null) continue;
+                if (!ed.IsBoss) continue;
+
+                if (ed.BossYear == year && ed.BossSeason == season && ed.BossDay == day)
+                {
+                    bossEnemyId = ed.DefId;
+                    break;
+                }
+            }
+
+            if (string.IsNullOrEmpty(bossEnemyId))
+                return;
+
+            // Tạo wave boss minimal (1 con boss). Index lớn để chắc chắn “cuối ngày”
+            var bossWave = new WaveDef
+            {
+                DefId = $"AUTO_BOSS_{year}_{season}_D{day}_{bossEnemyId}",
+                WaveIndex = 9999,
+                Year = year,
+                Season = season,
+                Day = day,
+                IsBoss = true,
+                Entries = new[]
+                {
+            new WaveEntryDef{ EnemyId = bossEnemyId, Count = 1 }
+        }
+            };
+
+            list.Add(bossWave);
         }
     }
 }

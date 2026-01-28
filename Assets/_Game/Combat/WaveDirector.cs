@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 using UnityEngine;
@@ -6,46 +6,68 @@ using UnityEngine;
 namespace SeasonalBastion
 {
     /// <summary>
-    /// Day28: wave schedule runner.
-    /// - Resolve today's waves from DataRegistry by (Year, Season, Day).
-    /// - Spawn enemies by interval (1 enemy each SpawnIntervalSec; gap between entries).
-    /// - Timing follows RunClock.TimeScale (pause-aware).
+    /// Day28 + Day34:
+    /// - Spawn theo schedule.
+    /// - Resolve rule (Day34): wave ends only when spawn done AND aliveCount==0
+    /// - Timeout safety: log warn + force resolve to avoid softlock.
+    /// - Debug counters: alive/spawned/planned/spawnDone/resolveTimer.
     /// </summary>
     public sealed class WaveDirector
     {
         private readonly GameServices _s;
 
-        // Events (CombatService will forward to bus + public events)
         public event Action<string> WaveStarted;
         public event Action<string> WaveEnded;
 
         // Tuning (v0.1)
-        private const float SpawnIntervalSec = 0.35f; // 1 enemy / 0.35s
-        private const float GroupGapSec = 1.0f;       // gap when switching entry type
-        private const float InterWaveGapSec = 2.0f;   // gap between waves in same day (if multiple)
+        private const float SpawnIntervalSec = 0.35f;
+        private const float GroupGapSec = 1.0f;
+        private const float InterWaveGapSec = 2.0f;
+
+        // Day34: safety resolve timeout (sim seconds)
+        private const float ResolveTimeoutSecConst = 120f;
 
         // Today wave queue
         private readonly List<WaveDef> _today = new(4);
         private int _waveCursor = -1;
         private WaveDef _active;
 
-        // Spawn progression within active wave
+        // Spawn progression
         private int _entryIndex;
         private int _spawnedInEntry;
         private float _cooldown;
 
-        // Lane round-robin
+        // Day34: resolve state
+        private bool _spawnDone;
+        private float _resolveElapsed;
+        private bool _pendingNextWave;
+
+        // Day34: debug counters
+        private int _activePlanned;
+        private int _activeSpawned;
+
+        // Lane RR
         private readonly List<int> _laneIdsSorted = new(8);
         private int _laneRR;
 
-        // Simple cache: (year, season, day) -> resolved wave defs (sorted)
         private readonly Dictionary<int, List<WaveDef>> _calendarCache = new();
 
         public WaveDirector(GameServices s) { _s = s; }
 
+        // ---- Debug getters (used by CombatService/Debug HUD) ----
+        public bool HasActiveWave => _active != null;
+        public string ActiveWaveId => _active != null ? _active.DefId : null;
+        public int ActivePlanned => _activePlanned;
+        public int ActiveSpawned => _activeSpawned;
+        public bool SpawnDone => _spawnDone;
+        public float ResolveElapsedSec => _resolveElapsed;
+        public float ResolveTimeoutSec => ResolveTimeoutSecConst;
+        public int AliveCount => _s.WorldState?.Enemies?.Count ?? 0;
+
+        public bool ActiveIsBoss => _active != null && _active.IsBoss;
+
         public void StartDayWaves(int dayIndex)
         {
-            // Resolve calendar from RunClock (dayIndex param kept for compatibility)
             var season = _s.RunClock.CurrentSeason;
             var day = _s.RunClock.DayIndex;
             var year = GetYearIndexOr1();
@@ -54,11 +76,19 @@ namespace SeasonalBastion
             _waveCursor = -1;
             _active = null;
 
-            // Build lane ids cache (deterministic order)
+            _entryIndex = 0;
+            _spawnedInEntry = 0;
+            _cooldown = 0f;
+
+            _spawnDone = false;
+            _resolveElapsed = 0f;
+            _pendingNextWave = false;
+
+            _activePlanned = 0;
+            _activeSpawned = 0;
+
             BuildLaneIds();
 
-            // If no lanes, still allow events but we cannot spawn.
-            // We'll emit start+end immediately when starting waves (handled in StartNextWave).
             var waves = ResolveWavesForCalendar(year, season, day);
             if (waves == null || waves.Count == 0)
                 return;
@@ -71,28 +101,66 @@ namespace SeasonalBastion
 
         public void Tick(float dt)
         {
-            if (_active == null) return;
-
-            // Pause/speed handling: wave time follows RunClock.TimeScale
             var ts = _s.RunClock.TimeScale;
             if (ts <= 0f) return;
 
-            var simDt = dt * ts;
+            float simDt = dt * ts;
             if (simDt <= 0f) return;
 
             _cooldown -= simDt;
 
-            // Catch-up spawn (cap by schedule; deterministic)
-            while (_cooldown <= 0f && _active != null)
+            // If no active wave, maybe waiting inter-wave gap
+            if (_active == null)
             {
-                if (!TrySpawnNextStep())
-                    break;
+                if (_pendingNextWave && _cooldown <= 0f)
+                {
+                    _pendingNextWave = false;
+                    StartNextWave();
+                }
+                return;
+            }
+
+            // Spawn phase
+            if (!_spawnDone)
+            {
+                while (_cooldown <= 0f && _active != null && !_spawnDone)
+                {
+                    if (!TrySpawnNextStep())
+                        break;
+                }
+            }
+
+            // Resolve phase (Day34): spawn done + aliveCount==0
+            if (_active != null && _spawnDone)
+            {
+                _resolveElapsed += simDt;
+
+                int alive = AliveCount;
+                if (alive <= 0)
+                {
+                    EndActiveWaveNow("cleared");
+                    return;
+                }
+
+                if (_resolveElapsed >= ResolveTimeoutSecConst)
+                {
+                    Debug.LogWarning($"[WaveDirector] Resolve timeout. Force end wave '{_active.DefId}'. alive={alive}");
+                    EndActiveWaveNow("timeout");
+                    return;
+                }
             }
         }
 
         // -------------------------
         // Internals
         // -------------------------
+
+        public void ForceResolveActiveWave()
+        {
+            if (_active == null) return;
+            Debug.LogWarning($"[WaveDirector] ForceResolveActiveWave '{_active.DefId}'");
+            EndActiveWaveNow("force");
+        }
 
         private void StartNextWave()
         {
@@ -104,20 +172,42 @@ namespace SeasonalBastion
             }
 
             _active = _today[_waveCursor];
+
             _entryIndex = 0;
             _spawnedInEntry = 0;
-            _cooldown = 0f; // spawn immediately
+            _cooldown = 0f;
 
-            // Emit started
+            _spawnDone = false;
+            _resolveElapsed = 0f;
+
+            _activeSpawned = 0;
+            _activePlanned = ComputePlannedCount(_active);
+
             WaveStarted?.Invoke(_active.DefId);
 
-            // If no lane available, end immediately (still emits end) to satisfy acceptance safety.
+            // Nếu không có lane -> không spawn được. Để tránh softlock, kết thúc ngay (log warn).
             if (_laneIdsSorted.Count == 0)
             {
-                WaveEnded?.Invoke(_active.DefId);
-                _active = null;
-                return;
+                Debug.LogWarning($"[WaveDirector] No lanes available. End wave immediately: '{_active.DefId}'.");
+                EndActiveWaveNow("no-lanes");
             }
+        }
+
+        private int ComputePlannedCount(WaveDef w)
+        {
+            int planned = 0;
+            var entries = w?.Entries;
+            if (entries == null) return 0;
+
+            for (int i = 0; i < entries.Length; i++)
+            {
+                var e = entries[i];
+                var enemyId = (e.EnemyId ?? string.Empty).Trim();
+                int cnt = Math.Max(0, e.Count);
+                if (string.IsNullOrEmpty(enemyId) || cnt <= 0) continue;
+                planned += cnt;
+            }
+            return planned;
         }
 
         private bool TrySpawnNextStep()
@@ -127,14 +217,16 @@ namespace SeasonalBastion
             var entries = _active.Entries;
             if (entries == null || entries.Length == 0)
             {
-                EndActiveWave();
+                // spawn done immediately, then resolve will end when alive==0 (or timeout)
+                _spawnDone = true;
                 return false;
             }
 
-            // Finished all entries => end wave, maybe schedule next wave
+            // Finished all entries => mark spawn done (do NOT end immediately)
             if (_entryIndex >= entries.Length)
             {
-                EndActiveWave();
+                _spawnDone = true;
+                _cooldown = 0f;
                 return false;
             }
 
@@ -144,7 +236,6 @@ namespace SeasonalBastion
 
             if (string.IsNullOrEmpty(enemyId) || count <= 0)
             {
-                // Skip invalid entry deterministically
                 _entryIndex++;
                 _spawnedInEntry = 0;
                 _cooldown += 0f;
@@ -152,12 +243,12 @@ namespace SeasonalBastion
             }
 
             // Spawn 1 enemy
-            TrySpawnEnemy(enemyId);
+            bool spawned = TrySpawnEnemy(enemyId);
+            if (spawned) _activeSpawned++;
 
             _spawnedInEntry++;
             if (_spawnedInEntry >= count)
             {
-                // Move to next entry type
                 _entryIndex++;
                 _spawnedInEntry = 0;
                 _cooldown += GroupGapSec;
@@ -170,35 +261,39 @@ namespace SeasonalBastion
             return true;
         }
 
-        private void EndActiveWave()
+        private void EndActiveWaveNow(string reason)
         {
             if (_active == null) return;
 
             var endedId = _active.DefId;
             WaveEnded?.Invoke(endedId);
 
-            // Next wave same day (if any) after inter gap
+            _active = null;
+            _spawnDone = false;
+            _resolveElapsed = 0f;
+
+            // schedule next wave (if any) after inter gap
             if (_waveCursor + 1 < _today.Count)
             {
+                _pendingNextWave = true;
                 _cooldown = InterWaveGapSec;
-                StartNextWave();
             }
             else
             {
-                _active = null;
+                _pendingNextWave = false;
             }
         }
 
-        private void TrySpawnEnemy(string enemyDefId)
+        private bool TrySpawnEnemy(string enemyDefId)
         {
-            if (_s.WorldState == null || _s.DataRegistry == null) return;
-            if (_laneIdsSorted.Count == 0) return;
+            if (_s.WorldState == null || _s.DataRegistry == null) return false;
+            if (_laneIdsSorted.Count == 0) return false;
 
             int laneId = _laneIdsSorted[_laneRR % _laneIdsSorted.Count];
             _laneRR++;
 
             if (!TryGetLaneStartCell(laneId, out var spawnCell))
-                return;
+                return false;
 
             int hp = 1;
             try
@@ -220,6 +315,7 @@ namespace SeasonalBastion
             var id = _s.WorldState.Enemies.Create(st);
             st.Id = id;
             _s.WorldState.Enemies.Set(id, st);
+            return true;
         }
 
         private bool TryGetLaneStartCell(int laneId, out CellPos cell)
@@ -233,7 +329,6 @@ namespace SeasonalBastion
                 return true;
             }
 
-            // Fallback: SpawnGates list
             if (rs != null && rs.SpawnGates != null)
             {
                 for (int i = 0; i < rs.SpawnGates.Count; i++)
@@ -258,35 +353,50 @@ namespace SeasonalBastion
             {
                 foreach (var kv in rs.Lanes)
                     _laneIdsSorted.Add(kv.Key);
-
-                _laneIdsSorted.Sort();
-                return;
             }
-
-            // Fallback from gates
-            if (rs != null && rs.SpawnGates != null && rs.SpawnGates.Count > 0)
+            else if (rs != null && rs.SpawnGates != null && rs.SpawnGates.Count > 0)
             {
                 for (int i = 0; i < rs.SpawnGates.Count; i++)
-                {
-                    var lane = rs.SpawnGates[i].Lane;
-                    if (!_laneIdsSorted.Contains(lane))
-                        _laneIdsSorted.Add(lane);
-                }
-                _laneIdsSorted.Sort();
+                    _laneIdsSorted.Add(rs.SpawnGates[i].Lane);
             }
+
+            _laneIdsSorted.Sort();
         }
 
-        private IReadOnlyList<WaveDef> ResolveWavesForCalendar(int year, Season season, int day)
+        private List<WaveDef> ResolveWavesForCalendar(int year, Season season, int day)
         {
-            var r = _s.WaveCalendarResolver;
-            if (r == null) return Array.Empty<WaveDef>();
-            return r.Resolve(year, season, day);
+            // cache by hash key
+            int key = (year * 100000) + ((int)season * 1000) + day;
+
+            if (_calendarCache.TryGetValue(key, out var cached))
+                return cached;
+
+            var resolver = _s.WaveCalendarResolver;
+            if (resolver == null)
+            {
+                _calendarCache[key] = null;
+                return null;
+            }
+
+            // Interface chuẩn trong project: Resolve(year, season, day)
+            var ro = resolver.Resolve(year, season, day);
+            List<WaveDef> list = null;
+
+            if (ro != null && ro.Count > 0)
+            {
+                // copy sang List để cache + dùng thống nhất
+                list = new List<WaveDef>(ro.Count);
+                for (int i = 0; i < ro.Count; i++)
+                    list.Add(ro[i]);
+            }
+
+            _calendarCache[key] = list;
+            return list;
         }
 
         private int GetYearIndexOr1()
         {
-            // RunClockService exposes YearIndex (runtime-only, not in contract)
-            if (_s.RunClock is RunClockService rc) return Math.Max(1, rc.YearIndex);
+            if (_s.RunClock is RunClockService rc) return Mathf.Max(1, rc.YearIndex);
             return 1;
         }
     }

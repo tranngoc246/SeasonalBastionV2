@@ -21,6 +21,7 @@
             // 3) Các hệ còn lại tick theo simDt
             if (s.NotificationService is ITickable notiTick) notiTick.Tick(simDt);
             if (s.BuildOrderService is ITickable buildTick) buildTick.Tick(simDt);
+            if (s.ProducerLoopService is ITickable prodTick) prodTick.Tick(simDt);
             if (s.JobScheduler is ITickable jobTick) jobTick.Tick(simDt);
             if (s.ResourceFlowService is ITickable flowTick) flowTick.Tick(simDt);
             if (s.AmmoService is ITickable ammoTick) ammoTick.Tick(simDt);

@@ -124,3 +124,158 @@
 - Day 34+: Combat stability pass (nếu theo VS3):
   - polish điều kiện wave end (nếu cần wait aliveCount=0)
   - harden load consistency cho combat timers nếu mở scope
+
+---
+
+## Day 34 — Combat stability pass (enemy stuck + wave resolve)
+
+### Mục tiêu
+- [x] Không còn case wave không kết thúc vì enemy kẹt / path fail.
+- [x] Debug rõ ràng: hiển thị counter alive/spawned + trạng thái resolve.
+
+### Đầu vào / Scope (đã chốt)
+- [v] Resolve rule (WaveDirector):
+  - Wave chỉ kết thúc khi **spawn done + aliveCount == 0**.
+  - Có **timeout safety** để tránh softlock (log warn + force resolve).
+- [v] Enemy mover fallback:
+  - Nếu path fail liên tiếp N lần → fallback step theo **dirToHQ** hoặc **local BFS radius nhỏ**.
+  - Nếu enemy phá building về 0 HP → **clear occupancy** để không bị blocked vĩnh viễn.
+- [v] Debug:
+  - Show counters: planned/spawned/alive + spawnDone + resolve timer + nút force resolve.
+
+### Đã làm
+- [v] **EnemySystem — fallback & unstuck**
+  - Track `pathFailStreak` theo EnemyId.
+  - Khi `TryFindNextStep` fail liên tiếp (>= threshold):
+    - Ưu tiên step theo `dirToHQ` (kèm left/right/opposite)
+    - Nếu vẫn fail → local BFS trong radius nhỏ để tìm bước đi cải thiện Manhattan tới HQ.
+  - Reset streak khi move thành công / cleanup enemy.
+  - Khi building bị đánh về 0 HP:
+    - Mark not constructed (an toàn tối thiểu)
+    - Clear footprint occupancy trên grid để không chặn đường vĩnh viễn.
+- [v] **WaveDirector — resolve rule + timeout safety**
+  - Spawn phase: chạy tới hết entries → set `spawnDone = true` (KHÔNG end ngay).
+  - Resolve phase:
+    - Chỉ end wave khi `spawnDone && aliveCount == 0`
+    - Nếu `resolveElapsed >= timeout` → log warn + force end wave để tránh treo.
+  - Expose counters cho debug: planned/spawned/spawnDone/alive/resolveElapsed/timeout.
+- [v] **CombatService — expose wave debug info**
+  - Public getters: active wave id, planned/spawned, alive count, spawnDone, resolve timers.
+  - Debug action: `ForceResolveWave()` gọi xuống WaveDirector.
+- [v] **Debug HUD — hiển thị Wave counters + cuộn Home**
+  - Thêm `DebugWaveHUD` (Hub-controlled) để hiển thị:
+    - WaveActive, WaveId
+    - Spawned/Planned, SpawnDone
+    - AliveEnemies
+    - ResolveTimer/Timeout
+    - Nút **Force Resolve Wave**
+  - Sửa `DebugHUDHub.DrawHome()`:
+    - Bọc nội dung bằng `ScrollView`
+    - Thêm toggle ẩn/hiện từng section (Data/Clock/Lanes/Save/Wave)
+    - Tránh “HUD quá dài” làm Wave không hiện.
+
+### Kết quả / Acceptance
+- [v] Chạy **Winter 1 ngày**: wave luôn kết thúc, không còn treo do enemy kẹt/path fail.
+- [v] Khi xảy ra trường hợp bất thường (lane/path/data), timeout safety đảm bảo không softlock (có warn log).
+- [v] Debug Wave hiển thị đầy đủ counters và thao tác force resolve để test nhanh.
+
+### Ghi chú / Pitfalls
+- Local BFS chỉ dùng radius nhỏ (deterministic, không over-engineer) → mục tiêu là “thoát kẹt”, không thay thế full pathfinding.
+- Timeout safety là “last resort” để tránh treo; log warn để dễ trace data/path issue.
+- Clear occupancy khi building HP=0 là cực quan trọng để tránh grid blocked vĩnh viễn (softlock resolve).
+
+### Việc tiếp theo
+- Day 35 (nếu theo VS3): polish combat pacing:
+  - refine wave timeout tuning (theo Balance Tables)
+  - nếu cần: rule “wave end wait alive==0” đã ổn, ưu tiên kiểm tra spawn/lane defs để giảm timeout.
+
+---
+
+## Day 35 — Boss minimal + reward hook (placeholder)
+
+### Mục tiêu
+- [x] Có boss tối thiểu trong Winter (theo pacing), data-driven.
+- [x] Reward placeholder khi end season: emit event `EndSeasonRewardRequested`.
+
+### Đầu vào / Scope (đã chốt)
+- [v] BossDef: boss là enemy có HP lớn hơn + damage cao hơn (data-driven từ Enemies defs).
+- [v] Boss spawn:
+  - Boss xuất hiện ở **wave cuối** của ngày/season cần boss (ưu tiên Winter pacing).
+  - Không tạo double-boss nếu wave json đã có boss.
+- [v] Reward hook:
+  - Khi kết thúc **ngày cuối của season** → publish `EndSeasonRewardRequested` (placeholder, chưa cần UI chọn reward).
+
+### Đã làm
+- [v] **Contracts — Event placeholder**
+  - Thêm struct `EndSeasonRewardRequested` vào CommonEvents:
+    - Payload: `Season`, `YearIndex`, `DayIndex`.
+- [v] **RewardService — emit end-season reward request**
+  - Subscribe `DayEndedEvent`.
+  - Detect end season theo số ngày lock v0.1 (Spring 6 / Summer 6 / Autumn 4 / Winter 4).
+  - Khi `DayIndex == maxDaysOfSeason`:
+    - Publish `EndSeasonRewardRequested(season, yearIndex, dayIndex)`.
+- [v] **WaveCalendarResolver — boss wave injection (minimal)**
+  - Khi resolve waves cho (year, season, day):
+    - Nếu list đã có `IsBoss == true` → skip (tránh double boss).
+    - Nếu data registry có boss enemy schedule đúng mốc (BossYear/BossSeason/BossDay) nhưng **không có wave boss**:
+      - Auto-add 1 wave boss minimal:
+        - `IsBoss = true`, `WaveIndex = 9999`
+        - Entries: `{ enemyId = <boss>, count = 1 }`
+  - Kết quả: boss xuất hiện đúng mốc ngay cả khi `Waves.json` chưa khai báo wave boss cho mốc đó.
+- [v] **Combat/Wave Debug — boss flag**
+  - Expose `ActiveIsBoss` (WaveDirector) + `ActiveWaveIsBoss` (CombatService).
+  - DebugWaveHUD hiển thị `IsBossWave` để xác nhận nhanh trong runtime.
+
+### Kết quả / Acceptance
+- [v] Boss xuất hiện đúng mốc (wave cuối của ngày/season target), không crash khi bị giết.
+- [v] End of season (ngày cuối) luôn publish `EndSeasonRewardRequested` (placeholder) qua EventBus.
+- [v] Không tạo vòng lặp asmdef:
+  - Injection nằm ở Boot/Resolver, Debug chỉ đọc state từ Combat, Rewards chỉ subscribe events.
+
+### Ghi chú / Pitfalls
+- Boss “data-driven” nghĩa là tuning HP/damage nằm ở Enemies defs; code chỉ đảm bảo boss được spawn đúng lịch.
+- Injection dùng WaveIndex lớn để chắc chắn “cuối ngày” (không phụ thuộc thứ tự trong json).
+- Reward event hiện là placeholder: hệ UI/RewardPicker có thể hook vào sau.
+
+### Việc tiếp theo
+- Day 36 (nếu theo VS3): reward UI tối thiểu (listen `EndSeasonRewardRequested` → popup placeholder + pick 1).
+- Nếu boss pacing cần chặt hơn: bổ sung logic “boss chỉ spawn nếu all previous waves resolved” (hiện đã đảm bảo qua wave resolve rule Day34).
+
+---
+
+## Day 36 — Producer loop chuẩn (subset theo data) + local storage cap
+
+### Mục tiêu
+- [x] Farm/Lumber sinh resource theo balance; có local cap; full thì dừng đúng.
+- [x] Notify key: `producer.local.full` (anti-spam friendly).
+- [x] Debug: đổi mode/tab bằng F1–F7 hoạt động ổn định.
+
+### Đã làm
+- [v] **ProducerLoopService (mới)**
+  - Scan buildings định kỳ (nhẹ) và chọn subset producer: Farmhouse/LumberCamp.
+  - Nếu local chưa full và workplace queue trống → enqueue `JobArchetype.Harvest`.
+  - Nếu full → cancel Harvest đang chờ (nếu có) + push notify `producer.local.full`.
+- [v] **Local storage cap per building**
+  - Dùng `StorageService.GetCap/GetAmount` theo (BuildingId, ResourceType) để chặn tăng vượt cap.
+  - Khi full: producer dừng tạo job và HarvestExecutor cancel thay vì fail loop.
+- [v] **Notification anti-spam**
+  - Dedupe theo key + cooldown để tránh spam.
+  - Fix compile: `NotificationPayload` là `readonly struct` → tạo bằng constructor `new NotificationPayload(buildingId, default, null)` (không dùng object initializer).
+- [v] **Tick order**
+  - Tick ProducerLoop trước JobScheduler để job được assign ngay trong cùng tick.
+- [v] **Debug hotkeys F1–F7**
+  - Root cause: Hub không poll hotkeys khi thiếu Router / wiring router-hub không resolve.
+  - Fix: thêm fallback self-poll hotkeys trong `DebugHUDHub` khi scene không có `DebugInputRouter`, và harden `HandleHotkeys` (chống `Key.None`).
+  - Đảm bảo `DebugInputRouter` resolve `_hub` (GetComponentInChildren/FindObjectOfType).
+
+### Kết quả / Acceptance
+- [v] Chạy 2–3 ngày: local Food/Wood tăng dần → đạt cap → dừng đúng (không tăng thêm).
+- [v] Khi full: có notify `producer.local.full` nhưng không spam.
+- [v] F1–F7 đổi mode/tab ổn định.
+
+### Ghi chú / Pitfalls
+- Producer loop hiện chạy tối thiểu trong Build phase (scope Day36); có thể mở rộng cho Defend sau nếu cần.
+- Subset mapping hiện: Farmhouse→Food, LumberCamp→Wood (theo subset yêu cầu).
+
+### Việc tiếp theo
+- Day 37 (gợi ý): HUD debug producer/local storage (compact), hoặc mở rộng producer types nếu scope VS3 cho phép.

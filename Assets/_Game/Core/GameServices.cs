@@ -30,6 +30,7 @@ namespace SeasonalBastion
         public GridAgentMoverLite AgentMover;
 
         // Economy/Jobs
+        public ITickable ProducerLoopService; // Day36: producer loop (enqueue Harvest)
         public IStorageService StorageService;
         public IResourceFlowService ResourceFlowService;
         public IClaimService ClaimService;

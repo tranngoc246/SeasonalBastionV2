@@ -1,6 +1,7 @@
+﻿using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
-using SeasonalBastion.Contracts;
+using System.Security.Cryptography;
 
 namespace SeasonalBastion
 {
@@ -46,6 +47,27 @@ namespace SeasonalBastion
             var rt = HarvestResourceType(bs.DefId);
             GetHarvestParams(bs.DefId, NormalizeLevel(bs.Level), out float workSec, out int yield);
 
+            // Day36: nếu local storage full thì cancel job để tránh loop fail/spam
+            int cap = _s.StorageService.GetCap(producer, rt);
+            int cur = _s.StorageService.GetAmount(producer, rt);
+            if (cap > 0 && cur >= cap)
+            {
+                if (_s.NotificationService != null)
+                {
+                    _s.NotificationService.Push(
+                        key: "producer.local.full",
+                        title: "Producer full",
+                        body: $"{bs.DefId}: {rt} full ({cur}/{cap})",
+                        severity: NotificationSeverity.Info,
+                        payload: new NotificationPayload(producer, default, null),
+                        cooldownSeconds: 8f,
+                        dedupeByKey: true);
+                }
+
+                job.Status = JobStatus.Cancelled;
+                return true;
+            }
+
             // Claim producer node (held during moving+working; released by JobScheduler on terminal)
             if (_s.ClaimService != null)
             {
@@ -82,7 +104,8 @@ namespace SeasonalBastion
             int added = _s.StorageService.Add(producer, rt, yield);
             job.Amount = yield;
 
-            job.Status = (added > 0) ? JobStatus.Completed : JobStatus.Failed;
+            // Day36: nếu không add được (full) => Cancel (đỡ retry fail)
+            job.Status = (added > 0) ? JobStatus.Completed : JobStatus.Cancelled;
             return true;
         }
 

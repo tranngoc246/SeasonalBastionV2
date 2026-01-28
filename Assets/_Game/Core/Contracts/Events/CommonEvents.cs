@@ -51,4 +51,12 @@ namespace SeasonalBastion.Contracts
         public readonly string RewardId;
         public RewardPickedEvent(string id){RewardId=id;}
     }
+
+    public readonly struct EndSeasonRewardRequested
+    {
+        public readonly Season Season;
+        public readonly int YearIndex;
+        public readonly int DayIndex; 
+        public EndSeasonRewardRequested(Season s, int yearIndex, int dayIndex) { Season = s; YearIndex = yearIndex; DayIndex = dayIndex; }
+    }
 }

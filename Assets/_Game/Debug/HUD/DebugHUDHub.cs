@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -48,6 +48,7 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private DebugWorldIndexHUD _worldIndexHud;
         [SerializeField] private DebugCombatLaneHUD _combatLaneHud;
         [SerializeField] private DebugRunClockHUD _runClockHud;
+        [SerializeField] private DebugWaveHUD _waveHud;
 
         [Header("Hotkeys (Hub only)")]
         [SerializeField] private Key _toggleUiKey = Key.F1;
@@ -65,6 +66,19 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private bool _showUi = true;
         [SerializeField] private DebugHubMode _mode = DebugHubMode.None;
         [SerializeField] private DebugHubTab _tab = DebugHubTab.Home;
+
+        [SerializeField] private bool _selfPollHotkeysWhenNoRouter = true;
+        private bool _hasRouter;
+
+        private int _lastHotkeyFrame = -1;
+
+        // Day34: Home scroll + section toggles (IMGUI)
+        private Vector2 _homeScroll;
+        private bool _homeShowData = true;
+        private bool _homeShowRunClock = true;
+        private bool _homeShowLanes = true;
+        private bool _homeShowSaveLoad = true;
+        private bool _homeShowWave = true;
 
         private GameServices _gs;
 
@@ -92,6 +106,7 @@ namespace SeasonalBastion.DebugTools
             if (_worldIndexHud == null) _worldIndexHud = FindObjectOfType<DebugWorldIndexHUD>(true);
             if (_combatLaneHud == null) _combatLaneHud = FindObjectOfType<DebugCombatLaneHUD>(true);
             if (_runClockHud == null) _runClockHud = FindObjectOfType<DebugRunClockHUD>(true);
+            if (_waveHud == null) _waveHud = FindObjectOfType<DebugWaveHUD>(true);
 
 
             // Hub-control: disable standalone HUD + disable standalone toggle hotkeys
@@ -104,8 +119,14 @@ namespace SeasonalBastion.DebugTools
             if (_worldIndexHud != null) _worldIndexHud.SetHubControlled(true);
             if (_combatLaneHud != null) _combatLaneHud.SetHubControlled(true);
             if (_runClockHud != null) _runClockHud.SetHubControlled(true);
+            if (_waveHud != null) _waveHud.SetHubControlled(true);
+
+            var kb = Keyboard.current;
+            if (kb != null) HandleHotkeys(kb);
 
             ApplyMode(_mode);
+
+            _hasRouter = FindObjectOfType<DebugInputRouter>(true) != null;
         }
 
         private void OnDestroy()
@@ -114,6 +135,19 @@ namespace SeasonalBastion.DebugTools
         }
         private void Update()
         {
+            // Fallback: nếu scene chưa có DebugInputRouter thì Hub tự poll hotkeys để khỏi “mất phím”.
+            if (_selfPollHotkeysWhenNoRouter)
+            {
+                // Nếu sau này bạn add Router vào scene, Hub sẽ tự tắt fallback.
+                _hasRouter = _hasRouter || (FindObjectOfType<DebugInputRouter>(true) != null);
+
+                if (!_hasRouter)
+                {
+                    var kb = Keyboard.current;
+                    if (kb != null) HandleHotkeys(kb);
+                }
+            }
+
             // Hub no longer polls hotkeys here (handled by DebugInputRouter).
             // Update only resolves services and auto-finds modules if needed.
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
@@ -127,31 +161,37 @@ namespace SeasonalBastion.DebugTools
             if (_notiHud == null) _notiHud = FindObjectOfType<DebugNotificationsHUD>();
             if (_worldIndexHud == null) _worldIndexHud = FindObjectOfType<DebugWorldIndexHUD>();
             if (_combatLaneHud == null) _combatLaneHud = FindObjectOfType<DebugCombatLaneHUD>();
-            if (_runClockHud == null) _runClockHud = FindObjectOfType<DebugRunClockHUD>();
+            if (_runClockHud == null) _runClockHud = FindObjectOfType<DebugRunClockHUD>(); 
+            if (_waveHud == null) _waveHud = FindObjectOfType<DebugWaveHUD>();
 
             ApplyMode(_mode);
         }
 
-
-        
         public void HandleHotkeys(Keyboard kb)
         {
-            if (kb[_toggleUiKey].wasPressedThisFrame)
+            static bool Pressed(Keyboard k, Key key)
+            {
+                if (k == null || key == Key.None) return false;
+                var c = k[key];
+                return c != null && c.wasPressedThisFrame;
+            }
+
+            if (Pressed(kb, _toggleUiKey))
                 _showUi = !_showUi;
 
-            if (kb[_clearModeKey].wasPressedThisFrame)
+            if (Pressed(kb, _clearModeKey))
                 ApplyMode(DebugHubMode.None);
 
-            if (kb[_modeBuildKey].wasPressedThisFrame) { ApplyMode(DebugHubMode.Build); _tab = DebugHubTab.Home; }
-            if (kb[_modeRoadKey].wasPressedThisFrame) { ApplyMode(DebugHubMode.Road); _tab = DebugHubTab.Home; }
-            if (kb[_modeNpcKey].wasPressedThisFrame) { ApplyMode(DebugHubMode.Npc); _tab = DebugHubTab.Npc; }
-            if (kb[_modeStorageKey].wasPressedThisFrame) { ApplyMode(DebugHubMode.Storage); _tab = DebugHubTab.Storage; }
+            if (Pressed(kb, _modeBuildKey)) { ApplyMode(DebugHubMode.Build); _tab = DebugHubTab.Home; }
+            if (Pressed(kb, _modeRoadKey)) { ApplyMode(DebugHubMode.Road); _tab = DebugHubTab.Home; }
+            if (Pressed(kb, _modeNpcKey)) { ApplyMode(DebugHubMode.Npc); _tab = DebugHubTab.Npc; }
+            if (Pressed(kb, _modeStorageKey)) { ApplyMode(DebugHubMode.Storage); _tab = DebugHubTab.Storage; }
 
-            if (kb[_tabNotiKey].wasPressedThisFrame) _tab = DebugHubTab.Notifications;
-            if (kb[_tabWorldIndexKey].wasPressedThisFrame) _tab = DebugHubTab.WorldIndex;
+            if (Pressed(kb, _tabNotiKey)) _tab = DebugHubTab.Notifications;
+            if (Pressed(kb, _tabWorldIndexKey)) _tab = DebugHubTab.WorldIndex;
         }
 
-private void ApplyMode(DebugHubMode m)
+        private void ApplyMode(DebugHubMode m)
         {
             _mode = m;
 
@@ -249,54 +289,104 @@ private void ApplyMode(DebugHubMode m)
 
         private void DrawHome()
         {
+            // ===== Top summary (no scroll) =====
             GUILayout.Label("Active Modules:");
             GUILayout.Label($"BuildTool: {(_buildTool != null ? "OK" : "missing")}  | RoadTool: {(_roadTool != null ? "OK" : "missing")}  | NpcTool: {(_npcTool != null ? "OK" : "missing")}");
             GUILayout.Label($"NotiHUD: {(_notiHud != null ? "OK" : "missing")}  | WorldIndexHUD: {(_worldIndexHud != null ? "OK" : "missing")}  | StorageHUD: {(_storageHud != null ? "OK" : "missing")}");
 
-            GUILayout.Space(8);
+            GUILayout.Space(6);
             GUILayout.Label("Notes:");
             GUILayout.Label("- All old standalone toggle keys are disabled (B/R/N/H/I/S).");
             GUILayout.Label("- Tools only respond to inputs when their mode is active.");
 
-            GUILayout.Space(10);
-            GUILayout.Label("Day17: Data Validator");
+            GUILayout.Space(8);
 
+            // ===== Section toggles (compact) =====
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Validate Data", GUILayout.Width(140)))
-                ValidateDataNow();
-            GUILayout.Label($"Result: {_dataLastSummary}");
+            _homeShowData = GUILayout.Toggle(_homeShowData, "Data", GUILayout.Width(60));
+            _homeShowRunClock = GUILayout.Toggle(_homeShowRunClock, "Clock", GUILayout.Width(70));
+            _homeShowLanes = GUILayout.Toggle(_homeShowLanes, "Lanes", GUILayout.Width(70));
+            _homeShowSaveLoad = GUILayout.Toggle(_homeShowSaveLoad, "Save", GUILayout.Width(60));
+            _homeShowWave = GUILayout.Toggle(_homeShowWave, "Wave", GUILayout.Width(70));
             GUILayout.EndHorizontal();
 
-            if (!_dataLastOk)
-            {
-                GUILayout.Label("Errors:");
-                _dataScroll = GUILayout.BeginScrollView(_dataScroll, GUILayout.Height(240));
-                int show = Mathf.Min(_dataErrors.Count, 50);
-                for (int i = 0; i < show; i++)
-                    GUILayout.Label("- " + _dataErrors[i]);
-                if (_dataErrors.Count > show)
-                    GUILayout.Label($"...({_dataErrors.Count - show} more)");
-                GUILayout.EndScrollView();
-            }
+            // ===== Scrollable content =====
+            _homeScroll = GUILayout.BeginScrollView(_homeScroll, GUILayout.ExpandHeight(true));
 
-            GUILayout.Space(10);
-            if (_runClockHud != null)
-                _runClockHud.DrawHubGUI();
-            else
-                GUILayout.Label("DebugRunClockHUD: missing (add component to scene if you want clock controls)");
-
-            if (_combatLaneHud != null)
-                _combatLaneHud.DrawHubGUI();
-            else
+            // ---- Day17: Data Validator ----
+            if (_homeShowData)
             {
                 GUILayout.Space(10);
-                GUILayout.Label("DebugCombatLaneHUD: missing (add component to scene if you want lane spawn debug)");
+                GUILayout.Label("Day17: Data Validator");
+
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Validate Data", GUILayout.Width(140)))
+                    ValidateDataNow();
+                GUILayout.Label($"Result: {_dataLastSummary}");
+                GUILayout.EndHorizontal();
+
+                if (!_dataLastOk)
+                {
+                    GUILayout.Label("Errors:");
+                    _dataScroll = GUILayout.BeginScrollView(_dataScroll, GUILayout.Height(240));
+                    int show = Mathf.Min(_dataErrors.Count, 50);
+                    for (int i = 0; i < show; i++)
+                        GUILayout.Label("- " + _dataErrors[i]);
+                    if (_dataErrors.Count > show)
+                        GUILayout.Label($"...({_dataErrors.Count - show} more)");
+                    GUILayout.EndScrollView();
+                }
+
+                GUILayout.Space(6);
             }
 
-            GUILayout.Space(10);
-            if (_gs != null) _saveLoadHUD.Draw(_gs);
-            else GUILayout.Label("SaveLoadHUD: GameServices is null");
+            // ---- RunClock HUD ----
+            if (_homeShowRunClock)
+            {
+                GUILayout.Space(10);
+                if (_runClockHud != null)
+                    _runClockHud.DrawHubGUI();
+                else
+                    GUILayout.Label("DebugRunClockHUD: missing (add component to scene if you want clock controls)");
 
+                GUILayout.Space(6);
+            }
+
+            // ---- Lane HUD ----
+            if (_homeShowLanes)
+            {
+                GUILayout.Space(10);
+                if (_combatLaneHud != null)
+                    _combatLaneHud.DrawHubGUI();
+                else
+                    GUILayout.Label("DebugCombatLaneHUD: missing (add component to scene if you want lane spawn debug)");
+
+                GUILayout.Space(6);
+            }
+
+            // ---- Save/Load HUD ----
+            if (_homeShowSaveLoad)
+            {
+                GUILayout.Space(10);
+                if (_gs != null) _saveLoadHUD.Draw(_gs);
+                else GUILayout.Label("SaveLoadHUD: GameServices is null");
+
+                GUILayout.Space(6);
+            }
+
+            // ---- Day34: Wave HUD ----
+            if (_homeShowWave)
+            {
+                GUILayout.Space(10);
+                if (_waveHud != null)
+                    _waveHud.DrawHubGUI();
+                else
+                    GUILayout.Label("DebugWaveHUD: missing (add component to scene if you want wave counters)");
+
+                GUILayout.Space(6);
+            }
+
+            GUILayout.EndScrollView();
         }
     }
 }

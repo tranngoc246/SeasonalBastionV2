@@ -3,10 +3,6 @@ using UnityEngine.InputSystem;
 
 namespace SeasonalBastion.DebugTools
 {
-    /// <summary>
-    /// Centralized hotkey router for DebugHUDHub.
-    /// Tools should NOT create their own InputActions.
-    /// </summary>
     public sealed class DebugInputRouter : MonoBehaviour
     {
         [SerializeField] private DebugHUDHub _hub;

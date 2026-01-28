@@ -38,19 +38,15 @@ namespace SeasonalBastion
             // Economy
             services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);
             services.ResourceFlowService = new ResourceFlowService(services.WorldState, services.WorldIndex, services.StorageService);
-
+            
             // Jobs
             services.ClaimService = new ClaimService();
             services.JobBoard = new JobBoard();
             var executorRegistry = new JobExecutorRegistry(services);
-            services.JobScheduler = new JobScheduler(
-                services.WorldState,
-                services.JobBoard,
-                services.ClaimService,
-                executorRegistry,
-                services.EventBus,
-                services.DataRegistry,
-                services.NotificationService);
+            services.JobScheduler = new JobScheduler( services.WorldState, services.JobBoard, services.ClaimService, executorRegistry, services.EventBus, services.DataRegistry, services.NotificationService);
+
+            services.ProducerLoopService = new ProducerLoopService(services.WorldState, services.DataRegistry, services.StorageService, services.JobBoard, services.NotificationService, services.RunClock);
+
 
             // Build
             services.BuildOrderService = new BuildOrderService(services);

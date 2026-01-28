@@ -279,3 +279,152 @@
 
 ### Việc tiếp theo
 - Day 37 (gợi ý): HUD debug producer/local storage (compact), hoặc mở rộng producer types nếu scope VS3 cho phép.
+
+---
+
+## Day 37 — HaulBasic (Producer → Central Storage) + claim hardening
+
+### Mục tiêu
+- [x] NPC vận chuyển làm giảm local producer và tăng central storage; không deadlock/softlock.
+- [x] Không có 2 NPC bốc cùng stack; không loop vô hạn khi kho đầy.
+- [x] Debug: hiển thị số lượng haul jobs đang active.
+
+### Đầu vào / Scope (đã chốt)
+- [v] JobProvider (deterministic):
+  - Ưu tiên nguồn local **gần full** (theo % đầy), tie-break deterministic.
+- [v] Executor hardening:
+  - Claim source/dest để tránh tranh chấp.
+  - Nếu destination full → fallback **return source** (nhất quán).
+- [v] Debug:
+  - Counter số job `HaulBasic` đang active trên HUD.
+
+### Đã làm
+- [v] **HaulBasicExecutor — ưu tiên nguồn local gần full (deterministic)**
+  - Chọn source theo thứ tự ưu tiên:
+    1) % đầy (fill ratio) cao hơn
+    2) distance (Manhattan) nhỏ hơn
+    3) BuildingId nhỏ hơn (tie-break deterministic)
+  - Dùng local cap mapping lock v0.1 để tính fill ratio (Farm/Lumber/Quarry/Iron).
+- [v] **HaulBasicExecutor — claim hardening & kho đầy**
+  - Pickup: claim `StorageSource` theo (source, resource) để không 2 NPC remove cùng lúc.
+  - Deliver: claim `StorageDest` theo (dest, resource) để tránh đẩy chồng vào cùng slot.
+  - Nếu không có dest có space hoặc reroute fail:
+    - Nếu đang carry → **refund về source** rồi cancel job.
+    - Nếu chưa pickup → cancel job (không fail loop).
+  - Fallback policy nhất quán: **return source** (không drop ra world).
+- [v] **JobBoard — debug counter**
+  - Thêm helper `CountActiveJobs(JobArchetype.HaulBasic)` để đếm job đang chạy (exclude Completed/Failed/Cancelled).
+- [v] **DebugHUDHub — show active haul jobs**
+  - Hiển thị `HaulBasic jobs active: N` trên Home tab để theo dõi deadlock/queue.
+
+### Kết quả / Acceptance
+- [v] Không có 2 NPC bốc cùng stack/resource từ 1 producer (claim source).
+- [v] Khi kho trung tâm đầy: job không loop vô hạn; nếu đang carry thì trả hàng về source trước khi cancel.
+- [v] Debug HUD hiển thị rõ số haul jobs active để test nhanh.
+
+### Ghi chú / Pitfalls
+- “Claim amount” theo stack size chưa implement (ClaimKey chỉ (kind,A,B)); scope Day37 đủ để chặn double pickup/double deposit.
+- Local cap mapping cần đồng bộ với Producer/Harvest (Day36) để fill ratio phản ánh đúng.
+
+### Việc tiếp theo
+- Day 38 (gợi ý): hiển thị thêm breakdown haul theo resource / per-dest, hoặc policy ưu tiên dest theo free-space.
+
+---
+
+## Day 38 — Ammo pipeline polish (Forge→Armory→Resupply) + anti-spam requests
+
+### Mục tiêu
+- [ ] Ammo loop chạy êm trong combat dài (Year2):
+  - resupply không spam
+  - tower không bị thiếu ammo lâu / không bị “kẹt” khi armory refill lại
+- [ ] Debug rõ ràng để quan sát request/jobs.
+
+### Đầu vào / Scope (đã chốt)
+- [v] Resupply requests:
+  - dedupe per `TowerId`
+  - priority: `0 ammo` > `low ammo`
+  - cooldown
+- [v] HaulAmmo:
+  - chunk size + capacity clamp (avoid over-carry)
+- [v] Guard:
+  - tower full khi deliver → return ammo về armory (không mất ammo)
+
+### Đã làm (tạm thời)
+- [v] **Triaging bug “armory refill nhưng chỉ resupply khi có enemy”**
+  - Kiểm tra tick chain:
+    - `AmmoService` được tick mỗi frame theo simDt, không bị gate theo combat.
+  - Kết luận: root cause không phải do TickOrder, mà nhiều khả năng do lifecycle của request/in-flight job:
+    - request bị consume / job bị cancel khi armory 0
+    - khi armory có ammo lại, tower không phát sinh ammo-change nên không tạo request mới → gây stall.
+- [ ] **Chưa apply code changes Day38**
+  - Theo yêu cầu “tạm thời bỏ qua”, chưa triển khai các thay đổi:
+    - Wake-up resupply khi armory ammo tăng
+    - Requeue request khi resupply job Cancel/Fail
+    - Clamp carry cap (HaulAmmo/Resupply)
+    - Debug counters (pending/inflight)
+
+### Kết quả / Acceptance
+- [ ] Chưa đạt (đang tạm hoãn phần code). Dùng để ghi nhận phân tích & hướng fix tiếp theo.
+
+### Ghi chú / Pitfalls
+- Bug này không phụ thuộc việc tower có target hay không; thường là do cơ chế request chỉ phát sinh khi ammo thay đổi.
+- Fix chuẩn cần đảm bảo:
+  - armory refill → resupply scheduler “wake up” (dù tower idle)
+  - job cancel/fail → nếu tower vẫn thiếu ammo thì re-enqueue (anti-spam bằng cooldown/dedupe)
+
+### Việc tiếp theo
+- Khi quay lại Day38:
+  - Thêm “wake-up” theo armory ammo sum tăng.
+  - Hardening: requeue khi job cancel/fail + clamp carry cap.
+  - Debug: show pending urgent/normal + inflight haul/resupply để test 2 ngày liên tục với 3 towers.
+
+---
+
+## Day 39 — Unlock gating tối thiểu (build list theo mốc time/season)
+
+### Mục tiêu
+- [x] Không cho người chơi build mọi thứ từ đầu; unlock theo nhịp GDD/pacing (tối thiểu).
+- [x] Data-driven schedule (year/season/day) + API `IsUnlocked(defId)`.
+- [x] Build UI/Debug list: chỉ cho chọn/đặt defs unlocked.
+- [x] Save/Load: **recompute từ clock** (không persist state).
+
+### Đầu vào / Scope (đã chốt)
+- [v] Unlock theo mốc `(Year, Season, Day)` (lexicographic compare).
+- [v] Recompute từ `RunClock` (khuyến nghị), không serialize.
+- [v] Hiện gating ở `DebugBuildingTool` (flow build hiện tại), HUD build list khác sẽ làm sau nếu có.
+
+### Đã làm
+- [v] **Contracts — IUnlockService + DTO schedule**
+  - Thêm `IUnlockService.IsUnlocked(defId)`.
+  - Thêm `UnlockScheduleDef` + `UnlockEntryDef` (JSON via `JsonUtility`).
+- [v] **UnlockService (mới)**
+  - Load schedule từ `Resources/UnlockSchedule_v0_1.json` (TextAsset).
+  - Tick nhẹ (0.25s) và **recompute** khi `(Year/Season/Day)` đổi.
+  - Set `_unlocked` gồm `StartUnlocked` + các entry đã “đến mốc”.
+- [v] **Wire vào GameServices**
+  - `GameServices` thêm field `UnlockService`.
+  - `GameServicesFactory` tạo `UnlockService` sau khi tạo `RunClock` (để unlock dựa theo clock).
+  - `TickOrder` tick `UnlockService` mỗi sim tick (không gate combat).
+- [v] **Build gating ở DebugBuildingTool**
+  - Khi select/commit def:
+    - Nếu `!UnlockService.IsUnlocked(defId)` → chặn thao tác + push notification “Locked”.
+  - Đảm bảo đầu game chỉ đặt được set start; tới mốc unlock thì đặt được thêm.
+- [v] **Fix compile mismatch IRunClock**
+  - `IRunClock` không expose `YearIndex` và season property tên `CurrentSeason`.
+  - Sửa `UnlockService`:
+    - dùng `_clock.CurrentSeason` thay vì `_clock.Season`
+    - lấy year bằng helper `GetYearIndex(IRunClock)` (cast `RunClockService`), fallback `1` nếu không cast được.
+
+### Kết quả / Acceptance
+- [v] Đầu game: chỉ chọn/đặt được các building trong `StartUnlocked`.
+- [v] Khi clock sang mốc unlock (year/season/day) → def mới được mở khóa và đặt được ngay (không cần reload).
+- [v] Recompute từ clock nên Save/Load không cần persist unlock state.
+
+### Ghi chú / Pitfalls
+- `Season` trong JSON nên dùng **int** (Spring=0, Summer=1, Autumn=2, Winter=3) để tránh JsonUtility parse enum string.
+- Gating hiện ở `DebugBuildingTool`; nếu có Build menu HUD khác thì cần apply filter tương tự để “không hiện” những def locked (không chỉ chặn đặt).
+
+### Việc tiếp theo
+- Nếu có UI BuildList/HUD:
+  - filter list theo `UnlockService.IsUnlocked(defId)` để “không hiện” những def locked (không chỉ chặn đặt).
+- (Tuỳ scope) thêm debug panel hiển thị danh sách unlocked hiện tại để test nhanh.

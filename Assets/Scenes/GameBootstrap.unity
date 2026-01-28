@@ -434,6 +434,7 @@ MonoBehaviour:
   _showUi: 1
   _mode: 0
   _tab: 0
+  _selfPollHotkeysWhenNoRouter: 1
 --- !u!1 &360055332
 GameObject:
   m_ObjectHideFlags: 0
@@ -743,9 +744,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _bootstrap: {fileID: 1656749905}
-  _def1: bld_hq_t1
-  _def2: bld_house_t1
-  _def3: bld_farmhouse_t1
+  _def1: bld_armory_t1
+  _def2: bld_forge_t1
+  _def3: bld_tower_arrow_t1
   _def4: bld_lumbercamp_t1
   _def5: bld_warehouse_t1
   _gridOrigin: {x: 0, y: 0, z: 0}
@@ -1022,7 +1023,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1725449632}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b0863e2a6ef81ea4496c07ec71a8d984, type: 3}
   m_Name: 

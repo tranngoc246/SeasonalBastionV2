@@ -20,6 +20,8 @@ namespace SeasonalBastion
         private const float NotifyCooldownLow = 6f;
         private const float NotifyCooldownEmpty = 4f;
 
+        private const int MaxAmmoCarry = 80; // Day38: hard carry capacity cap (Armory L3 chunk)
+
         // Deterministic sim-time (no Unity realtime)
         private float _simTime;
 
@@ -61,6 +63,11 @@ namespace SeasonalBastion
         private readonly List<NpcId> _npcIds = new(64);
         private readonly HashSet<int> _workplacesWithNpc = new();
 
+        public int Debug_InFlightResupplyJobs => _resupplyJobByTower.Count;
+        public int Debug_InFlightHaulAmmoJobs => _haulAmmoJobByArmory.Count;
+        public int Debug_PendingUrgent => _urgent.Count;
+        public int Debug_PendingNormal => _normal.Count;
+
         public AmmoService(GameServices s) { _s = s; }
 
         public int PendingRequests => _urgent.Count + _normal.Count;
@@ -71,6 +78,13 @@ namespace SeasonalBastion
             if (max <= 0) return;
 
             int tid = tower.Value;
+
+            // Day38: nếu tower đã có ResupplyTower job in-flight thì không enqueue request mới (anti-spam)
+            if (_resupplyJobByTower.TryGetValue(tid, out var inflight))
+            {
+                if (_s.JobBoard != null && _s.JobBoard.TryGet(inflight, out var jj) && !IsTerminal(jj.Status))
+                    return;
+            }
 
             int thr = (max * LowAmmoPercent + 99) / 100; // ceil
             if (thr < 1) thr = 1;
@@ -399,6 +413,9 @@ namespace SeasonalBastion
                 int amount = carryCap;
                 if (amount > need) amount = need;
 
+                // Day38: enforce carry capacity hard cap
+                if (amount > MaxAmmoCarry) amount = MaxAmmoCarry;
+
                 // enforce min 30 only when it makes sense
                 if (need >= 30 && amount < 30) amount = 30;
 
@@ -447,7 +464,17 @@ namespace SeasonalBastion
                 var jid = _resupplyJobByTower[tid];
 
                 if (!_s.JobBoard.TryGet(jid, out var j) || IsTerminal(j.Status))
+                {
+                    // remove tracking first
                     _resupplyJobByTower.Remove(tid);
+
+                    // Day38: nếu job fail/cancel và tower vẫn thiếu ammo => re-enqueue request (anti-stall)
+                    if (_s.WorldState != null && _s.WorldState.Towers.Exists(new TowerId(tid)))
+                    {
+                        if (j.Status == JobStatus.Cancelled || j.Status == JobStatus.Failed)
+                            MaybeRequeueTowerAmmoRequest(new TowerId(tid));
+                    }
+                }
             }
         }
 
@@ -996,6 +1023,61 @@ namespace SeasonalBastion
                 cooldownSeconds: 0.5f,
                 dedupeByKey: true
             );
+        }
+
+        private void MaybeRequeueTowerAmmoRequest(TowerId tower)
+        {
+            if (tower.Value == 0) return;
+            if (_s.WorldState == null || !_s.WorldState.Towers.Exists(tower)) return;
+
+            var ts = _s.WorldState.Towers.Get(tower);
+            int cap = ts.AmmoCap;
+            if (cap <= 0) return;
+
+            int cur = ts.Ammo;
+            int need = cap - cur;
+            if (need <= 0) return;
+
+            // nếu đang pending request rồi thì thôi
+            if (_pendingReqTower.Contains(tower.Value)) return;
+
+            // nếu lại có job in-flight (race) thì thôi
+            if (_resupplyJobByTower.TryGetValue(tower.Value, out var inflight))
+            {
+                if (_s.JobBoard != null && _s.JobBoard.TryGet(inflight, out var jj) && !IsTerminal(jj.Status))
+                    return;
+            }
+
+            // ưu tiên: empty > low
+            int thr = (cap * LowAmmoPercent + 99) / 100;
+            if (thr < 1) thr = 1;
+
+            AmmoRequestPriority pri;
+            if (cur <= 0) pri = AmmoRequestPriority.Urgent;
+            else if (cur <= thr) pri = AmmoRequestPriority.Normal;
+            else return; // không còn low nữa
+
+            // respect cooldown giống NotifyTowerAmmoChanged
+            float now = _simTime;
+            if (pri == AmmoRequestPriority.Urgent)
+            {
+                if (_nextReqEmptyAt.TryGetValue(tower.Value, out var until) && now < until) return;
+                _nextReqEmptyAt[tower.Value] = now + ReqCooldownEmpty;
+            }
+            else
+            {
+                if (_nextReqLowAt.TryGetValue(tower.Value, out var until) && now < until) return;
+                _nextReqLowAt[tower.Value] = now + ReqCooldownLow;
+            }
+
+            var req = new AmmoRequest
+            {
+                Tower = tower,
+                AmountNeeded = need,
+                Priority = pri,
+                CreatedAt = now
+            };
+            EnqueueRequest(req);
         }
     }
 }

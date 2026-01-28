@@ -149,6 +149,19 @@ namespace SeasonalBastion
             };
         }
 
+        public int CountActiveJobs(JobArchetype archetype)
+        {
+            int c = 0;
+            foreach (var kv in _jobs)
+            {
+                var j = kv.Value;
+                if (j.Archetype != archetype) continue;
+                if (j.Status == JobStatus.Completed || j.Status == JobStatus.Failed || j.Status == JobStatus.Cancelled) continue;
+                c++;
+            }
+            return c;
+        }
+
         private void CleanFront(Queue<int> q)
         {
             while (q.Count > 0)

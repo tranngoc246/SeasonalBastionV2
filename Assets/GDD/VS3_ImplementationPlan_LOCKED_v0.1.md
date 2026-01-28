@@ -1,6 +1,20 @@
 # Promttitle: VS3 — SHIPABLE BASE RUN IMPLEMENTATION PLAN — LOCKED SPEC v0.1
 
-Mình gửi mục tiêu day 35, kiểm tra các file cần thiết, triển khai chuẩn, chi tiết, đầy đủ day 35 giúp mình, nếu thiếu hoặc cần xác nhận gì thì tạm dừng, nhắn mình trước khi code (cần check các file đã cập nhật trong đoạn chat, kiểm tra kỹ các file asmdef để tránh lỗi vòng lặp, phần debug cần rõ ràng). Gửi các file, vị trí, các chỗ thay đổi hoặc thêm để mình copy vào dự án (không gửi patch, file zip)
+Mình gửi mục tiêu day 39, kiểm tra các file cần thiết, triển khai chuẩn, chi tiết, đầy đủ day 39 giúp mình, nếu thiếu hoặc cần xác nhận gì thì tạm dừng, nhắn mình trước khi code (cần chú ý các file đã cập nhật trong đoạn chat, kiểm tra kỹ các file asmdef để tránh lỗi vòng lặp, phần debug cần rõ ràng). Gửi các file, vị trí, các chỗ thay đổi hoặc thêm để mình copy vào dự án (không gửi patch, file zip)
+Day 39 — Unlock gating tối thiểu (build list theo mốc time/season)
+**Mục tiêu**
+- Không cho người chơi build mọi thứ từ đầu; unlock theo nhịp GDD/pacing.
+
+**Tasks**
+- UnlockService:
+  - schedule data-driven (year/season/day)
+  - expose IsUnlocked(defId)
+- Build UI/Debug list:
+  - chỉ hiện defs unlocked
+- Save/Load: persist unlocked state hoặc recompute từ clock (khuyến nghị recompute).
+
+**Acceptance**
+- Đầu game: chỉ thấy set công trình start; tới mốc unlock: thấy thêm.
 
 # VS3 — SHIPABLE BASE RUN IMPLEMENTATION PLAN — LOCKED SPEC v0.1
 

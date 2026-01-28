@@ -139,17 +139,23 @@ namespace SeasonalBastion
             var vr = ValidateBuilding(buildingDefId, anchor, rotation);
             if (!vr.Ok) return default;
 
-            if (_buildOrders == null)
-            {
-                return default;
-            }
+            if (_buildOrders == null) return default;
 
+            // 1) Create build order FIRST (will create placeholder building + site footprint)
+            int orderId = _buildOrders.CreatePlaceOrder(buildingDefId, anchor, rotation);
+            if (orderId <= 0) return default;
+
+            // resolve building id from order
+            if (!_buildOrders.TryGet(orderId, out var order) || order.TargetBuilding.Value == 0)
+                return default;
+
+            // 2) Auto-create driveway AFTER order (so CreatePlaceOrder re-validate won't fail)
             var driveway = vr.SuggestedRoadCell;
             bool drivewayWasCreated = false;
 
             if (_grid.IsInside(driveway))
             {
-                // Validate already ensures driveway is Empty & not road, but we guard anyway.
+                // driveway must be empty. If not empty, skip auto-road (don't break placement)
                 if (!_grid.IsRoad(driveway))
                 {
                     var occ = _grid.Get(driveway);
@@ -162,19 +168,11 @@ namespace SeasonalBastion
                 }
             }
 
-            // Create build order (this will create site + placeholder building)
-            int orderId = _buildOrders.CreatePlaceOrder(buildingDefId, anchor, rotation);
-
-            // Record auto-created driveway road for cancel rollback (không đổi interface IBuildOrderService).
+            // 3) Record auto-created driveway for cancel rollback
             if (drivewayWasCreated)
-            {
                 _bus?.Publish(new BuildOrderAutoRoadCreatedEvent(orderId, driveway));
-            }
 
-            if (_buildOrders.TryGet(orderId, out var order))
-                return order.TargetBuilding;
-
-            return default;
+            return order.TargetBuilding;
         }
     }
 }

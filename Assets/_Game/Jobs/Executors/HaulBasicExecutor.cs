@@ -57,6 +57,7 @@ namespace SeasonalBastion
                 if (job.SourceBuilding.Value == 0)
                 {
                     job.Status = JobStatus.Cancelled;
+                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
                     Cleanup(job.Id.Value);
                     return true;
                 }
@@ -72,6 +73,7 @@ namespace SeasonalBastion
                 {
                     // No destination has space => cancel (avoid flicker)
                     job.Status = JobStatus.Cancelled;
+                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
                     Cleanup(job.Id.Value);
                     return true;
                 }
@@ -123,6 +125,7 @@ namespace SeasonalBastion
                 if (!TryResolveBestDestination(rt, job.Workplace, refPos, out var reroute))
                 {
                     job.Status = JobStatus.Cancelled;
+                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
                     Cleanup(job.Id.Value);
                     return true;
                 }
@@ -143,6 +146,7 @@ namespace SeasonalBastion
                 if (free <= 0)
                 {
                     job.Status = JobStatus.Cancelled;
+                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
                     Cleanup(job.Id.Value);
                     return true;
                 }
@@ -167,6 +171,7 @@ namespace SeasonalBastion
                 if (want <= 0)
                 {
                     job.Status = JobStatus.Cancelled;
+                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
                     Cleanup(jid);
                     return true;
                 }
@@ -365,6 +370,7 @@ namespace SeasonalBastion
             var producers = _s.WorldIndex.Producers;
             if (producers == null || producers.Count == 0) return false;
 
+            int bestFill = int.MinValue;   // fill per-mille (0..1000)
             int bestDist = int.MaxValue;
             int bestId = int.MaxValue;
 
@@ -376,18 +382,24 @@ namespace SeasonalBastion
                 var bs = _s.WorldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
-                // Day12 filter: DO NOT pick Forge
                 if (!IsHarvestProducer(bs.DefId)) continue;
                 if (HarvestResourceType(bs.DefId) != rt) continue;
 
                 int amt = GetAmountFromBuilding(bs, rt);
                 if (amt < minRequired) continue;
 
+                int cap = LocalCapForProducer(bs.DefId, NormalizeLevel(bs.Level), rt);
+                int fill = (cap > 0) ? (amt * 1000 / cap) : 0; // per-mille
+
                 int d = Manhattan(from, bs.Anchor);
                 int idv = bid.Value;
 
-                if (d < bestDist || (d == bestDist && idv < bestId))
+                // Priority: higher fill -> shorter distance -> smaller id
+                if (fill > bestFill
+                    || (fill == bestFill && d < bestDist)
+                    || (fill == bestFill && d == bestDist && idv < bestId))
                 {
+                    bestFill = fill;
                     bestDist = d;
                     bestId = idv;
                     best = bid;
@@ -402,6 +414,20 @@ namespace SeasonalBastion
             _phase.Remove(jobId);
             _carry.Remove(jobId);
             // Claims will be released by JobScheduler via ReleaseAll(npc) on terminal status.
+        }
+
+        private void RefundToSourceIfCarrying(int jobId, ref Job job, ResourceType rt)
+        {
+            if (!_carry.TryGetValue(jobId, out var carried) || carried <= 0) return;
+
+            var src = job.SourceBuilding;
+            if (src.Value != 0 && _s.WorldState != null && _s.WorldState.Buildings.Exists(src))
+            {
+                _s.StorageService.Add(src, rt, carried);
+            }
+
+            _carry.Remove(jobId);
+            _phase.Remove(jobId);
         }
 
         private static int Manhattan(CellPos a, CellPos b)
@@ -487,6 +513,16 @@ namespace SeasonalBastion
         }
 
         private static int NormalizeLevel(int level) => level <= 0 ? 1 : (level > 3 ? 3 : level);
+
+        private static int LocalCapForProducer(string defId, int level, ResourceType rt)
+        {
+            // local caps LOCKED (đúng mapping bạn đã dùng ở JobScheduler)
+            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            return 0;
+        }
 
         private static bool EqualsIgnoreCase(string a, string b)
         {

@@ -15,6 +15,7 @@ namespace SeasonalBastion
         public IDataValidator DataValidator;
         public IRunClock RunClock;
         public INotificationService NotificationService;
+        public IUnlockService UnlockService;
 
         // World/Grid
         public IWorldState WorldState;

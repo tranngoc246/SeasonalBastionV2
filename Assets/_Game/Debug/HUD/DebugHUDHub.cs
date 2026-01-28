@@ -300,6 +300,9 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Label("- Tools only respond to inputs when their mode is active.");
 
             GUILayout.Space(8);
+            if (_gs != null && _gs.JobBoard is JobBoard jb)
+                GUILayout.Label($"HaulBasic jobs active: {jb.CountActiveJobs(JobArchetype.HaulBasic)}");
+            GUILayout.Space(8);
 
             // ===== Section toggles (compact) =====
             GUILayout.BeginHorizontal();

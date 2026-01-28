@@ -65,7 +65,18 @@ namespace SeasonalBastion.DebugTools
             bool devHook = false;
             if (_gs.AmmoService is AmmoService a) devHook = a.DevHook_Enabled;
 
-            GUILayout.Label($"PendingRequests = {_gs.AmmoService.PendingRequests} | DevHook = {devHook}");
+            int pending = _gs.AmmoService.PendingRequests;
+            int inRes = 0, inHaul = 0, urg = 0, nor = 0;
+
+            if (_gs.AmmoService is AmmoService aa)
+            {
+                inRes = aa.Debug_InFlightResupplyJobs;
+                inHaul = aa.Debug_InFlightHaulAmmoJobs;
+                urg = aa.Debug_PendingUrgent;
+                nor = aa.Debug_PendingNormal;
+            }
+
+            GUILayout.Label($"Requests: {pending} (U:{urg} N:{nor}) | InFlight: Resupply={inRes} HaulAmmo={inHaul} | DevHook={devHook}");
 
             var towers = _gs.WorldIndex.Towers;
             if (towers == null || towers.Count == 0)

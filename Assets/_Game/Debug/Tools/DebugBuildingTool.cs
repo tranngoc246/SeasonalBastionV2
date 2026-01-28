@@ -73,6 +73,7 @@ namespace SeasonalBastion.DebugTools
         private void Start()
         {
             _s = _bootstrap.Services;
+            var unlock = _s.UnlockService;
             _grid = _s.GridMap;
             _place = _s.PlacementService;
             _data = _s.DataRegistry;
@@ -202,6 +203,12 @@ namespace SeasonalBastion.DebugTools
 
         private void Select(string defId)
         {
+            if (_s != null && _s.UnlockService != null && !_s.UnlockService.IsUnlocked(defId))
+            {
+                _noti?.Push("Build_Locked", "Build", $"Locked: {defId}", NotificationSeverity.Warning, default, 0.5f, true);
+                return;
+            }
+
             _selectedDef = defId;
             _cacheValid = false;
 
@@ -215,6 +222,7 @@ namespace SeasonalBastion.DebugTools
                 dedupeByKey: true
             );
         }
+
 
         private void OnRotL(InputAction.CallbackContext _)
         {
@@ -266,6 +274,12 @@ namespace SeasonalBastion.DebugTools
         private void OnClick(InputAction.CallbackContext _)
         {
             if (!_enabled || !_hasHover || _place == null) return;
+
+            if (_s != null && _s.UnlockService != null && !_s.UnlockService.IsUnlocked(_selectedDef))
+            {
+                _noti?.Push("Build_Locked", "Build", $"Locked: {_selectedDef}", NotificationSeverity.Warning, default, 0.5f, true);
+                return;
+            }
 
             var vr = _place.ValidateBuilding(_selectedDef, _hoverCell, _rotation);
             if (!vr.Ok)

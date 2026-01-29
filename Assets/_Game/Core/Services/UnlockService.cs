@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using SeasonalBastion.Contracts;
@@ -19,10 +19,28 @@ namespace SeasonalBastion
         private float _acc;
         private const float ScanInterval = 0.25f;
 
-        public UnlockService(IRunClock clock, TextAsset scheduleJsonOrNull)
+        private readonly IEventBus _bus;
+        private int _currentYear = 1;
+
+        public UnlockService(IRunClock clock, TextAsset scheduleJsonOrNull, IEventBus bus)
         {
             _clock = clock;
+            _bus = bus;
+
             _schedule = LoadScheduleOrFallback(scheduleJsonOrNull);
+
+            // Latch year/season/day từ event để tránh cast concrete
+            if (_bus != null)
+                _bus.Subscribe<DayStartedEvent>(OnDayStarted);
+
+            // Init lần đầu
+            if (_clock != null)
+            {
+                _lastSeason = _clock.CurrentSeason;
+                _lastDay = _clock.DayIndex;
+            }
+            _lastYear = _currentYear;
+
             Recompute();
         }
 
@@ -33,12 +51,23 @@ namespace SeasonalBastion
             _acc -= ScanInterval;
 
             if (_clock == null) return;
-            int y = GetYearIndex(_clock);
+            int y = _currentYear;
             var s = _clock.CurrentSeason;
             int d = _clock.DayIndex;
 
             if (y != _lastYear || s != _lastSeason || d != _lastDay)
                 Recompute();
+        }
+
+        private void OnDayStarted(DayStartedEvent ev)
+        {
+            _currentYear = ev.YearIndex;
+
+            // Nếu không đổi mốc thì không cần recompute
+            if (ev.YearIndex == _lastYear && ev.Season == _lastSeason && ev.DayIndex == _lastDay)
+                return;
+
+            RecomputeFrom(ev.YearIndex, ev.Season, ev.DayIndex);
         }
 
         public bool IsUnlocked(string defId)
@@ -49,17 +78,28 @@ namespace SeasonalBastion
 
         private void Recompute()
         {
-            _unlocked.Clear();
-
             if (_clock == null)
             {
+                _unlocked.Clear();
                 ApplyStartUnlockedOnly();
                 return;
             }
 
-            _lastYear = GetYearIndex(_clock);
-            _lastSeason = _clock.CurrentSeason;
-            _lastDay = _clock.DayIndex;
+            // Year lấy từ cache (event), không cast
+            int y = _currentYear;
+            var s = _clock.CurrentSeason;
+            int d = _clock.DayIndex;
+
+            RecomputeFrom(y, s, d);
+        }
+
+        private void RecomputeFrom(int year, Season season, int day)
+        {
+            _unlocked.Clear();
+
+            _lastYear = year;
+            _lastSeason = season;
+            _lastDay = day;
 
             ApplyStartUnlockedOnly();
 
@@ -118,8 +158,8 @@ namespace SeasonalBastion
 
         private static int GetYearIndex(IRunClock clock)
         {
-            if (clock is RunClockService rc) return rc.YearIndex; // RunClockService c� YearIndex
-            return 1; // fallback an to�n
+            if (clock is RunClockService rc) return rc.YearIndex; // RunClockService có YearIndex
+            return 1; // fallback an toàn
         }
     }
 }

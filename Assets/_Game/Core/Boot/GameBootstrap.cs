@@ -29,6 +29,10 @@
             _services = GameServicesFactory.Create(_defsCatalog);
             _loop = new GameLoop(_services);
 
+            // Day40: auto attach season summary overlay (shipable UX)
+            if (GetComponent<SeasonSummaryOverlay>() == null)
+                gameObject.AddComponent<SeasonSummaryOverlay>();
+
             // Day 17: Validate data at boot (fail-fast)
             if (!ValidateDataAtBoot())
             {

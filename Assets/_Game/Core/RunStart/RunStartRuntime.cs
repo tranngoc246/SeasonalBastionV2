@@ -21,6 +21,8 @@ namespace SeasonalBastion.RunStart
         // Day27: lanes/spawn gates runtime table
         // laneId -> lane runtime (start cell, dir to HQ, target cell)
         public readonly Dictionary<int, LaneRuntime> Lanes = new(8);
+
+        public readonly List<string> LockedInvariants = new(16);
     }
 
     public readonly struct IntRect

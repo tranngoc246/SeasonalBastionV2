@@ -171,7 +171,14 @@ namespace SeasonalBastion.DebugTools
         private void ValidateBuildings()
         {
             // Required canonical IDs (Option 1)
-            string[] req = { "HQ", "House", "Farm", "Lumber", "TowerArrow" };
+            string[] req =
+            {
+                "bld_hq_t1",
+                "bld_house_t1",
+                "bld_farmhouse_t1",
+                "bld_lumbercamp_t1",
+                "bld_tower_arrow_t1"
+            };
 
             var found = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             for (int i = 0; i < req.Length; i++) found[req[i]] = 0;
@@ -180,14 +187,6 @@ namespace SeasonalBastion.DebugTools
             {
                 var st = _s.WorldState.Buildings.Get(id);
                 if (string.IsNullOrEmpty(st.DefId)) continue;
-
-                if (found.ContainsKey(st.DefId))
-                {
-                    found[st.DefId] = found[st.DefId] + 1;
-
-                    bool okConstructed = st.IsConstructed;
-                    _lines.Add(new Line(okConstructed, $"Building '{st.DefId}' constructed={st.IsConstructed} anchor=({st.Anchor.X},{st.Anchor.Y})"));
-                }
             }
 
             for (int i = 0; i < req.Length; i++)

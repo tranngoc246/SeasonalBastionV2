@@ -174,6 +174,9 @@ namespace SeasonalBastion
                 {
                     ApplyDelivered(ref site, rt, apply);
                     _s.WorldState.Sites.Set(job.Site, site);
+
+                    // Day40 metrics: build spent = material actually applied to site (not refunded)
+                    _s.EventBus?.Publish(new ResourceSpentEvent(rt, apply, job.SourceBuilding));
                 }
 
                 int refund = carried - apply;

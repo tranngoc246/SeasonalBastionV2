@@ -80,6 +80,15 @@ namespace SeasonalBastion.DebugTools
         private bool _homeShowSaveLoad = true;
         private bool _homeShowWave = true;
 
+        private bool _homeShowRewards = true;
+
+        // EndSeasonRewardRequested debug listener
+        private bool _rewardListenerBound;
+        private int _endSeasonRewardReqCount;
+        private EndSeasonRewardRequested _lastEndSeasonRewardReq;
+        private bool _hasLastEndSeasonRewardReq;
+        private float _lastEndSeasonRewardRealtime;
+
         private GameServices _gs;
 
         // --- Data validation HUD (Day17) ---
@@ -87,6 +96,8 @@ namespace SeasonalBastion.DebugTools
         private Vector2 _dataScroll;
         private bool _dataLastOk = true;
         private string _dataLastSummary = "Not validated";
+
+        private readonly List<string> _buildSlotsTmp = new List<string>(8);
 
         private DebugSaveLoadHUD _saveLoadHUD = new DebugSaveLoadHUD();
 
@@ -96,6 +107,8 @@ namespace SeasonalBastion.DebugTools
 
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _gs = _bootstrap != null ? _bootstrap.Services : null;
+
+            TryBindRewardListener();
 
             if (_buildTool == null) _buildTool = FindObjectOfType<DebugBuildingTool>(true);
             if (_roadTool == null) _roadTool = FindObjectOfType<DebugRoadTool>(true);
@@ -153,6 +166,8 @@ namespace SeasonalBastion.DebugTools
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _gs ??= _bootstrap != null ? _bootstrap.Services : null;
 
+            TryBindRewardListener();
+
             if (_buildTool == null) _buildTool = FindObjectOfType<DebugBuildingTool>();
             if (_roadTool == null) _roadTool = FindObjectOfType<DebugRoadTool>();
             if (_npcTool == null) _npcTool = FindObjectOfType<DebugNpcTool>();
@@ -201,6 +216,24 @@ namespace SeasonalBastion.DebugTools
             if (_storageHud != null) _storageHud.SetEnabledFromHub(m == DebugHubMode.Storage);
         }
 
+        private void TryBindRewardListener()
+        {
+            if (_rewardListenerBound) return;
+            if (_gs == null || _gs.EventBus == null) return;
+
+            _gs.EventBus.Subscribe<EndSeasonRewardRequested>(OnEndSeasonRewardRequested);
+            _rewardListenerBound = true;
+        }
+
+        private void OnEndSeasonRewardRequested(EndSeasonRewardRequested ev)
+        {
+            _endSeasonRewardReqCount++;
+            _lastEndSeasonRewardReq = ev;
+            _hasLastEndSeasonRewardReq = true;
+            _lastEndSeasonRewardRealtime = Time.realtimeSinceStartup;
+        }
+
+
         private void OnGUI()
         {
             DebugHubState.Enabled = _showUi;
@@ -218,6 +251,7 @@ namespace SeasonalBastion.DebugTools
             if (GUILayout.Button("Index (F7)", GUILayout.Width(120))) _tab = DebugHubTab.WorldIndex;
             if (GUILayout.Button("NPC", GUILayout.Width(90))) _tab = DebugHubTab.Npc;
             if (GUILayout.Button("Storage", GUILayout.Width(110))) _tab = DebugHubTab.Storage;
+            _homeShowRewards = GUILayout.Toggle(_homeShowRewards, "Rewards", GUILayout.Width(90));
             GUILayout.EndHorizontal();
 
             GUILayout.Space(8);
@@ -302,6 +336,31 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Space(8);
             if (_gs != null && _gs.JobBoard is JobBoard jb)
                 GUILayout.Label($"HaulBasic jobs active: {jb.CountActiveJobs(JobArchetype.HaulBasic)}");
+
+            if (_mode == DebugHubMode.Build && _gs != null && _buildTool != null && _gs.UnlockService != null)
+            {
+                GUILayout.Space(8);
+                GUILayout.Label("Build Slots (Unlocked only)");
+
+                _buildTool.GetBuildSlotDefs(_buildSlotsTmp);
+
+                bool any = false;
+                for (int i = 0; i < _buildSlotsTmp.Count; i++)
+                {
+                    var defId = _buildSlotsTmp[i];
+                    if (string.IsNullOrEmpty(defId)) continue;
+
+                    if (_gs.UnlockService.IsUnlocked(defId))
+                    {
+                        any = true;
+                        GUILayout.Label($"{i + 1}: {defId}");
+                    }
+                }
+
+                if (!any)
+                    GUILayout.Label("(none unlocked in current time)");
+            }
+
             GUILayout.Space(8);
 
             // ===== Section toggles (compact) =====
@@ -338,6 +397,35 @@ namespace SeasonalBastion.DebugTools
                     if (_dataErrors.Count > show)
                         GUILayout.Label($"...({_dataErrors.Count - show} more)");
                     GUILayout.EndScrollView();
+                }
+
+                GUILayout.Space(6);
+            }
+
+            // ---- EndSeasonRewardRequested ----
+            if (_homeShowRewards)
+            {
+                GUILayout.Space(10);
+                GUILayout.Label("EndSeasonRewardRequested (Reward placeholder)");
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"Bound: {_rewardListenerBound}   Count: {_endSeasonRewardReqCount}");
+                if (GUILayout.Button("Clear", GUILayout.Width(80)))
+                {
+                    _endSeasonRewardReqCount = 0;
+                    _hasLastEndSeasonRewardReq = false;
+                    _lastEndSeasonRewardRealtime = 0f;
+                }
+                GUILayout.EndHorizontal();
+
+                if (_hasLastEndSeasonRewardReq)
+                {
+                    float dt = Time.realtimeSinceStartup - _lastEndSeasonRewardRealtime;
+                    GUILayout.Label($"Last: Season={_lastEndSeasonRewardReq.Season}  Year={_lastEndSeasonRewardReq.YearIndex}  Day={_lastEndSeasonRewardReq.DayIndex}   ({dt:0.00}s ago)");
+                }
+                else
+                {
+                    GUILayout.Label("Last: (none yet)");
                 }
 
                 GUILayout.Space(6);

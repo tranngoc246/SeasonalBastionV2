@@ -48,12 +48,14 @@ namespace SeasonalBastion
         private void ResetForNewRun()
         {
             // clear transient UI
-            try { (_s.NotificationService as INotificationService)?.ClearAll(); } catch { }
+            try { (_s.NotificationService)?.ClearAll(); } catch { }
+            // Day40: reset season metrics
+            try { _s.SeasonMetrics?.Reset(); } catch { }
 
             // jobs / claims / build orders (runtime concrete types)
-            try { (_s.JobBoard as IJobBoard)?.ClearAll(); } catch { }
-            try { (_s.ClaimService as IClaimService)?.ClearAll(); } catch { }
-            try { (_s.BuildOrderService as IBuildOrderService)?.ClearAll(); } catch { }
+            try { (_s.JobBoard)?.ClearAll(); } catch { }
+            try { (_s.ClaimService)?.ClearAll(); } catch { }
+            try { (_s.BuildOrderService)?.ClearAll(); } catch { }
 
             // grid occupancy
             try { (_s.GridMap as IGridMap)?.ClearAll(); } catch { }

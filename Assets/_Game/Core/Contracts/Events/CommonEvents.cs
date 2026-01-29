@@ -59,4 +59,25 @@ namespace SeasonalBastion.Contracts
         public readonly int DayIndex; 
         public EndSeasonRewardRequested(Season s, int yearIndex, int dayIndex) { Season = s; YearIndex = yearIndex; DayIndex = dayIndex; }
     }
+
+    public readonly struct ResourceSpentEvent
+    {
+        public readonly ResourceType Type;
+        public readonly int Amount;
+        public readonly BuildingId Source;
+        public ResourceSpentEvent(ResourceType t, int amt, BuildingId src) { Type = t; Amount = amt; Source = src; }
+    }
+
+    public readonly struct EnemyKilledEvent
+    {
+        public readonly string EnemyDefId;
+        public readonly int Count;
+        public EnemyKilledEvent(string defId, int count) { EnemyDefId = defId; Count = count; }
+    }
+
+    public readonly struct AmmoUsedEvent
+    {
+        public readonly int Amount;
+        public AmmoUsedEvent(int amt) { Amount = amt; }
+    }
 }

@@ -76,9 +76,14 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                // consume
-                _s.StorageService.Remove(forge, ResourceType.Iron, InIron);
-                _s.StorageService.Remove(forge, ResourceType.Wood, InWood);
+                // consume (craft spent = inputs actually removed from forge)
+                int remIron = _s.StorageService.Remove(forge, ResourceType.Iron, InIron);
+                if (remIron > 0)
+                    _s.EventBus?.Publish(new ResourceSpentEvent(ResourceType.Iron, remIron, forge));
+
+                int remWood = _s.StorageService.Remove(forge, ResourceType.Wood, InWood);
+                if (remWood > 0)
+                    _s.EventBus?.Publish(new ResourceSpentEvent(ResourceType.Wood, remWood, forge));
 
                 rem = CraftTime;
                 _remain[jid] = rem;

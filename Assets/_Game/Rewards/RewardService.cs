@@ -18,11 +18,13 @@ namespace SeasonalBastion
         private static readonly int[] DaysPerSeason = { 6, 6, 4, 4 };
 
         public RewardService(GameServices s)
-        { 
+        {
             _s = s;
+            _bus = s != null ? s.EventBus : null;
 
             // Day35: end-season reward hook (placeholder event)
-            _bus?.Subscribe<DayEndedEvent>(OnDayEnded);
+            if (_bus != null)
+                _bus.Subscribe<DayEndedEvent>(OnDayEnded);
         }
 
         private void OnDayEnded(DayEndedEvent ev)

@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.InputSystem;
 using SeasonalBastion.Contracts;
+using System.Collections.Generic;
 
 namespace SeasonalBastion.DebugTools
 {
@@ -161,6 +162,17 @@ namespace SeasonalBastion.DebugTools
                     OnClick(default);
             }
 }
+
+        public void GetBuildSlotDefs(List<string> outDefs)
+        {
+            if (outDefs == null) return;
+            outDefs.Clear();
+            outDefs.Add(_def1);
+            outDefs.Add(_def2);
+            outDefs.Add(_def3);
+            outDefs.Add(_def4);
+            outDefs.Add(_def5);
+        }
 
         private void ResolveServices()
         {

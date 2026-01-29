@@ -124,7 +124,7 @@ namespace SeasonalBastion
                     e.Hp -= dmg;
                     if (e.Hp <= 0)
                     {
-                        // death cleanup
+                        _s.EventBus?.Publish(new EnemyKilledEvent(e.DefId, 1));
                         w.Enemies.Destroy(targetId);
                     }
                     else
@@ -135,6 +135,7 @@ namespace SeasonalBastion
 
                 // consume ammo
                 t.Ammo -= ammoPerShot;
+                _s.EventBus?.Publish(new AmmoUsedEvent(ammoPerShot));
                 if (t.Ammo < 0) t.Ammo = 0;
                 w.Towers.Set(tid, t);
 

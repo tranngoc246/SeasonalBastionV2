@@ -428,3 +428,71 @@
 - Nếu có UI BuildList/HUD:
   - filter list theo `UnlockService.IsUnlocked(defId)` để “không hiện” những def locked (không chỉ chặn đặt).
 - (Tuỳ scope) thêm debug panel hiển thị danh sách unlocked hiện tại để test nhanh.
+
+---
+
+## Day 40 — Season Summary UI + metrics (shipable UX)
+
+### Mục tiêu
+- [x] Cuối mỗi season hiển thị **Season Summary** (metrics tối thiểu), chỉ xuất hiện **1 lần/season**, dismiss để tiếp tục, không spam.
+- [x] Metrics collect tối thiểu:
+  - [x] resources gained / spent (tính cả craft)
+  - [x] enemies killed
+  - [x] buildings built
+  - [x] ammo used
+
+### Đầu vào / Scope (đã chốt)
+- [v] Metrics thu thập theo **EventBus** (ít đụng gameplay), deterministic, không over-engineer.
+- [v] “Spent” chỉ tính ở điểm **tiêu thụ thật**:
+  - Build: lượng resource **apply vào site** (không tính haul/transfer).
+  - Craft: lượng input **consume ở Forge** (Iron/Wood).
+- [v] UI: 1 overlay panel đơn giản (uGUI + TMP), auto-attach vào `GameBootstrap`, pause bằng timeScale=0, dismiss resume.
+
+### Đã làm
+- [v] **Contracts — events cho metrics**
+  - Thêm `ResourceSpentEvent`, `EnemyKilledEvent`, `AmmoUsedEvent` (CommonEvents).
+- [v] **Emit metrics events tại điểm tiêu thụ**
+  - Build: `BuildDeliverExecutor` publish `ResourceSpentEvent(type, apply, sourceBuilding)` khi apply vào site.
+  - Craft: `CraftAmmoExecutor` capture `Remove(...)` rồi publish `ResourceSpentEvent(Iron/Wood, removed, forge)` khi consume input.
+  - Combat: `TowerCombatSystem` publish:
+    - `EnemyKilledEvent(defId, 1)` khi enemy chết.
+    - `AmmoUsedEvent(ammoPerShot)` khi trừ ammo per shot.
+- [v] **SeasonMetricsService (mới)**
+  - Subscribe: `DayStartedEvent`, `ResourceDeliveredEvent`, `ResourceSpentEvent`, `BuildingPlacedEvent`, `EnemyKilledEvent`, `AmmoUsedEvent`.
+  - Reset metrics khi vào `DayIndex == 1` của season mới (key = year+season).
+  - Expose `GetSnapshot()` (clone arrays) cho UI.
+- [v] **Wire vào GameServices**
+  - `GameServices` thêm field `SeasonMetrics`.
+  - `GameServicesFactory` khởi tạo `SeasonMetricsService`.
+  - `GameLoop.ResetForNewRun()` reset metrics (an toàn).
+- [v] **SeasonSummaryOverlay (mới)**
+  - Listen `EndSeasonRewardRequested` → show panel 1 lần/season (anti-spam guard theo year+season).
+  - Render 4–6 dòng:
+    - gained total + breakdown
+    - spent total + breakdown
+    - enemies killed
+    - buildings built
+    - ammo used
+  - Dismiss → resume timeScale về giá trị trước đó.
+  - Auto ensure `EventSystem` tồn tại (InputSystemUIInputModule nếu có, fallback Standalone).
+- [v] **Debug hardening**
+  - `DebugHUDHub` thêm listener để nhìn `EndSeasonRewardRequested` fire trên HUD (count + last payload) phục vụ test nhanh.
+
+### Kết quả / Acceptance
+- [v] End Spring: summary xuất hiện đúng **1 lần**, bấm Dismiss OK, không spam.
+- [v] Metrics cập nhật đúng trong season:
+  - gained tăng theo `ResourceDeliveredEvent`.
+  - spent tăng cả build + craft, không inflate do haul/transfer.
+  - enemies killed / ammo used cập nhật theo combat.
+  - buildings built tăng khi place building.
+
+### Ghi chú / Pitfalls
+- Nếu `ResourceType` không đúng 5 loại, cần chỉnh size mảng metrics theo enum (khuyến nghị có `Count`).
+- “Spent” không nên publish ở `StorageService.Remove()` vì sẽ đếm nhầm transfer/haul.
+- Guard show overlay theo (YearIndex, Season) để tránh double-show nếu event bị publish lại.
+
+### Việc tiếp theo
+- Nếu muốn UX mượt hơn:
+  - thêm icon/format đẹp hơn (vẫn giữ tối giản)
+  - thêm nút “Details” mở rộng breakdown theo resource
+- Sau Day40 có thể chuyển sang Day41 (tutorial hints + notification anti-spam).

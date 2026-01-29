@@ -128,6 +128,7 @@ namespace SeasonalBastion
 
             ApplyDelta(ref st, type, -rem);
             _w.Buildings.Set(building, st);
+                        
             return rem;
         }
 

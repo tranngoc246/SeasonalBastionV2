@@ -16,6 +16,7 @@ namespace SeasonalBastion
         public IRunClock RunClock;
         public INotificationService NotificationService;
         public IUnlockService UnlockService;
+        public SeasonMetricsService SeasonMetrics;
 
         // World/Grid
         public IWorldState WorldState;

@@ -50,6 +50,10 @@ namespace SeasonalBastion.RunStart
                 }
             }
 
+            // VS3 hardening: validate StartMapConfig header + locked invariants
+            if (!ValidateStartMapHeader(cfg, out error))
+                return false;
+
             // Cache run-start metadata (optional)
             if (s.RunStartRuntime != null)
             {
@@ -67,6 +71,17 @@ namespace SeasonalBastion.RunStart
                 s.RunStartRuntime.SpawnGates.Clear();
                 s.RunStartRuntime.Zones.Clear();
                 s.RunStartRuntime.Lanes.Clear(); // Day27
+                s.RunStartRuntime.LockedInvariants.Clear();
+
+                if (cfg.lockedInvariants != null)
+                {
+                    for (int i = 0; i < cfg.lockedInvariants.Length; i++)
+                    {
+                        var t = cfg.lockedInvariants[i];
+                        if (!string.IsNullOrEmpty(t))
+                            s.RunStartRuntime.LockedInvariants.Add(t);
+                    }
+                }
 
                 if (cfg.spawnGates != null)
                 {
@@ -793,6 +808,45 @@ namespace SeasonalBastion.RunStart
             s.StorageService.Add(hq, ResourceType.Food, 10);
             s.StorageService.Add(hq, ResourceType.Iron, 0);
             s.StorageService.Add(hq, ResourceType.Ammo, 0);
+        }
+
+        private static bool ValidateStartMapHeader(StartMapConfigRootDto cfg, out string error)
+        {
+            error = null;
+
+            if (cfg.schemaVersion != 1)
+            {
+                error = $"StartMapConfig schemaVersion={cfg.schemaVersion} unsupported (expect 1).";
+                return false;
+            }
+
+            if (cfg.coordSystem == null)
+            {
+                error = "StartMapConfig missing coordSystem.";
+                return false;
+            }
+
+            // Hard checks theo file StartMapConfig_RunStart_64x64_v0.1.json
+            if (!string.Equals(cfg.coordSystem.origin, "bottom-left", StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"coordSystem.origin='{cfg.coordSystem.origin}' (expect 'bottom-left').";
+                return false;
+            }
+
+            if (!string.Equals(cfg.coordSystem.indexing, "0-based", StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"coordSystem.indexing='{cfg.coordSystem.indexing}' (expect '0-based').";
+                return false;
+            }
+
+            // lockedInvariants bắt buộc có (VS3 hardening)
+            if (cfg.lockedInvariants == null || cfg.lockedInvariants.Length == 0)
+            {
+                error = "StartMapConfig missing lockedInvariants (expect non-empty).";
+                return false;
+            }
+
+            return true;
         }
 
         // =========================

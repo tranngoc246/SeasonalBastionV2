@@ -265,6 +265,25 @@ namespace SeasonalBastion.RunStart
                 }
             }
 
+            // Day42: runtime invariants validation (fail-safe: return false with clear error)
+            try
+            {
+                var issues = new List<RunStartValidationIssue>(32);
+                RunStartValidator.ValidateRuntime(s, issues);
+
+                if (RunStartValidator.HasErrors(issues))
+                {
+                    error = RunStartValidator.FormatSummary(issues, maxLines: 10);
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                // never crash gameplay from validator
+                error = "RunStartValidator exception: " + e.Message;
+                return false;
+            }
+
             return true;
         }
 

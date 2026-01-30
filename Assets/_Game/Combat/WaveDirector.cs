@@ -155,6 +155,33 @@ namespace SeasonalBastion
         // Internals
         // -------------------------
 
+        public void DebugStartSingleWave(WaveDef def)
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (def == null) return;
+
+            _today.Clear();
+            _waveCursor = -1;
+            _active = null;
+
+            _entryIndex = 0;
+            _spawnedInEntry = 0;
+            _cooldown = 0f;
+
+            _spawnDone = false;
+            _resolveElapsed = 0f;
+            _pendingNextWave = false;
+
+            _activePlanned = 0;
+            _activeSpawned = 0;
+
+            BuildLaneIds();
+
+            _today.Add(def);
+            StartNextWave();
+#endif
+        }
+
         public void ForceResolveActiveWave()
         {
             if (_active == null) return;
@@ -299,7 +326,12 @@ namespace SeasonalBastion
             try
             {
                 var def = _s.DataRegistry.GetEnemy(enemyDefId);
-                hp = Math.Max(1, def.MaxHp);
+                int baseHp = Math.Max(1, def.MaxHp);
+
+                int year = GetYearIndexOr1();
+                float mul = YearScaling.EnemyHpMul(year);
+
+                hp = Math.Max(1, Mathf.RoundToInt(baseHp * mul));
             }
             catch { /* keep hp=1 */ }
 

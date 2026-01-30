@@ -174,7 +174,10 @@ namespace SeasonalBastion
                     var occ = grid.Get(next);
                     if (occ.Kind == CellOccupancyKind.Building && occ.Building.Value != 0)
                     {
-                        TryAttackBuilding(occ.Building, def.DamageToBuildings, ref cd);
+                        int year = GetYearIndexOr1();
+                        float mul = YearScaling.EnemyDamageMul(year);
+                        int dmgB = Mathf.Max(0, Mathf.RoundToInt(def.DamageToBuildings * mul));
+                        TryAttackBuilding(occ.Building, dmgB, ref cd);
                         break;
                     }
 
@@ -314,7 +317,9 @@ namespace SeasonalBastion
             EnsureHqCached();
             if (_hqId.Value == 0 || !w.Buildings.Exists(_hqId)) return;
 
-            int dmg = Mathf.Max(0, def.DamageToHQ);
+            int year = GetYearIndexOr1();
+            float mul = YearScaling.EnemyDamageMul(year);
+            int dmg = Mathf.Max(0, Mathf.RoundToInt(def.DamageToHQ * mul));
             if (dmg <= 0) { cd = DefaultAttackIntervalSec; return; }
 
             var hq = w.Buildings.Get(_hqId);
@@ -767,6 +772,12 @@ namespace SeasonalBastion
             _attackCd.Remove(id.Value);
             _pathFailStreak.Remove(id.Value); // Day34
             w.Enemies.Destroy(id);
+        }
+
+        private int GetYearIndexOr1()
+        {
+            if (_s.RunClock is RunClockService rc) return Mathf.Max(1, rc.YearIndex);
+            return 1;
         }
     }
 }

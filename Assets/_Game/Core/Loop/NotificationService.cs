@@ -1,7 +1,8 @@
-using UnityEngine;
+using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
-using SeasonalBastion.Contracts;
+using UnityEngine;
+using UnityEngine.Pool;
 
 namespace SeasonalBastion
 {
@@ -16,6 +17,7 @@ namespace SeasonalBastion
         private readonly List<NotificationViewModel> _visible = new();
         private readonly Dictionary<string, float> _cooldownUntilByKey = new();
 
+        private float _cooldownPruneAcc;
         private int _nextId = 1;
 
         public event Action NotificationsChanged;
@@ -137,11 +139,54 @@ namespace SeasonalBastion
 
             if (changed)
                 NotificationsChanged?.Invoke();
+
+            // Day41: prune cooldown table occasionally to avoid unbounded growth
+            _cooldownPruneAcc += dt;
+            if (_cooldownPruneAcc >= 10f && _cooldownUntilByKey.Count > 64)
+            {
+                _cooldownPruneAcc = 0f;
+
+                float now2 = Time.realtimeSinceStartup;
+                // remove entries that are already expired for a while
+                var toRemove = ListPool<string>.Get();
+                foreach (var kv in _cooldownUntilByKey)
+                {
+                    if (kv.Value <= now2 - 1f)
+                        toRemove.Add(kv.Key);
+                }
+                for (int i = 0; i < toRemove.Count; i++)
+                    _cooldownUntilByKey.Remove(toRemove[i]);
+                ListPool<string>.Release(toRemove);
+            }
         }
 
         private static float ComputeDefaultTtl(NotificationSeverity severity)
         {
             return severity >= NotificationSeverity.Warning ? DefaultTtlWarnOrError : DefaultTtlInfo;
+        }
+
+        internal static class ListPool<T>
+        {
+            private static readonly Stack<List<T>> _pool = new Stack<List<T>>(8);
+
+            public static List<T> Get()
+            {
+                if (_pool.Count > 0)
+                {
+                    var l = _pool.Pop();
+                    l.Clear();
+                    return l;
+                }
+                return new List<T>(16);
+            }
+
+            public static void Release(List<T> list)
+            {
+                if (list == null) return;
+                if (_pool.Count >= 16) return;
+                list.Clear();
+                _pool.Push(list);
+            }
         }
     }
 }

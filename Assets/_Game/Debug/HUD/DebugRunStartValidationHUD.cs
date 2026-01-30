@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 using UnityEngine;
+using SeasonalBastion.RunStart;
 
 namespace SeasonalBastion.DebugTools
 {
@@ -143,6 +144,7 @@ namespace SeasonalBastion.DebugTools
             ValidateOverlap();
             ValidateNpcs();
             ValidateStartingStorage();
+            ValidateRunStartValidatorDay42();
         }
 
         private void ValidateMapSize()
@@ -328,6 +330,32 @@ namespace SeasonalBastion.DebugTools
             _lines.Add(new Line(wood >= 30, $"HQ wood={wood} (expect >=30)."));
             _lines.Add(new Line(stone >= 20, $"HQ stone={stone} (expect >=20)."));
             _lines.Add(new Line(food >= 10, $"HQ food={food} (expect >=10)."));
+        }
+
+        private void ValidateRunStartValidatorDay42()
+        {
+            _lines.Add(new Line(true, "---- Day42: RunStartValidator (runtime invariants) ----"));
+
+            var issues = new List<RunStartValidationIssue>(32);
+            RunStartValidator.ValidateRuntime(_s, issues);
+
+            if (issues.Count == 0)
+            {
+                _lines.Add(new Line(true, "Validator: OK (no issues)."));
+                return;
+            }
+
+            int err = 0, warn = 0;
+            for (int i = 0; i < issues.Count; i++)
+                if (issues[i].Severity == RunStartIssueSeverity.Error) err++; else warn++;
+
+            _lines.Add(new Line(err == 0, $"Validator summary: {err} error(s), {warn} warning(s)."));
+
+            for (int i = 0; i < issues.Count; i++)
+            {
+                bool ok = issues[i].Severity != RunStartIssueSeverity.Error;
+                _lines.Add(new Line(ok, $"{issues[i].Severity} {issues[i].Code} — {issues[i].Message}"));
+            }
         }
     }
 }

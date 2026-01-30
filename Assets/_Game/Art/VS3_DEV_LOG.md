@@ -496,3 +496,168 @@
   - thêm icon/format đẹp hơn (vẫn giữ tối giản)
   - thêm nút “Details” mở rộng breakdown theo resource
 - Sau Day40 có thể chuyển sang Day41 (tutorial hints + notification anti-spam).
+
+---
+
+## Day 41 — Tutorial hints + notification anti-spam
+
+### Mục tiêu
+- [x] Người chơi không kẹt trong 10 phút đầu: hint đúng lúc, không “dồn” hàng chục thông báo.
+- [x] NotificationService: group by key + cooldown + max visible, không bị spam về lâu dài.
+
+### Đầu vào / Scope (đã chốt)
+- [v] Hints là **shipable**, tối giản, ưu tiên “đúng lúc – không spam”:
+  - Active **chỉ trong 10 phút đầu** của run (sim time).
+  - Mỗi hint có **key riêng**, cooldown dài, dedupe theo key.
+- [v] Triggers tối thiểu:
+  - Unassigned NPC
+  - Producer full
+  - Out of ammo (khi Defend và có enemies)
+  - Wave incoming (khi phase đổi sang Defend)
+- [v] Không tạo asmdef mới; wiring qua `GameServicesFactory` + `TickOrder` + `DebugHUDHub`.
+
+### Đã làm
+- [v] **NotificationService — anti-spam hardening**
+  - Giữ nguyên policy hiện có:
+    - group by key + cooldown
+    - dedupe by key (update/move-to-top)
+    - max visible (v0.1: 3)
+  - Bổ sung **prune cooldown table** định kỳ để tránh dictionary phình khi có nhiều key rác:
+    - mỗi ~10s (realtime) nếu `cooldownUntilByKey.Count > 64` → xoá các entry đã hết hạn.
+    - dùng mini `ListPool<T>` (internal) để tránh GC khi prune.
+- [v] **TutorialHintsService (mới)**
+  - Subscribe:
+    - `PhaseChangedEvent` (wave incoming)
+    - `DayStartedEvent` (latch YearIndex + reset guard khi new run)
+  - Tick scan nhẹ, tần suất thấp (deterministic):
+    - `Unassigned NPC` (mỗi ~6s): đếm NPC `Workplace==0` → push hint `hint.npc.unassigned` (cooldown 60s)
+    - `Producer full` (mỗi ~6s, Build phase): detect Farm/Lumber local full → push hint `hint.producer.full` (cooldown 45s)
+    - `Out of ammo` (mỗi ~3s, Defend + enemies>0): detect tower ammo==0 → push hint `hint.tower.out_of_ammo` (cooldown 30s)
+  - **Wave incoming** (event-based): khi `PhaseChanged -> Defend`:
+    - guard “1 lần/season” theo `seasonKey = year + season` + cooldown 45s
+    - push hint `hint.wave.incoming`
+  - **Fix compile mismatch IRunClock**:
+    - `IRunClock` không expose `YearIndex` → TutorialHintsService dùng `_currentYear` cache từ `DayStartedEvent.YearIndex` (không cast concrete).
+- [v] **Wire & TickOrder**
+  - `GameServices` thêm field `TutorialHints`.
+  - `GameServicesFactory` tạo `TutorialHintsService` sau khi có `NotificationService`/`EventBus`.
+  - `TickOrder` tick `TutorialHintsService` sau NotificationService (đảm bảo cooldown/dedupe hoạt động ổn).
+  - `GameLoop.ResetForNewRun()` reset state hints (an toàn).
+- [v] **DebugHUDHub — debug rõ ràng**
+  - Thêm section “Hints” trên Home tab:
+    - hiển thị RunAge, counts từng loại hint, last hint timestamp để verify anti-spam.
+
+### Kết quả / Acceptance
+- [v] 10 phút đầu:
+  - Hints xuất hiện đúng thời điểm (NPC unassigned / producer full / out-of-ammo / wave incoming).
+  - Không có tình trạng spam hàng chục notification nhờ:
+    - dedupe by key + cooldown per hint key
+    - max visible = 3
+- [v] Wave incoming chỉ hiện 1 lần/season (guard theo year+season).
+- [v] Không phát sinh vòng lặp asmdef (chỉ thêm/sửa trong Core/Loop + Debug/HUD).
+
+### Ghi chú / Pitfalls
+- Producer full hiện map subset v0.1 (Farmhouse/Lumbercamp). Nếu mở rộng producer types, cần update mapping `TryGetProducedResource`.
+- Out-of-ammo hint chỉ có ý nghĩa khi Defend + có enemies; tránh noise ở Build phase.
+- Nếu `DayStartedEvent` không fire trước `PhaseChangedEvent` ở frame đầu, `_currentYear` fallback=1 vẫn an toàn (hint window 10 phút đầu).
+
+### Việc tiếp theo
+- (Tuỳ scope) thêm hint “build locked/unlock” hoặc “missing road/entry” nếu UX cần.
+- Nếu NotificationService keys tăng quá nhanh do debug tools, có thể nâng ngưỡng prune hoặc thêm “key namespace” chuẩn hoá.
+
+---
+
+## Day 42 — Validator: StartMap + runtime invariants
+
+### Mục tiêu
+- [x] Bắt lỗi ngầm từ data/config trước khi play (không crash, không silent fail).
+- [x] RunStartValidator:
+  - [x] Road connectivity.
+  - [x] Building gap >= 1 cell (8-neighborhood).
+  - [x] Driveway/Entry rule (entry cell phải là road, in-bounds).
+  - [x] Spawn gates in-bounds & connected.
+- [x] Debug HUD: pass/fail list.
+
+### Đầu vào / Scope (đã chốt)
+- [v] Validate **runtime invariants** sau khi `RunStartApplier` apply xong (dựa trên GridMap + WorldState + RunStartRuntime).
+- [v] Fail-safe: nếu INVALID → `TryApply` trả về `false` + message rõ; không throw.
+- [v] Deterministic, tối giản (BFS 4-neighborhood cho road).
+
+### Đã làm
+- [v] **RunStartValidator (mới)**
+  - API: `ValidateRuntime(GameServices s, List<Issue> issues)` + helper `HasErrors()` + `FormatSummary()`.
+  - Road connectivity:
+    - BFS từ road cell đầu tiên, check `visited == roadCount`.
+  - Building gap (8-neighborhood):
+    - Scan occupancy buffer, phát hiện 2 building khác id “chạm” (kể cả chéo) → error `BUILDING_GAP_8`.
+  - Driveway/Entry:
+    - Compute entry cell ngoài footprint theo `Dir4` (match logic RunStartApplier).
+    - HQ validate 4 hướng (N/S/E/W).
+    - Entry cell phải in-bounds và là road (`ENTRY_OOB`, `ENTRY_NOT_ROAD`).
+  - Spawn gates:
+    - Check `RunStartRuntime.SpawnGates` in-bounds + là road + cùng component với road chính (`GATE_OOB`, `GATE_NOT_ROAD`, `GATE_NOT_CONNECTED`).
+- [v] **Hook vào RunStartApplier**
+  - Trước khi `return true`:
+    - chạy validator, nếu có error → set `error = FormatSummary(...)` và return false.
+    - catch exception → không crash, trả error “RunStartValidator exception…”.
+- [v] **DebugRunStartValidationHUD**
+  - Thêm section “Day42: RunStartValidator”:
+    - Summary: số error/warn
+    - List chi tiết từng issue (Severity/Code/Message).
+- [v] **Fix compile (C# local function capture out param)**
+  - Lỗi: `Cannot use ref, out, or in parameter 'compId' inside ... local function`
+  - Nguyên nhân: `BuildRoadComponents(...)` dùng local function `TryVisit` capture biến `compId` (out param).
+  - Fix: bỏ local function, inline 4-neighbor checks trong BFS loop.
+
+### Kết quả / Acceptance
+- [v] Config sai (đường đứt / building sát / entry sai / gate sai) → HUD báo lỗi rõ + RunStartApplier fail an toàn (không crash, không silent fail).
+- [v] Config đúng → “Validator: OK”.
+
+### Ghi chú / Pitfalls
+- Validator đang chạy ở runtime after-apply; nếu cần “pre-flight” trực tiếp từ JSON DTO có thể mở rộng sau (không thuộc scope Day42).
+- Road connectivity hiện check 1 component (reachable từ road đầu tiên) là đủ cho Acceptance; có thể mở rộng đếm nhiều components nếu cần debug sâu.
+
+### Việc tiếp theo
+- Nếu placement rule “driveway length = 1” thay đổi trong tương lai:
+  - Update entry validation theo rule mới (hiện match rule: entry cell ngoài footprint là road).
+- (Tuỳ scope) thêm pre-flight validate ngay trên DTO để bắt OOB ngay khi parse.
+
+---
+
+## Day 43 — Balance tuning pass (Year1 → Year2 survivable)
+
+### Mục tiêu
+- [ ] Chơi đủ 2 năm có thể win nếu chơi đúng, thua nếu bỏ bê defense.
+- [ ] 1 run manual: có thể survive Winter Y2 với strategy hợp lý.
+
+### Đầu vào / Nhận định hiện trạng (trước tune)
+- [v] `Waves.json` hiện mới có Year 1 → nếu resolver resolve strict `Year==2` thì Year2 có nguy cơ **không spawn wave** (hoặc silent fail).
+- [v] Enemy HP/Damage hiện đang lấy trực tiếp từ defs (chưa scale theo year) → Year2 khó tạo “pressure” đúng.
+- [v] Tuning cần đi kèm **debug shortcuts** để test nhanh (spawn wave / give resources).
+
+### Kế hoạch tuning (shipable v0.1, tối giản)
+- [ ] **Wave/Y2 scaling (data-driven tối thiểu)**
+  - [ ] Fallback Year2: nếu không có wave data cho Year2 → reuse Year1 cùng (season/day) và scale count theo multiplier.
+  - [ ] Scale theo year:
+    - [ ] Wave count multiplier (Y2 ~ +20%)
+    - [ ] Enemy HP multiplier (Y2 ~ ×1.35)
+    - [ ] Enemy damage multiplier (Y2 ~ ×1.25)
+- [ ] **Tower tuning**
+  - [ ] Damage / fireRate / ammo consumption để Year2 “survivable nhưng không free”.
+  - [ ] Ưu tiên giảm “ammo starvation” (đặc biệt tower tiêu hao ammo cao).
+- [ ] **Economy tuning**
+  - [ ] Production rates (đặc biệt Iron) + hauling capacity để ammo pipeline sustain trong Defend dài.
+  - [ ] Craft ammo: output/time để không kẹt supply.
+- [ ] **Debug-only shortcuts**
+  - [ ] Spawn wave (today/one wave id)
+  - [ ] Give resources (core + ammo)
+  - [ ] Các nút đặt trong Debug HUD (Editor/Development build), không ảnh hưởng ship build.
+
+### Trạng thái
+- [v] Tạm thời **chưa áp các thay đổi tuning** (giữ hệ thống hiện tại), chỉ ghi nhận kế hoạch Day43.
+
+### Việc tiếp theo
+- Implement theo thứ tự ưu tiên để test nhanh:
+  1) Year2 wave fallback + scaling (count/HP/dmg)
+  2) Debug shortcuts (spawn/give) để chạy manual 1 run
+  3) Tune tower + craft + hauling (dựa trên quan sát Winter Y2)

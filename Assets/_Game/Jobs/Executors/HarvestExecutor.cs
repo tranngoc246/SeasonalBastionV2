@@ -135,8 +135,8 @@ namespace SeasonalBastion
 
             if (EqualsIgnoreCase(defId, "bld_ironhut_t1"))
             {
-                workSec = 6f;
-                yield = level == 1 ? 4 : level == 2 ? 6 : 8;
+                workSec = 5.5f;
+                yield = level == 1 ? 5 : level == 2 ? 7 : 9;
                 return;
             }
 

@@ -17,6 +17,7 @@ namespace SeasonalBastion
         public INotificationService NotificationService;
         public IUnlockService UnlockService;
         public SeasonMetricsService SeasonMetrics;
+        public TutorialHintsService TutorialHints; 
 
         // World/Grid
         public IWorldState WorldState;

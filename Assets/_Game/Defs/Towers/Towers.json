@@ -6,8 +6,8 @@
       "hp": 260,
       "range": 5,
       "rof": 1.0,
-      "damage": 6,
-      "ammoMax": 90,
+      "damage": 7,
+      "ammoMax": 100,
       "ammoPerShot": 1,
       "needsAmmoThresholdPct": 0.25,
       "buildCost": [
@@ -32,9 +32,9 @@
       "tier": 1,
       "hp": 320,
       "range": 4,
-      "rof": 1.6,
+      "rof": 1.55,
       "damage": 18,
-      "ammoMax": 80,
+      "ammoMax": 90,
       "ammoPerShot": 2,
       "needsAmmoThresholdPct": 0.25,
       "buildCost": [
@@ -130,10 +130,10 @@
       "tier": 1,
       "hp": 300,
       "range": 8,
-      "rof": 2.2,
+      "rof": 2.1,
       "damage": 40,
       "ammoMax": 70,
-      "ammoPerShot": 3,
+      "ammoPerShot": 2,
       "needsAmmoThresholdPct": 0.25,
       "buildCost": [
         {

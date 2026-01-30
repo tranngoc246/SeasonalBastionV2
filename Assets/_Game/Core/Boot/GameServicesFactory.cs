@@ -14,11 +14,10 @@ namespace SeasonalBastion
             services.DataRegistry = new DataRegistry(catalog);
             services.DataValidator = new DataValidator();
             services.RunClock = new RunClockService(services.EventBus);
-            // Unlock gating (Day39) - data-driven, recompute from clock
             var unlockJson = UnityEngine.Resources.Load<UnityEngine.TextAsset>("UnlockSchedule_v0_1");
             services.UnlockService = new UnlockService(services.RunClock, unlockJson, services.EventBus);
             services.NotificationService = new NotificationService(services.EventBus);
-            // Day40: Season metrics
+            services.TutorialHints = new TutorialHintsService(services);
             services.SeasonMetrics = new SeasonMetricsService(services.EventBus);
 
             // RunStart

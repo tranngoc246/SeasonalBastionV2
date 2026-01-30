@@ -76,6 +76,7 @@ namespace SeasonalBastion.DebugTools
         private Vector2 _homeScroll;
         private bool _homeShowData = true;
         private bool _homeShowRunClock = true;
+        private bool _homeShowHints = true;
         private bool _homeShowLanes = true;
         private bool _homeShowSaveLoad = true;
         private bool _homeShowWave = true;
@@ -252,6 +253,7 @@ namespace SeasonalBastion.DebugTools
             if (GUILayout.Button("NPC", GUILayout.Width(90))) _tab = DebugHubTab.Npc;
             if (GUILayout.Button("Storage", GUILayout.Width(110))) _tab = DebugHubTab.Storage;
             _homeShowRewards = GUILayout.Toggle(_homeShowRewards, "Rewards", GUILayout.Width(90));
+            _homeShowHints = GUILayout.Toggle(_homeShowHints, "Hints", GUILayout.Width(70));
             GUILayout.EndHorizontal();
 
             GUILayout.Space(8);
@@ -426,6 +428,27 @@ namespace SeasonalBastion.DebugTools
                 else
                 {
                     GUILayout.Label("Last: (none yet)");
+                }
+
+                GUILayout.Space(6);
+            }
+
+            // ---- Day41: Tutorial Hints ----
+            if (_homeShowHints)
+            {
+                GUILayout.Space(10);
+                GUILayout.Label("Day41: Tutorial Hints");
+
+                if (_gs == null || _gs.TutorialHints == null)
+                {
+                    GUILayout.Label("TutorialHintsService: missing");
+                }
+                else
+                {
+                    var h = _gs.TutorialHints;
+                    GUILayout.Label($"ActiveWindow: 10min | RunAge(sim): {h.RunAge:0.0}s");
+                    GUILayout.Label($"Counts: UnassignedNPC={h.HintNpcUnassignedCount} | ProducerFull={h.HintProducerFullCount} | OutOfAmmo={h.HintOutOfAmmoCount} | WaveIncoming={h.HintWaveIncomingCount}");
+                    GUILayout.Label($"LastHintRealtime: {h.LastHintRealtime:0.00}s (Time.realtimeSinceStartup)");
                 }
 
                 GUILayout.Space(6);

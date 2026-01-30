@@ -1,6 +1,7 @@
-﻿using System;
+﻿using SeasonalBastion.Contracts;
+using System;
 using System.Collections.Generic;
-using SeasonalBastion.Contracts;
+using UnityEngine;
 
 namespace SeasonalBastion
 {
@@ -48,6 +49,49 @@ namespace SeasonalBastion
             {
                 // Nếu về sau reg không phải DataRegistry, contract Part25 hiện không cho enumerate【:contentReference[oaicite:3]{index=3}】
                 // => return empty để fail-safe.
+            }
+
+            // Day43: nếu Year > 1 mà không có wave data => fallback Year1 + scale counts
+            if (list.Count == 0 && year > 1)
+            {
+                var baseList = new List<WaveDef>(2);
+
+                if (_reg is DataRegistry dr2)
+                {
+                    foreach (var id in dr2.GetAllWaveIds())
+                    {
+                        if (string.IsNullOrEmpty(id)) continue;
+                        if (!dr2.TryGetWave(id, out var def) || def == null) continue;
+
+                        if (def.Year != 1) continue;
+                        if (def.Season != season) continue;
+                        if (def.Day != day) continue;
+
+                        baseList.Add(def);
+                    }
+                }
+
+                if (baseList.Count > 0)
+                {
+                    float mul = YearScaling.WaveCountMul(year);
+
+                    for (int i = 0; i < baseList.Count; i++)
+                    {
+                        var src = baseList[i];
+                        var clone = new WaveDef
+                        {
+                            DefId = $"Y{year}_SCALED_{src.DefId}",
+                            WaveIndex = src.WaveIndex,
+                            Year = year,
+                            Season = src.Season,
+                            Day = src.Day,
+                            IsBoss = src.IsBoss,
+                            Entries = CloneAndScaleEntries(src.Entries, mul)
+                        };
+
+                        list.Add(clone);
+                    }
+                }
             }
 
             // deterministic order
@@ -117,6 +161,23 @@ namespace SeasonalBastion
             };
 
             list.Add(bossWave);
+        }
+
+        private static WaveEntryDef[] CloneAndScaleEntries(WaveEntryDef[] src, float mul)
+        {
+            if (src == null || src.Length == 0) return src;
+
+            var arr = new WaveEntryDef[src.Length];
+            for (int i = 0; i < src.Length; i++)
+            {
+                var e = src[i];
+                int c = e.Count;
+                if (c > 0 && mul != 1f)
+                    c = Mathf.Max(1, Mathf.RoundToInt(c * mul));
+
+                arr[i] = new WaveEntryDef { EnemyId = e.EnemyId, Count = c };
+            }
+            return arr;
         }
     }
 }

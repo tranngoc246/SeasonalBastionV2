@@ -5,14 +5,14 @@
       "inputType": 3,
       "inputAmount": 2,
       "outputType": 4,
-      "outputAmount": 10,
+      "outputAmount": 12,
       "extraInputs": [
         {
           "type": 0,
           "amount": 1
         }
       ],
-      "craftTimeSec": 6
+      "craftTimeSec": 5.5
     }
   ]
 }

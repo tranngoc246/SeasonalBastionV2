@@ -126,40 +126,19 @@ namespace SeasonalBastion
 
         public void SpawnWave(string waveDefId)
         {
-            // Dev hook: spawn a specific wave immediately (does not change calendar)
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (string.IsNullOrWhiteSpace(waveDefId)) return;
 
-            // Simple: temporarily resolve and run that wave as "today"
-            // (v0.1 gọn: re-use WaveDirector calendar cache is not needed)
             try
             {
-                // Emit start
-                HandleWaveStarted(waveDefId);
-
-                // Spawn all entries instantly (dev hook) - schedule not required here
                 var def = _s.DataRegistry.GetWave(waveDefId);
-                if (def.Entries != null)
-                {
-                    for (int i = 0; i < def.Entries.Length; i++)
-                    {
-                        var e = def.Entries[i];
-                        var cnt = Math.Max(0, e.Count);
-                        for (int k = 0; k < cnt; k++)
-                        {
-                            // Use WaveDirector spawn logic by restarting calendar wave runner is overkill,
-                            // so keep this hook minimal: call StartDayWaves not used.
-                            // We'll spawn through WaveDirector by fake-running: easiest is to rely on WaveDirector internal.
-                        }
-                    }
-                }
+                if (def == null) return;
 
-                // Emit end (dev hook)
-                HandleWaveEnded(waveDefId);
+                IsActive = true; // ensure combat ticking
+                _waves.DebugStartSingleWave(def);
             }
-            catch
-            {
-                // ignore
-            }
+            catch { /* ignore */ }
+#endif
         }
 
         public void KillAllEnemies()

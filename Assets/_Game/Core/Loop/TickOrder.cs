@@ -20,6 +20,7 @@
 
             // 3) Các hệ còn lại tick theo simDt
             if (s.NotificationService is ITickable notiTick) notiTick.Tick(simDt);
+            if (s.TutorialHints is ITickable hintTick) hintTick.Tick(simDt);
             if (s.BuildOrderService is ITickable buildTick) buildTick.Tick(simDt);
             if (s.ProducerLoopService is ITickable prodTick) prodTick.Tick(simDt);
             if (s.UnlockService is ITickable u) u.Tick(simDt);

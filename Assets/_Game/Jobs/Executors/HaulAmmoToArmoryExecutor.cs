@@ -82,6 +82,23 @@ namespace SeasonalBastion
             }
 
             int jid = job.Id.Value;
+
+            // Hardening: external cancel -> refund ammo back to source (best-effort) + cleanup
+            if (job.Status == JobStatus.Cancelled)
+            {
+                if (_s.WorldState != null && _s.StorageService != null)
+                {
+                    if (_carry.TryGetValue(jid, out int carried) && carried > 0 && job.SourceBuilding.Value != 0
+                        && _s.WorldState.Buildings.Exists(job.SourceBuilding))
+                    {
+                        _s.StorageService.Add(job.SourceBuilding, ResourceType.Ammo, carried);
+                    }
+                }
+
+                Cleanup(jid);
+                return true;
+            }
+
             if (!_phase.TryGetValue(jid, out var ph)) ph = 0;
 
             if (ph == 0)

@@ -17,6 +17,15 @@ namespace SeasonalBastion
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
+            int jid = job.Id.Value;
+
+            // Hardening: external cancel -> cleanup local timer state
+            if (job.Status == JobStatus.Cancelled)
+            {
+                _remaining.Remove(jid);
+                return true;
+            }
+
             if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null)
             {
                 job.Status = JobStatus.Failed;
@@ -87,7 +96,6 @@ namespace SeasonalBastion
                 return true;
 
             // Work timer only after arrived
-            int jid = job.Id.Value;
             if (!_remaining.TryGetValue(jid, out var rem))
                 rem = workSec;
 

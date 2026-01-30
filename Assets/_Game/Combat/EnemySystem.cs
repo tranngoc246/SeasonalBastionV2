@@ -47,6 +47,11 @@ namespace SeasonalBastion
         // Temp list for deterministic iteration
         private readonly List<EnemyId> _ids = new(64);
 
+        // Day44: reusable buffers (avoid GC alloc)
+        private readonly List<BuildingId> _tmpBuildingIds = new(64);
+        private readonly List<int> _tmpEnemyKeys = new(128);
+        private float _pruneAcc;
+
         public EnemySystem(GameServices s) { _s = s; }
 
         public void Tick(float dt)
@@ -219,6 +224,9 @@ namespace SeasonalBastion
                 _attackCd[key] = cd;
                 w.Enemies.Set(id, st);
             }
+
+            // Day44: prune per-enemy dictionaries to avoid unbounded growth / resize spikes
+            PruneEnemyCaches(w, dt);
         }
 
         // -------------------------
@@ -237,14 +245,14 @@ namespace SeasonalBastion
             _hqCached = true;
             _hqId = default;
 
-            // Deterministic: pick smallest buildingId that is HQ
-            var tmp = new List<BuildingId>(32);
-            foreach (var bid in w.Buildings.Ids) tmp.Add(bid);
-            tmp.Sort((a, b) => a.Value.CompareTo(b.Value));
+            // Deterministic: pick smallest buildingId that is HQ (no alloc)
+            _tmpBuildingIds.Clear();
+            foreach (var bid in w.Buildings.Ids) _tmpBuildingIds.Add(bid);
+            _tmpBuildingIds.Sort((a, b) => a.Value.CompareTo(b.Value));
 
-            for (int i = 0; i < tmp.Count; i++)
+            for (int i = 0; i < _tmpBuildingIds.Count; i++)
             {
-                var id = tmp[i];
+                var id = _tmpBuildingIds[i];
                 if (!w.Buildings.Exists(id)) continue;
                 var st = w.Buildings.Get(id);
 
@@ -778,6 +786,52 @@ namespace SeasonalBastion
         {
             if (_s.RunClock is RunClockService rc) return Mathf.Max(1, rc.YearIndex);
             return 1;
+        }
+
+        private void PruneEnemyCaches(IWorldState w, float dt)
+        {
+            if (w == null || w.Enemies == null) return;
+
+            _pruneAcc += dt;
+            if (_pruneAcc < 3f) return; // prune every few seconds
+            _pruneAcc = 0f;
+
+            int alive = w.Enemies.Count;
+            if (alive <= 0)
+            {
+                _attackCd.Clear();
+                _pathFailStreak.Clear();
+                return;
+            }
+
+            // Only prune when map looks inflated
+            bool needAttack = _attackCd.Count > alive * 2;
+            bool needFail = _pathFailStreak.Count > alive * 2;
+            if (!needAttack && !needFail) return;
+
+            if (needAttack)
+            {
+                _tmpEnemyKeys.Clear();
+                foreach (var kv in _attackCd)
+                {
+                    if (!w.Enemies.Exists(new EnemyId(kv.Key)))
+                        _tmpEnemyKeys.Add(kv.Key);
+                }
+                for (int i = 0; i < _tmpEnemyKeys.Count; i++)
+                    _attackCd.Remove(_tmpEnemyKeys[i]);
+            }
+
+            if (needFail)
+            {
+                _tmpEnemyKeys.Clear();
+                foreach (var kv in _pathFailStreak)
+                {
+                    if (!w.Enemies.Exists(new EnemyId(kv.Key)))
+                        _tmpEnemyKeys.Add(kv.Key);
+                }
+                for (int i = 0; i < _tmpEnemyKeys.Count; i++)
+                    _pathFailStreak.Remove(_tmpEnemyKeys[i]);
+            }
         }
     }
 }

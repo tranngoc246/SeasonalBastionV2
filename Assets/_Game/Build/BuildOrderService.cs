@@ -43,6 +43,21 @@ namespace SeasonalBastion
         {
             EnsureBusSubscribed();
 
+            // Unlock gating must be enforced at authoritative layer (not only UI/debug).
+            if (_s.UnlockService != null && !_s.UnlockService.IsUnlocked(buildingDefId))
+            {
+                _s.NotificationService?.Push(
+                    key: $"LockedBuild_{buildingDefId}",
+                    title: "Locked",
+                    body: $"Not unlocked yet: {buildingDefId}",
+                    severity: NotificationSeverity.Warning,
+                    payload: new NotificationPayload(default, default, buildingDefId),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
+                return 0;
+            }
+
             // 1) Validate via PlacementService (single source of truth)
             var placement = _s.PlacementService;
             var vr = placement.ValidateBuilding(buildingDefId, anchor, rotation);

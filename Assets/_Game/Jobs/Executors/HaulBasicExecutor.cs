@@ -161,6 +161,17 @@ namespace SeasonalBastion
             }
 
             int jid = job.Id.Value;
+
+            // Hardening: external cancel -> refund carry back to source (best-effort) and cleanup state
+            if (job.Status == JobStatus.Cancelled)
+            {
+                if (_s.WorldState != null && _s.StorageService != null)
+                    RefundToSourceIfCarrying(jid, ref job, rt);
+
+                Cleanup(jid);
+                return true;
+            }
+
             if (!_phase.TryGetValue(jid, out var ph)) ph = 0;
 
             if (ph == 0)

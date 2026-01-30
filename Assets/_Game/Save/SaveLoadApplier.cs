@@ -1,4 +1,3 @@
-using log4net;
 using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
@@ -45,24 +44,22 @@ namespace SeasonalBastion
                 }
 
                 // 3) Restore sites first (occupy as Site)
+                // 3) Restore sites first (occupy as Site)
                 if (dto.build.Sites != null)
                 {
                     // ensure deterministic order
                     dto.build.Sites.Sort((a, b) => a.Id.Value.CompareTo(b.Id.Value));
 
+                    var siteStore = s.WorldState.Sites as BuildSiteStore;
+                    if (siteStore == null) { error = "WorldState.Sites is not BuildSiteStore"; return false; }
+
                     for (int i = 0; i < dto.build.Sites.Count; i++)
                     {
                         var site = dto.build.Sites[i];
-                        var created = s.WorldState.Sites.Create(site);
-                        // must match to keep references stable
-                        if (created.Value != site.Id.Value)
-                        {
-                            // if mismatch, still set but warn
-                            // (v0.1 minimal – assume no gaps)
-                        }
 
-                        site.Id = created;
-                        s.WorldState.Sites.Set(created, site);
+                        // Create with fixed id to keep references stable
+                        siteStore.CreateWithId(site.Id, site, overwriteIfExists: true);
+                        s.WorldState.Sites.Set(site.Id, site);
 
                         // occupy footprint
                         var def = s.DataRegistry.GetBuilding(site.BuildingDefId);
@@ -71,14 +68,16 @@ namespace SeasonalBastion
 
                         for (int dy = 0; dy < h; dy++)
                             for (int dx = 0; dx < w; dx++)
-                                s.GridMap.SetSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy), created);
+                                s.GridMap.SetSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy), site.Id);
                     }
                 }
-
-                // 4) Restore buildings (constructed => occupy Building; if not constructed and site exists => footprint already occupied)
+                // 4) Restore buildings
                 if (dto.world.Buildings != null)
                 {
                     dto.world.Buildings.Sort((a, b) => a.Id.Value.CompareTo(b.Id.Value));
+
+                    var buildingStore = s.WorldState.Buildings as BuildingStore;
+                    if (buildingStore == null) { error = "WorldState.Buildings is not BuildingStore"; return false; }
 
                     // quick lookup: active sites by anchor+def for deciding occupancy
                     var hasSiteAt = new HashSet<long>();
@@ -95,14 +94,10 @@ namespace SeasonalBastion
                     for (int i = 0; i < dto.world.Buildings.Count; i++)
                     {
                         var b = dto.world.Buildings[i];
-                        var created = s.WorldState.Buildings.Create(b);
-                        if (created.Value != b.Id.Value)
-                        {
-                            // assume stable in v0.1
-                        }
 
-                        b.Id = created;
-                        s.WorldState.Buildings.Set(created, b);
+                        // Create with fixed id
+                        buildingStore.CreateWithId(b.Id, b, overwriteIfExists: true);
+                        s.WorldState.Buildings.Set(b.Id, b);
 
                         bool shouldOccupyAsBuilding = b.IsConstructed;
                         if (!shouldOccupyAsBuilding)
@@ -120,7 +115,7 @@ namespace SeasonalBastion
 
                             for (int dy = 0; dy < h; dy++)
                                 for (int dx = 0; dx < w; dx++)
-                                    s.GridMap.SetBuilding(new CellPos(b.Anchor.X + dx, b.Anchor.Y + dy), created);
+                                    s.GridMap.SetBuilding(new CellPos(b.Anchor.X + dx, b.Anchor.Y + dy), b.Id);
                         }
                     }
                 }
@@ -130,12 +125,14 @@ namespace SeasonalBastion
                 {
                     dto.world.Towers.Sort((a, b) => a.Id.Value.CompareTo(b.Id.Value));
 
+                    var towerStore = s.WorldState.Towers as TowerStore;
+                    if (towerStore == null) { error = "WorldState.Towers is not TowerStore"; return false; }
+
                     for (int i = 0; i < dto.world.Towers.Count; i++)
                     {
                         var t = dto.world.Towers[i];
-                        var created = s.WorldState.Towers.Create(t);
-                        t.Id = created;
-                        s.WorldState.Towers.Set(created, t);
+                        towerStore.CreateWithId(t.Id, t, overwriteIfExists: true);
+                        s.WorldState.Towers.Set(t.Id, t);
                     }
                 }
 
@@ -144,14 +141,19 @@ namespace SeasonalBastion
                 {
                     dto.world.Npcs.Sort((a, b) => a.Id.Value.CompareTo(b.Id.Value));
 
+                    var npcStore = s.WorldState.Npcs as NpcStore;
+                    if (npcStore == null) { error = "WorldState.Npcs is not NpcStore"; return false; }
+
                     for (int i = 0; i < dto.world.Npcs.Count; i++)
                     {
                         var n = dto.world.Npcs[i];
-                        var created = s.WorldState.Npcs.Create(n);
-                        n.Id = created;
+
+                        // hard reset transient runtime state
                         n.CurrentJob = default;
                         n.IsIdle = true;
-                        s.WorldState.Npcs.Set(created, n);
+
+                        npcStore.CreateWithId(n.Id, n, overwriteIfExists: true);
+                        s.WorldState.Npcs.Set(n.Id, n);
                     }
                 }
 
@@ -160,12 +162,14 @@ namespace SeasonalBastion
                 {
                     dto.world.Enemies.Sort((a, b) => a.Id.Value.CompareTo(b.Id.Value));
 
+                    var enemyStore = s.WorldState.Enemies as EnemyStore;
+                    if (enemyStore == null) { error = "WorldState.Enemies is not EnemyStore"; return false; }
+
                     for (int i = 0; i < dto.world.Enemies.Count; i++)
                     {
                         var e = dto.world.Enemies[i];
-                        var created = s.WorldState.Enemies.Create(e);
-                        e.Id = created;
-                        s.WorldState.Enemies.Set(created, e);
+                        enemyStore.CreateWithId(e.Id, e, overwriteIfExists: true);
+                        s.WorldState.Enemies.Set(e.Id, e);
                     }
                 }
 

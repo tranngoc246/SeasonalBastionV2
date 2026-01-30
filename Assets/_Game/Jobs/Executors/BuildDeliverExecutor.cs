@@ -26,6 +26,16 @@ namespace SeasonalBastion
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
             int jid = job.Id.Value;
+
+            // Hardening: if cancelled externally, rollback carry + cleanup without progressing movement/claims
+            if (job.Status == JobStatus.Cancelled)
+            {
+                ReleaseSourceClaimIfOwned(npc, jid);
+                TryRefundCarry(jid, npcState.Cell, job.SourceBuilding, job.ResourceType);
+                Cleanup(jid);
+                return true;
+            }
+
             if (!_phase.TryGetValue(jid, out var ph)) ph = 0;
 
             if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null || _s.AgentMover == null)

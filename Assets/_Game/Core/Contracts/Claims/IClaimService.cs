@@ -9,6 +9,8 @@ namespace SeasonalBastion.Contracts
 
         void ClearAll();
 
+        void CleanupInvalidOwners(INpcStore npcs);
+
         int ActiveClaimsCount { get; }
     }
 }

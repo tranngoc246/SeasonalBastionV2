@@ -24,53 +24,80 @@ namespace SeasonalBastion
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
+            int jid = job.Id.Value;
+
             if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null)
             {
                 job.Status = JobStatus.Failed;
-                Cleanup(job.Id.Value);
+                Cleanup(jid);
                 return true;
             }
 
             if (job.ResourceType != ResourceType.Ammo)
             {
                 job.Status = JobStatus.Failed;
-                Cleanup(job.Id.Value);
+                Cleanup(jid);
                 return true;
             }
 
-            var arm = job.Workplace.Value != 0 ? job.Workplace : job.SourceBuilding;
-            var tower = job.Tower;
+            // Resolve armory building (workplace preferred)
+            var armoryBld = job.Workplace.Value != 0 ? job.Workplace : job.SourceBuilding;
+            var towerId = job.Tower;
 
-            if (arm.Value == 0 || tower.Value == 0)
+            if (armoryBld.Value == 0 || towerId.Value == 0)
             {
                 job.Status = JobStatus.Failed;
-                Cleanup(job.Id.Value);
+                Cleanup(jid);
                 return true;
             }
 
-            if (!_s.WorldState.Buildings.Exists(arm))
+            // Hardening: external cancel -> refund carry to armory (best-effort) + cleanup
+            if (job.Status == JobStatus.Cancelled)
+            {
+                if (_s.WorldState.Buildings.Exists(armoryBld))
+                {
+                    if (_carry.TryGetValue(jid, out int carriedAmmo) && carriedAmmo > 0)
+                        _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedAmmo);
+                }
+
+                Cleanup(jid);
+                return true;
+            }
+
+            if (!_s.WorldState.Buildings.Exists(armoryBld))
             {
                 job.Status = JobStatus.Failed;
-                Cleanup(job.Id.Value);
+                Cleanup(jid);
                 return true;
             }
 
-            var armSt = _s.WorldState.Buildings.Get(arm);
+            var armSt = _s.WorldState.Buildings.Get(armoryBld);
             if (!armSt.IsConstructed)
             {
+                // Armory no longer usable -> cancel without refund (we did not remove yet in phase 0)
+                // If already carrying (phase 1) we will refund below when relevant.
                 job.Status = JobStatus.Cancelled;
-                Cleanup(job.Id.Value);
+
+                // If already carrying, refund best-effort
+                if (_carry.TryGetValue(jid, out int carriedAmmo) && carriedAmmo > 0)
+                    _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedAmmo);
+
+                Cleanup(jid);
                 return true;
             }
 
-            if (!_s.StorageService.CanStore(arm, ResourceType.Ammo))
+            if (!_s.StorageService.CanStore(armoryBld, ResourceType.Ammo))
             {
                 job.Status = JobStatus.Cancelled;
-                Cleanup(job.Id.Value);
+
+                // If already carrying, refund best-effort
+                if (_carry.TryGetValue(jid, out int carriedAmmo) && carriedAmmo > 0)
+                    _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedAmmo);
+
+                Cleanup(jid);
                 return true;
             }
 
-            int jid = job.Id.Value;
             if (!_phase.TryGetValue(jid, out var ph)) ph = 0;
 
             // ---------------- Phase 0: pickup from Armory ----------------
@@ -78,7 +105,7 @@ namespace SeasonalBastion
             {
                 int want = job.Amount > 0 ? job.Amount : 1;
 
-                int avail = _s.StorageService.GetAmount(arm, ResourceType.Ammo);
+                int avail = _s.StorageService.GetAmount(armoryBld, ResourceType.Ammo);
                 if (avail <= 0)
                 {
                     job.Status = JobStatus.Cancelled;
@@ -100,7 +127,7 @@ namespace SeasonalBastion
                 bool arrived = _s.AgentMover.StepToward(ref npcState, armSt.Anchor);
                 if (!arrived) return true;
 
-                int removed = _s.StorageService.Remove(arm, ResourceType.Ammo, want);
+                int removed = _s.StorageService.Remove(armoryBld, ResourceType.Ammo, want);
                 if (removed <= 0)
                 {
                     job.Status = JobStatus.Cancelled;
@@ -115,45 +142,43 @@ namespace SeasonalBastion
             }
 
             // ---------------- Phase 1: deliver to Tower ----------------
-            if (!_carry.TryGetValue(jid, out int carried) || carried <= 0)
+            if (!_carry.TryGetValue(jid, out int carriedNow) || carriedNow <= 0)
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(jid);
                 return true;
             }
 
-            if (!_s.WorldState.Towers.Exists(tower))
+            if (!_s.WorldState.Towers.Exists(towerId))
             {
                 // Refund to Armory (best-effort)
-                _s.StorageService.Add(arm, ResourceType.Ammo, carried);
+                _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedNow);
 
                 job.Status = JobStatus.Cancelled;
                 Cleanup(jid);
                 return true;
             }
 
-            // Đã tới tower => luôn re-fetch state mới nhất để tránh stale overwrite khi có job khác deliver trước đó
-            var tsNow = _s.WorldState.Towers.Get(tower);
+            // Re-fetch newest tower state to avoid stale overwrite if multiple deliveries happen.
+            var tsNow = _s.WorldState.Towers.Get(towerId);
 
             int free = tsNow.AmmoCap - tsNow.Ammo;
             if (free < 0) free = 0;
 
-            int add = carried;
+            int add = carriedNow;
             if (add > free) add = free;
 
             if (add > 0)
             {
                 tsNow.Ammo += add;
-                _s.WorldState.Towers.Set(tower, tsNow);
+                _s.WorldState.Towers.Set(towerId, tsNow);
 
-                // optional: cập nhật monitor/UI
-                _s.AmmoService?.NotifyTowerAmmoChanged(tower, tsNow.Ammo, tsNow.AmmoCap);
+                _s.AmmoService?.NotifyTowerAmmoChanged(towerId, tsNow.Ammo, tsNow.AmmoCap);
             }
 
-            // refund phần dư
-            int refund = carried - add;
+            int refund = carriedNow - add;
             if (refund > 0)
-                _s.StorageService.Add(arm, ResourceType.Ammo, refund);
+                _s.StorageService.Add(armoryBld, ResourceType.Ammo, refund);
 
             job.Status = JobStatus.Completed;
             Cleanup(jid);

@@ -22,6 +22,9 @@ namespace SeasonalBastion
 
         public bool IsActive { get; private set; }
 
+        // Day41: post-load guard to prevent double-spawn waves when enemies were restored from save
+        private bool _deferWaveStartAfterLoad;
+
         // Day34: expose wave debug counters for Debug HUD
         public bool HasActiveWave => _waves != null && _waves.HasActiveWave;
         public string ActiveWaveId => _waves != null ? _waves.ActiveWaveId : null;
@@ -75,6 +78,10 @@ namespace SeasonalBastion
         public void OnDefendPhaseStarted()
         {
             IsActive = true;
+
+            // If we were deferring after load, don't auto-start here.
+            if (_deferWaveStartAfterLoad) return;
+
             // Start today's waves immediately (lane table already in RunStartRuntime)
             _waves.StartDayWaves(_s.RunClock.DayIndex);
         }
@@ -82,6 +89,7 @@ namespace SeasonalBastion
         public void OnDefendPhaseEnded()
         {
             IsActive = false;
+            _deferWaveStartAfterLoad = false;
             // v0.1: keep enemies; Day29 will handle movement + cleanup rules.
         }
 
@@ -113,6 +121,18 @@ namespace SeasonalBastion
                 // Only start waves when in Defend days
                 if (_s.RunClock.CurrentPhase == Phase.Defend)
                     _waves.StartDayWaves(day);
+            }
+
+            // Day41: after load, if enemies were restored, delay starting day waves
+            // until the restored enemies are cleared (prevents double-spawn).
+            if (IsActive && _deferWaveStartAfterLoad)
+            {
+                // Only start when no alive enemies and no active wave is running.
+                if (AliveEnemyCount <= 0 && !_waves.HasActiveWave)
+                {
+                    _deferWaveStartAfterLoad = false;
+                    _waves.StartDayWaves(_s.RunClock.DayIndex);
+                }
             }
 
             _waves.Tick(dt);
@@ -201,15 +221,32 @@ namespace SeasonalBastion
             bool shouldDefend = (_latchedPhase == Phase.Defend);
             if (dto != null) shouldDefend |= dto.IsDefendActive;
 
-            if (shouldDefend)
+            if (!shouldDefend)
             {
-                // keep existing enemies (restored from save) and restart waves
-                OnDefendPhaseStarted();
-            }
-            else
-            {
+                _deferWaveStartAfterLoad = false;
                 OnDefendPhaseEnded();
+                return;
             }
+
+            // We are in defend (or saved as defend).
+            // If enemies were restored from save, DO NOT start day waves immediately (prevents double spawn).
+            int alive = 0;
+            try
+            {
+                alive = _s.WorldState?.Enemies?.Count ?? 0;
+            }
+            catch { alive = 0; }
+
+            if (alive > 0)
+            {
+                IsActive = true;
+                _deferWaveStartAfterLoad = true;
+                // Do NOT call StartDayWaves here.
+                return;
+            }
+
+            _deferWaveStartAfterLoad = false;
+            OnDefendPhaseStarted();
         }
 
         private int GetYearIndexOr1()

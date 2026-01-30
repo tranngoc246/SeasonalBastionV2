@@ -661,3 +661,80 @@
   1) Year2 wave fallback + scaling (count/HP/dmg)
   2) Debug shortcuts (spawn/give) để chạy manual 1 run
   3) Tune tower + craft + hauling (dựa trên quan sát Winter Y2)
+
+---
+
+## Day 44 — Performance & cleanup pass (no alloc spikes)
+
+### Mục tiêu
+- [x] Không tụt FPS do GC spikes trong runtime tick/wave.
+
+### Tasks
+- [x] Remove LINQ trong combat/job loops.
+- [x] Cache lists, reuse buffers.
+- [x] Reduce `FindObjectOfType` trong runtime services (debug-only ok).
+
+### Đã làm
+- [v] **EnemySystem — loại bỏ alloc không cần thiết**
+  - `EnsureHqCached()`:
+    - Bỏ `new List<BuildingId>` + `Sort()` mỗi lần gọi.
+    - Thay bằng buffer `_tmpBuildingIds` (reused) để giữ deterministic nhưng không alloc.
+- [v] **EnemySystem — prune dictionaries để tránh phình & resize spike**
+  - Thêm prune định kỳ (mỗi ~3s) cho:
+    - `_attackCd`
+    - `_pathFailStreak`
+  - Khi enemy chết/được xoá khỏi `WorldState.Enemies`:
+    - keys tương ứng được remove khỏi dict để tránh tăng vô hạn theo số wave.
+  - Nếu `alive==0`: clear toàn bộ dict (fast path).
+- [v] **ClaimService — reuse buffer**
+  - `ReleaseAll(owner)`:
+    - Bỏ alloc `new List<ClaimKey>`; dùng `_tmpToRemove` (reused) để remove theo batch.
+- [v] **Cleanup using**
+  - Xoá `using System.Linq;` thừa trong debug scripts (không dùng LINQ).
+
+### Kết quả / Acceptance
+- [v] Profiler: GC alloc thấp hơn trong play; giảm nguy cơ spike khi wave đông / chạy lâu do dictionary resize.
+- [v] Không thay đổi gameplay logic (chỉ refactor buffer & cleanup).
+
+### Ghi chú / Pitfalls
+- Debug HUD (IMGUI) vẫn có thể alloc string mỗi frame; đo Profiler “ship runtime” nên tắt HUD khi benchmark.
+- Prune cadence (3s) là cân bằng giữa cost scan dict và tránh resize spike; có thể chỉnh nếu dict rất nhỏ.
+
+### Việc tiếp theo
+- Nếu cần thêm:
+  - cache/format text trong HUD theo cadence (5–10Hz) để giảm alloc từ string concat.
+  - scan các loop khác có `foreach` + boxing/ToString trong tick thường xuyên.
+
+  ---
+
+## Day 45 — Final regression suite + release checklist
+
+### Mục tiêu
+- [ ] “Shipable base run” ổn định: không crash, không softlock, victory/defeat đúng, save/load ổn.
+
+### Regression suite (manual)
+- [v] StartNewRun ×3 (reset sạch: roads/buildings/npcs/jobs/notifications).
+- [v] Save/Load tại 8 checkpoints:
+  - [v] CP1: Spring Y1 Day1 (10s đầu)
+  - [v] CP2: sau khi đặt 1 building (constructed)
+  - [v] CP3: ngay trước Defend
+  - [v] CP4: giữa wave (có enemy)
+  - [v] CP5: sau wave kết thúc
+  - [v] CP6a/6b: End Spring summary (save trước & sau dismiss)
+  - [v] CP7: Mid Autumn Y2
+  - [v] CP8: Start Winter Y2
+- [v] Defeat path (HQ dead): RunOutcome=Defeat, không kẹt UI.
+- [v] Victory path (End Winter Y2): RunOutcome=Victory.
+- [v] 30 phút: không softlock (jobs/claims/phase switch ok), noti/hints không spam.
+
+### Release checklist
+- [ ] RunStartValidator OK trên StartMapConfig.
+- [ ] 3× StartNewRun PASS.
+- [ ] 8× Save/Load PASS.
+- [ ] Defeat PASS.
+- [ ] Victory PASS.
+- [ ] 30 phút PASS.
+- [ ] Profiler: GC alloc thấp (benchmark tắt HUD).
+
+### Known issues (nếu gặp)
+- [ ] (Ghi cụ thể issue + bước reproduce + expected/actual)

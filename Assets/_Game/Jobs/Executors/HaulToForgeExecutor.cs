@@ -67,6 +67,15 @@ namespace SeasonalBastion
             }
 
             int jid = job.Id.Value;
+
+            // Hardening: external cancel -> refund carry to source (best-effort) + cleanup
+            if (job.Status == JobStatus.Cancelled)
+            {
+                RefundToSourceIfCarrying(jid, ref job, rt);
+                Cleanup(jid, npc);
+                return true;
+            }
+
             if (!_phase.TryGetValue(jid, out var ph)) ph = 0;
 
             // Hold dest claim during job to reduce collisions
@@ -181,6 +190,19 @@ namespace SeasonalBastion
                 Cleanup(jid, npc);
                 return true;
             }
+        }
+
+        private void RefundToSourceIfCarrying(int jobId, ref Job job, ResourceType rt)
+        {
+            if (_s.WorldState == null || _s.StorageService == null) return;
+            if (!_carry.TryGetValue(jobId, out int carried) || carried <= 0) return;
+
+            var src = job.SourceBuilding;
+            if (src.Value != 0 && _s.WorldState.Buildings.Exists(src))
+                _s.StorageService.Add(src, rt, carried);
+
+            _carry.Remove(jobId);
+            _phase.Remove(jobId);
         }
 
         private void Cleanup(int jobId, NpcId npc)

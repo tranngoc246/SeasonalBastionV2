@@ -28,6 +28,31 @@ namespace SeasonalBastion
             return id;
         }
 
+        /// <summary>
+        /// Create an entity with a specific id (used by Save/Load).
+        /// Keeps deterministic order if caller inserts in sorted id order.
+        /// Also updates _nextId to avoid collisions after load.
+        /// </summary>
+        public TId CreateWithId(TId id, TState state, bool overwriteIfExists = true)
+        {
+            var key = ToInt(id);
+
+            if (!overwriteIfExists && _map.ContainsKey(key))
+                return id;
+
+            _map[key] = state;
+
+            // keep insertion order deterministic; caller should insert sorted.
+            if (!_ids.Contains(key))
+                _ids.Add(key);
+
+            // ensure next Create() won't collide
+            if (key >= _nextId)
+                _nextId = key + 1;
+
+            return id;
+        }
+
         public void Destroy(TId id)
         {
             var key = ToInt(id);

@@ -28,6 +28,8 @@ namespace SeasonalBastion
         // No-job notifications (throttle per workplace)
         private readonly Dictionary<int, float> _noJobNextNotifyAt = new();
 
+        private float _claimCleanupTimer;
+
         public JobScheduler(
             IWorldState w,
             IJobBoard board,
@@ -100,6 +102,14 @@ namespace SeasonalBastion
                     CleanupNpcJob(nid, ref ns);
 
                 _w.Npcs.Set(nid, ns);
+            }
+
+            // Periodic cleanup to prevent orphan claims if NPCs are removed/reset.
+            _claimCleanupTimer += dt;
+            if (_claimCleanupTimer >= 2f)
+            {
+                _claimCleanupTimer = 0f;
+                _claims?.CleanupInvalidOwners(_w.Npcs);
             }
         }
 

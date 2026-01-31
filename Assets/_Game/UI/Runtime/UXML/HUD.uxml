@@ -1,0 +1,16 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss?fileID=7433441132597879392&amp;guid=428f8e0470d88f041bafa458a01e559b&amp;type=3#Theme" />
+    <ui:VisualElement class="hud-root">
+        <ui:VisualElement name="TopBar" class="topbar">
+            <ui:Label name="LblTime" text="Year ? • Spring D1" class="lbl-time" />
+            <ui:Label name="LblPhase" text="Build" class="chip phase" />
+            <ui:VisualElement class="spacer" />
+            <ui:VisualElement name="SpeedGroup" class="speed-group">
+                <ui:Button name="BtnSpeed1" text="x1" class="speed-btn" />
+                <ui:Button name="BtnSpeed2" text="x2" class="speed-btn" />
+                <ui:Button name="BtnSpeed3" text="x3" class="speed-btn" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="NotiStack" class="noti-stack" />
+    </ui:VisualElement>
+</ui:UXML>

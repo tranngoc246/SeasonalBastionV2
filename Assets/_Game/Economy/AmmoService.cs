@@ -11,7 +11,7 @@ namespace SeasonalBastion
 
         // ----------------- Day25: Tower low-ammo monitor + request queue -----------------
 
-        private const int LowAmmoPercent = 40;
+        private const int LowAmmoPercent = 25;
 
         // Cooldown (per tower). Values are tuned for non-spam UX; adjust later if needed.
         private const float ReqCooldownLow = 8f;
@@ -19,8 +19,6 @@ namespace SeasonalBastion
 
         private const float NotifyCooldownLow = 6f;
         private const float NotifyCooldownEmpty = 4f;
-
-        private const int MaxAmmoCarry = 80; // Day38: hard carry capacity cap (Armory L3 chunk)
 
         // Deterministic sim-time (no Unity realtime)
         private float _simTime;
@@ -406,18 +404,10 @@ namespace SeasonalBastion
                     continue;
                 }
 
-                // Delivery amount (Deliverable C):
-                // - Min: 30 (chỉ rơi vào case need>=30; nếu need<30 thì deliver need)
-                // - Max: min(ArmoryCarryAmount, need) ; ArmoryCarryAmount reuse chunk by level (40/60/80)
-                int carryCap = GetArmoryChunkByLevel(armSt.Level);
-                int amount = carryCap;
+                // LOCKED (Deliverable A): Resupply Amount per trip: L1 20 | L2 30 | L3 40
+                int trip = GetArmoryResupplyTripByLevel(armSt.Level);
+                int amount = trip;
                 if (amount > need) amount = need;
-
-                // Day38: enforce carry capacity hard cap
-                if (amount > MaxAmmoCarry) amount = MaxAmmoCarry;
-
-                // enforce min 30 only when it makes sense
-                if (need >= 30 && amount < 30) amount = 30;
 
                 // if armory thiếu thì giao được bao nhiêu giao
                 if (amount > armAmmo) amount = armAmmo;
@@ -868,6 +858,13 @@ namespace SeasonalBastion
         {
             int lvl = level <= 0 ? 1 : (level > 3 ? 3 : level);
             return lvl == 1 ? 40 : (lvl == 2 ? 60 : 80);
+        }
+
+        // LOCKED: Armory -> Tower resupply trip amount
+        private static int GetArmoryResupplyTripByLevel(int level)
+        {
+            int lvl = level <= 0 ? 1 : (level > 3 ? 3 : level);
+            return lvl == 1 ? 20 : (lvl == 2 ? 30 : 40);
         }
 
         private void ScanTowers_AndNotify()

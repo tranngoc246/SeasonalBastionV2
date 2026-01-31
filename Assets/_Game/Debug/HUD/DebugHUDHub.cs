@@ -239,7 +239,7 @@ namespace SeasonalBastion.DebugTools
         {
             DebugHubState.Enabled = _showUi;
             if (!_showUi) return;
-            GUILayout.BeginArea(new Rect(10, 10, 620, (Screen.height - 20)), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(10, 50, 620, (Screen.height - 20)), GUI.skin.box);
 
             GUILayout.Label("[DebugHUDHub] F1 UI | F2 Build | F3 Road | F4 NPC | F5 Storage | F6 Noti | F7 Index | Esc None");
             GUILayout.Label($"Mode: {_mode}    Tab: {_tab}");

@@ -41,8 +41,8 @@ namespace SeasonalBastion
             }
 
             // Resolve armory building (workplace preferred)
-            var armoryBld = job.Workplace.Value != 0 ? job.Workplace : job.SourceBuilding;
-            var towerId = job.Tower;
+            BuildingId armoryBld = job.Workplace.Value != 0 ? job.Workplace : job.SourceBuilding;
+            TowerId towerId = job.Tower;
 
             if (armoryBld.Value == 0 || towerId.Value == 0)
             {
@@ -51,15 +51,12 @@ namespace SeasonalBastion
                 return true;
             }
 
+            int carriedAmmo = 0; // <-- IMPORTANT: chỉ khai báo 1 lần, tránh CS0136
+
             // Hardening: external cancel -> refund carry to armory (best-effort) + cleanup
             if (job.Status == JobStatus.Cancelled)
             {
-                if (_s.WorldState.Buildings.Exists(armoryBld))
-                {
-                    if (_carry.TryGetValue(jid, out int carriedAmmo) && carriedAmmo > 0)
-                        _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedAmmo);
-                }
-
+                RefundCarryBestEffort(jid, armoryBld);
                 Cleanup(jid);
                 return true;
             }
@@ -72,16 +69,11 @@ namespace SeasonalBastion
             }
 
             var armSt = _s.WorldState.Buildings.Get(armoryBld);
+
             if (!armSt.IsConstructed)
             {
-                // Armory no longer usable -> cancel without refund (we did not remove yet in phase 0)
-                // If already carrying (phase 1) we will refund below when relevant.
                 job.Status = JobStatus.Cancelled;
-
-                // If already carrying, refund best-effort
-                if (_carry.TryGetValue(jid, out int carriedAmmo) && carriedAmmo > 0)
-                    _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedAmmo);
-
+                RefundCarryBestEffort(jid, armoryBld);
                 Cleanup(jid);
                 return true;
             }
@@ -89,16 +81,12 @@ namespace SeasonalBastion
             if (!_s.StorageService.CanStore(armoryBld, ResourceType.Ammo))
             {
                 job.Status = JobStatus.Cancelled;
-
-                // If already carrying, refund best-effort
-                if (_carry.TryGetValue(jid, out int carriedAmmo) && carriedAmmo > 0)
-                    _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedAmmo);
-
+                RefundCarryBestEffort(jid, armoryBld);
                 Cleanup(jid);
                 return true;
             }
 
-            if (!_phase.TryGetValue(jid, out var ph)) ph = 0;
+            if (!_phase.TryGetValue(jid, out byte ph)) ph = 0;
 
             // ---------------- Phase 0: pickup from Armory ----------------
             if (ph == 0)
@@ -142,22 +130,30 @@ namespace SeasonalBastion
             }
 
             // ---------------- Phase 1: deliver to Tower ----------------
-            if (!_carry.TryGetValue(jid, out int carriedNow) || carriedNow <= 0)
+            if (!_carry.TryGetValue(jid, out carriedAmmo) || carriedAmmo <= 0)
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(jid);
                 return true;
             }
 
-            if (!_s.WorldState.Towers.Exists(towerId))
+            // Move tới tower trước khi deliver (đảm bảo giống pattern executor khác)
+            // (Nếu project bạn đang có StepToward theo cell target)
+            var tsPeekOk = _s.WorldState.Towers.Exists(towerId);
+            if (!tsPeekOk)
             {
-                // Refund to Armory (best-effort)
-                _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedNow);
-
+                // tower vanished -> refund to armory
+                _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedAmmo);
                 job.Status = JobStatus.Cancelled;
                 Cleanup(jid);
                 return true;
             }
+
+            var tsForMove = _s.WorldState.Towers.Get(towerId);
+            job.TargetCell = tsForMove.Cell;
+
+            bool arrivedTower = _s.AgentMover.StepToward(ref npcState, tsForMove.Cell);
+            if (!arrivedTower) return true;
 
             // Re-fetch newest tower state to avoid stale overwrite if multiple deliveries happen.
             var tsNow = _s.WorldState.Towers.Get(towerId);
@@ -165,7 +161,7 @@ namespace SeasonalBastion
             int free = tsNow.AmmoCap - tsNow.Ammo;
             if (free < 0) free = 0;
 
-            int add = carriedNow;
+            int add = carriedAmmo;
             if (add > free) add = free;
 
             if (add > 0)
@@ -173,16 +169,27 @@ namespace SeasonalBastion
                 tsNow.Ammo += add;
                 _s.WorldState.Towers.Set(towerId, tsNow);
 
+                // optional: update monitor/UI
                 _s.AmmoService?.NotifyTowerAmmoChanged(towerId, tsNow.Ammo, tsNow.AmmoCap);
             }
 
-            int refund = carriedNow - add;
+            int refund = carriedAmmo - add;
             if (refund > 0)
                 _s.StorageService.Add(armoryBld, ResourceType.Ammo, refund);
 
             job.Status = JobStatus.Completed;
             Cleanup(jid);
             return true;
+        }
+
+        private void RefundCarryBestEffort(int jobId, BuildingId armoryBld)
+        {
+            if (_s.WorldState == null || _s.StorageService == null) return;
+            if (armoryBld.Value == 0) return;
+            if (!_s.WorldState.Buildings.Exists(armoryBld)) return;
+
+            if (_carry.TryGetValue(jobId, out int carried) && carried > 0)
+                _s.StorageService.Add(armoryBld, ResourceType.Ammo, carried);
         }
 
         private void Cleanup(int jobId)

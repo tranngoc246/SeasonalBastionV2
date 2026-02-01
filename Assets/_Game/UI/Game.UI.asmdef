@@ -10,7 +10,8 @@
         "Game.Jobs",
         "Game.Combat",
         "Game.Rewards",
-        "Game.Boot"
+        "Game.Boot",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

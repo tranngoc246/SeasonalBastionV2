@@ -1,0 +1,34 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Modals.uss" />
+    <ui:VisualElement name="ModalsRoot" class="modals-root">
+        <ui:VisualElement name="Scrim" class="scrim" />
+        <ui:VisualElement name="ModalHost" class="modal-host">
+            <ui:VisualElement name="SettingsModal" class="modal panel">
+                <ui:Label name="SettingsTitle" text="PAUSE" class="modal-title" />
+                <ui:VisualElement class="modal-body">
+                    <ui:Label text="Master Volume" class="field-label" />
+                    <ui:Slider name="SldVolume" low-value="0" high-value="1" value="1" />
+                    <ui:Label text="Default Speed (Build)" class="field-label" />
+                    <ui:SliderInt name="SldDefaultSpeed" low-value="1" high-value="3" value="1" />
+                    <ui:Label name="LblSettingsHint" text="" class="hint" />
+                </ui:VisualElement>
+                <ui:VisualElement class="modal-actions">
+                    <ui:Button name="BtnResume" text="Resume" class="btn primary" />
+                    <ui:Button name="BtnSave" text="Save" class="btn" />
+                    <ui:Button name="BtnBackToMenu" text="Main Menu" class="btn warn" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement name="RunEndModal" class="modal panel">
+                <ui:Label name="RunEndTitle" text="RUN ENDED" class="modal-title" />
+                <ui:Label name="RunEndBody" text="..." class="modal-text" />
+                <ui:VisualElement class="modal-actions">
+                    <ui:Button name="BtnRunEndNew" text="New Game" class="btn primary" />
+                    <ui:Button name="BtnRunEndMenu" text="Main Menu" class="btn" />
+                    <ui:Button name="BtnRunEndQuit" text="Quit" class="btn warn" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

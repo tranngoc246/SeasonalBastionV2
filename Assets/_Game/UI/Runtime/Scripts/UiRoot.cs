@@ -2,25 +2,20 @@
 using System.Collections;
 using SeasonalBastion.Contracts;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 namespace SeasonalBastion
 {
-    /// <summary>
-    /// UI composition root for runtime HUD (UI Toolkit).
-    /// - Supports additive scenes (UI scene loads before GameBootstrap).
-    /// - Supports inactive GameBootstrap (FindObjectsOfTypeAll).
-    /// - Allows explicit reference in Inspector (recommended).
-    /// </summary>
     public sealed class UiRoot : MonoBehaviour
     {
         [Header("Wiring (recommended)")]
-        [SerializeField] private GameBootstrap _bootstrap; // Drag in inspector if possible
+        [SerializeField] private GameBootstrap _bootstrap;
 
         [Header("UIDocuments")]
         [SerializeField] private UIDocument _hudDocument;
+        [SerializeField] private UIDocument _panelsDocument;
+        [SerializeField] private UIDocument _modalsDocument;
 
         [Header("Templates")]
         [SerializeField] private VisualTreeAsset _notificationItemTemplate;
@@ -32,27 +27,56 @@ namespace SeasonalBastion
 
         private HudPresenter _hudPresenter;
         private NotificationStackPresenter _notiPresenter;
+        private ResourceBarPresenter _resPresenter;
+
+        private WorldSelectionController _selection;
+        private InspectPanelPresenter _inspectPresenter;
+
+        private ModalsPresenter _modalsPresenter;
 
         private Coroutine _bindCo;
+        private bool _bound;
 
         private void Awake()
         {
-            EnsureEventSystem();
+            InputSystemOnlyGuard.EnsureEventSystem_NewInputOnly();
 
             if (_hudDocument == null)
                 _hudDocument = GetComponent<UIDocument>();
 
-            // SceneLoaded hook để hỗ trợ UI scene load trước, bootstrap load sau
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
 
         private void OnEnable()
         {
-            // Try bind immediately
             TryBindOrRetry();
         }
 
         private void OnDisable()
+        {
+            StopRetry();
+            UnbindInternal();
+        }
+
+        private void OnDestroy()
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            StopRetry();
+            UnbindInternal();
+        }
+
+        private void Update()
+        {
+            _inspectPresenter?.Tick(Time.unscaledDeltaTime);
+        }
+
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if (!_bound)
+                TryBindOrRetry();
+        }
+
+        private void StopRetry()
         {
             if (_bindCo != null)
             {
@@ -61,26 +85,15 @@ namespace SeasonalBastion
             }
         }
 
-        private void OnDestroy()
-        {
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-
-            UnbindInternal();
-        }
-
-        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            // Nếu lúc trước chưa bind được, thử lại khi scene mới load
-            if (_s == null)
-                TryBindOrRetry();
-        }
-
         private void TryBindOrRetry()
         {
-            if (_s != null) return;
+            if (_bound) return;
 
             if (TryBind())
+            {
+                StopRetry();
                 return;
+            }
 
             if (_bindCo == null && _bindRetrySeconds > 0f)
                 _bindCo = StartCoroutine(BindRetryCo());
@@ -89,10 +102,13 @@ namespace SeasonalBastion
         private IEnumerator BindRetryCo()
         {
             float t = 0f;
-            while (_s == null && t < _bindRetrySeconds)
+
+            while (!_bound && t < _bindRetrySeconds)
             {
-                // đợi 1 frame để GameBootstrap.Awake chạy nếu nó ở cùng scene nhưng chạy sau
                 yield return null;
+
+                if (_bound) break;
+
                 t += Time.unscaledDeltaTime;
 
                 if (TryBind())
@@ -101,55 +117,105 @@ namespace SeasonalBastion
 
             _bindCo = null;
 
-            if (_s == null)
+            if (!_bound)
             {
-                Debug.LogError("[UiRoot] Still cannot find GameBootstrap/GameServices after retry. " +
-                               "Ensure a GameBootstrap exists AND is active (or assign it in UiRoot inspector).");
+                Debug.LogError(
+                    "[UiRoot] Still cannot bind UI after retry. " +
+                    "Ensure GameBootstrap is active and UIDocuments are assigned/active."
+                );
             }
         }
 
         private bool TryBind()
         {
-            if (_hudDocument == null || _hudDocument.rootVisualElement == null)
-            {
-                Debug.LogError("[UiRoot] UIDocument/rootVisualElement missing.");
-                return false;
-            }
+            if (_bound) return true;
 
             var boot = ResolveBootstrap();
-            if (boot == null)
-                return false;
+            if (boot == null) return false;
 
             var services = boot.Services;
-            if (services == null)
-            {
-                // Có thể boot tồn tại nhưng chưa Awake/khởi tạo services xong.
-                return false;
-            }
+            if (services == null) return false;
+
+            // Validate documents BEFORE committing _s/_bound
+            if (_hudDocument == null) return false;
+            var hudRoot = _hudDocument.rootVisualElement;
+            if (hudRoot == null) return false;
+
+            if (_panelsDocument == null) return false;
+            var panelsRoot = _panelsDocument.rootVisualElement;
+            if (panelsRoot == null) return false;
+
+            if (_modalsDocument == null) return false;
+            var modalsRoot = _modalsDocument.rootVisualElement;
+            if (modalsRoot == null) return false;
 
             _s = services;
 
-            // Create presenters once
-            var root = _hudDocument.rootVisualElement;
+            PreparePanelsLayer(panelsRoot);
+            PrepareModalsLayer(modalsRoot);
 
-            _hudPresenter = new HudPresenter(root, _s);
-            _notiPresenter = new NotificationStackPresenter(root, _s, _notificationItemTemplate);
+            _hudPresenter = new HudPresenter(hudRoot, _s);
+            _notiPresenter = new NotificationStackPresenter(hudRoot, _s, _notificationItemTemplate);
+            _resPresenter = new ResourceBarPresenter(hudRoot, _s, 0.33f);
 
             _hudPresenter.Bind();
             _notiPresenter.Bind();
+            _resPresenter.Bind();
 
+            EnsureSelectionController();
+            _selection.Bind(_s);
+
+            _inspectPresenter = new InspectPanelPresenter(panelsRoot, _s, _selection, 0.33f);
+            _inspectPresenter.Bind();
+
+            // Modals: Pause/Settings + RunEnd
+            _modalsPresenter = new ModalsPresenter(hudRoot, modalsRoot, _s);
+            _modalsPresenter.Bind();
+
+            _bound = true;
             Debug.Log("[UiRoot] Bound to GameServices successfully.");
             return true;
+        }
+
+        private void PreparePanelsLayer(VisualElement panelsRoot)
+        {
+            panelsRoot.pickingMode = PickingMode.Ignore;
+            panelsRoot.style.display = DisplayStyle.None;
+        }
+
+        private void PrepareModalsLayer(VisualElement modalsRoot)
+        {
+            // Hidden by default. When opened, presenter will set picking + display.
+            modalsRoot.pickingMode = PickingMode.Ignore;
+            modalsRoot.style.display = DisplayStyle.None;
+        }
+
+        private void EnsureSelectionController()
+        {
+            if (_selection != null) return;
+
+            _selection = gameObject.GetComponent<WorldSelectionController>();
+            if (_selection == null)
+                _selection = gameObject.AddComponent<WorldSelectionController>();
         }
 
         private void UnbindInternal()
         {
             _hudPresenter?.Unbind();
             _notiPresenter?.Unbind();
+            _resPresenter?.Unbind();
+            _inspectPresenter?.Unbind();
+            _modalsPresenter?.Unbind();
 
             _hudPresenter = null;
             _notiPresenter = null;
+            _resPresenter = null;
+            _inspectPresenter = null;
+            _modalsPresenter = null;
+            _selection = null;
+
             _s = null;
+            _bound = false;
         }
 
         private GameBootstrap ResolveBootstrap()
@@ -157,7 +223,6 @@ namespace SeasonalBastion
             if (_bootstrap != null)
                 return _bootstrap;
 
-            // 1) Fast path: active objects
 #if UNITY_2023_1_OR_NEWER
             _bootstrap = FindAnyObjectByType<GameBootstrap>();
 #else
@@ -166,7 +231,6 @@ namespace SeasonalBastion
             if (_bootstrap != null)
                 return _bootstrap;
 
-            // 2) Include inactive objects (khi GameBootstrap bị disable)
             var all = Resources.FindObjectsOfTypeAll<GameBootstrap>();
             if (all != null && all.Length > 0)
             {
@@ -175,21 +239,6 @@ namespace SeasonalBastion
             }
 
             return null;
-        }
-
-        private static void EnsureEventSystem()
-        {
-            if (EventSystem.current != null) return;
-
-            var es = new GameObject("EventSystem");
-            DontDestroyOnLoad(es);
-
-            es.AddComponent<EventSystem>();
-
-            // Prefer new Input System UI module if present, else fallback.
-            var t = Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
-            if (t != null) es.AddComponent(t);
-            else es.AddComponent<StandaloneInputModule>();
         }
     }
 }

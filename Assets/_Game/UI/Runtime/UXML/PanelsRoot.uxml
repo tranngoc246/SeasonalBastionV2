@@ -1,0 +1,27 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Panels.uss?fileID=7433441132597879392&amp;guid=aa31945e913f25a42afddf7de9aa18a8&amp;type=3#Panels" />
+    <ui:VisualElement class="panels-root">
+        <!-- Inspect Panel -->
+        <ui:VisualElement name="InspectPanel" class="panel inspect hidden">
+            <ui:VisualElement class="panel-header">
+                <ui:Label name="LblInspectTitle" text="Inspect" class="panel-title" />
+                <ui:Button name="BtnInspectClose" text="X" class="panel-close" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="panel-body">
+                <ui:Label name="LblInspectId" text="ID: -" class="row" />
+                <ui:Label name="LblInspectDef" text="Def: -" class="row" />
+                <ui:Label name="LblInspectHP" text="HP: -" class="row" />
+
+                <ui:VisualElement class="divider" />
+
+                <ui:Label text="Storage:" class="row header" />
+                <ui:Label name="LblInspectWood" text="Wood: -" class="row" />
+                <ui:Label name="LblInspectStone" text="Stone: -" class="row" />
+                <ui:Label name="LblInspectFood" text="Food: -" class="row" />
+                <ui:Label name="LblInspectIron" text="Iron: -" class="row" />
+                <ui:Label name="LblInspectAmmo" text="Ammo: -" class="row" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

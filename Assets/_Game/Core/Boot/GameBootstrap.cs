@@ -7,7 +7,10 @@
     public sealed class GameBootstrap : MonoBehaviour
     {
         [SerializeField] private DefsCatalog _defsCatalog; // ScriptableObject listing all defs roots (optional)
-        [SerializeField] private bool _autoStartRun = true;
+
+        // IMPORTANT (M0): Menu-driven boot => default OFF. (Still can be toggled in inspector for quick testing.)
+        [SerializeField] private bool _autoStartRun = false;
+
         [SerializeField] private int _debugSeed = 12345;
 
         [Header("Run Start (optional)")]
@@ -19,7 +22,6 @@
         // Cached start map config (json or markdown)
         private string _cfg;
 
-        // For debug tools and other systems to access game services
         public GameServices Services => _services;
 
         private void Awake()
@@ -29,10 +31,6 @@
             _services = GameServicesFactory.Create(_defsCatalog);
             _loop = new GameLoop(_services);
 
-            // Day40: auto attach season summary overlay (shipable UX)
-            if (GetComponent<SeasonSummaryOverlay>() == null)
-                gameObject.AddComponent<SeasonSummaryOverlay>();
-
             // Day 17: Validate data at boot (fail-fast)
             if (!ValidateDataAtBoot())
             {
@@ -40,7 +38,6 @@
                 _autoStartRun = false;
             }
 
-            // Load cfg once (for both auto-run and debug start)
             _cfg = ResolveStartMapConfig();
 
             if (_autoStartRun)
@@ -52,6 +49,9 @@
                 }
 
                 _loop.StartNewRun(seed: _debugSeed, startMapConfigJsonOrMarkdown: _cfg);
+
+                // Apply app default speed (only if build phase)
+                ApplyAppDefaultSpeedIfAllowed();
             }
         }
 
@@ -72,21 +72,110 @@
             _services = null;
         }
 
-        // For debug tools: start a new run using cached cfg
-        public void DebugStartNewRun(int seed)
+        /// <summary>
+        /// Menu-driven entrypoint.
+        /// </summary>
+        public bool TryStartNewRun(int seed, string startMapConfigOverride, bool wipeExistingSave, out string error)
         {
-            if (_loop == null) return;
+            error = null;
 
-            if (string.IsNullOrWhiteSpace(_cfg))
-                _cfg = ResolveStartMapConfig();
-
-            if (string.IsNullOrWhiteSpace(_cfg))
+            if (_loop == null || _services == null)
             {
-                NotifyError("RunStart config missing: cannot start new run.");
-                return;
+                error = "Bootstrap not initialized yet.";
+                return false;
             }
 
+            if (wipeExistingSave)
+            {
+                try { _services.SaveService?.DeleteRunSave(); } catch { }
+            }
+
+            var cfg = !string.IsNullOrWhiteSpace(startMapConfigOverride) ? startMapConfigOverride : _cfg;
+            if (string.IsNullOrWhiteSpace(cfg))
+                cfg = ResolveStartMapConfig();
+
+            if (string.IsNullOrWhiteSpace(cfg))
+            {
+                error = "RunStart config missing (Resources/RunStart/StartMapConfig_RunStart_64x64_v0.1).";
+                NotifyError(error);
+                return false;
+            }
+
+            _cfg = cfg;
+
             _loop.StartNewRun(seed, _cfg);
+
+            // Apply app default speed (only if build phase)
+            ApplyAppDefaultSpeedIfAllowed();
+
+            return true;
+        }
+
+        public bool TryContinueLatest(out string error)
+        {
+            error = null;
+
+            if (_loop == null || _services == null)
+            {
+                error = "Bootstrap not initialized yet.";
+                return false;
+            }
+
+            if (_services.SaveService == null)
+            {
+                error = "SaveService missing.";
+                return false;
+            }
+
+            if (!_services.SaveService.HasRunSave())
+            {
+                error = "No run save found.";
+                return false;
+            }
+
+            var res = _services.SaveService.LoadRun(out var dto);
+            if (res.Code != SaveResultCode.Ok || dto == null)
+            {
+                error = "LoadRun failed: " + res.Message;
+                return false;
+            }
+
+            if (!SaveLoadApplier.TryApply(_services, dto, out var applyErr))
+            {
+                error = "Apply save failed: " + applyErr;
+                return false;
+            }
+
+            // Keep loaded timescale as-is (do NOT override by app setting)
+            return true;
+        }
+
+        public bool TrySaveNow(out string error)
+        {
+            error = null;
+            if (_services?.SaveService == null) { error = "SaveService missing."; return false; }
+
+            var res = _services.SaveService.SaveRun(_services.WorldState, _services.RunClock);
+            if (res.Code != SaveResultCode.Ok)
+            {
+                error = res.Message;
+                return false;
+            }
+
+            return true;
+        }
+
+        private void ApplyAppDefaultSpeedIfAllowed()
+        {
+            var rc = _services?.RunClock;
+            if (rc == null) return;
+
+            // Only apply when not paused and not in Defend gating.
+            if (rc.CurrentPhase == Phase.Build)
+            {
+                int s = AppSettings.DefaultSpeed;
+                rc.SetTimeScale(s);
+            }
         }
 
         // -------------------------
@@ -136,7 +225,6 @@
 
             try
             {
-                // Use NotificationService if available (non-blocking)
                 _services?.NotificationService?.Push(
                     key: "BOOT_ERROR",
                     title: "BOOT ERROR",

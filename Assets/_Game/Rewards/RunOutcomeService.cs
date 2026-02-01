@@ -3,6 +3,12 @@ using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
+    /// <summary>
+    /// Run outcome evaluator.
+    /// NOTE: Do NOT implement internal interfaces (e.g. IResettable) because Rewards asmdef
+    /// may not have access. New runs should reset outcome via scene reload (M0-M2) or by
+    /// constructing a fresh GameServices container.
+    /// </summary>
     public sealed class RunOutcomeService : IRunOutcomeService, ITickable
     {
         private readonly IEventBus _bus;
@@ -22,6 +28,14 @@ namespace SeasonalBastion
             _data = data;
 
             EnsureSubscribed();
+        }
+
+        /// <summary>
+        /// Optional manual reset (not via interface), useful if you ever restart runs without scene reload.
+        /// </summary>
+        public void ResetOutcome()
+        {
+            Outcome = RunOutcome.Ongoing;
         }
 
         private void EnsureSubscribed()
@@ -55,8 +69,8 @@ namespace SeasonalBastion
         {
             if (Outcome != RunOutcome.Ongoing) return;
 
-            // VS3/GDD: Victory = survive hết Winter (day cuối) của Year 2.
-            // Calendar hiện tại: Winter có 4 ngày (Day 1..4).
+            // Victory = survive hết Winter (day cuối) của Year 2.
+            // (Mini demo có thể rút gọn ở milestone sau.)
             if (e.YearIndex == 2 && e.Season == Season.Winter && e.DayIndex >= 4)
             {
                 Victory();

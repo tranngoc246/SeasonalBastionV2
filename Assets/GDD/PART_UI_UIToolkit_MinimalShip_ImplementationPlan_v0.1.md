@@ -1,8 +1,7 @@
 # PART UI — UI TOOLKIT — MINIMAL SHIP UI IMPLEMENTATION PLAN — v0.1
 
-> Mục tiêu PART UI: triển khai UI bằng **UI Toolkit** cho Seasonal Bastion (Unity 2022.3),
+> Mục tiêu PART UI: triển khai UI bằng **UI Toolkit** cho Seasonal Bastion (Unity 2022.3), triển khai chuẩn, chi tiết, đầy đủ giúp mình, nếu thiếu hoặc cần xác nhận gì thì tạm dừng, nhắn mình trước khi code (cần chú ý các file đã cập nhật trong đoạn chat, kiểm tra kỹ các file asmdef để tránh lỗi vòng lặp, phần debug cần rõ ràng). Gửi các file, vị trí, các chỗ thay đổi hoặc thêm để mình copy vào dự án (không gửi patch, file zip)
 > theo hướng **tối thiểu để chơi được** nhưng **dễ mở rộng**, không over-engineer.
->
 > UI bám vào architecture hiện có:
 > - Scene có `GameBootstrap` tạo `GameServices`
 > - Authority nằm ở services (RunClock/Placement/Storage/Unlock/Notifications/RunOutcome/SaveLoad…)

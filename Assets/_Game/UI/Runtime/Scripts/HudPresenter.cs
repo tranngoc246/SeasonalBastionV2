@@ -12,13 +12,17 @@ namespace SeasonalBastion
         private readonly Label _lblTime;
         private readonly Label _lblPhase;
 
+        private readonly Button _btnPause;
         private readonly Button _btn1;
         private readonly Button _btn2;
         private readonly Button _btn3;
 
         private int _yearIndex = 1;
 
-        // store delegates so Unbind works (không dùng lambda inline để remove)
+        private bool _paused;
+        private float _resumeScale = 1f;
+
+        private Action _onPause;
         private Action _onBtn1;
         private Action _onBtn2;
         private Action _onBtn3;
@@ -30,6 +34,7 @@ namespace SeasonalBastion
             _lblTime = root.Q<Label>("LblTime");
             _lblPhase = root.Q<Label>("LblPhase");
 
+            _btnPause = root.Q<Button>("BtnPause");
             _btn1 = root.Q<Button>("BtnSpeed1");
             _btn2 = root.Q<Button>("BtnSpeed2");
             _btn3 = root.Q<Button>("BtnSpeed3");
@@ -37,7 +42,6 @@ namespace SeasonalBastion
 
         public void Bind()
         {
-            // 1) Subscribe event bus (nếu có) để lắng nghe những event publish chuẩn hệ thống
             if (_s?.EventBus != null)
             {
                 _s.EventBus.Subscribe<DayStartedEvent>(OnDayStarted);
@@ -45,22 +49,27 @@ namespace SeasonalBastion
                 _s.EventBus.Subscribe<TimeScaleChangedEvent>(OnTimeScaleChangedEvt);
             }
 
-            // 2) Bind button click
+            _onPause = TogglePause;
             _onBtn1 = () => TrySetSpeed(1f);
             _onBtn2 = () => TrySetSpeed(2f);
             _onBtn3 = () => TrySetSpeed(3f);
 
+            if (_btnPause != null) _btnPause.clicked += _onPause;
             if (_btn1 != null) _btn1.clicked += _onBtn1;
             if (_btn2 != null) _btn2.clicked += _onBtn2;
             if (_btn3 != null) _btn3.clicked += _onBtn3;
 
-            // 3) Paint initial state ngay lập tức (không phụ thuộc DayStartedEvent)
             var rc = _s?.RunClock;
             if (rc != null)
             {
                 _yearIndex = ReadYearIndexBestEffort(rc, fallback: 1);
+
                 PaintTime(rc.CurrentSeason, rc.DayIndex, _yearIndex);
                 PaintPhase(rc.CurrentPhase);
+
+                if (rc.TimeScale > 0.01f) _resumeScale = rc.TimeScale;
+
+                PaintPause(rc.TimeScale <= 0.01f);
                 PaintSpeed(rc.TimeScale);
                 PaintSpeedAvailability(rc.CurrentPhase);
             }
@@ -68,6 +77,8 @@ namespace SeasonalBastion
             {
                 PaintTime(Season.Spring, 1, 1);
                 PaintPhase(Phase.Build);
+                _resumeScale = 1f;
+                PaintPause(false);
                 PaintSpeed(1f);
                 PaintSpeedAvailability(Phase.Build);
             }
@@ -82,11 +93,50 @@ namespace SeasonalBastion
                 _s.EventBus.Unsubscribe<TimeScaleChangedEvent>(OnTimeScaleChangedEvt);
             }
 
+            if (_btnPause != null && _onPause != null) _btnPause.clicked -= _onPause;
             if (_btn1 != null && _onBtn1 != null) _btn1.clicked -= _onBtn1;
             if (_btn2 != null && _onBtn2 != null) _btn2.clicked -= _onBtn2;
             if (_btn3 != null && _onBtn3 != null) _btn3.clicked -= _onBtn3;
 
-            _onBtn1 = null; _onBtn2 = null; _onBtn3 = null;
+            _onPause = null;
+            _onBtn1 = null;
+            _onBtn2 = null;
+            _onBtn3 = null;
+        }
+
+        private void TogglePause()
+        {
+            var rc = _s?.RunClock;
+            if (rc == null) return;
+
+            // Resume
+            if (_paused || rc.TimeScale <= 0.01f)
+            {
+                float target = _resumeScale <= 0.01f ? 1f : _resumeScale;
+
+                // Defend gating
+                if (rc.CurrentPhase == Phase.Defend && !rc.DefendSpeedUnlocked && target > 1f)
+                    target = 1f;
+
+                rc.SetTimeScale(target);
+
+                PaintPause(rc.TimeScale <= 0.01f);
+                PaintSpeed(rc.TimeScale);
+                PaintSpeedAvailability(rc.CurrentPhase);
+
+                Debug.Log($"[UI] Pause->Resume applied={rc.TimeScale}");
+                return;
+            }
+
+            // Pause
+            _resumeScale = rc.TimeScale <= 0.01f ? 1f : rc.TimeScale;
+            rc.SetTimeScale(0f);
+
+            PaintPause(true);
+            PaintSpeed(rc.TimeScale);
+            PaintSpeedAvailability(rc.CurrentPhase);
+
+            Debug.Log("[UI] Paused (0x)");
         }
 
         private void TrySetSpeed(float s)
@@ -94,16 +144,16 @@ namespace SeasonalBastion
             var rc = _s?.RunClock;
             if (rc == null) return;
 
-            // Defend: nếu chưa unlock thì clamp về x1 (RunClockService cũng clamp, đây chỉ để UI predictable)
             if (rc.CurrentPhase == Phase.Defend && !rc.DefendSpeedUnlocked && s > 1f)
                 s = 1f;
 
+            if (s > 0.01f) _resumeScale = s;
+
             rc.SetTimeScale(s);
 
-            // Safety paint ngay (trường hợp event bus chưa tới UI vì setup)
+            PaintPause(rc.TimeScale <= 0.01f);
             PaintSpeed(rc.TimeScale);
 
-            // Debug hữu ích: nếu bấm mà không thấy thay đổi thì biết click đã vào TrySetSpeed hay chưa
             Debug.Log($"[UI] SetTimeScale request={s} applied={rc.TimeScale} phase={rc.CurrentPhase} defendUnlocked={rc.DefendSpeedUnlocked}");
         }
 
@@ -121,12 +171,22 @@ namespace SeasonalBastion
             PaintSpeedAvailability(ev.To);
 
             var rc = _s?.RunClock;
-            if (rc != null) PaintSpeed(rc.TimeScale);
+            if (rc != null)
+            {
+                PaintPause(rc.TimeScale <= 0.01f);
+                PaintSpeed(rc.TimeScale);
+            }
         }
 
         private void OnTimeScaleChangedEvt(TimeScaleChangedEvent ev)
         {
             PaintSpeed(ev.To);
+
+            bool pausedNow = ev.To <= 0.01f;
+            PaintPause(pausedNow);
+
+            if (!pausedNow && ev.To > 0.01f)
+                _resumeScale = ev.To;
         }
 
         private void PaintTime(Season season, int dayIndex, int yearIndex)
@@ -147,8 +207,27 @@ namespace SeasonalBastion
             else _lblPhase.AddToClassList("is-defend");
         }
 
+        private void PaintPause(bool paused)
+        {
+            _paused = paused;
+
+            if (_btnPause == null) return;
+
+            if (paused) _btnPause.AddToClassList("is-active");
+            else _btnPause.RemoveFromClassList("is-active");
+        }
+
         private void PaintSpeed(float s)
         {
+            // paused: không highlight x1/x2/x3
+            if (s <= 0.01f)
+            {
+                SetActive(_btn1, false);
+                SetActive(_btn2, false);
+                SetActive(_btn3, false);
+                return;
+            }
+
             SetActive(_btn1, s <= 1.01f);
             SetActive(_btn2, s > 1.01f && s < 2.51f);
             SetActive(_btn3, s >= 2.51f);
@@ -162,6 +241,8 @@ namespace SeasonalBastion
             bool allowFast = phase != Phase.Defend || rc.DefendSpeedUnlocked;
             if (_btn2 != null) _btn2.SetEnabled(allowFast);
             if (_btn3 != null) _btn3.SetEnabled(allowFast);
+
+            if (_btnPause != null) _btnPause.SetEnabled(true);
         }
 
         private static void SetActive(Button b, bool active)
@@ -171,10 +252,6 @@ namespace SeasonalBastion
             else b.RemoveFromClassList("is-active");
         }
 
-        /// <summary>
-        /// RunClock interface không expose YearIndex; project bạn có concrete RunClockService.YearIndex.
-        /// Đọc bằng reflection để UI không bị "cứng" vào concrete, nhưng vẫn hiển thị Year ngay lập tức.
-        /// </summary>
         private static int ReadYearIndexBestEffort(IRunClock rc, int fallback)
         {
             try

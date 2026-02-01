@@ -2,10 +2,40 @@
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss?fileID=7433441132597879392&amp;guid=428f8e0470d88f041bafa458a01e559b&amp;type=3#Theme" />
     <ui:VisualElement class="hud-root">
         <ui:VisualElement name="TopBar" class="topbar">
-            <ui:Label name="LblTime" text="Year ? • Spring D1" class="lbl-time" />
-            <ui:Label name="LblPhase" text="Build" class="chip phase" />
-            <ui:VisualElement class="spacer" />
+            <ui:VisualElement class="top-left">
+                <ui:Label name="LblTime" text="Year 1 • Spring D1" class="lbl-time" />
+                <ui:Label name="LblPhase" text="Build" class="chip phase is-build" />
+            </ui:VisualElement>
+            <ui:VisualElement name="ResourceBar" class="resbar">
+                <ui:VisualElement name="ChipWood" class="res-chip">
+                    <ui:Label text="Wood" class="res-key res-key-full" />
+                    <ui:Label text="W" class="res-key res-key-short" />
+                    <ui:Label name="LblResWood" text="0" class="res-val" />
+                </ui:VisualElement>
+                <ui:VisualElement name="ChipStone" class="res-chip">
+                    <ui:Label text="Stone" class="res-key res-key-full" />
+                    <ui:Label text="S" class="res-key res-key-short" />
+                    <ui:Label name="LblResStone" text="0" class="res-val" />
+                </ui:VisualElement>
+                <ui:VisualElement name="ChipFood" class="res-chip">
+                    <ui:Label text="Food" class="res-key res-key-full" />
+                    <ui:Label text="F" class="res-key res-key-short" />
+                    <ui:Label name="LblResFood" text="0" class="res-val" />
+                </ui:VisualElement>
+                <ui:VisualElement name="ChipIron" class="res-chip">
+                    <ui:Label text="Iron" class="res-key res-key-full" />
+                    <ui:Label text="Fe" class="res-key res-key-short" />
+                    <ui:Label name="LblResIron" text="0" class="res-val" />
+                </ui:VisualElement>
+                <ui:VisualElement name="ChipAmmo" class="res-chip">
+                    <ui:Label text="Ammo" class="res-key res-key-full" />
+                    <ui:Label text="A" class="res-key res-key-short" />
+                    <ui:Label name="LblResAmmo" text="0" class="res-val" />
+                </ui:VisualElement>
+            </ui:VisualElement>
             <ui:VisualElement name="SpeedGroup" class="speed-group">
+                <ui:Button name="BtnMenu" text="≡" class="speed-btn" />
+                <ui:Button name="BtnPause" text="||" class="pause-btn" />
                 <ui:Button name="BtnSpeed1" text="x1" class="speed-btn" />
                 <ui:Button name="BtnSpeed2" text="x2" class="speed-btn" />
                 <ui:Button name="BtnSpeed3" text="x3" class="speed-btn" />

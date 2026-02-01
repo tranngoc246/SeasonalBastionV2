@@ -113,7 +113,7 @@ namespace SeasonalBastion.DebugTools
             // NOTE: requires tiny public wrapper in GameBootstrap (see section 3 below)
             try
             {
-                _bootstrap.DebugStartNewRun(seed);
+                //_bootstrap.DebugStartNewRun(seed);
                 _lines.Add(new Line(true, $"StartNewRun called (seed={seed})."));
             }
             catch (Exception e)

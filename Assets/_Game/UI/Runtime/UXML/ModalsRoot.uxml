@@ -1,7 +1,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Modals.uss" />
-    <ui:VisualElement name="ModalsRoot" class="modals-root">
+    <ui:VisualElement name="ModalsRoot" class="modals-root ui-block">
         <ui:VisualElement name="Scrim" class="scrim" />
         <ui:VisualElement name="ModalHost" class="modal-host">
             <ui:VisualElement name="SettingsModal" class="modal panel">

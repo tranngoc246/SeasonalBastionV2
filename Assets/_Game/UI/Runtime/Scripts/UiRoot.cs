@@ -32,6 +32,11 @@ namespace SeasonalBastion
         private WorldSelectionController _selection;
         private InspectPanelPresenter _inspectPresenter;
 
+        // M3: Tools + Build Panel
+        private ToolModeController _toolMode;
+        private ToolbarPresenter _toolbarPresenter;
+        private BuildPanelPresenter _buildPresenter;
+
         private ModalsPresenter _modalsPresenter;
 
         private Coroutine _bindCo;
@@ -149,6 +154,12 @@ namespace SeasonalBastion
             var modalsRoot = _modalsDocument.rootVisualElement;
             if (modalsRoot == null) return false;
 
+            var go = new GameObject("__BuildingRuntimeView");
+            go.transform.SetParent(transform, false);
+
+            var view = go.AddComponent<BuildingRuntimeView>();
+            view.Bind(_s, _selection);
+
             _s = services;
 
             PreparePanelsLayer(panelsRoot);
@@ -172,6 +183,19 @@ namespace SeasonalBastion
             _modalsPresenter = new ModalsPresenter(hudRoot, modalsRoot, _s);
             _modalsPresenter.Bind();
 
+            // M3: Tools + Build UI
+            EnsureToolModeController();
+            _toolMode.Bind(_s, _selection, _hudDocument, _panelsDocument, _modalsDocument, panelsRoot);
+
+            _buildPresenter = new BuildPanelPresenter(panelsRoot, _s, _toolMode);
+            _buildPresenter.Bind();
+
+            // allow toolmode to toggle build panel
+            _toolMode.SetBuildPanelPresenter(_buildPresenter);
+
+            _toolbarPresenter = new ToolbarPresenter(hudRoot, _toolMode, _modalsPresenter);
+            _toolbarPresenter.Bind();
+
             _bound = true;
             Debug.Log("[UiRoot] Bound to GameServices successfully.");
             return true;
@@ -179,8 +203,10 @@ namespace SeasonalBastion
 
         private void PreparePanelsLayer(VisualElement panelsRoot)
         {
+            // IMPORTANT: Panels layer must remain in the tree so it can be opened later.
+            // When idle, we disable picking to allow world clicks.
             panelsRoot.pickingMode = PickingMode.Ignore;
-            panelsRoot.style.display = DisplayStyle.None;
+            panelsRoot.style.display = DisplayStyle.Flex;
         }
 
         private void PrepareModalsLayer(VisualElement modalsRoot)
@@ -199,6 +225,15 @@ namespace SeasonalBastion
                 _selection = gameObject.AddComponent<WorldSelectionController>();
         }
 
+        private void EnsureToolModeController()
+        {
+            if (_toolMode != null) return;
+
+            _toolMode = gameObject.GetComponent<ToolModeController>();
+            if (_toolMode == null)
+                _toolMode = gameObject.AddComponent<ToolModeController>();
+        }
+
         private void UnbindInternal()
         {
             _hudPresenter?.Unbind();
@@ -207,11 +242,19 @@ namespace SeasonalBastion
             _inspectPresenter?.Unbind();
             _modalsPresenter?.Unbind();
 
+            _toolbarPresenter?.Unbind();
+            _buildPresenter?.Unbind();
+            _toolMode?.Unbind();
+
             _hudPresenter = null;
             _notiPresenter = null;
             _resPresenter = null;
             _inspectPresenter = null;
             _modalsPresenter = null;
+
+            _toolbarPresenter = null;
+            _buildPresenter = null;
+            _toolMode = null;
             _selection = null;
 
             _s = null;

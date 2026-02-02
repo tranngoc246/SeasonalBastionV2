@@ -1,7 +1,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss?fileID=7433441132597879392&amp;guid=428f8e0470d88f041bafa458a01e559b&amp;type=3#Theme" />
     <ui:VisualElement class="hud-root">
-        <ui:VisualElement name="TopBar" class="topbar">
+        <ui:VisualElement name="TopBar" class="topbar ui-block">
             <ui:VisualElement class="top-left">
                 <ui:Label name="LblTime" text="Year 1 • Spring D1" class="lbl-time" />
                 <ui:Label name="LblPhase" text="Build" class="chip phase is-build" />
@@ -42,5 +42,17 @@
             </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="NotiStack" class="noti-stack" />
+
+        <!-- M3: Bottom Toolbar (Tools) -->
+        <ui:VisualElement name="BottomToolbar" class="toolbar ui-block">
+            <ui:Button name="BtnToolBuild" text="BUILD" class="toolbar-btn" />
+            <ui:Button name="BtnToolRoad" text="ROAD" class="toolbar-btn" />
+            <ui:Button name="BtnToolRemove" text="REMOVE" class="toolbar-btn" />
+
+            <ui:VisualElement class="toolbar-spacer" />
+
+            <ui:Button name="BtnToolCancel" text="ESC" class="toolbar-btn toolbar-secondary" />
+            <ui:Button name="BtnToolSettings" text="SET" class="toolbar-btn toolbar-secondary" />
+        </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

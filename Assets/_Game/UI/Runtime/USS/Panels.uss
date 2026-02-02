@@ -1,7 +1,6 @@
 .panels-root {
   position: absolute;
   left: 0; right: 0; top: 0; bottom: 0;
-  pointer-events: none;
 }
 
 .panel {
@@ -12,7 +11,6 @@
   border-radius: 10px;
   background-color: rgba(0, 0, 0, 0.60);
   padding: 10px;
-  pointer-events: auto;
 }
 
 .panel.hidden {
@@ -61,4 +59,45 @@
   margin-top: 8px;
   margin-bottom: 6px;
   background-color: rgba(255,255,255,0.12);
+}
+
+/* ------------------------------ */
+/* Build Panel (M3) */
+/* ------------------------------ */
+
+.panel.build {
+  top: 110px;
+  width: 380px;
+}
+
+.build-list {
+  max-height: 400px;
+}
+
+.build-item {
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background-color: rgba(255,255,255,0.08);
+}
+
+.build-item:hover {
+  background-color: rgba(255,255,255,0.12);
+}
+
+.build-item.is-disabled {
+  opacity: 0.45;
+}
+
+.build-item-title {
+  -unity-font-style: bold;
+  font-size: 12px;
+  color: rgb(245,245,245);
+}
+
+.build-item-sub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgb(220,220,220);
+  white-space: normal;
 }

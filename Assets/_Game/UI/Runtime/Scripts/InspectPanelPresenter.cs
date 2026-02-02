@@ -10,6 +10,7 @@ namespace SeasonalBastion
         private readonly WorldSelectionController _sel;
 
         private readonly VisualElement _panel;
+        private readonly VisualElement _panelsRoot;
         private readonly Button _btnClose;
 
         private readonly Label _lblId;
@@ -36,6 +37,7 @@ namespace SeasonalBastion
             _pollInterval = Mathf.Clamp(pollInterval, 0.15f, 1.0f);
 
             _panel = root.Q<VisualElement>("InspectPanel");
+            _panelsRoot = root.Q<VisualElement>(className: "panels-root") ?? _panel?.parent;
             _btnClose = root.Q<Button>("BtnInspectClose");
 
             _lblId = root.Q<Label>("LblInspectId");
@@ -51,6 +53,9 @@ namespace SeasonalBastion
 
         public void Bind()
         {
+            if (_panelsRoot != null) _panelsRoot.pickingMode = PickingMode.Ignore; // click-through container
+            if (_panel != null) _panel.pickingMode = PickingMode.Position;         // panel receives clicks (default, but explicit is fine)
+
             if (_panel != null) _panel.AddToClassList("hidden");
             if (_btnClose != null) _btnClose.clicked += OnCloseClicked;
         }

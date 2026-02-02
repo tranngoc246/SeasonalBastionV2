@@ -1,4 +1,4 @@
-﻿using SeasonalBastion.Contracts;
+using SeasonalBastion.Contracts;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -12,16 +12,22 @@ namespace SeasonalBastion
     public sealed class WorldSelectionController : MonoBehaviour
     {
         [Header("Grid plane mapping")]
-        [SerializeField] private bool _useXZ = false;     // project bạn đang XY => false
+        [SerializeField] private bool _useXZ = false; // project dang XY => false
         [SerializeField] private Vector3 _origin = Vector3.zero;
         [SerializeField] private float _cellSize = 1f;
-        [SerializeField] private float _planeZ = 0f;      // XY plane
-        [SerializeField] private float _planeY = 0f;      // XZ plane
+        [SerializeField] private float _planeZ = 0f; // XY plane
+        [SerializeField] private float _planeY = 0f; // XZ plane
 
         [Header("Camera")]
         [SerializeField] private Camera _camera;
 
         private GameServices _s;
+
+        /// <summary>
+        /// When true, this controller will ignore world clicks.
+        /// Used by UI tools (build/road/remove) to avoid double-handling LMB.
+        /// </summary>
+        public bool BlockSelection { get; set; }
 
         public BuildingId SelectedBuilding { get; private set; }
         public bool HasSelection { get; private set; }
@@ -38,10 +44,35 @@ namespace SeasonalBastion
             SelectedBuilding = default;
         }
 
+        /// <summary>
+        /// Shared screen->cell mapping for tools.
+        /// </summary>
+        public bool TryScreenToCell(Vector2 screen, out CellPos cell)
+        {
+            cell = default;
+            if (_camera == null) _camera = Camera.main;
+            if (_camera == null) return false;
+            return TryScreenToCell(_camera, screen, out cell);
+        }
+
+        /// <summary>
+        /// World center position for a cell (used by runtime renderers/previews).
+        /// </summary>
+        public Vector3 CellToWorldCenter(CellPos cell)
+        {
+            float half = Mathf.Max(0.0001f, _cellSize) * 0.5f;
+            if (_useXZ)
+                return _origin + new Vector3(cell.X * _cellSize + half, _planeY, cell.Y * _cellSize + half);
+            return _origin + new Vector3(cell.X * _cellSize + half, cell.Y * _cellSize + half, _planeZ);
+        }
+
+        public float CellSize => _cellSize;
+
         private void Update()
         {
             if (_s == null || _s.GridMap == null) return;
             if (Mouse.current == null) return;
+            if (BlockSelection) return;
 
             if (!Mouse.current.leftButton.wasPressedThisFrame) return;
 
@@ -65,7 +96,7 @@ namespace SeasonalBastion
             }
             else
             {
-                // click empty => clear (tối thiểu)
+                // click empty => clear (toi thieu)
                 ClearSelection();
             }
         }

@@ -141,6 +141,14 @@ namespace SeasonalBastion
             CloseAll();
         }
 
+        /// <summary>
+        /// M3: allow toolbar button to toggle settings without duplicating logic.
+        /// </summary>
+        public void ToggleSettingsExternal()
+        {
+            ToggleSettings();
+        }
+
         private void ToggleSettings()
         {
             if (_runEndModal != null && _runEndModal.style.display == DisplayStyle.Flex)

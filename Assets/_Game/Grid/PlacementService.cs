@@ -39,6 +39,20 @@ namespace SeasonalBastion
             };
         }
 
+        private bool HasAnyRoad()
+        {
+            // Map nhỏ (64x64) => scan full ok
+            for (int y = 0; y < _grid.Height; y++)
+            {
+                for (int x = 0; x < _grid.Width; x++)
+                {
+                    if (_grid.IsRoad(new CellPos(x, y)))
+                        return true;
+                }
+            }
+            return false;
+        }
+
         private bool HasRoadInCross(CellPos entry)
         {
             var n = Add(entry, 0, 1);
@@ -55,8 +69,16 @@ namespace SeasonalBastion
         public bool CanPlaceRoad(CellPos c)
         {
             if (!_grid.IsInside(c)) return false;
+
             if (_grid.IsBlocked(c)) return false;
-            // orthogonal rule is tool-level
+
+            if (_grid.IsRoad(c)) return false;
+
+            if (!HasAnyRoad())
+                return true;
+
+            if (!HasRoadInCross(c)) return false;
+
             return true;
         }
 
@@ -65,6 +87,22 @@ namespace SeasonalBastion
             if (!CanPlaceRoad(c)) return;
             _grid.SetRoad(c, true);
             _bus.Publish(new RoadPlacedEvent(c));
+            _bus.Publish(new RoadsDirtyEvent());
+        }
+
+        public bool CanRemoveRoad(CellPos c)
+        {
+            if (!_grid.IsInside(c)) return false;
+            return _grid.IsRoad(c);
+        }
+
+        public void RemoveRoad(CellPos c)
+        {
+            if (!CanRemoveRoad(c)) return;
+            _grid.SetRoad(c, false);
+
+            // B-lite: road changed => notify view
+            _bus.Publish(new RoadsDirtyEvent());
         }
 
         public PlacementResult ValidateBuilding(string buildingDefId, CellPos anchor, Dir4 rotation)
@@ -164,6 +202,7 @@ namespace SeasonalBastion
                         _grid.SetRoad(driveway, true);
                         _bus.Publish(new RoadPlacedEvent(driveway));
                         drivewayWasCreated = true;
+                        _bus.Publish(new RoadsDirtyEvent());
                     }
                 }
             }

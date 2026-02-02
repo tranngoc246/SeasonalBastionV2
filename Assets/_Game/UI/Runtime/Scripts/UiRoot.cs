@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections;
-using SeasonalBastion.Contracts;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
@@ -38,6 +36,8 @@ namespace SeasonalBastion
         private BuildPanelPresenter _buildPresenter;
 
         private ModalsPresenter _modalsPresenter;
+
+        private BuildingRuntimeView _buildingView;
 
         private Coroutine _bindCo;
         private bool _bound;
@@ -154,12 +154,6 @@ namespace SeasonalBastion
             var modalsRoot = _modalsDocument.rootVisualElement;
             if (modalsRoot == null) return false;
 
-            var go = new GameObject("__BuildingRuntimeView");
-            go.transform.SetParent(transform, false);
-
-            var view = go.AddComponent<BuildingRuntimeView>();
-            view.Bind(_s, _selection);
-
             _s = services;
 
             PreparePanelsLayer(panelsRoot);
@@ -175,6 +169,9 @@ namespace SeasonalBastion
 
             EnsureSelectionController();
             _selection.Bind(_s);
+
+            EnsureBuildingRuntimeView();
+            _buildingView.Bind(_s, _selection);
 
             _inspectPresenter = new InspectPanelPresenter(panelsRoot, _s, _selection, 0.33f);
             _inspectPresenter.Bind();
@@ -225,6 +222,18 @@ namespace SeasonalBastion
                 _selection = gameObject.AddComponent<WorldSelectionController>();
         }
 
+        private void EnsureBuildingRuntimeView()
+        {
+            if (_buildingView != null) return;
+
+            _buildingView = gameObject.GetComponentInChildren<BuildingRuntimeView>(true);
+            if (_buildingView != null) return;
+
+            var go = new GameObject("__BuildingRuntimeView");
+            go.transform.SetParent(transform, false);
+            _buildingView = go.AddComponent<BuildingRuntimeView>();
+        }
+
         private void EnsureToolModeController()
         {
             if (_toolMode != null) return;
@@ -245,6 +254,7 @@ namespace SeasonalBastion
             _toolbarPresenter?.Unbind();
             _buildPresenter?.Unbind();
             _toolMode?.Unbind();
+            _buildingView?.Unbind();
 
             _hudPresenter = null;
             _notiPresenter = null;

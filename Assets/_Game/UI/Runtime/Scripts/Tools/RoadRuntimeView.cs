@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 using UnityEngine;
 
@@ -14,12 +14,34 @@ namespace SeasonalBastion
         [Header("Rendering")]
         [SerializeField] private int _sortingOrder = -10;
         [SerializeField] private float _zOffset = 0.02f; // XY: slightly behind previews
+        [SerializeField] private float _dirtyRebuildDelay = 0.12f;
+
+        private bool _dirty;
+        private float _dirtyAtUnscaled;
+
+        private System.Action<RoadsDirtyEvent> _onDirty;
+        private System.Action<RoadPlacedEvent> _onPlaced;
 
         private GameServices _s;
         private WorldSelectionController _mapper;
         private Transform _root;
 
         private readonly Dictionary<CellPos, SpriteRenderer> _instances = new();
+
+        private void Update()
+        {
+            if (!_dirty) return;
+            if (Time.unscaledTime - _dirtyAtUnscaled < _dirtyRebuildDelay) return;
+
+            _dirty = false;
+            RebuildAll();
+        }
+
+        private void MarkDirty()
+        {
+            _dirty = true;
+            _dirtyAtUnscaled = Time.unscaledTime;
+        }
 
         private void EnsureRoot()
         {
@@ -33,14 +55,33 @@ namespace SeasonalBastion
         {
             _s = s;
             _mapper = mapper;
+
+            // subscribe events
+            if (_s != null && _s.EventBus != null)
+            {
+                _onDirty ??= _ => MarkDirty();
+                _s.EventBus.Subscribe(_onDirty);
+
+                // Optional: nếu có nơi chỉ publish RoadPlacedEvent mà quên RoadsDirty
+                _onPlaced ??= _ => MarkDirty();
+                _s.EventBus.Subscribe(_onPlaced);
+            }
+
             RebuildAll();
         }
 
         public void Unbind()
         {
+            if (_s != null && _s.EventBus != null)
+            {
+                if (_onDirty != null) _s.EventBus.Unsubscribe(_onDirty);
+                if (_onPlaced != null) _s.EventBus.Unsubscribe(_onPlaced);
+            }
+
             ClearAll();
             _s = null;
             _mapper = null;
+            _dirty = false;
         }
 
         public void RebuildAll()

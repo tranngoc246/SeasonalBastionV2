@@ -8,5 +8,8 @@ namespace SeasonalBastion.Contracts
         // Road placement
         bool CanPlaceRoad(CellPos c);
         void PlaceRoad(CellPos c);
+
+        bool CanRemoveRoad(CellPos c);
+        void RemoveRoad(CellPos c);
     }
 }

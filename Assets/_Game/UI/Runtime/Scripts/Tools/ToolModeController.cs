@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
@@ -52,8 +52,9 @@ namespace SeasonalBastion
             _roadsView.Bind(_s, _selection);
             _buildTool.Bind(_s, _selection, _preview, _hudDoc, _panelsDoc, _modalsDoc);
             _roadTool.Bind(_s, _selection, _roadsView, _hudDoc, _panelsDoc, _modalsDoc);
-            _removeTool.Bind(_s, _selection, _roadsView, _hudDoc, _panelsDoc, _modalsDoc);
+            _removeTool.Bind(_s, _selection, _hudDoc, _panelsDoc, _modalsDoc);
 
+            _buildTool.Placed -= OnBuildPlaced;
             _buildTool.Placed += OnBuildPlaced;
 
             SetMode(ToolMode.None);
@@ -127,9 +128,18 @@ namespace SeasonalBastion
         {
             if (_buildPanel == null) return;
 
-            // If other tool active, cancel first (clean)
-            if (Mode != ToolMode.None && Mode != ToolMode.Build)
-                CancelActiveTool();
+            // Requirement: when opening build panel, preview must disappear.
+            // Also cleanly exit any active tool to avoid lingering visuals.
+            if (Mode != ToolMode.None)
+            {
+                ExitCurrentModeAndClearPreview();
+                SetMode(ToolMode.None);
+            }
+            else
+            {
+                // even if no tool, ensure any lingering preview is cleared
+                _preview?.Clear();
+            }
 
             _buildPanel.Toggle();
         }
@@ -138,8 +148,15 @@ namespace SeasonalBastion
         {
             if (string.IsNullOrEmpty(defId)) return;
 
-            // Close build panel, enter Build mode
+            // Close panel, enter Build mode
             _buildPanel?.Hide();
+
+            // Clean transition
+            if (Mode != ToolMode.None && Mode != ToolMode.Build)
+                ExitCurrentModeAndClearPreview();
+            else
+                _preview?.Clear();
+
             SetMode(ToolMode.Build);
             _buildTool.Begin(defId);
         }
@@ -153,6 +170,12 @@ namespace SeasonalBastion
             }
 
             _buildPanel?.Hide();
+
+            if (Mode != ToolMode.None)
+                ExitCurrentModeAndClearPreview();
+            else
+                _preview?.Clear();
+
             SetMode(ToolMode.Road);
             _roadTool.Begin();
         }
@@ -166,25 +189,39 @@ namespace SeasonalBastion
             }
 
             _buildPanel?.Hide();
+
+            if (Mode != ToolMode.None)
+                ExitCurrentModeAndClearPreview();
+            else
+                _preview?.Clear();
+
             SetMode(ToolMode.Remove);
             _removeTool.Begin();
         }
 
-        public void CancelActiveTool()
+        private void ExitCurrentModeAndClearPreview()
         {
+            // End the current tool (if any)
             switch (Mode)
             {
                 case ToolMode.Build:
-                    _buildTool.End();
+                    _buildTool?.End();
                     break;
                 case ToolMode.Road:
-                    _roadTool.End();
+                    _roadTool?.End();
                     break;
                 case ToolMode.Remove:
-                    _removeTool.End();
+                    _removeTool?.End();
                     break;
             }
 
+            // Always clear visuals
+            _preview?.Clear();
+        }
+
+        public void CancelActiveTool()
+        {
+            ExitCurrentModeAndClearPreview();
             SetMode(ToolMode.None);
         }
 
@@ -200,7 +237,12 @@ namespace SeasonalBastion
 
         private void OnBuildPlaced()
         {
-            // Keep build tool active (allow multi-place). Player can ESC to exit.
+            // Requirement: after committing site/building, preview must disappear immediately.
+            // Also exit build tool (player can choose another tool or open build panel again).
+            CancelActiveTool();
+
+            // Optional UX: nếu bạn muốn panel build tự mở lại sau khi đặt xong thì bật dòng dưới:
+            // _buildPanel?.Show();
         }
     }
 }

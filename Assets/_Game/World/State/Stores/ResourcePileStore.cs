@@ -27,7 +27,7 @@ namespace SeasonalBastion
                 var st = Get(id);
                 st.Amount += delta;
                 if (st.Amount < 0) st.Amount = 0;
-                Set(id, st);
+                base.Set(id, st);
                 return id;
             }
 
@@ -66,7 +66,7 @@ namespace SeasonalBastion
             }
             else
             {
-                Set(id, st);
+                base.Set(id, st);
             }
 
             return true;
@@ -89,24 +89,18 @@ namespace SeasonalBastion
 
         private static int MakeKey(CellPos c, ResourceType rt, BuildingId owner)
         {
-            // grid 64x64 => pack safe
-            // key = (x + y*128) + rt*16384 + owner*262144
             int xy = c.X + (c.Y << 7);
             return xy + ((int)rt << 14) + (owner.Value << 18);
         }
 
-        // EntityStore không có Remove public trong bản của bạn -> dùng helper private
         private void RemoveInternal(PileId id)
         {
-            // Trick: set default then call base.Remove if có, nếu không thì emulate:
-            // Trong codebase của bạn EntityStore có usually method Destroy/Remove.
-            // Nếu EntityStore của bạn đã có Remove(id) thì thay dòng dưới bằng Remove(id).
-            base. Destroy(id);
+            base.Destroy(id);
         }
 
-        public void Set(PileId id, in ResourcePileState st)
+        void IResourcePileStore.Set(PileId id, in ResourcePileState st)
         {
-            throw new System.NotImplementedException();
+            base.Set(id, st);
         }
     }
 }

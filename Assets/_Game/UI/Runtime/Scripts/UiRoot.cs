@@ -10,7 +10,7 @@ namespace SeasonalBastion
         [Header("Wiring (recommended)")]
         [SerializeField] private GameBootstrap _bootstrap;
 
-        [Header("UIDocuments")]
+        [Header("UIDocuments (Scene objects, NOT prefabs)")]
         [SerializeField] private UIDocument _hudDocument;
         [SerializeField] private UIDocument _panelsDocument;
         [SerializeField] private UIDocument _modalsDocument;
@@ -37,7 +37,14 @@ namespace SeasonalBastion
 
         private ModalsPresenter _modalsPresenter;
 
+        // Runtime overlay views
         private BuildingRuntimeView _buildingView;
+        private PileRuntimeView _pileView;
+        private NpcRuntimeView _npcView;
+
+        private bool _createdBuildingView;
+        private bool _createdPileView;
+        private bool _createdNpcView;
 
         private Coroutine _bindCo;
         private bool _bound;
@@ -46,8 +53,8 @@ namespace SeasonalBastion
         {
             InputSystemOnlyGuard.EnsureEventSystem_NewInputOnly();
 
-            if (_hudDocument == null)
-                _hudDocument = GetComponent<UIDocument>();
+            // Scene-based documents: best-effort auto resolve if not assigned.
+            ResolveDocumentsIfNeeded();
 
             SceneManager.sceneLoaded += OnSceneLoaded;
         }
@@ -78,7 +85,10 @@ namespace SeasonalBastion
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             if (!_bound)
+            {
+                ResolveDocumentsIfNeeded();
                 TryBindOrRetry();
+            }
         }
 
         private void StopRetry()
@@ -116,6 +126,9 @@ namespace SeasonalBastion
 
                 t += Time.unscaledDeltaTime;
 
+                // doc references might appear after domain reload / scene load
+                ResolveDocumentsIfNeeded();
+
                 if (TryBind())
                     break;
             }
@@ -140,6 +153,8 @@ namespace SeasonalBastion
 
             var services = boot.Services;
             if (services == null) return false;
+
+            ResolveDocumentsIfNeeded();
 
             // Validate documents BEFORE committing _s/_bound
             if (_hudDocument == null) return false;
@@ -170,8 +185,15 @@ namespace SeasonalBastion
             EnsureSelectionController();
             _selection.Bind(_s);
 
+            // Runtime overlay views
             EnsureBuildingRuntimeView();
             _buildingView.Bind(_s, _selection);
+
+            EnsurePileRuntimeView();
+            _pileView.Bind(_s, _selection);
+
+            EnsureNpcRuntimeView();
+            _npcView.Bind(_s, _selection);
 
             _inspectPresenter = new InspectPanelPresenter(panelsRoot, _s, _selection, 0.33f);
             _inspectPresenter.Bind();
@@ -200,8 +222,8 @@ namespace SeasonalBastion
 
         private void PreparePanelsLayer(VisualElement panelsRoot)
         {
-            // IMPORTANT: Panels layer must remain in the tree so it can be opened later.
-            // When idle, we disable picking to allow world clicks.
+            // Panels layer must remain in the tree so it can be opened later.
+            // When idle, disable picking to allow world clicks.
             panelsRoot.pickingMode = PickingMode.Ignore;
             panelsRoot.style.display = DisplayStyle.Flex;
         }
@@ -227,11 +249,50 @@ namespace SeasonalBastion
             if (_buildingView != null) return;
 
             _buildingView = gameObject.GetComponentInChildren<BuildingRuntimeView>(true);
-            if (_buildingView != null) return;
+            if (_buildingView != null)
+            {
+                _createdBuildingView = false;
+                return;
+            }
 
             var go = new GameObject("__BuildingRuntimeView");
             go.transform.SetParent(transform, false);
             _buildingView = go.AddComponent<BuildingRuntimeView>();
+            _createdBuildingView = true;
+        }
+
+        private void EnsurePileRuntimeView()
+        {
+            if (_pileView != null) return;
+
+            _pileView = gameObject.GetComponentInChildren<PileRuntimeView>(true);
+            if (_pileView != null)
+            {
+                _createdPileView = false;
+                return;
+            }
+
+            var go = new GameObject("__PileRuntimeView");
+            go.transform.SetParent(transform, false);
+            _pileView = go.AddComponent<PileRuntimeView>();
+            _createdPileView = true;
+        }
+
+        private void EnsureNpcRuntimeView()
+        {
+            if (_npcView != null) return;
+
+            _npcView = gameObject.GetComponentInChildren<NpcRuntimeView>(true);
+            if (_npcView != null)
+            {
+                _createdNpcView = false;
+                return;
+            }
+
+            var go = new GameObject("__NpcRuntimeView");
+            go.transform.SetParent(transform, false);
+            _npcView = go.AddComponent<NpcRuntimeView>();
+            _createdNpcView = true;
         }
 
         private void EnsureToolModeController()
@@ -254,7 +315,30 @@ namespace SeasonalBastion
             _toolbarPresenter?.Unbind();
             _buildPresenter?.Unbind();
             _toolMode?.Unbind();
-            _buildingView?.Unbind();
+
+            if (_buildingView != null)
+            {
+                _buildingView.Unbind();
+                if (_createdBuildingView) Destroy(_buildingView.gameObject);
+                _buildingView = null;
+                _createdBuildingView = false;
+            }
+
+            if (_pileView != null)
+            {
+                _pileView.Unbind();
+                if (_createdPileView) Destroy(_pileView.gameObject);
+                _pileView = null;
+                _createdPileView = false;
+            }
+
+            if (_npcView != null)
+            {
+                _npcView.Unbind();
+                if (_createdNpcView) Destroy(_npcView.gameObject);
+                _npcView = null;
+                _createdNpcView = false;
+            }
 
             _hudPresenter = null;
             _notiPresenter = null;
@@ -269,6 +353,84 @@ namespace SeasonalBastion
 
             _s = null;
             _bound = false;
+        }
+
+        private void ResolveDocumentsIfNeeded()
+        {
+            // If HUD doc is on the same GO, keep convenience.
+            if (_hudDocument == null)
+                _hudDocument = GetComponent<UIDocument>();
+
+            if (_hudDocument != null && _panelsDocument != null && _modalsDocument != null)
+                return;
+
+#if UNITY_2023_1_OR_NEWER
+            var docs = FindObjectsByType<UIDocument>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+#else
+            var docs = FindObjectsOfType<UIDocument>(true);
+#endif
+            if (docs == null || docs.Length == 0) return;
+
+            // Prefer by name
+            foreach (var d in docs)
+            {
+                if (d == null) continue;
+                var n = d.gameObject.name;
+
+                if (_hudDocument == null && ContainsAny(n, "HUD", "Hud"))
+                    _hudDocument = d;
+
+                if (_panelsDocument == null && ContainsAny(n, "Panels", "Panel"))
+                    _panelsDocument = d;
+
+                if (_modalsDocument == null && ContainsAny(n, "Modals", "Modal"))
+                    _modalsDocument = d;
+            }
+
+            // Fallback by sortingOrder (lowest HUD-ish, highest Modals-ish)
+            if (_hudDocument == null || _panelsDocument == null || _modalsDocument == null)
+            {
+                UIDocument lowest = null;
+                UIDocument highest = null;
+                for (int i = 0; i < docs.Length; i++)
+                {
+                    var d = docs[i];
+                    if (d == null) continue;
+
+                    if (lowest == null || d.sortingOrder < lowest.sortingOrder) lowest = d;
+                    if (highest == null || d.sortingOrder > highest.sortingOrder) highest = d;
+                }
+
+                if (_hudDocument == null) _hudDocument = lowest;
+                if (_modalsDocument == null) _modalsDocument = highest;
+
+                if (_panelsDocument == null && docs.Length >= 3)
+                {
+                    for (int i = 0; i < docs.Length; i++)
+                    {
+                        var d = docs[i];
+                        if (d == null) continue;
+                        if (d != _hudDocument && d != _modalsDocument)
+                        {
+                            _panelsDocument = d;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        private static bool ContainsAny(string s, params string[] keys)
+        {
+            if (string.IsNullOrEmpty(s) || keys == null) return false;
+            for (int i = 0; i < keys.Length; i++)
+            {
+                var k = keys[i];
+                if (string.IsNullOrEmpty(k)) continue;
+                if (s.IndexOf(k, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+            return false;
         }
 
         private GameBootstrap ResolveBootstrap()

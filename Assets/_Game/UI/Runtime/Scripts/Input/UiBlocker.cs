@@ -11,7 +11,7 @@ namespace SeasonalBastion
         /// </summary>
         public static bool IsPointerOverBlockingUi(Vector2 screenPos, UIDocument hud, UIDocument panels, UIDocument modals)
         {
-            // Check in priority order: Modals (top) -> Panels -> HUD
+            // Priority: Modals (top) -> Panels -> HUD
             if (IsOverBlockingInDocument(screenPos, modals)) return true;
             if (IsOverBlockingInDocument(screenPos, panels)) return true;
             if (IsOverBlockingInDocument(screenPos, hud)) return true;
@@ -30,11 +30,22 @@ namespace SeasonalBastion
             if (panel == null) return false;
 
             // If doc root is hidden, ignore.
-            // (DisplayStyle is resolved style; if not available, fallback still ok)
             if (root.resolvedStyle.display == DisplayStyle.None)
                 return false;
 
-            var picked = panel.Pick(screenPos);
+            // IMPORTANT: Panel.Pick expects panel-space coordinates, not screen-space.
+            Vector2 panelPos;
+            try
+            {
+                panelPos = RuntimePanelUtils.ScreenToPanel(panel, screenPos);
+            }
+            catch
+            {
+                // In rare cases (panel not ready), don't block.
+                return false;
+            }
+
+            var picked = panel.Pick(panelPos);
             if (picked == null) return false;
 
             // Anything interactive should block world clicks.

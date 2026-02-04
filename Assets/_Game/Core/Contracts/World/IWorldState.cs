@@ -9,7 +9,9 @@ namespace SeasonalBastion.Contracts
         IEnemyStore Enemies { get; }
         IBuildSiteStore Sites { get; }
 
-        // Global modifiers
-        ref RunModifiers RunMods { get; }  // from Part 12
+        IZoneStore Zones { get; }
+        IResourcePileStore Piles { get; }
+
+        ref RunModifiers RunMods { get; }  
     }
 }

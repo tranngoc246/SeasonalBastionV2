@@ -87,11 +87,12 @@ namespace SeasonalBastion
 
             job.SourceBuilding = producer;
             job.ResourceType = rt;
-            job.TargetCell = bs.Anchor;
             job.Status = JobStatus.InProgress;
 
-            // Day14: Move to anchor (no teleport)
-            bool arrived = _s.AgentMover.StepToward(ref npcState, bs.Anchor);
+            // M4: Move to zone cell (TargetCell is assigned by JobScheduler)
+            var target = job.TargetCell;
+            bool arrived = _s.AgentMover.StepToward(ref npcState, target);
+
             if (!arrived)
                 return true;
 
@@ -108,12 +109,17 @@ namespace SeasonalBastion
 
             _remaining.Remove(jid);
 
-            // Complete => add to producer local storage
-            int added = _s.StorageService.Add(producer, rt, yield);
+            // Complete => spawn/increase pile at zone cell (resource increases ONLY after hauling to producer)
+            if (_s.WorldState.Piles == null)
+            {
+                job.Status = JobStatus.Failed;
+                return true;
+            }
+
+            _s.WorldState.Piles.AddOrIncrease(job.TargetCell, rt, yield, producer);
             job.Amount = yield;
 
-            // Day36: nếu không add được (full) => Cancel (đỡ retry fail)
-            job.Status = (added > 0) ? JobStatus.Completed : JobStatus.Cancelled;
+            job.Status = JobStatus.Completed;
             return true;
         }
 

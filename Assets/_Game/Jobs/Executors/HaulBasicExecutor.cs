@@ -16,158 +16,48 @@ namespace SeasonalBastion
         // jobId -> phase (0 pickup, 1 deliver)
         private readonly Dictionary<int, byte> _phase = new();
         private readonly Dictionary<int, int> _carry = new();
+        private readonly Dictionary<int, int> _pile = new(); // jobId -> pileId.Value
 
         public HaulBasicExecutor(GameServices s) { _s = s; }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null || _s.AgentMover == null)
+            if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null)
             {
                 job.Status = JobStatus.Failed;
                 return true;
             }
 
-            var rt = job.ResourceType;
-
-            // ---------------------------
-            // Destination selection (tuned):
-            // 1) Prefer workplace if workplace is WAREHOUSE and has space.
-            // 2) Else select destination near SOURCE anchor.
-            // 3) Prefer Warehouse over HQ (HQ only fallback).
-            // ---------------------------
-
-            // Resolve preferred workplace state (if any)
-            BuildingState prefState = default;
-            bool hasPrefState = job.Workplace.Value != 0
-                                && _s.WorldState.Buildings.Exists(job.Workplace)
-                                && (prefState = _s.WorldState.Buildings.Get(job.Workplace)).IsConstructed
-                                && IsWarehouseWorkplace(prefState.DefId);
-
-            bool prefIsWarehouse = hasPrefState && IsWarehouseOnly(prefState.DefId);
-
-            // A) Workplace Warehouse has space => hard prefer it
-            if (prefIsWarehouse && GetDestFree(prefState, rt) > 0)
-            {
-                job.DestBuilding = job.Workplace;
-            }
-            else
-            {
-                // B) Need a source candidate to choose dest "near source"
-                EnsureSourceCandidate(ref job, rt, hasPrefState ? prefState.Anchor : npcState.Cell);
-                if (job.SourceBuilding.Value == 0)
-                {
-                    job.Status = JobStatus.Cancelled;
-                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
-                    Cleanup(job.Id.Value);
-                    return true;
-                }
-
-                if (!_s.WorldState.Buildings.Exists(job.SourceBuilding))
-                    return false;
-
-                var srcState0 = _s.WorldState.Buildings.Get(job.SourceBuilding);
-                if (!srcState0.IsConstructed || !IsHarvestProducer(srcState0.DefId))
-                    return false;
-
-                if (!TryResolveBestDestination(rt, job.Workplace, srcState0.Anchor, out var chosen))
-                {
-                    // No destination has space => cancel (avoid flicker)
-                    job.Status = JobStatus.Cancelled;
-                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
-                    Cleanup(job.Id.Value);
-                    return true;
-                }
-
-                // Switch dest (release old dest claim if switching)
-                if (job.DestBuilding.Value == 0 || job.DestBuilding.Value != chosen.Value)
-                {
-                    if (_s.ClaimService != null && job.DestBuilding.Value != 0)
-                    {
-                        var oldKey = new ClaimKey(ClaimKind.StorageDest, job.DestBuilding.Value, (int)rt);
-                        _s.ClaimService.Release(oldKey, npc);
-                    }
-                    job.DestBuilding = chosen;
-                }
-            }
-
-            var chosenDest = job.DestBuilding;
-
-            // Validate chosen dest
-            if (chosenDest.Value == 0 || !_s.WorldState.Buildings.Exists(chosenDest))
+            if (_s.WorldState.Piles == null)
             {
                 job.Status = JobStatus.Failed;
-                Cleanup(job.Id.Value);
                 return true;
-            }
-
-            var dstState = _s.WorldState.Buildings.Get(chosenDest);
-            if (!dstState.IsConstructed || !IsWarehouseWorkplace(dstState.DefId))
-            {
-                job.Status = JobStatus.Failed;
-                Cleanup(job.Id.Value);
-                return true;
-            }
-
-            int free = GetDestFree(dstState, rt);
-
-            // Reroute if destination became full
-            if (free <= 0)
-            {
-                // refPos ưu tiên SOURCE anchor (near resource), fallback pref anchor, fallback npc cell
-                CellPos refPos = hasPrefState ? prefState.Anchor : npcState.Cell;
-
-                if (job.SourceBuilding.Value != 0 && _s.WorldState.Buildings.Exists(job.SourceBuilding))
-                {
-                    var ss = _s.WorldState.Buildings.Get(job.SourceBuilding);
-                    if (ss.IsConstructed) refPos = ss.Anchor;
-                }
-
-                if (!TryResolveBestDestination(rt, job.Workplace, refPos, out var reroute))
-                {
-                    job.Status = JobStatus.Cancelled;
-                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
-                    Cleanup(job.Id.Value);
-                    return true;
-                }
-
-                // Release old dest claim before switching
-                if (_s.ClaimService != null && chosenDest.Value != 0)
-                {
-                    var oldKey = new ClaimKey(ClaimKind.StorageDest, chosenDest.Value, (int)rt);
-                    _s.ClaimService.Release(oldKey, npc);
-                }
-
-                job.DestBuilding = reroute;
-                chosenDest = reroute;
-
-                dstState = _s.WorldState.Buildings.Get(chosenDest);
-                free = GetDestFree(dstState, rt);
-
-                if (free <= 0)
-                {
-                    job.Status = JobStatus.Cancelled;
-                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
-                    Cleanup(job.Id.Value);
-                    return true;
-                }
-            }
-
-            // Hold dest claim during job (prevents two haulers choosing same dest+rt)
-            if (_s.ClaimService != null)
-            {
-                var destKey = new ClaimKey(ClaimKind.StorageDest, chosenDest.Value, (int)rt);
-                if (!_s.ClaimService.TryAcquire(destKey, npc))
-                    return false;
             }
 
             int jid = job.Id.Value;
+            var rt = job.ResourceType;
 
-            // Hardening: external cancel -> refund carry back to source (best-effort) and cleanup state
+            // External cancel: refund carry back to pile if possible, cleanup
             if (job.Status == JobStatus.Cancelled)
             {
-                if (_s.WorldState != null && _s.StorageService != null)
-                    RefundToSourceIfCarrying(jid, ref job, rt);
+                RefundCarryToPileIfPossible(jid, rt, job.DestBuilding);
+                Cleanup(jid);
+                return true;
+            }
 
+            // Validate destination = producer building (must exist + constructed)
+            var dest = job.DestBuilding;
+            if (dest.Value == 0 || !_s.WorldState.Buildings.Exists(dest))
+            {
+                job.Status = JobStatus.Failed;
+                Cleanup(jid);
+                return true;
+            }
+
+            var dstState = _s.WorldState.Buildings.Get(dest);
+            if (!dstState.IsConstructed)
+            {
+                job.Status = JobStatus.Failed;
                 Cleanup(jid);
                 return true;
             }
@@ -176,123 +66,112 @@ namespace SeasonalBastion
 
             if (ph == 0)
             {
-                // Clamp amount by free capacity
-                int want = CarryCap;
-                if (free < want) want = free;
-                if (want <= 0)
+                // Choose a pile for this producer+resource
+                if (!_pile.TryGetValue(jid, out var pileInt) || pileInt == 0)
                 {
-                    job.Status = JobStatus.Cancelled;
-                    RefundToSourceIfCarrying(job.Id.Value, ref job, rt);
-                    Cleanup(jid);
+                    if (!_s.WorldState.Piles.TryFindNonEmpty(rt, dest, out var pid))
+                    {
+                        job.Status = JobStatus.Cancelled;
+                        Cleanup(jid);
+                        return true;
+                    }
+                    pileInt = pid.Value;
+                    _pile[jid] = pileInt;
+                }
+
+                var pileId = new PileId(pileInt);
+                if (!_s.WorldState.Piles.Exists(pileId))
+                {
+                    // pile disappeared, retry next tick
+                    _pile.Remove(jid);
                     return true;
                 }
 
-                // pick source lazily (ensure it has >= want)
-                if (job.SourceBuilding.Value == 0)
-                {
-                    if (!TryPickBestHarvestProducerSource(dstState.Anchor, rt, want, out var src))
-                        return false;
-                    job.SourceBuilding = src;
-                }
+                var pile = _s.WorldState.Piles.Get(pileId);
 
-                var srcId = job.SourceBuilding;
-                if (!_s.WorldState.Buildings.Exists(srcId))
-                    return false;
-
-                var srcState = _s.WorldState.Buildings.Get(srcId);
-                if (!srcState.IsConstructed || !IsHarvestProducer(srcState.DefId))
-                    return false;
-
-                // Ensure enough at source; if not, repick
-                if (GetAmountFromBuilding(srcState, rt) < want)
-                {
-                    if (!TryPickBestHarvestProducerSource(srcState.Anchor, rt, want, out var repick))
-                        return false;
-
-                    job.SourceBuilding = repick;
-                    srcId = repick;
-
-                    if (!_s.WorldState.Buildings.Exists(srcId))
-                        return false;
-                    srcState = _s.WorldState.Buildings.Get(srcId);
-                    if (!srcState.IsConstructed || !IsHarvestProducer(srcState.DefId))
-                        return false;
-                }
-
-                // Move toward source (Day14: no teleport)
-                job.TargetCell = srcState.Anchor;
+                // Move to pile cell
+                job.TargetCell = pile.Cell;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcState.Anchor);
-                if (!arrivedSrc)
-                    return true;
+                bool arrived = _s.AgentMover.StepToward(ref npcState, pile.Cell);
+                if (!arrived) return true;
 
-                // pickup (claim source while removing)
-                if (_s.ClaimService != null)
+                // pickup
+                int want = CarryCap;
+                if (!_s.WorldState.Piles.TryTake(pileId, want, out int taken) || taken <= 0)
                 {
-                    var srcKey = new ClaimKey(ClaimKind.StorageSource, srcId.Value, (int)rt);
-                    if (!_s.ClaimService.TryAcquire(srcKey, npc))
-                        return false;
-
-                    int removed = _s.StorageService.Remove(srcId, rt, want);
-
-                    _s.ClaimService.Release(srcKey, npc);
-
-                    if (removed <= 0)
-                        return false;
-
-                    _carry[jid] = removed;
-                    _phase[jid] = 1;
-
-                    job.Amount = removed;
-                    job.Status = JobStatus.InProgress;
+                    _pile.Remove(jid);
                     return true;
                 }
-                else
-                {
-                    int removed = _s.StorageService.Remove(srcId, rt, want);
-                    if (removed <= 0)
-                        return false;
 
-                    _carry[jid] = removed;
-                    _phase[jid] = 1;
+                _carry[jid] = taken;
+                _phase[jid] = 1;
 
-                    job.Amount = removed;
-                    job.Status = JobStatus.InProgress;
-                    return true;
-                }
+                job.Amount = taken;
+                job.Status = JobStatus.InProgress;
+                return true;
             }
             else
             {
-                // deliver
-                if (!_carry.TryGetValue(jid, out var carried) || carried <= 0)
+                // Deliver to producer building (anchor)
+                int carried = _carry.TryGetValue(jid, out var c) ? c : 0;
+                if (carried <= 0)
                 {
-                    job.Status = JobStatus.Failed;
+                    job.Status = JobStatus.Completed;
                     Cleanup(jid);
                     return true;
                 }
 
-                // Move toward destination (Day14: no teleport)
                 job.TargetCell = dstState.Anchor;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedDst = _s.AgentMover.StepToward(ref npcState, dstState.Anchor);
-                if (!arrivedDst)
-                    return true;
+                bool arrived = _s.AgentMover.StepToward(ref npcState, dstState.Anchor);
+                if (!arrived) return true;
 
-                int added = _s.StorageService.Add(chosenDest, rt, carried);
+                // Add to producer local storage (this is where resource increases)
+                int added = _s.StorageService.Add(dest, rt, carried);
 
-                // refund remainder back to source (best-effort)
-                int refund = carried - added;
-                if (refund > 0 && job.SourceBuilding.Value != 0 && _s.WorldState.Buildings.Exists(job.SourceBuilding))
+                if (added > 0)
                 {
-                    _s.StorageService.Add(job.SourceBuilding, rt, refund);
+                    int left = carried - added;
+                    if (left > 0)
+                    {
+                        // If producer is full, drop remainder back as pile near producer anchor (safe)
+                        _s.WorldState.Piles.AddOrIncrease(dstState.Anchor, rt, left, dest);
+                    }
+                }
+                else
+                {
+                    // Could not add (full) => return all to pile near producer
+                    _s.WorldState.Piles.AddOrIncrease(dstState.Anchor, rt, carried, dest);
                 }
 
                 job.Status = JobStatus.Completed;
                 Cleanup(jid);
                 return true;
             }
+        }
+
+        private void RefundCarryToPileIfPossible(int jid, ResourceType rt, BuildingId dest)
+        {
+            if (_s.WorldState == null || _s.WorldState.Piles == null) return;
+
+            if (_carry.TryGetValue(jid, out var carried) && carried > 0)
+            {
+                // return to pile near destination to avoid loss
+                if (_s.WorldState.Buildings.Exists(dest))
+                {
+                    var ds = _s.WorldState.Buildings.Get(dest);
+                    _s.WorldState.Piles.AddOrIncrease(ds.Anchor, rt, carried, dest);
+                }
+            }
+        }
+
+        private void Cleanup(int jid)
+        {
+            _phase.Remove(jid);
+            _carry.Remove(jid);
+            _pile.Remove(jid);
         }
 
         /// <summary>
@@ -418,13 +297,6 @@ namespace SeasonalBastion
             }
 
             return best.Value != 0;
-        }
-
-        private void Cleanup(int jobId)
-        {
-            _phase.Remove(jobId);
-            _carry.Remove(jobId);
-            // Claims will be released by JobScheduler via ReleaseAll(npc) on terminal status.
         }
 
         private void RefundToSourceIfCarrying(int jobId, ref Job job, ResourceType rt)

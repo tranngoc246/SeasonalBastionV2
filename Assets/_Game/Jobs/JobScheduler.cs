@@ -165,8 +165,8 @@ namespace SeasonalBastion
                 }
             }
 
-            // Preflight for HaulBasic: avoid claiming when nothing to haul (prevents stuck claimed jobs).
-            if (peek.Archetype == JobArchetype.HaulBasic && !AnyHarvestProducerHasAmount(peek.ResourceType))
+            // Preflight for HaulBasic: avoid claiming when no pile exists for this DestBuilding+ResourceType.
+            if (peek.Archetype == JobArchetype.HaulBasic && !AnyPileHasAmount(peek.ResourceType, peek.DestBuilding))
                 return false;
 
             if (!_board.TryClaim(peek.Id, npc))
@@ -280,6 +280,8 @@ namespace SeasonalBastion
                 int cur = GetAmountFromBuilding(bs, rt);
                 if (cap > 0 && cur >= cap) continue;
 
+                var zoneCell = _w.Zones.PickCell(rt, bs.Anchor);
+
                 var j = new Job
                 {
                     Archetype = JobArchetype.Harvest,
@@ -291,7 +293,7 @@ namespace SeasonalBastion
                     Tower = default,
                     ResourceType = rt,
                     Amount = 0,
-                    TargetCell = bs.Anchor,
+                    TargetCell = zoneCell,
                     CreatedAt = 0
                 };
 
@@ -314,10 +316,10 @@ namespace SeasonalBastion
                 if (!_workplacesWithNpc.Contains(wid.Value)) continue;
 
                 // NEW: pass dest state so we can gate enqueue by free capacity (prevents full-dest flicker loops)
-                TryEnsureHaulJob(wid, bs, ResourceType.Wood);
-                TryEnsureHaulJob(wid, bs, ResourceType.Food);
-                TryEnsureHaulJob(wid, bs, ResourceType.Stone);
-                TryEnsureHaulJob(wid, bs, ResourceType.Iron);
+                TryEnsureHaulJobToProducer(wid, bs, ResourceType.Wood);
+                TryEnsureHaulJobToProducer(wid, bs, ResourceType.Food);
+                //TryEnsureHaulJob(wid, bs, ResourceType.Stone);
+                //TryEnsureHaulJob(wid, bs, ResourceType.Iron);
             }
         }
 
@@ -366,6 +368,56 @@ namespace SeasonalBastion
             _haulJobByWorkplaceAndType[key] = newId;
         }
 
+        private void TryEnsureHaulJobToProducer(BuildingId workplace, in BuildingState workplaceState, ResourceType rt)
+        {
+            // Resolve producer destination (lumbercamp for wood, farmhouse for food)
+            if (!TryGetProducerFor(rt, out var producer))
+                return;
+
+            // Only enqueue if there is something to haul now (pile exists for this producer+rt)
+            if (_w.Piles == null || !_w.Piles.TryFindNonEmpty(rt, producer, out _))
+                return;
+
+            // Gate by producer local cap (avoid hauling into full producer -> cancel loops)
+            if (_w.Buildings.Exists(producer))
+            {
+                var ps = _w.Buildings.Get(producer);
+                int cap = HarvestLocalCap(ps.DefId, NormalizeLevel(ps.Level));
+                int cur = GetAmountFromBuilding(ps, rt);
+                if (cap > 0 && cur >= cap)
+                    return;
+            }
+
+            // key must include workplace + producer + rt (prevent spam per pair)
+            int key = (workplace.Value * 100000) + (producer.Value * 16) + (int)rt;
+
+            if (_haulJobByWorkplaceAndType.TryGetValue(key, out var oldId))
+            {
+                if (_board.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                    return;
+            }
+
+            var j = new Job
+            {
+                Archetype = JobArchetype.HaulBasic,
+                Status = JobStatus.Created,
+                Workplace = workplace,
+
+                SourceBuilding = default,
+                DestBuilding = producer, // IMPORTANT: deliver to producer
+
+                Site = default,
+                Tower = default,
+                ResourceType = rt,
+                Amount = 0,
+                TargetCell = default,
+                CreatedAt = 0
+            };
+
+            var newId = _board.Enqueue(j);
+            _haulJobByWorkplaceAndType[key] = newId;
+        }
+
         private bool AnyHaulDestinationHasFree(ResourceType rt)
         {
             for (int i = 0; i < _buildingIds.Count; i++)
@@ -389,6 +441,34 @@ namespace SeasonalBastion
             return false;
         }
 
+        private bool TryGetProducerFor(ResourceType rt, out BuildingId producer)
+        {
+            // Deterministic: pick smallest BuildingId that is constructed and matches resource type
+            producer = default;
+
+            for (int i = 0; i < _buildingIds.Count; i++)
+            {
+                var bid = _buildingIds[i];
+                if (!_w.Buildings.Exists(bid)) continue;
+
+                var bs = _w.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+                if (!HasWorkRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
+
+                var prt = HarvestResourceType(bs.DefId);
+                if (prt != rt) continue;
+
+                // M4: only wood+food producers
+                if (rt == ResourceType.Wood && !EqualsIgnoreCase(bs.DefId, "bld_lumbercamp_t1")) continue;
+                if (rt == ResourceType.Food && !EqualsIgnoreCase(bs.DefId, "bld_farmhouse_t1")) continue;
+
+                producer = bid;
+                return true;
+            }
+
+            return false;
+        }
+
         private bool AnyHarvestProducerHasAmount(ResourceType rt)
         {
             for (int i = 0; i < _buildingIds.Count; i++)
@@ -404,6 +484,11 @@ namespace SeasonalBastion
                 if (GetAmountFromBuilding(bs, rt) > 0) return true;
             }
             return false;
+        }
+
+        private bool AnyPileHasAmount(ResourceType rt, BuildingId owner)
+        {
+            return _w.Piles != null && owner.Value != 0 && _w.Piles.TryFindNonEmpty(rt, owner, out _);
         }
 
         // -------------------------

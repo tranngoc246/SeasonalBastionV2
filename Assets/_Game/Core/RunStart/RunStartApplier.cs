@@ -204,6 +204,8 @@ namespace SeasonalBastion.RunStart
                 }
             }
 
+            EnsureHardcodedZones(s, defIdToBuildingId);
+
             // Day27: Build lane table (laneId -> start cell -> dir -> target HQ)
             if (s.RunStartRuntime != null)
             {
@@ -230,7 +232,6 @@ namespace SeasonalBastion.RunStart
                     }
                 }
             }
-
 
             // 3) Starting storage (Deliverable_B 2.3)
             ApplyStartingStorage(s);
@@ -866,6 +867,33 @@ namespace SeasonalBastion.RunStart
             }
 
             return true;
+        }
+
+        private static void EnsureHardcodedZones(GameServices s, Dictionary<string, BuildingId> defIdToBuildingId)
+        {
+            var zs = s?.WorldState?.Zones;
+            if (zs == null) return;
+
+            zs.Clear();
+
+            // zones rectangles
+            AddRectZone(zs, id: 1, ResourceType.Wood, xMin: 14, yMin: 40, xMax: 24, yMax: 50);
+            AddRectZone(zs, id: 2, ResourceType.Food, xMin: 40, yMin: 14, xMax: 50, yMax: 24);
+        }
+
+        private static void AddRectZone(IZoneStore zs, int id, ResourceType rt, int xMin, int yMin, int xMax, int yMax)
+        {
+            var z = new ZoneState
+            {
+                Id = id,
+                Resource = rt
+            };
+
+            for (int y = yMin; y <= yMax; y++)
+                for (int x = xMin; x <= xMax; x++)
+                    z.Cells.Add(new CellPos(x, y));
+
+            zs.Add(z);
         }
 
         // =========================

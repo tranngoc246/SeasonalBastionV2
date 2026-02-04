@@ -10,6 +10,8 @@ namespace SeasonalBastion.Contracts
 
     public readonly struct SiteId { public readonly int Value; public SiteId(int v) => Value = v; }
 
+    public readonly struct PileId { public readonly int Value; public PileId(int v) => Value = v; }
+
     public readonly struct JobId { public readonly int Value; public JobId(int v) => Value = v; }
 
     public readonly struct NotificationId { public readonly int Value; public NotificationId(int v) => Value = v; }

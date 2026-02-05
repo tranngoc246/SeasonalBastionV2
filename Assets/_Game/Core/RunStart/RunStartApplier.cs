@@ -662,14 +662,26 @@ namespace SeasonalBastion.RunStart
                     ammo = ClampToInt(b.initialStateOverrides.ammoPercent * ammoMax, 0, ammoMax);
             }
 
+            int bw = 1, bh = 1;
+            try
+            {
+                var bdef = s.DataRegistry.GetBuilding(building.DefId);
+                bw = Math.Max(1, bdef.SizeX);
+                bh = Math.Max(1, bdef.SizeY);
+            }
+            catch { }
+
+            var towerCell = new CellPos(building.Anchor.X + (bw / 2), building.Anchor.Y + (bh / 2));
+
             var st = new TowerState
             {
-                Cell = building.Anchor,
+                Cell = towerCell,
                 Hp = hpMax,
                 HpMax = hpMax,
                 Ammo = ammo,
                 AmmoCap = ammoMax,
             };
+
 
             var id = s.WorldState.Towers.Create(st);
             st.Id = id;

@@ -80,7 +80,7 @@ namespace SeasonalBastion
                 job.TargetCell = target;
                 job.Status = JobStatus.InProgress;
 
-                bool arrived = _s.AgentMover.StepToward(ref npcState, target);
+                bool arrived = _s.AgentMover.StepToward(ref npcState, target, dt);
                 if (!arrived)
                     return true;
 

@@ -165,8 +165,8 @@ namespace SeasonalBastion
                 }
             }
 
-            // Preflight for HaulBasic: avoid claiming when no pile exists for this DestBuilding+ResourceType.
-            if (peek.Archetype == JobArchetype.HaulBasic && !AnyPileHasAmount(peek.ResourceType, peek.DestBuilding))
+            // Preflight for HaulBasic (NEW): only claim if any harvest producer has something in LOCAL storage.
+            if (peek.Archetype == JobArchetype.HaulBasic && !AnyHarvestProducerHasAmount(peek.ResourceType))
                 return false;
 
             if (!_board.TryClaim(peek.Id, npc))
@@ -282,6 +282,10 @@ namespace SeasonalBastion
 
                 var zoneCell = _w.Zones.PickCell(rt, bs.Anchor);
 
+                // If zone resolves to default, skip enqueue to avoid NPCs marching to (0,0).
+                if (zoneCell.X == 0 && zoneCell.Y == 0)
+                    continue;
+
                 var j = new Job
                 {
                     Archetype = JobArchetype.Harvest,
@@ -315,11 +319,10 @@ namespace SeasonalBastion
                 if (!HasWorkRole(bs.DefId, WorkRoleFlags.HaulBasic)) continue;
                 if (!_workplacesWithNpc.Contains(wid.Value)) continue;
 
-                // NEW: pass dest state so we can gate enqueue by free capacity (prevents full-dest flicker loops)
-                TryEnsureHaulJobToProducer(wid, bs, ResourceType.Wood);
-                TryEnsureHaulJobToProducer(wid, bs, ResourceType.Food);
-                //TryEnsureHaulJob(wid, bs, ResourceType.Stone);
-                //TryEnsureHaulJob(wid, bs, ResourceType.Iron);
+                TryEnsureHaulJob(wid, bs, ResourceType.Wood);
+                TryEnsureHaulJob(wid, bs, ResourceType.Food);
+                TryEnsureHaulJob(wid, bs, ResourceType.Stone);
+                TryEnsureHaulJob(wid, bs, ResourceType.Iron);
             }
         }
 
@@ -328,10 +331,15 @@ namespace SeasonalBastion
             // Only enqueue if there is something to haul now
             if (!AnyHarvestProducerHasAmount(rt)) return;
 
-            // Day19.5/20 hardening: gate enqueue if ALL Warehouse/HQ destinations are full.
-            // Prevents cancel/enqueue loops -> jobId peek increases forever.
-            if (!AnyHaulDestinationHasFree(rt))
+            // Gate by THIS workplace free capacity (HQ/Warehouse)
+            if (destState.Anchor.X == 0 && destState.Anchor.Y == 0)
                 return;
+
+            int cap = DestCap(destState.DefId, NormalizeLevel(destState.Level), rt);
+            if (cap <= 0) return;
+
+            int cur = GetAmountFromBuilding(destState, rt);
+            if (cur >= cap) return;
 
             // Gate only by "ANY destination has free capacity" (NOT by workplace itself).
             // This preserves reroute behavior while preventing full-dest cancel/enqueue loops.
@@ -427,6 +435,11 @@ namespace SeasonalBastion
 
                 var bs = _w.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
+
+                // HARDENING: In this project, anchors should never be (0,0) (buildableRect starts at 12,12).
+                // If anchor is default, RunStart/placement hasn't fully applied yet => skip enqueue this tick.
+                if (bs.Anchor.X == 0 && bs.Anchor.Y == 0)
+                    continue;
 
                 // destinations are Warehouse/HQ only
                 if (!IsWarehouseWorkplace(bs.DefId)) continue;

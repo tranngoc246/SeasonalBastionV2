@@ -272,6 +272,31 @@
         }
       ],
       "buildChunksL1": 3
+    },
+    {
+      "id": "bld_tower_arrow_t1",
+      "sizeX": 3,
+      "sizeY": 3,
+      "baseLevel": 1,
+      "hp": 260,
+      "isTower": true,
+      "workRoles": [],
+      "capAmmo": {
+        "L1": 90,
+        "L2": 90,
+        "L3": 90
+      },
+      "buildCostsL1": [
+        {
+          "res": 0,
+          "amt": 25
+        },
+        {
+          "res": 2,
+          "amt": 20
+        }
+      ],
+      "buildChunksL1": 3
     }
   ]
 }

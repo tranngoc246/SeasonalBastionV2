@@ -114,7 +114,7 @@ namespace SeasonalBastion
                 job.TargetCell = srcState.Anchor;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcState.Anchor);
+                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcState.Anchor, dt);
                 if (!arrivedSrc)
                     return true;
 
@@ -151,7 +151,7 @@ namespace SeasonalBastion
                 job.TargetCell = site.Anchor;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedSite = _s.AgentMover.StepToward(ref npcState, site.Anchor);
+                bool arrivedSite = _s.AgentMover.StepToward(ref npcState, site.Anchor, dt);
                 if (!arrivedSite)
                     return true;
 

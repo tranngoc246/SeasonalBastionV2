@@ -563,6 +563,56 @@ namespace SeasonalBastion
                 for (int dx = 0; dx < w; dx++)
                     _s.GridMap.SetBuilding(new CellPos(b.Anchor.X + dx, b.Anchor.Y + dy), o.TargetBuilding);
 
+            // 4.5) If this building is a Tower => create TowerState (combat/ammo pipeline)
+            if (def != null && def.IsTower && _s.WorldState?.Towers != null)
+            {
+                // Tower fires from CENTER cell of footprint (3x3 => +1,+1)
+                var towerCell = new CellPos(b.Anchor.X + (w / 2), b.Anchor.Y + (h / 2));
+
+                // Avoid duplicate tower at same cell (safety)
+                bool exists = false;
+                foreach (var tid0 in _s.WorldState.Towers.Ids)
+                {
+                    var ts0 = _s.WorldState.Towers.Get(tid0);
+                    if (ts0.Cell.X == towerCell.X && ts0.Cell.Y == towerCell.Y) { exists = true; break; }
+                }
+
+                if (!exists)
+                {
+                    int hpMax = Math.Max(1, def.MaxHp);
+                    int ammoMax = 0;
+
+                    // Prefer TowerDef if present (Towers.json)
+                    try
+                    {
+                        var tdef = _s.DataRegistry.GetTower(b.DefId);
+                        if (tdef != null)
+                        {
+                            hpMax = Math.Max(1, tdef.MaxHp);
+                            ammoMax = Math.Max(0, tdef.AmmoMax);
+                        }
+                    }
+                    catch { }
+
+                    var ts = new TowerState
+                    {
+                        Cell = towerCell,
+                        Hp = hpMax,
+                        HpMax = hpMax,
+                        Ammo = ammoMax,
+                        AmmoCap = ammoMax,
+                    };
+
+                    var tid = _s.WorldState.Towers.Create(ts);
+                    ts.Id = tid;
+                    _s.WorldState.Towers.Set(tid, ts);
+
+                    // Mirror ammo into building state for UI/debug (match RunStart behavior)
+                    b.Ammo = ammoMax;
+                    _s.WorldState.Buildings.Set(o.TargetBuilding, b);
+                }
+            }
+
             // 5) WorldIndex hook (if available)
             try { _s.WorldIndex?.OnBuildingCreated(o.TargetBuilding); } catch { }
 

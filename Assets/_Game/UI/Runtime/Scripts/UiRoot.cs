@@ -41,6 +41,7 @@ namespace SeasonalBastion
         private BuildingRuntimeView _buildingView;
         private PileRuntimeView _pileView;
         private NpcRuntimeView _npcView;
+        private ZoneRuntimeView _zoneView;
 
         private bool _createdBuildingView;
         private bool _createdPileView;
@@ -189,6 +190,9 @@ namespace SeasonalBastion
             EnsureBuildingRuntimeView();
             _buildingView.Bind(_s, _selection);
 
+            EnsureZoneRuntimeView();
+            _zoneView.Bind(_s, _selection);
+
             EnsurePileRuntimeView();
             _pileView.Bind(_s, _selection);
 
@@ -261,6 +265,18 @@ namespace SeasonalBastion
             _createdBuildingView = true;
         }
 
+        private void EnsureZoneRuntimeView()
+        {
+            if (_zoneView != null) return;
+
+            _zoneView = gameObject.GetComponentInChildren<ZoneRuntimeView>(true);
+            if (_zoneView != null) return;
+
+            var go = new GameObject("__ZoneRuntimeView");
+            go.transform.SetParent(transform, false);
+            _zoneView = go.AddComponent<ZoneRuntimeView>();
+        }
+
         private void EnsurePileRuntimeView()
         {
             if (_pileView != null) return;
@@ -322,6 +338,13 @@ namespace SeasonalBastion
                 if (_createdBuildingView) Destroy(_buildingView.gameObject);
                 _buildingView = null;
                 _createdBuildingView = false;
+            }
+
+            if (_zoneView != null)
+            {
+                _zoneView.Unbind();
+                Destroy(_zoneView.gameObject);
+                _zoneView = null;
             }
 
             if (_pileView != null)

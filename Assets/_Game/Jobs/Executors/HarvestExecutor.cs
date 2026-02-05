@@ -77,11 +77,63 @@ namespace SeasonalBastion
                 return true;
             }
 
-            // Claim producer node (held during moving+working; released by JobScheduler on terminal)
+            // 2-phase Harvest:
+            // Phase A (job.Amount == 0): go to zone cell + work => set carry into job.Amount
+            // Phase B (job.Amount  > 0): bring carry back to producer anchor => Add to local storage
+
+            // Phase B: delivering carried resource to producer local
+            if (job.Amount > 0)
+            {
+                var anchor = bs.Anchor;
+
+                job.TargetCell = anchor;
+                job.Status = JobStatus.InProgress;
+
+                bool arrivedAnchor = _s.AgentMover.StepToward(ref npcState, anchor, dt);
+                if (!arrivedAnchor)
+                    return true;
+
+                int carried = job.Amount;
+                int added = _s.StorageService.Add(producer, rt, carried);
+
+                // Do not drop piles in this design: HQ/Warehouse haulers pull from local storage.
+                // If Add fails due to full (race), just clamp: treat as delivered what could be stored.
+                // Any leftover is discarded safely by cancelling; better than spawning piles that no one hauls.
+                job.Amount = 0;
+
+                job.Status = JobStatus.Completed;
+                return true;
+            }
+
+            // Phase A: Move to zone cell (TargetCell is assigned by JobScheduler)
+            var target = job.TargetCell;
+
+            // HARDENING: never move toward default (0,0). Cancel so scheduler can recreate with valid target.
+            if (target.X == 0 && target.Y == 0)
+            {
+                job.Status = JobStatus.Cancelled;
+                _remaining.Remove(jid);
+                return true;
+            }
+
+            // OPTIONAL: if you want extra safety and you have grid bounds
+            if (_s.GridMap != null && !_s.GridMap.IsInside(target))
+            {
+                job.Status = JobStatus.Cancelled;
+                _remaining.Remove(jid);
+                return true;
+            }
+
+            // Claim producer node (held only during moving+working; released after work done)
+            ClaimKey claimKey = default;
+            bool hasClaimKey = false;
+
             if (_s.ClaimService != null)
             {
-                var key = new ClaimKey(ClaimKind.ProducerNode, producer.Value, (int)rt);
-                if (!_s.ClaimService.TryAcquire(key, npc))
+                claimKey = new ClaimKey(ClaimKind.ProducerNode, producer.Value, (int)rt);
+                hasClaimKey = true;
+
+                if (!_s.ClaimService.TryAcquire(claimKey, npc))
                     return false; // waiting
             }
 
@@ -89,9 +141,7 @@ namespace SeasonalBastion
             job.ResourceType = rt;
             job.Status = JobStatus.InProgress;
 
-            // M4: Move to zone cell (TargetCell is assigned by JobScheduler)
-            var target = job.TargetCell;
-            bool arrived = _s.AgentMover.StepToward(ref npcState, target);
+            bool arrived = _s.AgentMover.StepToward(ref npcState, target, dt);
 
             if (!arrived)
                 return true;
@@ -109,17 +159,28 @@ namespace SeasonalBastion
 
             _remaining.Remove(jid);
 
-            // Complete => spawn/increase pile at zone cell (resource increases ONLY after hauling to producer)
-            if (_s.WorldState.Piles == null)
+            // Work done => compute carry (CLAMP by free local cap to avoid overflow races)
+            int cap2 = _s.StorageService.GetCap(producer, rt);
+            int cur2 = _s.StorageService.GetAmount(producer, rt);
+            int free = (cap2 > 0) ? (cap2 - cur2) : 0;
+
+            if (free <= 0)
             {
-                job.Status = JobStatus.Failed;
+                // local became full due to parallel deliveries; stop safely
+                if (hasClaimKey) _s.ClaimService.Release(claimKey, npc);
+                job.Status = JobStatus.Cancelled;
                 return true;
             }
 
-            _s.WorldState.Piles.AddOrIncrease(job.TargetCell, rt, yield, producer);
-            job.Amount = yield;
+            int carry = yield;
+            if (carry > free) carry = free;
 
-            job.Status = JobStatus.Completed;
+            // Release claim after producing carry so other workers can continue
+            if (hasClaimKey) _s.ClaimService.Release(claimKey, npc);
+
+            // Switch to Phase B: deliver to anchor
+            job.Amount = carry;
+            job.Status = JobStatus.InProgress;
             return true;
         }
 

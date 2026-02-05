@@ -431,7 +431,7 @@ MonoBehaviour:
   _tabNotiKey: 99
   _tabWorldIndexKey: 100
   _clearModeKey: 60
-  _showUi: 1
+  _showUi: 0
   _mode: 0
   _tab: 0
   _selfPollHotkeysWhenNoRouter: 1
@@ -1147,7 +1147,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1732529964
 Transform:
   m_ObjectHideFlags: 0

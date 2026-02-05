@@ -117,7 +117,7 @@ namespace SeasonalBastion
                 job.TargetCell = srcState.Anchor;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcState.Anchor);
+                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcState.Anchor, dt);
                 if (!arrivedSrc) return true;
 
                 int removed = _s.StorageService.Remove(src, ResourceType.Ammo, want);
@@ -141,7 +141,7 @@ namespace SeasonalBastion
                 job.TargetCell = dstState.Anchor;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedDst = _s.AgentMover.StepToward(ref npcState, dstState.Anchor);
+                bool arrivedDst = _s.AgentMover.StepToward(ref npcState, dstState.Anchor, dt);
                 if (!arrivedDst) return true;
 
                 int added = _s.StorageService.Add(dst, ResourceType.Ammo, carried);

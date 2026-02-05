@@ -112,7 +112,7 @@ namespace SeasonalBastion
                 job.TargetCell = armSt.Anchor;
                 job.Status = JobStatus.InProgress;
 
-                bool arrived = _s.AgentMover.StepToward(ref npcState, armSt.Anchor);
+                bool arrived = _s.AgentMover.StepToward(ref npcState, armSt.Anchor, dt);
                 if (!arrived) return true;
 
                 int removed = _s.StorageService.Remove(armoryBld, ResourceType.Ammo, want);
@@ -152,7 +152,7 @@ namespace SeasonalBastion
             var tsForMove = _s.WorldState.Towers.Get(towerId);
             job.TargetCell = tsForMove.Cell;
 
-            bool arrivedTower = _s.AgentMover.StepToward(ref npcState, tsForMove.Cell);
+            bool arrivedTower = _s.AgentMover.StepToward(ref npcState, tsForMove.Cell, dt);
             if (!arrivedTower) return true;
 
             // Re-fetch newest tower state to avoid stale overwrite if multiple deliveries happen.

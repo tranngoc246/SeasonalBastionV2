@@ -49,7 +49,7 @@ namespace SeasonalBastion
             job.TargetCell = site.Anchor;
             job.Status = JobStatus.InProgress;
 
-            bool arrived = _s.AgentMover.StepToward(ref npcState, site.Anchor);
+            bool arrived = _s.AgentMover.StepToward(ref npcState, site.Anchor, dt);
             if (!arrived) return true;
 
             // Work progress

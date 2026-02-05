@@ -7,7 +7,7 @@
     "bld_warehouse_t1"
   ],
   "Entries": [
-    { "DefId": "bld_armory_t1", "Year": 1, "Season": 3, "Day": 1 },
-    { "DefId": "bld_forge_t1",  "Year": 1, "Season": 3, "Day": 1 }
+    { "DefId": "bld_armory_t1", "Year": 1, "Season": 2, "Day": 1 },
+    { "DefId": "bld_forge_t1",  "Year": 1, "Season": 2, "Day": 1 }
   ]
 }

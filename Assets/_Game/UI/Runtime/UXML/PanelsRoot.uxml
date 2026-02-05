@@ -10,6 +10,13 @@
 
             <ui:VisualElement class="panel-body">
                 <ui:Label name="LblBuildHint" text="Chọn công trình, đặt gần road (EntryCell có road kề)" class="row" />
+                <!-- Tabs (M3.5): Always show ALL buildings; locked ones are dimmed + non-clickable and pushed to bottom. -->
+                <ui:VisualElement name="BuildTabs" class="build-tabs">
+                    <ui:Button name="BtnTabStorage" text="Kho" class="tab-btn is-selected" />
+                    <ui:Button name="BtnTabProduction" text="Farm" class="tab-btn" />
+                    <ui:Button name="BtnTabDefense" text="Tower" class="tab-btn" />
+                    <ui:Button name="BtnTabOther" text="Khác" class="tab-btn" />
+                </ui:VisualElement>
                 <ui:VisualElement class="divider" />
                 <ui:ScrollView name="BuildList" class="build-list" />
             </ui:VisualElement>

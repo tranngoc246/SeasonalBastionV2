@@ -1,7 +1,8 @@
-﻿using System;
+﻿using SeasonalBastion.Contracts;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
-using SeasonalBastion.Contracts;
+using static SeasonalBastion.Contracts.AmmoUsedEvent;
 
 namespace SeasonalBastion
 {
@@ -21,6 +22,7 @@ namespace SeasonalBastion
 
         private readonly IEventBus _bus;
         private int _currentYear = 1;
+        private int _lastHash;
 
         public UnlockService(IRunClock clock, TextAsset scheduleJsonOrNull, IEventBus bus)
         {
@@ -113,6 +115,14 @@ namespace SeasonalBastion
                 if (IsTimeReached(_lastYear, _lastSeason, _lastDay, e.Year, e.Season, e.Day))
                     _unlocked.Add(e.DefId);
             }
+
+            // Notify UI when unlock set changed
+            int h = ComputeHash();
+            if (h != _lastHash)
+            {
+                _lastHash = h;
+                _bus?.Publish(new UnlocksChangedEvent(h));
+            }
         }
 
         private void ApplyStartUnlockedOnly()
@@ -130,6 +140,23 @@ namespace SeasonalBastion
             if (cy != y) return cy > y;
             if (cs != s) return cs > s;
             return cd >= d;
+        }
+
+        private int ComputeHash()
+        {
+            unchecked
+            {
+                int h = 17;
+                h = h * 31 + _lastYear;
+                h = h * 31 + (int)_lastSeason;
+                h = h * 31 + _lastDay;
+
+                // Order-independent hash
+                foreach (var id in _unlocked)
+                    h = h * 31 + (id?.GetHashCode() ?? 0);
+
+                return h;
+            }
         }
 
         private static UnlockScheduleDef LoadScheduleOrFallback(TextAsset json)

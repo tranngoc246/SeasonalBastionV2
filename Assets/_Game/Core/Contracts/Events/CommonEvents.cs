@@ -79,5 +79,11 @@ namespace SeasonalBastion.Contracts
     {
         public readonly int Amount;
         public AmmoUsedEvent(int amt) { Amount = amt; }
+
+        public readonly struct UnlocksChangedEvent
+        {
+            public readonly int Hash;
+            public UnlocksChangedEvent(int hash) { Hash = hash; }
+        }
     }
 }

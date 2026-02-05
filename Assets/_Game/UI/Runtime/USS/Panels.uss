@@ -101,3 +101,33 @@
   color: rgb(220,220,220);
   white-space: normal;
 }
+
+.build-tabs {
+  margin-top: 8px;
+  flex-direction: row;
+}
+
+.tab-btn {
+  flex-grow: 1;
+  height: 26px;
+  margin-right: 6px;
+  border-radius: 8px;
+  background-color: rgba(255,255,255,0.08);
+  color: rgb(235,235,235);
+  font-size: 12px;
+}
+
+.tab-btn:last-child {
+  margin-right: 0px;
+}
+
+.tab-btn.is-selected {
+  background-color: rgba(255,255,255,0.16);
+  -unity-font-style: bold;
+}
+
+/* Locked (not unlocked yet): show dim + non-clickable (presenter will not register click) */
+.build-item.is-locked {
+  opacity: 0.35;
+}
+

@@ -202,6 +202,40 @@ namespace SeasonalBastion.DebugTools
 
             var npc = _world.Npcs.Get(_selectedNpc);
 
+            // ---- Assign limit (Max NPC per building by level) ----
+            try
+            {
+                var bs = _world.Buildings.Get(buildingId);
+                var def = _data.GetBuilding(bs.DefId);
+
+                int max = GetMaxAssignedFor(def, bs.Level);
+                if (max <= 0)
+                {
+                    _noti?.Push($"NpcAssign_NoSlots_{_selectedNpc.Value}", "NPC",
+                        $"Building {bs.DefId} không nhận worker.",
+                        NotificationSeverity.Warning, default, 0.35f, true);
+                    return;
+                }
+
+                int assigned = CountAssignedToBuilding(buildingId, excludeNpc: _selectedNpc);
+
+                if (assigned >= max)
+                {
+                    _noti?.Push($"NpcAssign_Full_{_selectedNpc.Value}", "NPC",
+                        $"Building {bs.DefId} đã đủ worker ({assigned}/{max}).",
+                        NotificationSeverity.Warning, default, 0.6f, true);
+                    return;
+                }
+            }
+            catch
+            {
+                _noti?.Push($"NpcAssign_LimitCheckFail_{_selectedNpc.Value}", "NPC",
+                    "Assign limit check failed (exception). Check Console.",
+                    NotificationSeverity.Warning, default, 0.5f, true);
+                // không return để tool vẫn assign nếu fail check (giữ behaviour debug)
+            }
+            // ---- end assign limit ----
+
             if (npc.CurrentJob.Value != 0)
             {
                 ForceReleaseSelectedNpc("Assign", keepWorkplace: false);
@@ -542,6 +576,86 @@ namespace SeasonalBastion.DebugTools
             if (defId.Equals("bld_ironhut_t1", StringComparison.OrdinalIgnoreCase)) return ResourceType.Iron;
 
             return ResourceType.None;
+        }
+
+        private int CountAssignedToBuilding(BuildingId buildingId, NpcId excludeNpc)
+        {
+            int assigned = 0;
+
+            var ids = _world.Npcs.Ids;
+            foreach (var nid in ids)
+            {
+                if (!_world.Npcs.Exists(nid)) continue;
+                if (nid.Value == excludeNpc.Value) continue;
+
+                var ns = _world.Npcs.Get(nid);
+                if (ns.Workplace.Value == buildingId.Value) assigned++;
+            }
+
+            return assigned;
+        }
+
+        private int GetMaxAssignedFor(BuildingDef def, int level)
+        {
+            // clamp level 1..3
+            if (level < 1) level = 1;
+            else if (level > 3) level = 3;
+
+            if (def == null) return 0;
+
+            // No roles => cannot assign
+            if (def.WorkRoles == WorkRoleFlags.None) return 0;
+
+            // HOUSE / TOWER thường không assign worker
+            if (def.IsHouse || def.IsTower) return 0;
+
+            // HQ: Build + HaulBasic (hub)
+            if (def.IsHQ) return level switch
+            {
+                1 => 2,
+                2 => 3,
+                3 => 4,
+                _ => 2
+            };
+
+            // Warehouse: logistics
+            if (def.IsWarehouse) return level switch
+            {
+                1 => 1,
+                2 => 2,
+                3 => 3,
+                _ => 1
+            };
+
+            // Producers (Harvest): Farm/Lumber/Quarry/Ironhut...
+            if ((def.WorkRoles & WorkRoleFlags.Harvest) != 0) return level switch
+            {
+                1 => 1,
+                2 => 2,
+                3 => 3,
+                _ => 1
+            };
+
+            // Forge/Craft
+            if (def.IsForge || (def.WorkRoles & WorkRoleFlags.Craft) != 0) return level switch
+            {
+                1 => 1,
+                2 => 2,
+                3 => 2,
+                _ => 1
+            };
+
+            // Armory
+            if (def.IsArmory || (def.WorkRoles & WorkRoleFlags.Armory) != 0) return level switch
+            {
+                1 => 1,
+                2 => 2,
+                3 => 2,
+                _ => 1
+            };
+
+            // Default conservative
+            return 1;
         }
     }
 }

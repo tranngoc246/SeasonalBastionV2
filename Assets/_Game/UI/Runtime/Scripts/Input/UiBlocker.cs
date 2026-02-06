@@ -19,6 +19,30 @@ namespace SeasonalBastion
             return false;
         }
 
+        private static bool IsInsideVisible(VisualElement ve, Vector2 panelPos)
+        {
+            if (ve == null) return false;
+            if (ve.resolvedStyle.display == DisplayStyle.None) return false;
+            // worldBound dùng tọa độ panel-space
+            return ve.worldBound.Contains(panelPos);
+        }
+
+        private static bool IsInsideAnyVisibleChild(VisualElement parent, Vector2 panelPos)
+        {
+            if (parent == null) return false;
+            if (parent.resolvedStyle.display == DisplayStyle.None) return false;
+
+            var cc = parent.childCount;
+            for (int i = 0; i < cc; i++)
+            {
+                var ch = parent[i];
+                if (ch == null) continue;
+                if (ch.resolvedStyle.display == DisplayStyle.None) continue;
+                if (ch.worldBound.Contains(panelPos)) return true;
+            }
+            return false;
+        }
+
         private static bool IsOverBlockingInDocument(Vector2 screenPos, UIDocument doc)
         {
             if (doc == null) return false;
@@ -33,7 +57,7 @@ namespace SeasonalBastion
             if (root.resolvedStyle.display == DisplayStyle.None)
                 return false;
 
-            // IMPORTANT: Panel.Pick expects panel-space coordinates, not screen-space.
+            // Screen -> Panel space
             Vector2 panelPos;
             try
             {
@@ -45,41 +69,37 @@ namespace SeasonalBastion
                 return false;
             }
 
-            var picked = panel.Pick(panelPos);
-            if (picked == null) return false;
+            // ---- Strict container-based blocking (NO Pick) ----
+            // HUD blockers
+            if (IsInsideVisible(root.Q<VisualElement>("TopBar"), panelPos)) return true;
+            if (IsInsideVisible(root.Q<VisualElement>("BottomToolbar"), panelPos)) return true;
+            // NotiStack: chỉ block khi cursor nằm trên toast card thật (child), không block theo container
+            var noti = root.Q<VisualElement>("NotiStack");
+            if (IsInsideAnyVisibleChild(noti, panelPos)) return true;
+            if (IsInsideVisible(root.Q<VisualElement>("SpeedGroup"), panelPos)) return true;
 
-            // Anything interactive should block world clicks.
-            if (picked is Button) return true;
-            if (picked is TextField) return true;
-            if (picked is Toggle) return true;
-            if (picked is Slider) return true;
-            if (picked is SliderInt) return true;
-            if (picked is ScrollView) return true;
-
-            // Walk parents: block if inside known UI containers (names) or tagged with class.
-            for (var ve = picked; ve != null; ve = ve.parent)
+            // Panels blockers
+            if (IsInsideVisible(root.Q<VisualElement>("BuildPanel"), panelPos)) return true;
+            var inspect = root.Q<VisualElement>("InspectPanel");
+            if (inspect != null && inspect.resolvedStyle.display != DisplayStyle.None)
             {
-                if (ve.ClassListContains("ui-block")) return true;
-
-                // HUD
-                if (ve.name == "TopBar") return true;
-                if (ve.name == "BottomToolbar") return true;
-                if (ve.name == "SpeedGroup") return true;
-                if (ve.name == "NotiStack") return true;
-
-                // Panels
-                if (ve.name == "BuildPanel") return true;
-                if (ve.name == "InspectPanel") return true;
-
-                // Modals
-                if (ve.name == "ModalsRoot") return true;
-                if (ve.name == "Scrim") return true;
-                if (ve.name == "ModalHost") return true;
-                if (ve.name == "SettingsModal") return true;
-                if (ve.name == "RunEndModal") return true;
+                // chỉ block trên phần header/body thực sự
+                var header = inspect.Q<VisualElement>(className: "panel-header");
+                var body = inspect.Q<VisualElement>(className: "panel-body");
+                if (IsInsideVisible(header, panelPos)) return true;
+                if (IsInsideVisible(body, panelPos)) return true;
             }
 
-            // Otherwise, don't block (allow world clicks).
+            // Modals blockers
+            if (IsInsideVisible(root.Q<VisualElement>("ModalsRoot"), panelPos)) return true;
+            if (IsInsideVisible(root.Q<VisualElement>("Scrim"), panelPos)) return true;
+            if (IsInsideVisible(root.Q<VisualElement>("ModalHost"), panelPos)) return true;
+            if (IsInsideVisible(root.Q<VisualElement>("SettingsModal"), panelPos)) return true;
+            if (IsInsideVisible(root.Q<VisualElement>("RunEndModal"), panelPos)) return true;
+
+            // Optional: nếu bạn có thêm container nào muốn block bằng class "ui-block"
+            // thì KHÔNG dùng Query().ToList() để tránh alloc; thay vào đó add name cụ thể ở trên.
+
             return false;
         }
     }

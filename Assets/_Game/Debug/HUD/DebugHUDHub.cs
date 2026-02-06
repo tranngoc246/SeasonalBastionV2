@@ -70,7 +70,7 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private bool _selfPollHotkeysWhenNoRouter = true;
         private bool _hasRouter;
 
-        private int _lastHotkeyFrame = -1;
+        //private int _lastHotkeyFrame = -1;
 
         // Day34: Home scroll + section toggles (IMGUI)
         private Vector2 _homeScroll;

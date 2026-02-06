@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -32,7 +32,9 @@ namespace SeasonalBastion
             if (q.Count == 0) return false;
 
             int id = q.Peek();
-            return _jobs.TryGetValue(id, out job);
+            if (!_jobs.TryGetValue(id, out job)) return false;
+            if (job.Status != JobStatus.Created) return false;
+            return true;
         }
 
         /// <summary>
@@ -57,6 +59,9 @@ namespace SeasonalBastion
                 int id = q.Dequeue();
                 if (!_jobs.TryGetValue(id, out var j)) continue;
                 if (IsStale(j.Status)) continue;
+
+                // FIX: chỉ cho NPC claim job ở trạng thái Created
+                if (j.Status != JobStatus.Created) continue;
 
                 _scanBuf.Add(id);
 

@@ -21,9 +21,11 @@ namespace SeasonalBastion
         private readonly List<BuildingId> _buildingIds = new(128);
         private readonly HashSet<int> _workplacesWithNpc = new();
 
-        // Prevent enqueue spam
-        private readonly Dictionary<int, JobId> _harvestJobByWorkplace = new();
+        // key = workplaceId * 4 + slotIndex (0..3). v0.1 dùng 0..1 (cap 2)
+        private readonly Dictionary<int, JobId> _harvestJobByWorkplaceSlot = new();
         private readonly Dictionary<int, JobId> _haulJobByWorkplaceAndType = new(); // key = workplace*16 + type
+        private readonly Dictionary<int, int> _workplaceNpcCount = new();
+
 
         // No-job notifications (throttle per workplace)
         private readonly Dictionary<int, float> _noJobNextNotifyAt = new();
@@ -267,14 +269,18 @@ namespace SeasonalBastion
                 // only if there is at least 1 NPC assigned to this workplace
                 if (!_workplacesWithNpc.Contains(bid.Value)) continue;
 
-                // 1 pending job per workplace
-                if (_harvestJobByWorkplace.TryGetValue(bid.Value, out var oldId))
-                {
-                    if (_board.TryGet(oldId, out var old) && !IsTerminal(old.Status))
-                        continue;
-                }
+                // Số NPC assigned vào workplace này => số "slot job" tối đa.
+                // Cap 2 để tránh spam job (đủ cho debug spawn + assign).
+                int assigned = 1;
+                _workplaceNpcCount.TryGetValue(bid.Value, out assigned);
+                if (assigned < 1) assigned = 1;
 
-                // Only enqueue if local not full (LOCKED caps)
+                int slots = assigned;
+                if (slots > 2) slots = 2;
+
+                // Local cap gate (LOCKED caps) — giống bản cũ.
+                // Lưu ý: gate này áp cho workplace, nên vẫn OK khi nhiều slot:
+                // nếu local full thì không enqueue slot nào.
                 var rt = HarvestResourceType(bs.DefId);
                 int cap = HarvestLocalCap(bs.DefId, NormalizeLevel(bs.Level));
                 int cur = GetAmountFromBuilding(bs, rt);
@@ -286,23 +292,36 @@ namespace SeasonalBastion
                 if (zoneCell.X == 0 && zoneCell.Y == 0)
                     continue;
 
-                var j = new Job
+                // Enqueue theo slot
+                for (int slot = 0; slot < slots; slot++)
                 {
-                    Archetype = JobArchetype.Harvest,
-                    Status = JobStatus.Created,
-                    Workplace = bid,
-                    SourceBuilding = bid,
-                    DestBuilding = default,
-                    Site = default,
-                    Tower = default,
-                    ResourceType = rt,
-                    Amount = 0,
-                    TargetCell = zoneCell,
-                    CreatedAt = 0
-                };
+                    int key = bid.Value * 4 + slot; // 0..1 (cap 2), để dư 4 cho tương lai
 
-                var newId = _board.Enqueue(j);
-                _harvestJobByWorkplace[bid.Value] = newId;
+                    // Slot này đang có job sống thì bỏ qua (không tạo thêm)
+                    if (_harvestJobByWorkplaceSlot.TryGetValue(key, out var oldId))
+                    {
+                        if (_board.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                            continue;
+                    }
+
+                    var j = new Job
+                    {
+                        Archetype = JobArchetype.Harvest,
+                        Status = JobStatus.Created,
+                        Workplace = bid,
+                        SourceBuilding = bid,
+                        DestBuilding = default,
+                        Site = default,
+                        Tower = default,
+                        ResourceType = rt,
+                        Amount = 0,
+                        TargetCell = zoneCell,
+                        CreatedAt = 0
+                    };
+
+                    var newId = _board.Enqueue(j);
+                    _harvestJobByWorkplaceSlot[key] = newId;
+                }
             }
         }
 
@@ -525,12 +544,21 @@ namespace SeasonalBastion
         private void BuildWorkplaceHasNpcSet()
         {
             _workplacesWithNpc.Clear();
+            _workplaceNpcCount.Clear();
+
             for (int i = 0; i < _npcIds.Count; i++)
             {
                 var nid = _npcIds[i];
                 if (!_w.Npcs.Exists(nid)) continue;
+
                 var ns = _w.Npcs.Get(nid);
-                if (ns.Workplace.Value != 0) _workplacesWithNpc.Add(ns.Workplace.Value);
+                int wp = ns.Workplace.Value;
+                if (wp == 0) continue;
+
+                _workplacesWithNpc.Add(wp);
+
+                if (_workplaceNpcCount.TryGetValue(wp, out var c)) _workplaceNpcCount[wp] = c + 1;
+                else _workplaceNpcCount[wp] = 1;
             }
         }
 

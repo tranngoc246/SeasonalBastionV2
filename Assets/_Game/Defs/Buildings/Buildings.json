@@ -48,7 +48,7 @@
       "workRoles": [],
       "buildCostsL1": [
         {
-          "res": 0,
+          "res": 1,
           "amt": 20
         }
       ],
@@ -71,7 +71,7 @@
       },
       "buildCostsL1": [
         {
-          "res": 0,
+          "res": 1,
           "amt": 25
         }
       ],
@@ -94,7 +94,7 @@
       },
       "buildCostsL1": [
         {
-          "res": 0,
+          "res": 1,
           "amt": 20
         }
       ],
@@ -117,7 +117,7 @@
       },
       "buildCostsL1": [
         {
-          "res": 0,
+          "res": 1,
           "amt": 25
         },
         {
@@ -144,7 +144,7 @@
       },
       "buildCostsL1": [
         {
-          "res": 0,
+          "res": 1,
           "amt": 30
         },
         {
@@ -181,7 +181,7 @@
       },
       "buildCostsL1": [
         {
-          "res": 0,
+          "res": 1,
           "amt": 25
         },
         {
@@ -212,7 +212,7 @@
       },
       "buildCostsL1": [
         {
-          "res": 0,
+          "res": 1,
           "amt": 25
         },
         {
@@ -263,7 +263,7 @@
       },
       "buildCostsL1": [
         {
-          "res": 0,
+          "res": 1,
           "amt": 30
         },
         {
@@ -288,7 +288,7 @@
       },
       "buildCostsL1": [
         {
-          "res": 0,
+          "res": 1,
           "amt": 25
         },
         {

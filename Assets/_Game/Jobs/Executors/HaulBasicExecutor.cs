@@ -39,7 +39,20 @@ namespace SeasonalBastion
                 return true;
             }
 
-            // Destination = workplace (HQ/Warehouse). Must exist + constructed
+            // Resolve destination dynamically:
+            // - Prefer nearest Warehouse (bld_warehouse_t1) first
+            // - Fallback to HQ (bld_hq_t1) if no warehouse has space
+            // NOTE: Use source anchor if we already have a source, otherwise use npc cell.
+            var refPos = npcState.Cell;
+            if (job.SourceBuilding.Value != 0 && _s.WorldState.Buildings.Exists(job.SourceBuilding))
+            {
+                var ss = _s.WorldState.Buildings.Get(job.SourceBuilding);
+                if (ss.IsConstructed) refPos = ss.Anchor;
+            }
+
+            if (TryResolveBestDestination(rt, job.Workplace, refPos, out var bestDest))
+                job.DestBuilding = bestDest;
+
             var dest = job.DestBuilding;
             if (dest.Value == 0 || !_s.WorldState.Buildings.Exists(dest))
             {
@@ -68,8 +81,8 @@ namespace SeasonalBastion
 
                 if (srcId.Value == 0 || !_s.WorldState.Buildings.Exists(srcId))
                 {
-                    // Choose by: higher fill -> nearer to dest -> smaller id (helper already in file)
-                    if (!TryPickBestHarvestProducerSource(dstState.Anchor, rt, 1, out srcId))
+                    // Choose by: higher fill -> nearer to NPC -> smaller id
+                    if (!TryPickBestHarvestProducerSource(npcState.Cell, rt, 1, out srcId))
                     {
                         job.Status = JobStatus.Cancelled;
                         Cleanup(jid);
@@ -84,6 +97,14 @@ namespace SeasonalBastion
                     job.Status = JobStatus.Cancelled;
                     Cleanup(jid);
                     return true;
+                }
+
+                // Re-resolve destination using SOURCE anchor (ưu tiên kho gần nguồn/pickup)
+                if (TryResolveBestDestination(rt, job.Workplace, srcState.Anchor, out var bestDestFromSource))
+                {
+                    job.DestBuilding = bestDestFromSource;
+                    dest = job.DestBuilding;
+                    dstState = _s.WorldState.Buildings.Get(dest);
                 }
 
                 // Move to source anchor
@@ -132,8 +153,23 @@ namespace SeasonalBastion
 
                 if (added < carried)
                 {
-                    // Destination full/race => return remainder to source to avoid loss
                     int left = carried - added;
+
+                    // Try reroute to another destination that has free space (Warehouse > HQ)
+                    if (TryResolveBestDestination(rt, job.Workplace, dstState.Anchor, out var reroute))
+                    {
+                        // If reroute is same dest but it's full, TryResolveBestDestination would normally avoid it (free=0)
+                        if (reroute.Value != 0 && reroute.Value != dest.Value)
+                        {
+                            job.DestBuilding = reroute;
+                            _carry[jid] = left;
+                            job.Amount = left;
+                            job.Status = JobStatus.InProgress;
+                            return true; // continue phase=deliver toward new dest
+                        }
+                    }
+
+                    // No reroute possible => return remainder to source to avoid loss
                     if (_source.TryGetValue(jid, out var srcInt) && srcInt != 0)
                     {
                         var srcId = new BuildingId(srcInt);

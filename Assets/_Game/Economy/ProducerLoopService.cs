@@ -87,22 +87,41 @@ namespace SeasonalBastion
                     continue;
                 }
 
-                // Nếu workplace queue trống => tạo 1 job Harvest
-                // (Dùng JobBoard.CountForWorkplace nếu implementation là JobBoard; nếu không có thì fallback peek)
-                int queued = 0;
-                if (_jobs is IJobBoard jb) queued = jb.CountForWorkplace(bid);
-                else if (_jobs.TryPeekForWorkplace(bid, out _)) queued = 1;
+                // Keep workplace queue ~= số NPC đang assigned để 2 NPC có 2 job mà làm
+                int assigned = CountAssignedWorkers(bid);
+                if (assigned <= 0) continue;
 
-                if (queued <= 0)
+                int queued = _jobs.CountForWorkplace(bid);
+
+                int need = assigned - queued;
+                if (need > 0)
                 {
-                    _jobs.Enqueue(new Job
+                    // cap nhẹ tránh spam job mỗi scan
+                    if (need > 3) need = 3;
+
+                    for (int k = 0; k < need; k++)
                     {
-                        Archetype = JobArchetype.Harvest,
-                        Status = JobStatus.Created,
-                        Workplace = bid
-                    });
+                        _jobs.Enqueue(new Job
+                        {
+                            Archetype = JobArchetype.Harvest,
+                            Status = JobStatus.Created,
+                            Workplace = bid
+                        });
+                    }
                 }
             }
+        }
+
+        private int CountAssignedWorkers(BuildingId workplace)
+        {
+            int c = 0;
+            foreach (var nid in _w.Npcs.Ids)
+            {
+                if (!_w.Npcs.Exists(nid)) continue;
+                var ns = _w.Npcs.Get(nid);
+                if (ns.Workplace.Value == workplace.Value) c++;
+            }
+            return c;
         }
 
         private static bool TryGetProducedResource(string defId, out ResourceType rt)

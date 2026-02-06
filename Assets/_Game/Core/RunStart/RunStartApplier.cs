@@ -173,10 +173,12 @@ namespace SeasonalBastion.RunStart
                     try
                     {
                         int hpMax = Mathf.Max(1, def.MaxHp);
-                        st.HP = hpMax; 
+                        st.MaxHP = hpMax;
+                        st.HP = hpMax;
                     }
                     catch
                     {
+                        st.MaxHP = 1;
                         st.HP = 1;
                     }
 
@@ -204,7 +206,7 @@ namespace SeasonalBastion.RunStart
                 }
             }
 
-            EnsureHardcodedZones(s, defIdToBuildingId);
+            EnsureZonesFromConfigOrFallback(s, cfg);
 
             // Day27: Build lane table (laneId -> start cell -> dir -> target HQ)
             if (s.RunStartRuntime != null)
@@ -881,16 +883,52 @@ namespace SeasonalBastion.RunStart
             return true;
         }
 
-        private static void EnsureHardcodedZones(GameServices s, Dictionary<string, BuildingId> defIdToBuildingId)
+        private static void EnsureZonesFromConfigOrFallback(GameServices s, StartMapConfigRootDto cfg)
         {
             var zs = s?.WorldState?.Zones;
             if (zs == null) return;
 
             zs.Clear();
 
-            // zones rectangles
-            AddRectZone(zs, id: 1, ResourceType.Wood, xMin: 14, yMin: 40, xMax: 24, yMax: 50);
-            AddRectZone(zs, id: 2, ResourceType.Food, xMin: 40, yMin: 14, xMax: 50, yMax: 24);
+            // Prefer StartMapConfig.zones (data-driven).
+            // Fallback: hardcoded rectangles to keep older runs deterministic.
+            bool addedAny = false;
+            if (cfg != null && cfg.zones != null && cfg.zones.Length > 0)
+            {
+                int id = 1;
+                for (int i = 0; i < cfg.zones.Length; i++)
+                {
+                    var z = cfg.zones[i];
+                    if (z == null || z.cellsRect == null) continue;
+                    if (!TryMapZoneTypeToResource(z.type, out var rt)) continue;
+
+                    AddRectZone(zs, id++, rt, z.cellsRect.xMin, z.cellsRect.yMin, z.cellsRect.xMax, z.cellsRect.yMax);
+                    addedAny = true;
+                }
+            }
+
+            if (!addedAny)
+            {
+                // Legacy fallback zones rectangles (v0.1)
+                AddRectZone(zs, id: 1, ResourceType.Wood, xMin: 14, yMin: 40, xMax: 24, yMax: 50);
+                AddRectZone(zs, id: 2, ResourceType.Food, xMin: 40, yMin: 14, xMax: 50, yMax: 24);
+                AddRectZone(zs, id: 3, ResourceType.Stone, xMin: 14, yMin: 14, xMax: 24, yMax: 24);
+                AddRectZone(zs, id: 4, ResourceType.Iron, xMin: 40, yMin: 40, xMax: 50, yMax: 50);
+            }
+        }
+
+        private static bool TryMapZoneTypeToResource(string zoneType, out ResourceType rt)
+        {
+            // StartMapConfig uses string types; keep mapping here minimal + deterministic.
+            // Existing types: FarmPlots, ForestTiles.
+            // New types for full resource set: QuarryTiles (Stone), IronVeinTiles (Iron).
+            if (string.Equals(zoneType, "FarmPlots", StringComparison.OrdinalIgnoreCase)) { rt = ResourceType.Food; return true; }
+            if (string.Equals(zoneType, "ForestTiles", StringComparison.OrdinalIgnoreCase)) { rt = ResourceType.Wood; return true; }
+            if (string.Equals(zoneType, "QuarryTiles", StringComparison.OrdinalIgnoreCase)) { rt = ResourceType.Stone; return true; }
+            if (string.Equals(zoneType, "IronVeinTiles", StringComparison.OrdinalIgnoreCase)) { rt = ResourceType.Iron; return true; }
+
+            rt = default;
+            return false;
         }
 
         private static void AddRectZone(IZoneStore zs, int id, ResourceType rt, int xMin, int yMin, int xMax, int yMax)

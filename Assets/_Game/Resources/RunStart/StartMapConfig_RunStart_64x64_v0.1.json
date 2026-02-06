@@ -160,6 +160,20 @@
       "ownerBuildingHint": "bld_lumbercamp_t1",
       "cellsRect": { "xMin": 18, "yMin": 35, "xMax": 21, "yMax": 38 },
       "cellCount": 16
+    },
+    {
+      "zoneId": "zone_quarry_start",
+      "type": "QuarryTiles",
+      "ownerBuildingHint": "bld_quarry_t1",
+      "cellsRect": { "xMin": 18, "yMin": 18, "xMax": 21, "yMax": 21 },
+      "cellCount": 16
+    },
+    {
+      "zoneId": "zone_iron_start",
+      "type": "IronVeinTiles",
+      "ownerBuildingHint": "bld_ironhut_t1",
+      "cellsRect": { "xMin": 42, "yMin": 42, "xMax": 45, "yMax": 45 },
+      "cellCount": 16
     }
   ],
   "initialBuildings": [

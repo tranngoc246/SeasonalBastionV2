@@ -393,6 +393,32 @@ namespace SeasonalBastion
             }
 
             _laneIdsSorted.Sort();
+
+            ApplyLanePolicy(_s.RunClock.CurrentSeason, _s.RunClock.DayIndex);
+        }
+
+        private void ApplyLanePolicy(Season season, int day)
+        {
+            if (_laneIdsSorted.Count <= 1) return;
+
+            // v0.1: Autumn ramps lanes by day (D1:1 lane, D2:2 lanes, D3+:all)
+            if (season == Season.Autumn)
+            {
+                int keep = day;
+                if (keep < 1) keep = 1;
+                if (keep > _laneIdsSorted.Count) keep = _laneIdsSorted.Count;
+
+                if (keep < _laneIdsSorted.Count)
+                {
+                    // deterministic: keep smallest lane ids
+                    _laneIdsSorted.RemoveRange(keep, _laneIdsSorted.Count - keep);
+                }
+
+                _laneRR = 0;
+                return;
+            }
+
+            // Winter: keep all lanes (default behavior)
         }
 
         private List<WaveDef> ResolveWavesForCalendar(int year, Season season, int day)

@@ -79,7 +79,7 @@ namespace SeasonalBastion
                             key: "producer.local.full",
                             title: "Producer full",
                             body: $"{ShortName(bs.DefId)}: {rt} full ({cur}/{cap})",
-                            severity: NotificationSeverity.Info, 
+                            severity: NotificationSeverity.Info,
                             payload: new NotificationPayload(bid, default, null),
                             cooldownSeconds: 8f,
                             dedupeByKey: true);
@@ -107,9 +107,11 @@ namespace SeasonalBastion
 
         private static bool TryGetProducedResource(string defId, out ResourceType rt)
         {
-            // subset theo yêu cầu Day36: Farm/Lumber
+            // Day36 subset (mở rộng để đủ bộ core resources): Farm/Lumber/Quarry/IronHut
             if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) { rt = ResourceType.Food; return true; }
             if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) { rt = ResourceType.Wood; return true; }
+            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) { rt = ResourceType.Stone; return true; }
+            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) { rt = ResourceType.Iron; return true; }
 
             rt = default;
             return false;
@@ -123,6 +125,8 @@ namespace SeasonalBastion
             if (string.IsNullOrEmpty(defId)) return "Producer";
             if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return "Farmhouse";
             if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return "LumberCamp";
+            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return "Quarry";
+            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return "IronHut";
             return defId;
         }
     }

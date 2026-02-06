@@ -100,8 +100,8 @@ namespace SeasonalBastion
 
             Show();
 
-            // chỉ repaint khi có thay đổi để tránh alloc vô ích
-            if (!_hasLast || id.Value != _lastId.Value || !IsSame(st, _lastState))
+            bool isTower = IsTowerBuilding(st);
+            if (!_hasLast || id.Value != _lastId.Value || isTower || !IsSame(st, _lastState))
             {
                 _lastId = id;
                 _lastState = st;
@@ -119,7 +119,10 @@ namespace SeasonalBastion
                 _lblStone.text = $"Stone: {st.Stone}";
                 _lblFood.text = $"Food: {st.Food}";
                 _lblIron.text = $"Iron: {st.Iron}";
-                _lblAmmo.text = $"Ammo: {st.Ammo}";
+                if (TryGetTowerAmmoForBuilding(st, out int curAmmo, out int capAmmo))
+                    _lblAmmo.text = $"Ammo: {curAmmo}/{capAmmo}";
+                else
+                    _lblAmmo.text = $"Ammo: {st.Ammo}";
             }
         }
 
@@ -140,6 +143,46 @@ namespace SeasonalBastion
         {
             if (_panel == null) return;
             _panel.AddToClassList("hidden");
+        }
+
+        private bool IsTowerBuilding(in BuildingState st)
+        {
+            if (_s == null || _s.DataRegistry == null) return false;
+            if (string.IsNullOrEmpty(st.DefId)) return false;
+
+            try
+            {
+                var def = _s.DataRegistry.GetBuilding(st.DefId);
+                return def != null && def.IsTower;
+            }
+            catch { return false; }
+        }
+
+        private bool TryGetTowerAmmoForBuilding(in BuildingState st, out int ammo, out int cap)
+        {
+            ammo = 0; cap = 0;
+            if (_s == null || _s.WorldState == null || _s.WorldState.Towers == null || _s.DataRegistry == null) return false;
+            if (string.IsNullOrEmpty(st.DefId)) return false;
+
+            BuildingDef bdef = null;
+            try { bdef = _s.DataRegistry.GetBuilding(st.DefId); } catch { }
+            if (bdef == null || !bdef.IsTower) return false;
+
+            // TowerState.Cell là center cell
+            var center = new CellPos(st.Anchor.X + (bdef.SizeX / 2), st.Anchor.Y + (bdef.SizeY / 2));
+
+            foreach (var tid in _s.WorldState.Towers.Ids)
+            {
+                var ts = _s.WorldState.Towers.Get(tid);
+                if (ts.Cell.X == center.X && ts.Cell.Y == center.Y)
+                {
+                    ammo = ts.Ammo;
+                    cap = ts.AmmoCap;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsSame(in BuildingState a, in BuildingState b)

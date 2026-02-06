@@ -169,6 +169,8 @@ namespace SeasonalBastion
                 tsNow.Ammo += add;
                 _s.WorldState.Towers.Set(towerId, tsNow);
 
+                TryMirrorTowerAmmoToBuilding(tsNow.Cell, tsNow.Ammo);
+
                 // optional: update monitor/UI
                 _s.AmmoService?.NotifyTowerAmmoChanged(towerId, tsNow.Ammo, tsNow.AmmoCap);
             }
@@ -180,6 +182,38 @@ namespace SeasonalBastion
             job.Status = JobStatus.Completed;
             Cleanup(jid);
             return true;
+        }
+
+        private void TryMirrorTowerAmmoToBuilding(CellPos towerCell, int ammo)
+        {
+            var w = _s.WorldState;
+            var data = _s.DataRegistry;
+            if (w == null || w.Buildings == null || data == null) return;
+
+            foreach (var bid in w.Buildings.Ids)
+            {
+                if (!w.Buildings.Exists(bid)) continue;
+
+                var b = w.Buildings.Get(bid);
+                if (!b.IsConstructed) continue;
+
+                BuildingDef bdef = null;
+                try { bdef = data.GetBuilding(b.DefId); } catch { }
+
+                if (bdef == null || !bdef.IsTower) continue;
+
+                int w0 = bdef.SizeX <= 0 ? 1 : bdef.SizeX;
+                int h0 = bdef.SizeY <= 0 ? 1 : bdef.SizeY;
+
+                bool contains = towerCell.X >= b.Anchor.X && towerCell.X < (b.Anchor.X + w0)
+                             && towerCell.Y >= b.Anchor.Y && towerCell.Y < (b.Anchor.Y + h0);
+
+                if (!contains) continue;
+
+                b.Ammo = ammo;
+                w.Buildings.Set(bid, b);
+                return;
+            }
         }
 
         private void RefundCarryBestEffort(int jobId, BuildingId armoryBld)

@@ -1,4 +1,5 @@
-using SeasonalBastion.Contracts;
+﻿using SeasonalBastion.Contracts;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -99,7 +100,7 @@ namespace SeasonalBastion.DebugTools
             }
 
             _hasHover = TryGetCellUnderMouse(out _hoverCell);
-        
+
             // ---- Input polling (Option B: no InputActions in tool) ----
             var kb = Keyboard.current;
             var mouse = Mouse.current;
@@ -113,7 +114,7 @@ namespace SeasonalBastion.DebugTools
 
             if (_enabled && mouse != null && mouse.leftButton.wasPressedThisFrame)
                 OnClick(default);
-}
+        }
 
         private void OnToggle(InputAction.CallbackContext _)
         {
@@ -144,6 +145,8 @@ namespace SeasonalBastion.DebugTools
                 return;
             }
 
+            var spawnCell = ResolveSpawnCellNearBuilding(hqCell, fallback: hqCell);
+
             int burst = Mathf.Max(1, _spawnBurstCount);
             for (int i = 0; i < burst; i++)
             {
@@ -151,7 +154,7 @@ namespace SeasonalBastion.DebugTools
                 {
                     Id = default,
                     DefId = _npcDefId,
-                    Cell = hqCell,
+                    Cell = spawnCell,
                     Workplace = default,
                     CurrentJob = default,
                     IsIdle = true
@@ -161,8 +164,9 @@ namespace SeasonalBastion.DebugTools
                 st.Id = id;
                 _world.Npcs.Set(id, st);
 
-                _noti?.Push($"NpcSpawn_{id.Value}", "NPC", $"Spawned NPC #{id.Value} at HQ ({hqCell.X},{hqCell.Y})",
-                    NotificationSeverity.Info, default, 0.1f, true);
+                _noti?.Push($"NpcSpawn_{id.Value}", "NPC",
+                        $"Spawned NPC #{id.Value} near HQ ({spawnCell.X},{spawnCell.Y})",
+                        NotificationSeverity.Info, default, 0.1f, true);
             }
         }
 
@@ -215,6 +219,79 @@ namespace SeasonalBastion.DebugTools
             _noti?.Push($"NpcAssigned_{_selectedNpc.Value}", "NPC",
                 $"NPC #{_selectedNpc.Value} assigned to Building #{buildingId.Value}",
                 NotificationSeverity.Info, default, 0.15f, true);
+
+            // Extra diagnostics: explain why NPC may idle + optionally enqueue a starter job for Harvest buildings.
+            try
+            {
+                var bs = _world.Buildings.Get(buildingId);
+                var def = _data.GetBuilding(bs.DefId);
+
+                // 1) No roles => expected idle
+                if (def.WorkRoles == WorkRoleFlags.None)
+                {
+                    _noti?.Push($"NpcAssigned_NoRoles_{_selectedNpc.Value}", "NPC",
+                        $"Building {bs.DefId} has no WorkRoles => NPC will idle (expected).",
+                        NotificationSeverity.Info, default, 0.3f, true);
+                    return;
+                }
+
+                // 2) Check workplace queue right after assign
+                int q = (_jobs != null) ? _jobs.CountForWorkplace(buildingId) : -1;
+
+                // 3) Harvest buildings: ensure zone exists; if queue empty => auto-enqueue 1 Harvest job
+                if ((def.WorkRoles & WorkRoleFlags.Harvest) != 0)
+                {
+                    var rt = GuessHarvestResourceType(bs.DefId);
+                    if (rt != ResourceType.None)
+                    {
+                        var zc = _world.Zones.PickCell(rt, bs.Anchor);
+                        if (zc.X == 0 && zc.Y == 0)
+                        {
+                            _noti?.Push($"NpcAssigned_NoZone_{_selectedNpc.Value}", "NPC",
+                                $"No zone cell for {rt} near {bs.DefId} => Harvest cannot start. Check zones seeding.",
+                                NotificationSeverity.Warning, default, 0.6f, true);
+                            return;
+                        }
+                    }
+
+                    if (_jobs != null && q == 0)
+                    {
+                        // enqueue starter harvest job so assigned NPC works immediately
+                        _jobs.Enqueue(new Job
+                        {
+                            Archetype = JobArchetype.Harvest,
+                            Status = JobStatus.Created,
+                            Workplace = buildingId
+                        });
+
+                        _noti?.Push($"NpcAssigned_EnqueueHarvest_{_selectedNpc.Value}", "NPC",
+                            $"Enqueued 1 Harvest job for {bs.DefId} => NPC should start moving.",
+                            NotificationSeverity.Info, default, 0.3f, true);
+                    }
+                    else if (q == 0)
+                    {
+                        _noti?.Push($"NpcAssigned_NoJobBoard_{_selectedNpc.Value}", "NPC",
+                            $"JobBoard is null => cannot enqueue jobs; NPC will idle.",
+                            NotificationSeverity.Warning, default, 0.6f, true);
+                    }
+
+                    return;
+                }
+
+                // 4) Non-harvest roles: if queue empty, tell user why likely idle
+                if (_jobs != null && q == 0)
+                {
+                    _noti?.Push($"NpcAssigned_NoJobs_{_selectedNpc.Value}", "NPC",
+                        $"No jobs queued for {bs.DefId}. If this is HQ/Warehouse => needs producer local goods; if Build => needs Site; otherwise wait for scheduler.",
+                        NotificationSeverity.Info, default, 0.5f, true);
+                }
+            }
+            catch
+            {
+                _noti?.Push($"NpcAssigned_DiagFail_{_selectedNpc.Value}", "NPC",
+                    "Assign diagnostics failed (exception). Check Console for details.",
+                    NotificationSeverity.Warning, default, 0.5f, true);
+            }
         }
 
         private void OnReleaseAllClaims(InputAction.CallbackContext _)
@@ -419,6 +496,52 @@ namespace SeasonalBastion.DebugTools
 
             cell = new CellPos(x, y);
             return true;
+        }
+
+        private CellPos ResolveSpawnCellNearBuilding(CellPos buildingAnchor, CellPos fallback)
+        {
+            if (_grid == null) return fallback;
+
+            // Prefer a ROAD cell around the anchor/perimeter area.
+            // Deterministic scan order: +X, -X, +Y, -Y, then small ring.
+            var dirs = new[]
+            {
+        new CellPos(1,0), new CellPos(-1,0), new CellPos(0,1), new CellPos(0,-1),
+        new CellPos(2,0), new CellPos(-2,0), new CellPos(0,2), new CellPos(0,-2),
+        new CellPos(1,1), new CellPos(-1,1), new CellPos(1,-1), new CellPos(-1,-1),
+    };
+
+            // 1) Road first
+            for (int i = 0; i < dirs.Length; i++)
+            {
+                var c = new CellPos(buildingAnchor.X + dirs[i].X, buildingAnchor.Y + dirs[i].Y);
+                if (!_grid.IsInside(c)) continue;
+                var occ = _grid.Get(c);
+                if (occ.Kind == CellOccupancyKind.Road) return c;
+            }
+
+            // 2) Empty next
+            for (int i = 0; i < dirs.Length; i++)
+            {
+                var c = new CellPos(buildingAnchor.X + dirs[i].X, buildingAnchor.Y + dirs[i].Y);
+                if (!_grid.IsInside(c)) continue;
+                var occ = _grid.Get(c);
+                if (occ.Kind == CellOccupancyKind.Empty) return c;
+            }
+
+            return fallback;
+        }
+
+        private ResourceType GuessHarvestResourceType(string defId)
+        {
+            if (string.IsNullOrEmpty(defId)) return ResourceType.None;
+
+            if (defId.Equals("bld_farmhouse_t1", StringComparison.OrdinalIgnoreCase)) return ResourceType.Food;
+            if (defId.Equals("bld_lumbercamp_t1", StringComparison.OrdinalIgnoreCase)) return ResourceType.Wood;
+            if (defId.Equals("bld_quarry_t1", StringComparison.OrdinalIgnoreCase)) return ResourceType.Stone;
+            if (defId.Equals("bld_ironhut_t1", StringComparison.OrdinalIgnoreCase)) return ResourceType.Iron;
+
+            return ResourceType.None;
         }
     }
 }

@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
     /// <summary>
-    /// Day30 � TowerCombatSystem: target + fire + consume ammo
+    /// Day30 — TowerCombatSystem: target + fire + consume ammo
     /// Deterministic:
     /// - iterate towers by TowerId asc
     /// - target: nearest in range, tie by EnemyId
@@ -197,7 +197,7 @@ namespace SeasonalBastion
         // TowerDefId resolution & building mirror
         // --------------------------
 
-        private bool TryResolveTowerDefId(CellPos towerAnchor, out string towerDefId)
+        private bool TryResolveTowerDefId(CellPos towerCell, out string towerDefId)
         {
             towerDefId = null;
 
@@ -217,24 +217,24 @@ namespace SeasonalBastion
 
                 var b = w.Buildings.Get(bid);
                 if (!b.IsConstructed) continue;
-                if (b.Anchor.X != towerAnchor.X || b.Anchor.Y != towerAnchor.Y) continue;
 
-                try
-                {
-                    var bdef = data.GetBuilding(b.DefId);
-                    if (bdef != null && bdef.IsTower)
-                    {
-                        towerDefId = b.DefId;
-                        return true;
-                    }
-                }
-                catch { /* ignore */ }
+                BuildingDef bdef = null;
+                try { bdef = data.GetBuilding(b.DefId); } catch { }
+
+                if (bdef == null || !bdef.IsTower) continue;
+
+                // TowerState.Cell là CENTER cell. Match bằng footprint.
+                if (!FootprintContainsCell(b.Anchor, bdef.SizeX, bdef.SizeY, towerCell))
+                    continue;
+
+                towerDefId = b.DefId;
+                return true;
             }
 
             return false;
         }
 
-        private void TryMirrorTowerAmmoToBuilding(CellPos towerAnchor, int ammo)
+        private void TryMirrorTowerAmmoToBuilding(CellPos towerCell, int ammo)
         {
             var w = _s.WorldState;
             var data = _s.DataRegistry;
@@ -252,22 +252,28 @@ namespace SeasonalBastion
 
                 var b = w.Buildings.Get(bid);
                 if (!b.IsConstructed) continue;
-                if (b.Anchor.X != towerAnchor.X || b.Anchor.Y != towerAnchor.Y) continue;
 
-                bool isTower = false;
-                try
-                {
-                    var bdef = data.GetBuilding(b.DefId);
-                    isTower = (bdef != null && bdef.IsTower);
-                }
-                catch { }
+                BuildingDef bdef = null;
+                try { bdef = data.GetBuilding(b.DefId); } catch { }
 
-                if (!isTower) continue;
+                if (bdef == null || !bdef.IsTower) continue;
+
+                if (!FootprintContainsCell(b.Anchor, bdef.SizeX, bdef.SizeY, towerCell))
+                    continue;
 
                 b.Ammo = ammo;
                 w.Buildings.Set(bid, b);
                 return;
             }
+        }
+
+        private static bool FootprintContainsCell(CellPos anchor, int sizeX, int sizeY, CellPos c)
+        {
+            int w = sizeX <= 0 ? 1 : sizeX;
+            int h = sizeY <= 0 ? 1 : sizeY;
+
+            return c.X >= anchor.X && c.X < (anchor.X + w)
+                && c.Y >= anchor.Y && c.Y < (anchor.Y + h);
         }
     }
 }

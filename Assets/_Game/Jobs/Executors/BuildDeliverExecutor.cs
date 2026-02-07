@@ -1,6 +1,7 @@
+using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
-using SeasonalBastion.Contracts;
+using System.Security.Cryptography;
 
 namespace SeasonalBastion
 {
@@ -20,6 +21,11 @@ namespace SeasonalBastion
 
         // Reuse buffer cho refund (tránh alloc mỗi tick)
         private readonly List<BuildingId> _refundBuf = new(32);
+
+        // jobId -> remaining settle seconds at interaction point (pickup/deliver)
+        private readonly Dictionary<int, float> _settle = new();
+
+        private const float DeliverSettleSec = 1.0f;
 
         public BuildDeliverExecutor(GameServices s) { _s = s; }
 
@@ -110,16 +116,31 @@ namespace SeasonalBastion
                 if (!EnsureSourceClaim(npc, jid, srcId, rt))
                     return true;
 
-                // Move to source
-                job.TargetCell = srcState.Anchor;
+                // Move to source ENTRY (driveway)
+                var srcEntry = EntryCellUtil.GetApproachCellForBuilding(_s, srcState, npcState.Cell);
+
+                job.TargetCell = srcEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcState.Anchor, dt);
+                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcEntry, dt);
                 if (!arrivedSrc)
                     return true;
 
+                // Stand still before pickup
+                if (!_settle.TryGetValue(jid, out var remS))
+                    remS = DeliverSettleSec;
+
+                remS -= dt;
+                if (remS > 0f)
+                {
+                    _settle[jid] = remS;
+                    return true;
+                }
+                _settle.Remove(jid);
+
                 // pickup from storage
                 int removed = _s.StorageService.Remove(srcId, rt, want);
+
                 if (removed <= 0)
                 {
                     // source ran dry => repick next tick
@@ -147,13 +168,27 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                // Move to site anchor (delivery point)
-                job.TargetCell = site.Anchor;
+                // Move to site ENTRY (delivery point)
+                var siteEntry = EntryCellUtil.GetApproachCellForSite(_s, site, npcState.Cell);
+
+                job.TargetCell = siteEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedSite = _s.AgentMover.StepToward(ref npcState, site.Anchor, dt);
+                bool arrivedSite = _s.AgentMover.StepToward(ref npcState, siteEntry, dt);
                 if (!arrivedSite)
                     return true;
+
+                // Stand still before applying delivery
+                if (!_settle.TryGetValue(jid, out var remD))
+                    remD = DeliverSettleSec;
+
+                remD -= dt;
+                if (remD > 0f)
+                {
+                    _settle[jid] = remD;
+                    return true;
+                }
+                _settle.Remove(jid);
 
                 // Apply delivery to site (re-read to avoid race with other NPCs)
                 if (!_s.WorldState.Sites.Exists(job.Site))
@@ -391,6 +426,7 @@ namespace SeasonalBastion
             _phase.Remove(jobId);
             _carry.Remove(jobId);
             _srcClaimByJob.Remove(jobId);
+            _settle.Remove(jobId);
             // JobScheduler will ReleaseAll(npc) on terminal status (safe).
         }
 

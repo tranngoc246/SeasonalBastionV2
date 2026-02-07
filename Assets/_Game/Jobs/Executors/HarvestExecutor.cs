@@ -12,6 +12,10 @@ namespace SeasonalBastion
         // jobId -> remaining work seconds
         private readonly Dictionary<int, float> _remaining = new();
 
+        // jobId -> remaining settle seconds for deposit back to producer
+        private readonly Dictionary<int, float> _depositSettle = new();
+        private const float HarvestDepositSettleSec = 1.0f;
+
         public HarvestExecutor(GameServices s) { _s = s; }
 
 
@@ -23,6 +27,7 @@ namespace SeasonalBastion
             if (job.Status == JobStatus.Cancelled)
             {
                 _remaining.Remove(jid);
+                _depositSettle.Remove(jid);
                 return true;
             }
 
@@ -84,22 +89,31 @@ namespace SeasonalBastion
             // Phase B: delivering carried resource to producer local
             if (job.Amount > 0)
             {
-                var anchor = bs.Anchor;
+                var entry = EntryCellUtil.GetApproachCellForBuilding(_s, bs, npcState.Cell);
 
-                job.TargetCell = anchor;
+                job.TargetCell = entry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedAnchor = _s.AgentMover.StepToward(ref npcState, anchor, dt);
-                if (!arrivedAnchor)
+                bool arrivedEntry = _s.AgentMover.StepToward(ref npcState, entry, dt);
+                if (!arrivedEntry)
                     return true;
+
+                // Stand still before deposit
+                if (!_depositSettle.TryGetValue(jid, out var remDep))
+                    remDep = HarvestDepositSettleSec;
+
+                remDep -= dt;
+                if (remDep > 0f)
+                {
+                    _depositSettle[jid] = remDep;
+                    return true;
+                }
+                _depositSettle.Remove(jid);
 
                 int carried = job.Amount;
                 int added = _s.StorageService.Add(producer, rt, carried);
 
-                // Do not drop piles in this design: HQ/Warehouse haulers pull from local storage.
-                // If Add fails due to full (race), just clamp: treat as delivered what could be stored.
-                // Any leftover is discarded safely by cancelling; better than spawning piles that no one hauls.
-                job.Amount = 0;
+                job.Amount = 0; // reset carry
 
                 job.Status = JobStatus.Completed;
                 return true;
@@ -113,6 +127,7 @@ namespace SeasonalBastion
             {
                 job.Status = JobStatus.Cancelled;
                 _remaining.Remove(jid);
+                _depositSettle.Remove(jid);
                 return true;
             }
 
@@ -121,6 +136,7 @@ namespace SeasonalBastion
             {
                 job.Status = JobStatus.Cancelled;
                 _remaining.Remove(jid);
+                _depositSettle.Remove(jid);
                 return true;
             }
 
@@ -158,6 +174,7 @@ namespace SeasonalBastion
             }
 
             _remaining.Remove(jid);
+            _depositSettle.Remove(jid);
 
             // Work done => compute carry (CLAMP by free local cap to avoid overflow races)
             int cap2 = _s.StorageService.GetCap(producer, rt);

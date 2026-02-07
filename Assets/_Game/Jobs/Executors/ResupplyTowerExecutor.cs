@@ -20,6 +20,10 @@ namespace SeasonalBastion
         private readonly Dictionary<int, byte> _phase = new();
         private readonly Dictionary<int, int> _carry = new();
 
+        // jobId -> remaining settle seconds at pickup/deliver
+        private readonly Dictionary<int, float> _settle = new();
+        private const float ResupplySettleSec = 1.0f;
+
         public ResupplyTowerExecutor(GameServices s) { _s = s; }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
@@ -109,13 +113,28 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                job.TargetCell = armSt.Anchor;
+                var armEntry = EntryCellUtil.GetApproachCellForBuilding(_s, armSt, npcState.Cell);
+
+                job.TargetCell = armEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrived = _s.AgentMover.StepToward(ref npcState, armSt.Anchor, dt);
+                bool arrived = _s.AgentMover.StepToward(ref npcState, armEntry, dt);
                 if (!arrived) return true;
 
+                // Stand still before pickup
+                if (!_settle.TryGetValue(jid, out var remPick))
+                    remPick = ResupplySettleSec;
+
+                remPick -= dt;
+                if (remPick > 0f)
+                {
+                    _settle[jid] = remPick;
+                    return true;
+                }
+                _settle.Remove(jid);
+
                 int removed = _s.StorageService.Remove(armoryBld, ResourceType.Ammo, want);
+
                 if (removed <= 0)
                 {
                     job.Status = JobStatus.Cancelled;
@@ -150,10 +169,24 @@ namespace SeasonalBastion
             }
 
             var tsForMove = _s.WorldState.Towers.Get(towerId);
-            job.TargetCell = tsForMove.Cell;
+            var towerApproach = ResolveTowerApproachCell(tsForMove.Cell, npcState.Cell);
 
-            bool arrivedTower = _s.AgentMover.StepToward(ref npcState, tsForMove.Cell, dt);
+            job.TargetCell = towerApproach;
+
+            bool arrivedTower = _s.AgentMover.StepToward(ref npcState, towerApproach, dt);
             if (!arrivedTower) return true;
+
+            // Stand still before deliver
+            if (!_settle.TryGetValue(jid, out var remDel))
+                remDel = ResupplySettleSec;
+
+            remDel -= dt;
+            if (remDel > 0f)
+            {
+                _settle[jid] = remDel;
+                return true;
+            }
+            _settle.Remove(jid);
 
             // Re-fetch newest tower state to avoid stale overwrite if multiple deliveries happen.
             var tsNow = _s.WorldState.Towers.Get(towerId);
@@ -182,6 +215,52 @@ namespace SeasonalBastion
             job.Status = JobStatus.Completed;
             Cleanup(jid);
             return true;
+        }
+
+        private CellPos ResolveTowerApproachCell(CellPos towerCell, CellPos from)
+        {
+            // Prefer matching tower-building footprint (if exists), else fallback to tower cell
+            if (TryFindTowerBuildingByCell(towerCell, out var tbid, out var tbs))
+                return EntryCellUtil.GetApproachCellForBuilding(_s, tbs, from);
+
+            return towerCell;
+        }
+
+        private bool TryFindTowerBuildingByCell(CellPos towerCell, out BuildingId bid, out BuildingState bs)
+        {
+            bid = default;
+            bs = default;
+
+            var w = _s.WorldState;
+            var data = _s.DataRegistry;
+            if (w == null || w.Buildings == null || data == null) return false;
+
+            foreach (var id in w.Buildings.Ids)
+            {
+                if (!w.Buildings.Exists(id)) continue;
+
+                var b = w.Buildings.Get(id);
+                if (!b.IsConstructed) continue;
+
+                BuildingDef bdef = null;
+                try { bdef = data.GetBuilding(b.DefId); } catch { }
+
+                if (bdef == null || !bdef.IsTower) continue;
+
+                int w0 = bdef.SizeX <= 0 ? 1 : bdef.SizeX;
+                int h0 = bdef.SizeY <= 0 ? 1 : bdef.SizeY;
+
+                bool contains = towerCell.X >= b.Anchor.X && towerCell.X < (b.Anchor.X + w0)
+                             && towerCell.Y >= b.Anchor.Y && towerCell.Y < (b.Anchor.Y + h0);
+
+                if (!contains) continue;
+
+                bid = id;
+                bs = b;
+                return true;
+            }
+
+            return false;
         }
 
         private void TryMirrorTowerAmmoToBuilding(CellPos towerCell, int ammo)
@@ -230,6 +309,7 @@ namespace SeasonalBastion
         {
             _phase.Remove(jobId);
             _carry.Remove(jobId);
+            _settle.Remove(jobId);
         }
     }
 }

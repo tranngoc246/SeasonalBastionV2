@@ -15,6 +15,9 @@ namespace SeasonalBastion
         // jobId -> accumulated work seconds
         private readonly Dictionary<int, float> _acc = new();
 
+        // jobId -> remaining settle seconds at entry before starting repair
+        private readonly Dictionary<int, float> _settle = new();
+        private const float RepairSettleSec = 1.5f;
         // Tuning (Day22 minimal)
         private const float ChunkSec = 4f;      // 4 seconds per repair chunk
         private const float HealPctPerChunk = 0.15f; // heal ~15% maxHP per chunk
@@ -29,6 +32,7 @@ namespace SeasonalBastion
             if (job.Status == JobStatus.Cancelled || job.Status == JobStatus.Failed || job.Status == JobStatus.Completed)
             {
                 _acc.Remove(jid);
+                _settle.Remove(jid);
                 return true;
             }
 
@@ -36,6 +40,7 @@ namespace SeasonalBastion
             {
                 job.Status = JobStatus.Failed;
                 _acc.Remove(jid);
+                _settle.Remove(jid);
                 return true;
             }
 
@@ -45,6 +50,7 @@ namespace SeasonalBastion
             {
                 job.Status = JobStatus.Failed;
                 _acc.Remove(jid);
+                _settle.Remove(jid);
                 return true;
             }
 
@@ -53,6 +59,7 @@ namespace SeasonalBastion
             {
                 job.Status = JobStatus.Failed;
                 _acc.Remove(jid);
+                _settle.Remove(jid);
                 return true;
             }
 
@@ -70,22 +77,36 @@ namespace SeasonalBastion
             {
                 job.Status = JobStatus.Completed;
                 _acc.Remove(jid);
+                _settle.Remove(jid);
                 return true;
             }
 
-            // Move to target (GridAgentMoverLite: 1 cell / tick, deterministic X then Y)
-            var target = bs.Anchor;
-            if (npcState.Cell.X != target.X || npcState.Cell.Y != target.Y)
+            // Move to building ENTRY (driveway) instead of anchor
+            var entry = EntryCellUtil.GetApproachCellForBuilding(_s, bs, npcState.Cell);
+
+            if (npcState.Cell.X != entry.X || npcState.Cell.Y != entry.Y)
             {
-                job.TargetCell = target;
+                job.TargetCell = entry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrived = _s.AgentMover.StepToward(ref npcState, target, dt);
+                bool arrived = _s.AgentMover.StepToward(ref npcState, entry, dt);
                 if (!arrived)
                     return true;
-
-                // arrived this tick -> continue to work below
+                // arrived this tick -> continue below
             }
+
+            // Stand still a bit before starting repair
+            if (!_settle.TryGetValue(jid, out var remSettle))
+                remSettle = RepairSettleSec;
+
+            remSettle -= dt;
+            if (remSettle > 0f)
+            {
+                _settle[jid] = remSettle;
+                job.Status = JobStatus.InProgress;
+                return true;
+            }
+            _settle.Remove(jid);
 
 
             // Work at site
@@ -106,6 +127,7 @@ namespace SeasonalBastion
                 {
                     job.Status = JobStatus.Completed;
                     _acc.Remove(jid);
+                    _settle.Remove(jid);
                     return true;
                 }
             }

@@ -22,6 +22,9 @@ namespace SeasonalBastion
         private readonly Dictionary<int, byte> _phase = new();
         private readonly Dictionary<int, int> _carry = new();
 
+        private readonly Dictionary<int, float> _settle = new();
+        private const float HaulForgeSettleSec = 1.0f;
+
         public HaulToForgeExecutor(GameServices s) { _s = s; }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
@@ -130,13 +133,27 @@ namespace SeasonalBastion
 
                 if (avail < want) want = avail;
 
-                // Move to source
-                job.TargetCell = srcState.Anchor;
+                // Move to source ENTRY
+                var srcEntry = EntryCellUtil.GetApproachCellForBuilding(_s, srcState, npcState.Cell);
+
+                job.TargetCell = srcEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcState.Anchor, dt);
+                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcEntry, dt);
                 if (!arrivedSrc)
                     return true;
+
+                // Stand still before pickup
+                if (!_settle.TryGetValue(jid, out var remP))
+                    remP = HaulForgeSettleSec;
+
+                remP -= dt;
+                if (remP > 0f)
+                {
+                    _settle[jid] = remP;
+                    return true;
+                }
+                _settle.Remove(jid);
 
                 // Claim source during remove
                 if (_s.ClaimService != null)
@@ -174,13 +191,27 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                // Move to dest (Forge)
-                job.TargetCell = dstState.Anchor;
+                // Move to dest ENTRY (Forge)
+                var dstEntry = EntryCellUtil.GetApproachCellForBuilding(_s, dstState, npcState.Cell);
+
+                job.TargetCell = dstEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedDst = _s.AgentMover.StepToward(ref npcState, dstState.Anchor, dt);
+                bool arrivedDst = _s.AgentMover.StepToward(ref npcState, dstEntry, dt);
                 if (!arrivedDst)
                     return true;
+
+                // Stand still before deposit
+                if (!_settle.TryGetValue(jid, out var remD))
+                    remD = HaulForgeSettleSec;
+
+                remD -= dt;
+                if (remD > 0f)
+                {
+                    _settle[jid] = remD;
+                    return true;
+                }
+                _settle.Remove(jid);
 
                 int added = _s.StorageService.Add(dst, rt, carrying);
                 // if added < carrying, remainder is dropped (should be rare since we checked free, but safe)
@@ -209,6 +240,7 @@ namespace SeasonalBastion
         {
             _phase.Remove(jobId);
             _carry.Remove(jobId);
+            _settle.Remove(jobId);
             // Claims will also be released by JobScheduler.ReleaseAll on terminal,
             // so we don't need extra releases here.
         }

@@ -637,7 +637,8 @@ namespace SeasonalBastion
         {
             // Day20 (LOCKED): WorkDuration theo def (BuildChunks) + chunk time từ Deliverable C.
             // Deliverable C: BuildWorkChunkTime = 6s, mỗi building có BuildChunksL1.
-            const float BuildWorkChunkTimeSec = 6f;
+            //const float BuildWorkChunkTimeSec = 6f;
+            const float BuildWorkChunkTimeSec = 1.67f;
 
             if (def != null && def.BuildChunksL1 > 0)
                 return def.BuildChunksL1 * BuildWorkChunkTimeSec;
@@ -735,22 +736,11 @@ namespace SeasonalBastion
                     _workJobBySite.Remove(siteId.Value);
             }
 
-            // Not ready => ensure delivery jobs, cancel work job
-            if (!IsReadyToWork(site))
-            {
-                if (_workJobBySite.TryGetValue(siteId.Value, out var w))
-                {
-                    _s.JobBoard.Cancel(w);
-                    _workJobBySite.Remove(siteId.Value);
-                }
-
-                EnsureDeliveryJobs(siteId, site, def, workplace);
-                return;
-            }
-
-            // Ready => cancel delivery jobs, ensure 1 work job
+            // New behavior: 1 builder job handles BOTH delivery + build.
+            // So we never enqueue BuildDeliver jobs. Also cancel any legacy deliver jobs still tracked.
             CancelDeliveryJobs(siteId);
 
+            // Ensure 1 BuildWork job always exists while site is active (even when not ready).
             if (!_workJobBySite.ContainsKey(siteId.Value))
             {
                 var j = new Job
@@ -764,6 +754,9 @@ namespace SeasonalBastion
                     Site = siteId,
                     Tower = default,
 
+                    // BuildWorkExecutor will reuse these fields for its internal delivery phases:
+                    // ResourceType = current hauling resource
+                    // Amount = carried amount
                     ResourceType = 0,
                     Amount = 0,
 

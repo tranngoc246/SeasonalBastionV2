@@ -20,6 +20,9 @@ namespace SeasonalBastion
         private readonly Dictionary<int, byte> _phase = new();
         private readonly Dictionary<int, int> _carry = new();
 
+        private readonly Dictionary<int, float> _settle = new();
+        private const float AmmoHaulSettleSec = 1.0f;
+
         public HaulAmmoToArmoryExecutor(GameServices s) { _s = s; }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
@@ -113,14 +116,29 @@ namespace SeasonalBastion
                 if (want > srcAvail) want = srcAvail;
                 if (want <= 0) return false;
 
-                // Move to source
-                job.TargetCell = srcState.Anchor;
+                // Move to source ENTRY
+                var srcEntry = EntryCellUtil.GetApproachCellForBuilding(_s, srcState, npcState.Cell);
+
+                job.TargetCell = srcEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcState.Anchor, dt);
+                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcEntry, dt);
                 if (!arrivedSrc) return true;
 
+                // Stand still before pickup
+                if (!_settle.TryGetValue(jid, out var remP))
+                    remP = AmmoHaulSettleSec;
+
+                remP -= dt;
+                if (remP > 0f)
+                {
+                    _settle[jid] = remP;
+                    return true;
+                }
+                _settle.Remove(jid);
+
                 int removed = _s.StorageService.Remove(src, ResourceType.Ammo, want);
+
                 if (removed <= 0) return false;
 
                 _carry[jid] = removed;
@@ -137,12 +155,26 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                // Move to dest
-                job.TargetCell = dstState.Anchor;
+                // Move to dest ENTRY
+                var dstEntry = EntryCellUtil.GetApproachCellForBuilding(_s, dstState, npcState.Cell);
+
+                job.TargetCell = dstEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedDst = _s.AgentMover.StepToward(ref npcState, dstState.Anchor, dt);
+                bool arrivedDst = _s.AgentMover.StepToward(ref npcState, dstEntry, dt);
                 if (!arrivedDst) return true;
+
+                // Stand still before deposit
+                if (!_settle.TryGetValue(jid, out var remD))
+                    remD = AmmoHaulSettleSec;
+
+                remD -= dt;
+                if (remD > 0f)
+                {
+                    _settle[jid] = remD;
+                    return true;
+                }
+                _settle.Remove(jid);
 
                 int added = _s.StorageService.Add(dst, ResourceType.Ammo, carried);
 
@@ -161,6 +193,7 @@ namespace SeasonalBastion
         {
             _phase.Remove(jobId);
             _carry.Remove(jobId);
+            _settle.Remove(jobId);
         }
     }
 }

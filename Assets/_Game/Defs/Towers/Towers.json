@@ -6,7 +6,7 @@
       "hp": 260,
       "range": 5,
       "rof": 1.0,
-      "damage": 7,
+      "damage": 17,
       "ammoMax": 100,
       "ammoPerShot": 1,
       "needsAmmoThresholdPct": 0.25,

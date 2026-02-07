@@ -40,11 +40,13 @@ namespace SeasonalBastion
             if (!bs.IsConstructed)
                 return false;
 
-            // Move to Forge anchor first
-            job.TargetCell = bs.Anchor;
+            // Move to Forge ENTRY (driveway)
+            var entry = EntryCellUtil.GetApproachCellForBuilding(_s, bs, npcState.Cell);
+
+            job.TargetCell = entry;
             job.Status = JobStatus.InProgress;
 
-            bool arrived = _s.AgentMover.StepToward(ref npcState, bs.Anchor, dt);
+            bool arrived = _s.AgentMover.StepToward(ref npcState, entry, dt);
             if (!arrived)
                 return true;
 

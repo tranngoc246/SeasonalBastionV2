@@ -36,7 +36,9 @@
         "L1": 0,
         "L2": 0,
         "L3": 0
-      }
+      },
+      "buildCostsL1": [],
+      "buildChunksL1": 0
     },
     {
       "id": "bld_house_t1",
@@ -52,7 +54,10 @@
           "amt": 20
         }
       ],
-      "buildChunksL1": 2
+      "buildCostsL1": [
+        { "res": 1, "amt": 10 }
+      ],
+      "buildChunksL1": 6
     },
     {
       "id": "bld_farmhouse_t1",
@@ -70,12 +75,9 @@
         "L3": 90
       },
       "buildCostsL1": [
-        {
-          "res": 1,
-          "amt": 25
-        }
+        { "res": 1, "amt": 25 }
       ],
-      "buildChunksL1": 2
+      "buildChunksL1": 8
     },
     {
       "id": "bld_lumbercamp_t1",
@@ -93,12 +95,9 @@
         "L3": 120
       },
       "buildCostsL1": [
-        {
-          "res": 1,
-          "amt": 20
-        }
+        { "res": 1, "amt": 25 }
       ],
-      "buildChunksL1": 2
+      "buildChunksL1": 8
     },
     {
       "id": "bld_quarry_t1",
@@ -125,7 +124,7 @@
           "amt": 20
         }
       ],
-      "buildChunksL1": 3
+      "buildChunksL1": 8
     },
     {
       "id": "bld_ironhut_t1",
@@ -152,7 +151,7 @@
           "amt": 20
         }
       ],
-      "buildChunksL1": 3
+      "buildChunksL1": 8
     },
     {
       "id": "bld_forge_t1",
@@ -193,7 +192,7 @@
           "amt": 10
         }
       ],
-      "buildChunksL1": 3
+      "buildChunksL1": 10
     },
     {
       "id": "bld_armory_t1",
@@ -224,7 +223,7 @@
           "amt": 10
         }
       ],
-      "buildChunksL1": 3
+      "buildChunksL1": 10
     },
     {
       "id": "bld_warehouse_t1",
@@ -267,11 +266,11 @@
           "amt": 30
         },
         {
-          "res": 2,
+          "res": 3,
           "amt": 20
         }
       ],
-      "buildChunksL1": 3
+      "buildChunksL1": 12
     },
     {
       "id": "bld_tower_arrow_t1",
@@ -292,11 +291,11 @@
           "amt": 25
         },
         {
-          "res": 2,
+          "res": 3,
           "amt": 20
         }
       ],
-      "buildChunksL1": 3
+      "buildChunksL1": 10
     }
   ]
 }

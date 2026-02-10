@@ -813,7 +813,7 @@ namespace SeasonalBastion
 
         private ResourceType ParseResourceType(int v, string ctx)
         {
-            if (v < 0 || v > 4)
+            if (v < 0 || v > 5)
             {
                 _loadErrors.Add($"{ctx}: invalid resource enum value {v}");
                 return ResourceType.Wood;

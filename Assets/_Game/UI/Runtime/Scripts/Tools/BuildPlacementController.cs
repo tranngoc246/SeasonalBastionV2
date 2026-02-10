@@ -131,33 +131,25 @@ namespace SeasonalBastion
             if (UiBlocker.IsPointerOverBlockingUi(Mouse.current.position.ReadValue(), _hudDoc, _panelsDoc, _modalsDoc))
                 return;
 
-            // Validate -> Commit (the real IPlacementService contract)
             if (!v.Ok)
             {
-                _s.NotificationService?.Push(
-                    key: "place_fail",
+                // Click invalid placement -> show 1 deduped notification
+                _s?.NotificationService?.Push(
+                    key: "CantPlace",
                     title: "Can't place",
                     body: DescribeFail(v.Reason),
                     severity: NotificationSeverity.Warning,
-                    payload: default,
-                    cooldownSeconds: 0.75f,
-                    dedupeByKey: false
+                    payload: new NotificationPayload(default, default, "placement"),
+                    cooldownSeconds: 0.35f,
+                    dedupeByKey: true
                 );
                 return;
             }
 
+
             var bid = _s.PlacementService.CommitBuilding(_defId, cell, _rot);
             if (bid.Value <= 0)
             {
-                _s.NotificationService?.Push(
-                    key: "place_fail_commit",
-                    title: "Can't place",
-                    body: "Commit failed (BuildOrder/Services not ready).",
-                    severity: NotificationSeverity.Warning,
-                    payload: default,
-                    cooldownSeconds: 0.75f,
-                    dedupeByKey: false
-                );
                 return;
             }
 

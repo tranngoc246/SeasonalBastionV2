@@ -20,6 +20,14 @@ namespace SeasonalBastion
             // Reset runtime state (world/grid/jobs/orders/notifications) to avoid leaks between runs.
             ResetForNewRun();
 
+            // Mute notifications during boot/loading (prevents false positives in first frames)
+            try
+            {
+                if (_s.NotificationService is NotificationService ns)
+                    ns.MuteForSeconds(4.0f);
+            }
+            catch { }
+
             // Deterministic initial run clock state
             _s.RunClock.ForceSeasonDay(Season.Spring, dayIndex: 1);
             _s.RunClock.SetTimeScale(1f);
@@ -45,10 +53,12 @@ namespace SeasonalBastion
             // rebuild derived world index lists (safe even if world is empty).
             _s.WorldIndex?.RebuildAll();
         }
+
         private void ResetForNewRun()
         {
             // clear transient UI
-            try { _s.NotificationService.ClearAll(); } catch { }
+            if (_s.NotificationService is NotificationService ns) ns.ClearInbox();
+            else _s.NotificationService.ClearAll();
             try { _s.TutorialHints.Reset(); } catch { }
             // Day40: reset season metrics
             try { _s.SeasonMetrics.Reset(); } catch { }

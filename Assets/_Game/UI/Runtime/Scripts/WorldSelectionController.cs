@@ -227,5 +227,22 @@ namespace SeasonalBastion
             cell = new CellPos(x, y);
             return true;
         }
+
+        public void SelectBuilding(BuildingId id)
+        {
+            if (id.Value == 0) return;
+            if (_s == null || _s.WorldState == null) return;
+
+            var bsStore = _s.WorldState.Buildings;
+            if (bsStore == null) return;
+            if (!bsStore.Exists(id)) return;
+
+            // Minimal: set selected building + optional selection state
+            SelectedBuilding = id;
+            HasSelection = true;
+
+            // If your HUD listens via EventBus, publish a selection event (optional):
+            //_s.EventBus?.Publish(new BuildingSelectedEvent(id));
+        }
     }
 }

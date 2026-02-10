@@ -1,10 +1,16 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
     public sealed class BuildWorkExecutor : IJobExecutor
     {
+#if UNITY_EDITOR
+        private float _dbgWallT;
+        private float _dbgLastWork;
+        private int _dbgLastSite;
+#endif
+
         private readonly GameServices _s;
 
         private const int CarryCap = 10;
@@ -16,10 +22,16 @@ namespace SeasonalBastion
         private readonly Dictionary<int, int> _carry = new();
 
         // jobId -> remaining settle seconds (used for pickup/deliver/build)
+        // IMPORTANT:
+        // - pickup/deliver: settle is per-action => remove after done
+        // - build: settle should happen ONCE, then keep value = 0 (sentinel) so we don't restart settle every cycle
         private readonly Dictionary<int, float> _settle = new();
 
         // simple source claim (optional but prevents 2 builders fighting same source+rt)
         private readonly Dictionary<int, ClaimKey> _srcClaimByJob = new();
+
+        // jobId -> locked build entry cell (avoid oscillation when HQ has 4 entries)
+        private readonly Dictionary<int, CellPos> _buildEntry = new();
 
         private const float PickupSettleSec = 1.0f;
         private const float DeliverSettleSec = 1.0f;
@@ -70,7 +82,11 @@ namespace SeasonalBastion
                         site.RemainingCosts = null;
                         _s.WorldState.Sites.Set(job.Site, site);
                         _phase[jid] = 2;
+
+                        // entering build => clear settle (build settle should start fresh)
                         _settle.Remove(jid);
+                        _buildEntry.Remove(jid);
+
                         return true;
                     }
 
@@ -125,7 +141,7 @@ namespace SeasonalBastion
                     bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcEntry, dt);
                     if (!arrivedSrc) return true;
 
-                    // settle before pickup
+                    // settle before pickup (per-action)
                     if (!_settle.TryGetValue(jid, out var remPick))
                         remPick = PickupSettleSec;
 
@@ -172,7 +188,7 @@ namespace SeasonalBastion
                     bool arrivedSite = _s.AgentMover.StepToward(ref npcState, entry, dt);
                     if (!arrivedSite) return true;
 
-                    // settle before applying delivery
+                    // settle before applying delivery (per-action)
                     if (!_settle.TryGetValue(jid, out var remDel))
                         remDel = DeliverSettleSec;
 
@@ -210,10 +226,16 @@ namespace SeasonalBastion
 
                     _carry.Remove(jid);
                     job.Amount = 0;
-                    _phase[jid] = (site.RemainingCosts == null || site.RemainingCosts.Count == 0) ? (byte)2 : (byte)0;
 
-                    // when switching to build, reset settle so build settle counts fresh
-                    if (_phase[jid] == 2) _settle.Remove(jid);
+                    bool ready = (site.RemainingCosts == null || site.RemainingCosts.Count == 0);
+                    _phase[jid] = ready ? (byte)2 : (byte)0;
+
+                    // when switching to build, reset settle so build settle counts fresh and lock entry fresh
+                    if (ready)
+                    {
+                        _settle.Remove(jid);
+                        _buildEntry.Remove(jid);
+                    }
 
                     return true;
                 }
@@ -222,8 +244,15 @@ namespace SeasonalBastion
             // Ready to build => phase 2 build
             _phase[jid] = 2;
 
-            // Move to site ENTRY and build
-            var buildEntry = EntryCellUtil.GetApproachCellForSite(_s, site, npcState.Cell);
+            // LOCK build entry once per job to prevent target flipping (HQ 4-entries tie case)
+            if (!_buildEntry.TryGetValue(jid, out var buildEntry))
+            {
+                buildEntry = EntryCellUtil.GetApproachCellForSite(_s, site, npcState.Cell);
+                _buildEntry[jid] = buildEntry;
+
+                // entering BUILD: ensure settle starts from full (once)
+                _settle.Remove(jid);
+            }
 
             job.TargetCell = buildEntry;
             job.Status = JobStatus.InProgress;
@@ -231,21 +260,48 @@ namespace SeasonalBastion
             bool arrived = _s.AgentMover.StepToward(ref npcState, buildEntry, dt);
             if (!arrived) return true;
 
-            // settle before work tick
+            // BUILD settle should happen ONCE, then keep _settle[jid] = 0 so it doesn't restart.
             if (!_settle.TryGetValue(jid, out var remBuild))
-                remBuild = BuildSettleSec;
+            {
+                remBuild = BuildSettleSec; // first time entering BUILD
+            }
 
-            remBuild -= dt;
             if (remBuild > 0f)
             {
-                _settle[jid] = remBuild;
-                return true;
+                remBuild -= dt;
+                if (remBuild > 0f)
+                {
+                    _settle[jid] = remBuild;
+                    return true;
+                }
+
+                // finished build settle => keep sentinel 0
+                _settle[jid] = 0f;
             }
-            _settle.Remove(jid);
 
             if (dt > 0f)
             {
                 site.WorkSecondsDone += dt;
+
+#if UNITY_EDITOR
+                {
+                    // log mỗi ~1s wall-clock, không spam
+                    float now = UnityEngine.Time.realtimeSinceStartup;
+                    if (_dbgWallT <= 0f) _dbgWallT = now;
+
+                    if (now - _dbgWallT >= 1f)
+                    {
+                        float ts = _s.RunClock != null ? _s.RunClock.TimeScale : -1f;
+                        float dWork = site.WorkSecondsDone - _dbgLastWork;
+                        _dbgLastWork = site.WorkSecondsDone;
+                        _dbgLastSite = job.Site.Value;
+
+                        UnityEngine.Debug.Log($"[BuildDbg] site={job.Site.Value} phase=BUILD dWorkPerWall1s={dWork:F2} dt={dt:F3} ts={ts:F1} done={site.WorkSecondsDone:F2}/{site.WorkSecondsTotal:F2}");
+                        _dbgWallT = now;
+                    }
+                }
+#endif
+
                 if (site.WorkSecondsDone > site.WorkSecondsTotal)
                     site.WorkSecondsDone = site.WorkSecondsTotal;
 
@@ -259,8 +315,6 @@ namespace SeasonalBastion
                 return true;
             }
 
-            UnityEngine.Debug.Log($"[Build] site={job.Site.Value} Work={site.WorkSecondsDone:F2}/{site.WorkSecondsTotal:F2}s");
-
             return true;
         }
 
@@ -272,6 +326,7 @@ namespace SeasonalBastion
             _carry.Remove(jobId);
             _settle.Remove(jobId);
             _srcClaimByJob.Remove(jobId);
+            _buildEntry.Remove(jobId);
         }
 
         private bool EnsureSourceClaim(NpcId npc, int jobId, BuildingId src, ResourceType rt)

@@ -31,6 +31,8 @@ namespace SeasonalBastion
         private readonly Dictionary<int, float> _noJobNextNotifyAt = new();
 
         private float _claimCleanupTimer;
+        private float _maintenanceTimer;
+        private bool _cacheReady;
 
         public JobScheduler(
             IWorldState w,
@@ -54,32 +56,46 @@ namespace SeasonalBastion
         {
             AssignedThisTick = 0;
 
-            BuildSortedNpcIds();
-            BuildSortedBuildingIds();
-            BuildWorkplaceHasNpcSet();
+            // 0) Maintain caches + enqueue + assign only every X sim seconds (avoid heavy per-frame cost)
+            const float MaintenanceInterval = 0.25f; // sim seconds
+            _maintenanceTimer += dt;
 
-            // 0) Ensure jobs exist (Harvest + HaulBasic)
-            EnqueueHarvestJobsIfNeeded();
-            EnqueueHaulJobsIfNeeded();
-
-            // 1) Assign jobs to idle NPCs (deterministic)
-            for (int i = 0; i < _npcIds.Count; i++)
+            if (!_cacheReady || _maintenanceTimer >= MaintenanceInterval)
             {
-                var nid = _npcIds[i];
-                if (!_w.Npcs.Exists(nid)) continue;
+                _maintenanceTimer = 0f;
+                _cacheReady = true;
 
-                var ns = _w.Npcs.Get(nid);
+                BuildSortedNpcIds();
+                BuildSortedBuildingIds();
+                BuildWorkplaceHasNpcSet();
 
-                if (!ns.IsIdle || ns.CurrentJob.Value != 0) { _w.Npcs.Set(nid, ns); continue; }
-                if (ns.Workplace.Value == 0) { _w.Npcs.Set(nid, ns); continue; }
+                // Ensure jobs exist (Harvest + HaulBasic)
+                EnqueueHarvestJobsIfNeeded();
+                EnqueueHaulJobsIfNeeded();
 
-                if (TryAssignInternal(nid, ref ns))
-                    AssignedThisTick++;
+                // Assign jobs to idle NPCs (deterministic order from cached lists)
+                for (int i = 0; i < _npcIds.Count; i++)
+                {
+                    var nid = _npcIds[i];
+                    if (!_w.Npcs.Exists(nid)) continue;
 
-                _w.Npcs.Set(nid, ns);
+                    var ns = _w.Npcs.Get(nid);
+
+                    if (!ns.IsIdle || ns.CurrentJob.Value != 0) { _w.Npcs.Set(nid, ns); continue; }
+                    if (ns.Workplace.Value == 0) { _w.Npcs.Set(nid, ns); continue; }
+
+                    if (TryAssignInternal(nid, ref ns))
+                        AssignedThisTick++;
+
+                    _w.Npcs.Set(nid, ns);
+                }
             }
 
-            // 2) Tick current jobs (deterministic)
+            // 1) ALWAYS tick current jobs every frame (so Build progress is smooth and respects x3)
+            // If cache wasn't built yet (very first frame), build minimal npc list now.
+            if (!_cacheReady)
+                BuildSortedNpcIds();
+
             for (int i = 0; i < _npcIds.Count; i++)
             {
                 var nid = _npcIds[i];
@@ -106,7 +122,7 @@ namespace SeasonalBastion
                 _w.Npcs.Set(nid, ns);
             }
 
-            // Periodic cleanup to prevent orphan claims if NPCs are removed/reset.
+            // 2) Periodic cleanup
             _claimCleanupTimer += dt;
             if (_claimCleanupTimer >= 2f)
             {

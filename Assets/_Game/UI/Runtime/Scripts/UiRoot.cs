@@ -26,8 +26,10 @@ namespace SeasonalBastion
         private HudPresenter _hudPresenter;
         private NotificationStackPresenter _notiPresenter;
         private ResourceBarPresenter _resPresenter;
+        private NotificationCenterPresenter _notiCenterPresenter;
 
         private WorldSelectionController _selection;
+        private WorldCameraController _worldCamera;
         private InspectPanelPresenter _inspectPresenter;
 
         // M3: Tools + Build Panel
@@ -178,13 +180,17 @@ namespace SeasonalBastion
             _hudPresenter = new HudPresenter(hudRoot, _s);
             _notiPresenter = new NotificationStackPresenter(hudRoot, _s, _notificationItemTemplate);
             _resPresenter = new ResourceBarPresenter(hudRoot, _s, 0.33f);
+            _notiCenterPresenter = new NotificationCenterPresenter(hudRoot, _s, _notificationItemTemplate, _notiPresenter);
 
             _hudPresenter.Bind();
             _notiPresenter.Bind();
             _resPresenter.Bind();
+            _notiCenterPresenter.Bind();
 
             EnsureSelectionController();
+            EnsureWorldCameraController();
             _selection.Bind(_s);
+            _worldCamera.Bind(_s, _selection, _hudDocument, _panelsDocument, _modalsDocument);
 
             // Runtime overlay views
             EnsureBuildingRuntimeView();
@@ -220,7 +226,6 @@ namespace SeasonalBastion
             _toolbarPresenter.Bind();
 
             _bound = true;
-            Debug.Log("[UiRoot] Bound to GameServices successfully.");
             return true;
         }
 
@@ -246,6 +251,15 @@ namespace SeasonalBastion
             _selection = gameObject.GetComponent<WorldSelectionController>();
             if (_selection == null)
                 _selection = gameObject.AddComponent<WorldSelectionController>();
+        }
+
+        private void EnsureWorldCameraController()
+        {
+            if (_worldCamera != null) return;
+
+            _worldCamera = gameObject.GetComponent<WorldCameraController>();
+            if (_worldCamera == null)
+                _worldCamera = gameObject.AddComponent<WorldCameraController>();
         }
 
         private void EnsureBuildingRuntimeView()
@@ -327,6 +341,7 @@ namespace SeasonalBastion
             _resPresenter?.Unbind();
             _inspectPresenter?.Unbind();
             _modalsPresenter?.Unbind();
+            _notiCenterPresenter?.Unbind();
 
             _toolbarPresenter?.Unbind();
             _buildPresenter?.Unbind();
@@ -368,6 +383,7 @@ namespace SeasonalBastion
             _resPresenter = null;
             _inspectPresenter = null;
             _modalsPresenter = null;
+            _notiCenterPresenter = null;
 
             _toolbarPresenter = null;
             _buildPresenter = null;

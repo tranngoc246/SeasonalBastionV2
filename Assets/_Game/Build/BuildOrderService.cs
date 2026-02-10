@@ -16,10 +16,6 @@ namespace SeasonalBastion
         // Long-term safety: prevent ghost placeholder on cancel
         private readonly bool _destroyPlaceholderOnCancel = true;
 
-        // VS2 Day19: BuildOrderService acts as Job Provider for build pipeline.
-        private const int CarryCap = 10; // keep consistent with HaulBasicExecutor
-        private const int MaxPendingDeliveryJobsPerSite = 3;
-
         // siteId.Value -> pending deliver job ids
         private readonly Dictionary<int, List<JobId>> _deliverJobsBySite = new();
         // siteId.Value -> active work job id
@@ -61,10 +57,61 @@ namespace SeasonalBastion
             // 1) Validate via PlacementService (single source of truth)
             var placement = _s.PlacementService;
             var vr = placement.ValidateBuilding(buildingDefId, anchor, rotation);
-            if (!vr.Ok) return 0;
+            if (!vr.Ok)
+            {
+                // Authoritative "Can't place" notification (commit-time only)
+                _s.NotificationService?.Push(
+                    key: "CantPlace",
+                    title: "Can't place",
+                    body: vr.Reason switch
+                    {
+                        PlacementFailReason.Overlap => "Overlaps road/building.",
+                        PlacementFailReason.BlockedBySite => "Blocked by site.",
+                        PlacementFailReason.NoRoadConnection => "No road connection.",
+                        PlacementFailReason.OutOfBounds => "Out of bounds.",
+                        PlacementFailReason.InvalidRotation => "Invalid rotation.",
+                        _ => "Invalid placement."
+                    },
+                    severity: NotificationSeverity.Warning,
+                    // Global event: no building/tower yet
+                    payload: new NotificationPayload(default, default, "placement"),
+                    cooldownSeconds: 0.35f,
+                    dedupeByKey: true
+                );
+
+                return 0;
+            }
+
 
             // 2) Read def for footprint + base level
             BuildingDef def = _s.DataRegistry.GetBuilding(buildingDefId);
+
+            // Authoritative resource gating: block placing if total storage is insufficient
+            if (def.BuildCostsL1 != null && def.BuildCostsL1.Length > 0 && _s.StorageService != null)
+            {
+                for (int i = 0; i < def.BuildCostsL1.Length; i++)
+                {
+                    var c = def.BuildCostsL1[i];
+                    if (c == null) continue;
+                    if (c.Amount <= 0) continue;
+
+                    int total = _s.StorageService.GetTotal(c.Resource);
+                    if (total < c.Amount)
+                    {
+                        _s.NotificationService?.Push(
+                            key: $"NoRes_{buildingDefId}_{c.Resource}",
+                            title: "Not enough resources",
+                            body: $"Need {c.Amount} {c.Resource} (have {total})",
+                            severity: NotificationSeverity.Warning,
+                            payload: new NotificationPayload(default, default, buildingDefId),
+                            cooldownSeconds: 0.25f,
+                            dedupeByKey: true
+                        );
+                        return 0;
+                    }
+                }
+            }
+
             int w = Math.Max(1, def.SizeX);
             int h = Math.Max(1, def.SizeY);
             int level = Math.Max(1, def.BaseLevel);
@@ -635,19 +682,12 @@ namespace SeasonalBastion
 
         private static float ComputeWorkSecondsTotal(BuildingDef def)
         {
-            // Day20 (LOCKED): WorkDuration theo def (BuildChunks) + chunk time từ Deliverable C.
-            // Deliverable C: BuildWorkChunkTime = 6s, mỗi building có BuildChunksL1.
-            //const float BuildWorkChunkTimeSec = 6f;
-            const float BuildWorkChunkTimeSec = 1.67f;
+            // Goal: after delivery, BUILD phase lasts ~10s at ts=1, ~3.33s at ts=3.
+            // Deterministic and simple for VS.
+            const float BuildAfterDeliverSeconds_L1 = 10f;
 
-            if (def != null && def.BuildChunksL1 > 0)
-                return def.BuildChunksL1 * BuildWorkChunkTimeSec;
-
-            // Fallback an toàn (nếu data thiếu BuildChunksL1): deterministic formula.
-            int w = Math.Max(1, def?.SizeX ?? 1);
-            int h = Math.Max(1, def?.SizeY ?? 1);
-            int area = w * h;
-            return 1.5f + area * 0.35f;
+            // If you later want per-building tuning, you can map via def.BuildChunksL1 (but not now).
+            return BuildAfterDeliverSeconds_L1;
         }
 
         public void ClearAll()
@@ -672,19 +712,6 @@ namespace SeasonalBastion
         private static bool IsReadyToWork(in BuildSiteState site)
         {
             return site.RemainingCosts == null || site.RemainingCosts.Count == 0;
-        }
-
-        private static List<CostDef> CloneCostsOrEmpty(IReadOnlyList<CostDef> src)
-        {
-            if (src == null || src.Count == 0) return new List<CostDef>(0);
-
-            var list = new List<CostDef>(src.Count);
-            for (int i = 0; i < src.Count; i++)
-            {
-                var c = src[i];
-                if (c.Amount > 0) list.Add(c);
-            }
-            return list;
         }
 
         private BuildingId ResolveBuildWorkplace()
@@ -767,84 +794,6 @@ namespace SeasonalBastion
                 var newId = _s.JobBoard.Enqueue(j);
                 _workJobBySite[siteId.Value] = newId;
             }
-        }
-
-        private void EnsureDeliveryJobs(SiteId siteId, BuildSiteState site, BuildingDef def, BuildingId workplace)
-        {
-            if (site.RemainingCosts == null || site.RemainingCosts.Count == 0) return;
-
-            if (!_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
-                _deliverJobsBySite[siteId.Value] = list = new List<JobId>(MaxPendingDeliveryJobsPerSite);
-
-            int chunks = def.BuildChunksL1 <= 0 ? 1 : def.BuildChunksL1;
-
-            while (list.Count < MaxPendingDeliveryJobsPerSite)
-            {
-                int idx = PickNextRemainingIndex(site);
-                if (idx < 0) break;
-
-                var rc = site.RemainingCosts[idx];
-                if (rc.Amount <= 0) { site.RemainingCosts.RemoveAt(idx); continue; }
-
-                int totalForRes = GetTotalCostFromDef(def.BuildCostsL1, rc.Resource);
-                int chunkAmt = (totalForRes + chunks - 1) / chunks; // ceil
-                if (chunkAmt <= 0) chunkAmt = rc.Amount;
-
-                int want = rc.Amount < chunkAmt ? rc.Amount : chunkAmt;
-                if (want > CarryCap) want = CarryCap;
-
-                var j = new Job
-                {
-                    Archetype = JobArchetype.BuildDeliver,
-                    Status = JobStatus.Created,
-                    Workplace = workplace,
-
-                    SourceBuilding = default,
-                    DestBuilding = default,
-                    Site = siteId,
-                    Tower = default,
-
-                    ResourceType = rc.Resource,
-                    Amount = want,
-
-                    TargetCell = site.Anchor,
-                    CreatedAt = 0
-                };
-
-                var jid = _s.JobBoard.Enqueue(j);
-                list.Add(jid);
-            }
-        }
-
-        private static int PickNextRemainingIndex(in BuildSiteState site)
-        {
-            if (site.RemainingCosts == null || site.RemainingCosts.Count == 0) return -1;
-
-            int best = -1;
-            int bestKey = int.MaxValue;
-
-            for (int i = 0; i < site.RemainingCosts.Count; i++)
-            {
-                var c = site.RemainingCosts[i];
-                if (c.Amount <= 0) continue;
-
-                int key = (int)c.Resource;
-                if (key < bestKey)
-                {
-                    bestKey = key;
-                    best = i;
-                }
-            }
-            return best;
-        }
-
-        private static int GetTotalCostFromDef(IReadOnlyList<CostDef> costs, ResourceType rt)
-        {
-            if (costs == null) return 0;
-            for (int i = 0; i < costs.Count; i++)
-                if (costs[i].Resource == rt)
-                    return costs[i].Amount;
-            return 0;
         }
 
         private void CancelTrackedJobsForSite(SiteId siteId)
@@ -956,8 +905,6 @@ namespace SeasonalBastion
             int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
             return dx + dy;
         }
-
-
 
         // VS2 Day18: helpers for site cost tracking (delivery gate)
         private static List<CostDef> CloneCostsOrEmpty(CostDef[] arr)

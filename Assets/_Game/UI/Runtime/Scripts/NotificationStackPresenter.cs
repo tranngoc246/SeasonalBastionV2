@@ -12,11 +12,24 @@ namespace SeasonalBastion
         private readonly VisualElement _stack;
         private readonly VisualTreeAsset _itemTemplate;
 
+        private bool _suppressed;
+
         public NotificationStackPresenter(VisualElement root, GameServices s, VisualTreeAsset itemTemplate)
         {
             _s = s;
             _stack = root.Q<VisualElement>("NotiStack");
             _itemTemplate = itemTemplate;
+        }
+
+        public void SetSuppressed(bool suppressed)
+        {
+            _suppressed = suppressed;
+
+            if (_stack != null)
+                _stack.style.display = suppressed ? DisplayStyle.None : DisplayStyle.Flex;
+
+            if (!suppressed)
+                Rebuild();
         }
 
         public void Bind()
@@ -44,13 +57,17 @@ namespace SeasonalBastion
         {
             if (_stack == null) return;
 
+            if (_suppressed)
+            {
+                _stack.Clear();
+                return;
+            }
+
             var ns = _s?.NotificationService;
             if (ns == null) return;
 
             _stack.Clear();
 
-            // Quan trọng: không giả định kiểu collection.
-            // Chỉ cần IEnumerable theo đúng thứ tự service trả về (newest first theo spec).
             int shown = 0;
             foreach (var vm in ns.GetVisible())
             {
@@ -64,10 +81,7 @@ namespace SeasonalBastion
         {
             VisualElement item = _itemTemplate != null ? _itemTemplate.CloneTree() : new VisualElement();
 
-            // đảm bảo class nền
             item.AddToClassList("noti-item");
-
-            // severity class
             item.AddToClassList(vm.Severity switch
             {
                 NotificationSeverity.Info => "sev-info",
@@ -76,14 +90,13 @@ namespace SeasonalBastion
                 _ => "sev-info"
             });
 
-            // fill text
             var title = item.Q<Label>("LblTitle");
             if (title != null) title.text = string.IsNullOrEmpty(vm.Title) ? (vm.Key ?? "NOTICE") : vm.Title;
 
             var body = item.Q<Label>("LblBody");
             if (body != null) body.text = vm.Body ?? string.Empty;
 
-            // optional: click to dismiss
+            // Click toast => dismiss toast only (inbox still exists)
             item.RegisterCallback<ClickEvent>(_ => ns.Dismiss(vm.Id));
 
             _stack.Add(item);

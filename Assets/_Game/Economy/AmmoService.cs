@@ -339,8 +339,36 @@ namespace SeasonalBastion
 
         public void ClearAll()
         {
+            // IMPORTANT (VS3 hardening): clear ALL runtime caches.
+            // SaveLoadApplier calls this before restoring world state.
+            // If we only clear request lists, ScanTowers may not re-enqueue requests
+            // for towers that remain low/empty after load -> "resupply only when enemy" symptom.
+
             _urgent.Clear();
             _normal.Clear();
+
+            _simTime = 0f;
+            _devHookTimer = 0f;
+
+            _lastAmmoByTower.Clear();
+            _lastCapByTower.Clear();
+            _lastStateByTower.Clear();
+
+            _nextReqLowAt.Clear();
+            _nextReqEmptyAt.Clear();
+
+            _pendingReqTower.Clear();
+            _pendingPriorityByTower.Clear();
+
+            _supplyJobByForgeAndType.Clear();
+            _craftJobByForge.Clear();
+            _haulAmmoJobByArmory.Clear();
+            _resupplyJobByArmory.Clear();
+            _resupplyJobByTower.Clear();
+
+            _tmpTowerKeys.Clear();
+            _npcIds.Clear();
+            _workplacesWithNpc.Clear();
         }
 
         // ----------------- helpers -----------------

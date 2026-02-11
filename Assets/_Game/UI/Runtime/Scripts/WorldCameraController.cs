@@ -1,4 +1,4 @@
-using SeasonalBastion.Contracts;
+﻿using SeasonalBastion.Contracts;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
@@ -6,10 +6,10 @@ using UnityEngine.UIElements;
 namespace SeasonalBastion
 {
     /// <summary>
-    /// WorldCameraController (New Input System):
+    /// WorldCameraController (New Input System)
     /// - Pan: WASD / Arrow keys
-    /// - Pan drag: Middle Mouse (MMB) drag
-    /// - Zoom: Mouse wheel (orthographic size)
+    /// - Drag pan: Middle Mouse Button (MMB)
+    /// - Zoom: Mouse wheel (orthographic size), unscaled
     /// - Focus: smooth move to building center (unscaled)
     /// - Blocks input when pointer over UI Toolkit docs (HUD/Panels/Modals)
     /// </summary>
@@ -26,9 +26,10 @@ namespace SeasonalBastion
         [SerializeField] private Camera _camera;
 
         [Header("Pan/Zoom")]
-        [SerializeField] private float _panSpeed = 12f;     // units per second (scaled by zoom)
-        [SerializeField] private float _dragPanMultiplier = 1f;
-        [SerializeField] private float _zoomSpeed = 4f;     // orthographic size delta per scroll step
+        [SerializeField] private float _panSpeed = 12f;          // units per second (scaled by zoom)
+        [SerializeField] private float _dragPanMultiplier = 1f;  // drag world delta multiplier
+        [SerializeField] private float _zoomSpeed = 14f;         // size delta per second (after scrollScale)
+        [SerializeField] private float _scrollScale = 0.01f;     // InputSystem scroll is often ±120 per notch
         [SerializeField] private float _minOrthoSize = 3f;
         [SerializeField] private float _maxOrthoSize = 35f;
 
@@ -50,9 +51,9 @@ namespace SeasonalBastion
         private Vector3 _focusTarget;
         private Vector3 _focusVel;
 
-        // drag pan state
+        // drag pan state (screen-delta based)
         private bool _dragging;
-        private Vector3 _dragStartWorld;
+        private Vector2 _dragStartScreen;
         private Vector3 _camStartPos;
 
         public void Bind(
@@ -73,7 +74,10 @@ namespace SeasonalBastion
 
             // best-effort: align mapping from mapper
             if (_mapper != null)
+            {
+                // mapper của bạn thường có CellSize (nếu không có, bạn có thể xóa dòng này)
                 _cellSize = _mapper.CellSize;
+            }
 
             ResolveUiDocumentsIfNeeded();
         }
@@ -84,10 +88,11 @@ namespace SeasonalBastion
             if (_camera == null) return;
 
             var pos = _camera.transform.position;
-            _focusTarget = new Vector3(world.x, world.y, pos.z);
 
             if (_useXZ)
                 _focusTarget = new Vector3(world.x, pos.y, world.z);
+            else
+                _focusTarget = new Vector3(world.x, world.y, pos.z);
 
             if (instant)
             {
@@ -138,7 +143,7 @@ namespace SeasonalBastion
             ResolveUiDocumentsIfNeeded();
 
             // block camera input when pointer over UI
-            var mousePos = Mouse.current.position.ReadValue();
+            Vector2 mousePos = Mouse.current.position.ReadValue();
             if (UiBlocker.IsPointerOverBlockingUi(mousePos, _hudDocument, _panelsDocument, _modalsDocument))
             {
                 // allow focus smoothing to continue, but block user input
@@ -148,27 +153,28 @@ namespace SeasonalBastion
 
             float dt = Time.unscaledDeltaTime;
 
-            // zoom (orthographic preferred)
+            // ---- ZOOM (mouse wheel) ----
             float scroll = Mouse.current.scroll.ReadValue().y;
             if (Mathf.Abs(scroll) > 0.01f)
             {
                 CancelFocusOnManualInput();
 
+                // magnitude-based zoom (InputSystem scroll often ±120)
+                float zoomDelta = scroll * _scrollScale; // e.g. 120 -> 1.2
+
                 if (_camera.orthographic)
                 {
-                    float size = _camera.orthographicSize;
-                    size -= Mathf.Sign(scroll) * _zoomSpeed;
-                    size = Mathf.Clamp(size, _minOrthoSize, _maxOrthoSize);
-                    _camera.orthographicSize = size;
+                    float size = _camera.orthographicSize - zoomDelta * (_zoomSpeed * dt);
+                    _camera.orthographicSize = Mathf.Clamp(size, _minOrthoSize, _maxOrthoSize);
                 }
                 else
                 {
-                    // fallback: dolly along forward
-                    _camera.transform.position += _camera.transform.forward * (-Mathf.Sign(scroll) * _zoomSpeed);
+                    // perspective fallback: dolly along forward
+                    _camera.transform.position += _camera.transform.forward * (-zoomDelta * (_zoomSpeed * dt));
                 }
             }
 
-            // WASD pan
+            // ---- PAN (WASD/Arrows) ----
             Vector2 move = Vector2.zero;
             if (Keyboard.current != null)
             {
@@ -194,24 +200,50 @@ namespace SeasonalBastion
                 _camera.transform.position += delta;
             }
 
-            // MMB drag pan
+            // ---- DRAG PAN (MMB) - screen delta based (stable, no jitter) ----
             if (Mouse.current.middleButton.wasPressedThisFrame)
             {
                 CancelFocusOnManualInput();
 
-                _dragging = TryGetWorldOnPlane(mousePos, out _dragStartWorld);
+                _dragging = true;
+                _dragStartScreen = mousePos;
                 _camStartPos = _camera.transform.position;
             }
             else if (Mouse.current.middleButton.isPressed && _dragging)
             {
-                if (TryGetWorldOnPlane(mousePos, out var nowWorld))
-                {
-                    CancelFocusOnManualInput();
+                CancelFocusOnManualInput();
 
-                    Vector3 diff = (nowWorld - _dragStartWorld) * _dragPanMultiplier;
-                    // drag to move view => camera goes opposite direction
-                    _camera.transform.position = _camStartPos - diff;
+                Vector2 deltaPx = mousePos - _dragStartScreen;
+
+                // convert screen pixels -> world units
+                // For orthographic camera:
+                // worldHeight = 2 * orthoSize
+                // unitsPerPixel = worldHeight / Screen.height
+                float unitsPerPixel = 1f;
+
+                if (_camera.orthographic)
+                {
+                    float worldHeight = 2f * _camera.orthographicSize;
+                    unitsPerPixel = worldHeight / Mathf.Max(1f, Screen.height);
                 }
+                else
+                {
+                    // Perspective fallback: approximate by scaling with distance to plane.
+                    // Keep stable: use a constant factor relative to camera distance.
+                    float dist = Mathf.Max(1f, Mathf.Abs(_camera.transform.position.z));
+                    unitsPerPixel = (dist * 0.0025f);
+                }
+
+                Vector2 deltaWorld2 = deltaPx * (unitsPerPixel * _dragPanMultiplier);
+
+                Vector3 offset;
+                if (_useXZ)
+                    offset = new Vector3(deltaWorld2.x, 0f, deltaWorld2.y);
+                else
+                    offset = new Vector3(deltaWorld2.x, deltaWorld2.y, 0f);
+
+                // drag to move view => camera moves opposite direction
+                _camera.transform.position = _camStartPos - offset;
             }
             else if (Mouse.current.middleButton.wasReleasedThisFrame)
             {
@@ -239,7 +271,6 @@ namespace SeasonalBastion
 
         private void CancelFocusOnManualInput()
         {
-            // any manual input cancels focus smoothing
             _focusing = false;
             _focusVel = Vector3.zero;
         }
@@ -262,6 +293,7 @@ namespace SeasonalBastion
         private Vector3 CellToWorld(Vector2 cell)
         {
             float half = Mathf.Max(0.0001f, _cellSize) * 0.5f;
+
             if (_useXZ)
                 return _origin + new Vector3(cell.x * _cellSize + half, _planeY, cell.y * _cellSize + half);
 

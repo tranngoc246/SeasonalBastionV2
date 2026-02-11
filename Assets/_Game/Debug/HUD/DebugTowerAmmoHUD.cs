@@ -6,7 +6,9 @@ namespace SeasonalBastion.DebugTools
 {
     public sealed class DebugTowerAmmoHUD : MonoBehaviour
     {
-        [SerializeField] private bool _enabled = true;
+        // VS3 QA: Standalone HUD should be OFF by default.
+        // Use DebugHUDHub "Quick" panel instead.
+        [SerializeField] private bool _enabled = false;
         [SerializeField] private Key _toggleKey = Key.T;     // show/hide HUD
         [SerializeField] private Key _devHookKey = Key.Y;    // toggle dev hook
 
@@ -20,6 +22,9 @@ namespace SeasonalBastion.DebugTools
         private void Update()
         {
             TryResolveServices();
+
+            // If DebugHUDHub is enabled, this standalone HUD should stay silent.
+            if (DebugHubState.Enabled) return;
 
             var kb = Keyboard.current;
             if (kb == null) return;
@@ -49,6 +54,8 @@ namespace SeasonalBastion.DebugTools
 
         private void OnGUI()
         {
+            // If DebugHUDHub is enabled, this standalone HUD should stay silent.
+            if (DebugHubState.Enabled) return;
             if (!_enabled) return;
 
             GUILayout.BeginArea(new Rect(10, 740, 620, 200), GUI.skin.box);

@@ -16,6 +16,10 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private string _npcDefId = "Worker";
         [SerializeField] private int _spawnBurstCount = 1;
 
+        // IMGUI state for Hub/Quick spawn
+        [SerializeField] private string _uiNpcDefId = "Worker";
+        [SerializeField] private string _uiSpawnCount = "1";
+
         [Header("Mapping (single source)")]
         [SerializeField] private DebugBuildingTool _mappingSource;
         [SerializeField] private Camera _cameraOverride;
@@ -135,7 +139,22 @@ namespace SeasonalBastion.DebugTools
 
         private void OnSpawn(InputAction.CallbackContext _)
         {
-            if (!_enabled) return;
+            SpawnInternal(ignoreEnabled: false);
+        }
+
+        /// <summary>
+        /// Hub/Quick helper: spawn NPCs without requiring the NPC tool to be toggled ON.
+        /// </summary>
+        public void DebugSpawn(string defId, int burst)
+        {
+            if (!string.IsNullOrWhiteSpace(defId)) _npcDefId = defId.Trim();
+            _spawnBurstCount = Mathf.Max(1, burst);
+            SpawnInternal(ignoreEnabled: true);
+        }
+
+        private void SpawnInternal(bool ignoreEnabled)
+        {
+            if (!ignoreEnabled && !_enabled) return;
 
             if (_world == null || _data == null) return;
 
@@ -409,6 +428,94 @@ namespace SeasonalBastion.DebugTools
             return true;
         }
 
+        /// <summary>
+        /// Minimal quick UI for Hub: spawn + select + show current job + unassign/release.
+        /// </summary>
+        public void DrawQuickGUI()
+        {
+            if (_s == null || _world == null)
+            {
+                GUILayout.Label("NPC Tool: not bound (GameServices null)");
+                return;
+            }
+
+            // --- Spawn UI (works even when tool is OFF) ---
+            GUILayout.Label("Spawn NPC (near HQ):");
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("DefId", GUILayout.Width(45));
+            _uiNpcDefId = GUILayout.TextField(_uiNpcDefId ?? _npcDefId, GUILayout.Width(140));
+            GUILayout.Label("Count", GUILayout.Width(50));
+            _uiSpawnCount = GUILayout.TextField(_uiSpawnCount ?? _spawnBurstCount.ToString(), GUILayout.Width(50));
+            if (GUILayout.Button("Spawn", GUILayout.Width(80)))
+            {
+                if (string.IsNullOrWhiteSpace(_uiNpcDefId)) _uiNpcDefId = _npcDefId;
+                if (!int.TryParse(_uiSpawnCount, out var n)) n = _spawnBurstCount;
+                DebugSpawn(_uiNpcDefId, n);
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+
+            // --- Select/Info (re-use logic similar to DrawHubGUI, but compact) ---
+            GUILayout.Label($"Tool Assign Mode: {(_enabled ? "ON (LMB assign)" : "OFF")} | Selected: {(_hasSelectedNpc ? $"#{_selectedNpc.Value}" : "none")}");
+
+            if (_hasSelectedNpc && _world.Npcs.Exists(_selectedNpc))
+            {
+                var npc = _world.Npcs.Get(_selectedNpc);
+                string wp = npc.Workplace.Value == 0 ? "none" : $"#{npc.Workplace.Value}";
+                GUILayout.Label($"WP: {wp}  Idle:{npc.IsIdle}  Cell:({npc.Cell.X},{npc.Cell.Y})");
+
+                if (npc.CurrentJob.Value != 0 && _jobs != null && _jobs.TryGet(npc.CurrentJob, out var job))
+                    GUILayout.Label($"Job: #{job.Id.Value} {job.Archetype} {job.Status} Res:{job.ResourceType} Amt:{job.Amount}");
+                else
+                    GUILayout.Label($"Job: {(npc.CurrentJob.Value == 0 ? "none" : $"#{npc.CurrentJob.Value} (missing in JobBoard)")}");
+
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Unassign", GUILayout.Width(110)))
+                {
+                    npc.Workplace = default;
+                    npc.IsIdle = true;
+                    npc.CurrentJob = default;
+                    _world.Npcs.Set(_selectedNpc, npc);
+                    _bus?.Publish(new NPCAssignedEvent(_selectedNpc, default));
+                    _noti?.Push($"NpcUnassigned_{_selectedNpc.Value}", "NPC", $"NPC #{_selectedNpc.Value} unassigned", NotificationSeverity.Info, default, 0.2f, true);
+                }
+                if (GUILayout.Button("Release Claims", GUILayout.Width(140)))
+                    ForceReleaseSelectedNpc("Quick", keepWorkplace: false);
+                GUILayout.EndHorizontal();
+            }
+
+            GUILayout.Space(6);
+
+            // List first 10 NPCs
+            var npcIds = _world.Npcs.Ids;
+            var tmp = new List<NpcId>(npcIds.Count());
+            foreach (var id in npcIds) tmp.Add(id);
+            tmp.Sort((a, b) => a.Value.CompareTo(b.Value));
+
+            int show = tmp.Count > 10 ? 10 : tmp.Count;
+            for (int i = 0; i < show; i++)
+            {
+                var id = tmp[i];
+                var st = _world.Npcs.Get(id);
+                string wp = st.Workplace.Value == 0 ? "none" : $"#{st.Workplace.Value}";
+                string job = st.CurrentJob.Value == 0 ? "-" : $"#{st.CurrentJob.Value}";
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"#{id.Value} {st.DefId} WP:{wp} Job:{job}", GUILayout.Width(320));
+                if (GUILayout.Button("Select", GUILayout.Width(80)))
+                {
+                    _selectedNpc = id;
+                    _hasSelectedNpc = true;
+                    _noti?.Push("NpcSelect", "NPC", $"Selected NPC #{id.Value}", NotificationSeverity.Info, default, 0.1f, true);
+                }
+                GUILayout.EndHorizontal();
+            }
+
+            if (tmp.Count > show)
+                GUILayout.Label($"... ({tmp.Count - show} more)");
+        }
+
         public void DrawHubGUI()
         {
             GUILayout.Label($"Tool: {(_enabled ? "ON (N)" : "OFF (N)")} | Spawn: P | Hover: {(_hasHover ? $"({_hoverCell.X},{_hoverCell.Y})" : "none")}");
@@ -506,7 +613,7 @@ namespace SeasonalBastion.DebugTools
             if (tmp.Count > show)
                 GUILayout.Label($"... ({tmp.Count - show} more)");
         }
-
+                
         private bool TryGetCellUnderMouse(out CellPos cell)
         {
             cell = default;
@@ -540,10 +647,10 @@ namespace SeasonalBastion.DebugTools
             // Deterministic scan order: +X, -X, +Y, -Y, then small ring.
             var dirs = new[]
             {
-        new CellPos(1,0), new CellPos(-1,0), new CellPos(0,1), new CellPos(0,-1),
-        new CellPos(2,0), new CellPos(-2,0), new CellPos(0,2), new CellPos(0,-2),
-        new CellPos(1,1), new CellPos(-1,1), new CellPos(1,-1), new CellPos(-1,-1),
-    };
+                new CellPos(1,0), new CellPos(-1,0), new CellPos(0,1), new CellPos(0,-1),
+                new CellPos(2,0), new CellPos(-2,0), new CellPos(0,2), new CellPos(0,-2),
+                new CellPos(1,1), new CellPos(-1,1), new CellPos(1,-1), new CellPos(-1,-1),
+            };
 
             // 1) Road first
             for (int i = 0; i < dirs.Length; i++)

@@ -33,14 +33,6 @@ namespace SeasonalBastion.DebugTools
     /// - Only ONE panel on screen
     /// - Hub owns all mode toggles (F-keys)
     /// - Tools become hub-controlled: no standalone toggles, no extra HUD panels
-    ///
-    /// VS3 QA update:
-    /// - Add "Quick" panel (always visible) for the essential test actions:
-    ///   + TimeScale (0/1/2/3)
-    ///   + Complete ALL build sites
-    ///   + Drain/Refill tower ammo + toggle DevHook
-    ///   + Spawn enemy + Kill enemies + ForceResolveWave
-    /// - Old heavy debug pages moved to optional "Advanced" toggle.
     /// </summary>
     public sealed class DebugHUDHub : MonoBehaviour
     {
@@ -75,14 +67,18 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private DebugHubMode _mode = DebugHubMode.None;
         [SerializeField] private DebugHubTab _tab = DebugHubTab.Home;
 
-        // VS3 QA: Minimal Quick Debug + optional Advanced panels
+        // VS3 QA: Quick Debug always visible + optional Advanced.
         [SerializeField] private bool _showAdvanced = false;
 
-        // Quick actions state
+        // Quick spawn enemy
         [SerializeField] private string _quickEnemyDefId = "Swarmling";
         [SerializeField] private int _quickLaneId = 0;
         [SerializeField] private int _quickSpawnCount = 1;
-        [SerializeField] private int _quickDrainAmmoAmount = 9999;
+
+        // tmp lists (avoid modifying stores while iterating)
+        private readonly List<EnemyId> _enemyIdsTmp = new List<EnemyId>(128);
+        private readonly List<TowerId> _towerIdsTmp = new List<TowerId>(64);
+        private readonly List<SiteId> _siteIdsTmp = new List<SiteId>(64);
 
         [SerializeField] private bool _selfPollHotkeysWhenNoRouter = true;
         private bool _hasRouter;
@@ -114,8 +110,6 @@ namespace SeasonalBastion.DebugTools
         private string _dataLastSummary = "Not validated";
 
         private readonly List<string> _buildSlotsTmp = new List<string>(8);
-
-        private readonly List<EnemyId> _listEnemyIdsTmp = new();
 
         private DebugSaveLoadHUD _saveLoadHUD = new DebugSaveLoadHUD();
 
@@ -163,7 +157,6 @@ namespace SeasonalBastion.DebugTools
         {
             DebugHubState.Enabled = false;
         }
-
         private void Update()
         {
             // Fallback: nếu scene chưa có DebugInputRouter thì Hub tự poll hotkeys để khỏi “mất phím”.
@@ -179,7 +172,6 @@ namespace SeasonalBastion.DebugTools
                 }
             }
 
-            // Update only resolves services and auto-finds modules if needed.
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _gs ??= _bootstrap != null ? _bootstrap.Services : null;
 
@@ -254,32 +246,130 @@ namespace SeasonalBastion.DebugTools
         {
             DebugHubState.Enabled = _showUi;
             if (!_showUi) return;
+            GUILayout.BeginArea(new Rect(10, 50, 640, (Screen.height - 20)), GUI.skin.box);
 
-            GUILayout.BeginArea(new Rect(10, 50, 620, (Screen.height - 20)), GUI.skin.box);
+            GUILayout.Label("[DebugHUDHub] VS3 QA QUICK | F1 UI | F2 Build | F3 Road | F4 NPC | F5 Storage | F6 Noti | F7 Index | Esc None");
 
-            GUILayout.Label("[DebugHUDHub] (Minimal) F1 UI | Esc None  —  VS3 QA Quick Panel");
-            _showAdvanced = GUILayout.Toggle(_showAdvanced, "Show Advanced", GUILayout.Width(140));
+            GUILayout.BeginHorizontal();
+            _showAdvanced = GUILayout.Toggle(_showAdvanced, "Advanced", GUILayout.Width(110));
+            GUILayout.Label($"Mode: {_mode}");
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+
+            // ===== QUICK: NPC (spawn/select/job) =====
+            if (_npcTool != null)
+            {
+                GUILayout.BeginVertical(GUI.skin.box);
+                GUILayout.Label("Quick: NPC");
+                _npcTool.DrawQuickGUI();
+                GUILayout.EndVertical();
+            }
+            else
+            {
+                GUILayout.Label("DebugNpcTool not found in scene.");
+            }
 
             GUILayout.Space(8);
+
             DrawQuick();
 
             if (_showAdvanced)
             {
                 GUILayout.Space(10);
-                GUILayout.Label("=== Advanced (old hub) ===");
-                DrawAdvanced();
+                DrawAdvancedTabs();
             }
 
             GUILayout.EndArea();
         }
 
-        private void DrawAdvanced()
+        private void DrawQuick()
         {
-            GUILayout.Label("[Advanced] F2 Build | F3 Road | F4 NPC | F5 Storage | F6 Noti | F7 Index");
-            GUILayout.Label($"Mode: {_mode}    Tab: {_tab}");
+            if (_gs == null)
+            {
+                GUILayout.Label("GameServices = null");
+                return;
+            }
+
+            // ===== TimeScale =====
+            GUILayout.Label("TimeScale");
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("0x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(0f);
+            if (GUILayout.Button("1x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(1f);
+            if (GUILayout.Button("2x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(2f);
+            if (GUILayout.Button("3x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(3f);
+            if (GUILayout.Button("5x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(5f);
+            GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
 
+            // ===== Build =====
+            GUILayout.Label("Build");
+            if (GUILayout.Button("Complete ALL build sites now", GUILayout.Width(260)))
+                Quick_CompleteAllBuildSites();
+
+            GUILayout.Space(6);
+
+            // ===== Ammo =====
+            GUILayout.Label("Ammo");
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Drain ALL towers to 0", GUILayout.Width(170)))
+                Quick_DrainAllTowersToZero();
+            if (GUILayout.Button("Refill ALL towers", GUILayout.Width(150)))
+                Quick_RefillAllTowers();
+            if (_gs.AmmoService is AmmoService a)
+            {
+                string label = a.DevHook_Enabled ? "DevHook: ON" : "DevHook: OFF";
+                if (GUILayout.Button(label, GUILayout.Width(120))) a.DevHook_Enabled = !a.DevHook_Enabled;
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+
+            // ===== Combat =====
+            GUILayout.Label("Combat");
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("DefId", GUILayout.Width(40));
+            _quickEnemyDefId = GUILayout.TextField(_quickEnemyDefId, GUILayout.Width(140));
+            GUILayout.Label("Lane", GUILayout.Width(35));
+            var laneStr = GUILayout.TextField(_quickLaneId.ToString(), GUILayout.Width(40));
+            if (int.TryParse(laneStr, out var l)) _quickLaneId = l;
+            GUILayout.Label("x", GUILayout.Width(12));
+            var cntStr = GUILayout.TextField(_quickSpawnCount.ToString(), GUILayout.Width(40));
+            if (int.TryParse(cntStr, out var c)) _quickSpawnCount = Mathf.Clamp(c, 1, 50);
+            if (GUILayout.Button("Spawn", GUILayout.Width(80)))
+                Quick_SpawnEnemy(_quickEnemyDefId, _quickLaneId, _quickSpawnCount);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Kill ALL enemies", GUILayout.Width(150)))
+                Quick_KillAllEnemies();
+            if (GUILayout.Button("Force Resolve Wave", GUILayout.Width(170)))
+                _gs.CombatService?.ForceResolveWave();
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+
+            // ===== NPC =====
+            GUILayout.Label("NPC (Assign + Job)");
+            GUILayout.BeginHorizontal();
+            bool npcMode = _mode == DebugHubMode.Npc;
+            if (GUILayout.Button(npcMode ? "NPC Assign: ON" : "NPC Assign: OFF", GUILayout.Width(150)))
+            {
+                ApplyMode(npcMode ? DebugHubMode.None : DebugHubMode.Npc);
+            }
+            GUILayout.Label("(Bật ON để click LMB lên building cell gán NPC)");
+            GUILayout.EndHorizontal();
+
+            if (_npcTool != null)
+                _npcTool.DrawQuickGUI();
+            else
+                GUILayout.Label("DebugNpcTool not found in scene.");
+        }
+
+        private void DrawAdvancedTabs()
+        {
+            GUILayout.Label($"Tab: {_tab}");
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Home", GUILayout.Width(90))) _tab = DebugHubTab.Home;
             if (GUILayout.Button("Noti (F6)", GUILayout.Width(120))) _tab = DebugHubTab.Notifications;
@@ -320,87 +410,23 @@ namespace SeasonalBastion.DebugTools
             }
         }
 
-        private void DrawQuick()
-        {
-            if (_gs == null)
-            {
-                GUILayout.Label("GameServices = null");
-                return;
-            }
-
-            // --- Time scale ---
-            GUILayout.Label("Time");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("0x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(0f);
-            if (GUILayout.Button("1x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(1f);
-            if (GUILayout.Button("2x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(2f);
-            if (GUILayout.Button("3x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(3f);
-            GUILayout.EndHorizontal();
-
-            GUILayout.Space(6);
-
-            // --- Instant build ---
-            GUILayout.Label("Build");
-            if (GUILayout.Button("Complete ALL build sites now", GUILayout.Width(240)))
-                Quick_CompleteAllBuildSites();
-
-            GUILayout.Space(6);
-
-            // --- Ammo ---
-            GUILayout.Label("Ammo");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Drain ALL towers to 0", GUILayout.Width(170)))
-                Quick_DrainAllTowersToZero();
-            if (GUILayout.Button("Refill ALL towers", GUILayout.Width(150)))
-                Quick_RefillAllTowers();
-            if (_gs.AmmoService is AmmoService a)
-            {
-                string label = a.DevHook_Enabled ? "DevHook: ON" : "DevHook: OFF";
-                if (GUILayout.Button(label, GUILayout.Width(120)))
-                    a.DevHook_Enabled = !a.DevHook_Enabled;
-            }
-            GUILayout.EndHorizontal();
-
-            GUILayout.Space(6);
-
-            // --- Spawn enemy ---
-            GUILayout.Label("Combat");
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("DefId", GUILayout.Width(40));
-            _quickEnemyDefId = GUILayout.TextField(_quickEnemyDefId, GUILayout.Width(140));
-            GUILayout.Label("Lane", GUILayout.Width(35));
-            var laneStr = GUILayout.TextField(_quickLaneId.ToString(), GUILayout.Width(40));
-            if (int.TryParse(laneStr, out var l)) _quickLaneId = l;
-            GUILayout.Label("x", GUILayout.Width(12));
-            var cntStr = GUILayout.TextField(_quickSpawnCount.ToString(), GUILayout.Width(40));
-            if (int.TryParse(cntStr, out var c)) _quickSpawnCount = Mathf.Clamp(c, 1, 50);
-            if (GUILayout.Button("Spawn", GUILayout.Width(80)))
-                Quick_SpawnEnemy(_quickEnemyDefId, _quickLaneId, _quickSpawnCount);
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Kill ALL enemies", GUILayout.Width(150)))
-                Quick_KillAllEnemies();
-            if (GUILayout.Button("Force Resolve Wave", GUILayout.Width(170)))
-                _gs.CombatService?.ForceResolveWave();
-            GUILayout.EndHorizontal();
-        }
-
         private void Quick_CompleteAllBuildSites()
         {
-            if (_gs.WorldState == null) return;
-
+            if (_gs?.WorldState == null) return;
             var sites = _gs.WorldState.Sites;
             if (sites == null) return;
 
-            int changed = 0;
+            _siteIdsTmp.Clear();
+            foreach (var sid in sites.Ids) _siteIdsTmp.Add(sid);
 
-            foreach (var sid in sites.Ids)
+            int changed = 0;
+            for (int i = 0; i < _siteIdsTmp.Count; i++)
             {
+                var sid = _siteIdsTmp[i];
                 if (!sites.Exists(sid)) continue;
                 var st = sites.Get(sid);
+                if (!st.IsActive) continue;
 
-                // mark ready + finish work
                 st.RemainingCosts?.Clear();
                 st.RemainingCosts = null;
                 if (st.WorkSecondsTotal <= 0f) st.WorkSecondsTotal = 0.1f;
@@ -410,36 +436,29 @@ namespace SeasonalBastion.DebugTools
                 changed++;
             }
 
-            // Let BuildOrderService finalize immediately
             if (_gs.BuildOrderService is BuildOrderService bos)
                 bos.Tick(0f);
 
-            _gs.NotificationService?.Push(
-                "debug_build_instant",
-                "Debug",
-                $"Instant completed {changed} build sites.",
-                NotificationSeverity.Info,
-                default,
-                cooldownSeconds: 0.2f,
-                dedupeByKey: true);
+            _gs.NotificationService?.Push("debug_build_instant", "Debug", $"Instant completed {changed} build sites.", NotificationSeverity.Info, default, 0.2f, true);
         }
 
         private void Quick_DrainAllTowersToZero()
         {
-            if (_gs.WorldState == null || _gs.WorldIndex == null) return;
-            var towers = _gs.WorldIndex.Towers;
+            if (_gs?.WorldState == null) return;
+            var towers = _gs.WorldState.Towers;
             if (towers == null) return;
 
+            _towerIdsTmp.Clear();
+            foreach (var tid in towers.Ids) _towerIdsTmp.Add(tid);
+
             int changed = 0;
-            for (int i = 0; i < towers.Count; i++)
+            for (int i = 0; i < _towerIdsTmp.Count; i++)
             {
-                var tid = towers[i];
-                if (!_gs.WorldState.Towers.Exists(tid)) continue;
-
-                var ts = _gs.WorldState.Towers.Get(tid);
+                var tid = _towerIdsTmp[i];
+                if (!towers.Exists(tid)) continue;
+                var ts = towers.Get(tid);
                 ts.Ammo = 0;
-                _gs.WorldState.Towers.Set(tid, ts);
-
+                towers.Set(tid, ts);
                 _gs.AmmoService?.NotifyTowerAmmoChanged(ts.Id, ts.Ammo, ts.AmmoCap);
                 changed++;
             }
@@ -449,20 +468,21 @@ namespace SeasonalBastion.DebugTools
 
         private void Quick_RefillAllTowers()
         {
-            if (_gs.WorldState == null || _gs.WorldIndex == null) return;
-            var towers = _gs.WorldIndex.Towers;
+            if (_gs?.WorldState == null) return;
+            var towers = _gs.WorldState.Towers;
             if (towers == null) return;
 
+            _towerIdsTmp.Clear();
+            foreach (var tid in towers.Ids) _towerIdsTmp.Add(tid);
+
             int changed = 0;
-            for (int i = 0; i < towers.Count; i++)
+            for (int i = 0; i < _towerIdsTmp.Count; i++)
             {
-                var tid = towers[i];
-                if (!_gs.WorldState.Towers.Exists(tid)) continue;
-
-                var ts = _gs.WorldState.Towers.Get(tid);
+                var tid = _towerIdsTmp[i];
+                if (!towers.Exists(tid)) continue;
+                var ts = towers.Get(tid);
                 ts.Ammo = ts.AmmoCap;
-                _gs.WorldState.Towers.Set(tid, ts);
-
+                towers.Set(tid, ts);
                 _gs.AmmoService?.NotifyTowerAmmoChanged(ts.Id, ts.Ammo, ts.AmmoCap);
                 changed++;
             }
@@ -472,8 +492,7 @@ namespace SeasonalBastion.DebugTools
 
         private void Quick_SpawnEnemy(string enemyDefId, int laneId, int count)
         {
-            if (_gs.WorldState == null || _gs.DataRegistry == null || _gs.RunStartRuntime == null) return;
-
+            if (_gs?.WorldState == null || _gs.DataRegistry == null || _gs.RunStartRuntime == null) return;
             if (_gs.RunStartRuntime.Lanes == null || !_gs.RunStartRuntime.Lanes.TryGetValue(laneId, out var lane))
             {
                 Debug.LogWarning($"[DebugHUDHub] Lane {laneId} not found.");
@@ -511,20 +530,17 @@ namespace SeasonalBastion.DebugTools
 
         private void Quick_KillAllEnemies()
         {
-            if (_gs.WorldState == null || _gs.WorldState.Enemies == null) return;
-
+            if (_gs?.WorldState == null) return;
             var enemies = _gs.WorldState.Enemies;
             if (enemies == null) return;
 
-            // Snapshot ids để xóa an toàn (tránh modify khi đang enumerate)
-            _listEnemyIdsTmp.Clear();
-            foreach (var eid in enemies.Ids)
-                _listEnemyIdsTmp.Add(eid);
+            _enemyIdsTmp.Clear();
+            foreach (var eid in enemies.Ids) _enemyIdsTmp.Add(eid);
 
             int killed = 0;
-            for (int i = _listEnemyIdsTmp.Count - 1; i >= 0; i--)
+            for (int i = _enemyIdsTmp.Count - 1; i >= 0; i--)
             {
-                var eid = _listEnemyIdsTmp[i];
+                var eid = _enemyIdsTmp[i];
                 if (!enemies.Exists(eid)) continue;
                 enemies.Destroy(eid);
                 killed++;

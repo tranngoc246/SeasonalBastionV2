@@ -6,8 +6,7 @@ namespace SeasonalBastion.DebugTools
 {
     public sealed class DebugTowerAmmoHUD : MonoBehaviour
     {
-        // VS3 QA: Standalone HUD should be OFF by default.
-        // Use DebugHUDHub "Quick" panel instead.
+        // VS3 QA: Standalone HUD OFF by default; use DebugHUDHub Quick panel.
         [SerializeField] private bool _enabled = false;
         [SerializeField] private Key _toggleKey = Key.T;     // show/hide HUD
         [SerializeField] private Key _devHookKey = Key.Y;    // toggle dev hook
@@ -23,7 +22,7 @@ namespace SeasonalBastion.DebugTools
         {
             TryResolveServices();
 
-            // If DebugHUDHub is enabled, this standalone HUD should stay silent.
+            // If Hub is visible, keep standalone HUD silent.
             if (DebugHubState.Enabled) return;
 
             var kb = Keyboard.current;
@@ -54,7 +53,6 @@ namespace SeasonalBastion.DebugTools
 
         private void OnGUI()
         {
-            // If DebugHUDHub is enabled, this standalone HUD should stay silent.
             if (DebugHubState.Enabled) return;
             if (!_enabled) return;
 
@@ -62,9 +60,9 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Label("DebugTowerAmmoHUD (Day25)");
             GUILayout.Label($"Toggle HUD: {_toggleKey} | Toggle DevHook: {_devHookKey}");
 
-            if (_gs == null || _gs.WorldState == null || _gs.WorldIndex == null || _gs.AmmoService == null)
+            if (_gs == null || _gs.WorldState == null || _gs.AmmoService == null)
             {
-                GUILayout.Label("GameServices/WorldState/WorldIndex/AmmoService = null");
+                GUILayout.Label("GameServices/WorldState/AmmoService = null");
                 GUILayout.EndArea();
                 return;
             }
@@ -85,10 +83,11 @@ namespace SeasonalBastion.DebugTools
 
             GUILayout.Label($"Requests: {pending} (U:{urg} N:{nor}) | InFlight: Resupply={inRes} HaulAmmo={inHaul} | DevHook={devHook}");
 
-            var towers = _gs.WorldIndex.Towers;
-            if (towers == null || towers.Count == 0)
+            // Use store Ids to avoid WorldIndex dependency
+            var towersStore = _gs.WorldState.Towers;
+            if (towersStore == null || towersStore.Count == 0)
             {
-                GUILayout.Label("No towers indexed.");
+                GUILayout.Label("No towers in store.");
                 GUILayout.EndArea();
                 return;
             }
@@ -97,12 +96,10 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Label("Towers low/empty (<=25%):");
 
             int shown = 0;
-            for (int i = 0; i < towers.Count; i++)
+            foreach (var tid in towersStore.Ids)
             {
-                var tid = towers[i];
-                if (!_gs.WorldState.Towers.Exists(tid)) continue;
-
-                var ts = _gs.WorldState.Towers.Get(tid);
+                if (!towersStore.Exists(tid)) continue;
+                var ts = towersStore.Get(tid);
                 if (ts.AmmoCap <= 0) continue;
 
                 int thr = (ts.AmmoCap * 25 + 99) / 100;
@@ -117,7 +114,7 @@ namespace SeasonalBastion.DebugTools
                 GUILayout.Label($"Tower {tid.Value}: {tag}  Ammo {ts.Ammo}/{ts.AmmoCap}");
 
                 shown++;
-                if (shown >= 10) break; // avoid huge HUD
+                if (shown >= 10) break;
             }
 
             if (shown == 0)

@@ -14,7 +14,7 @@ namespace SeasonalBastion.Contracts
         void SpawnWave(string waveDefId);
         void KillAllEnemies();
 
-        // VS3: Wave debug action (align with CombatService.ForceResolveWave)
+        // VS3: Wave debug helper (align with CombatService.ForceResolveWave)
         void ForceResolveWave();
 
         event Action<string> OnWaveStarted;

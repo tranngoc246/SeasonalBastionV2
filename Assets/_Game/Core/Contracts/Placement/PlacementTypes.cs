@@ -14,9 +14,9 @@ namespace SeasonalBastion.Contracts
     public readonly struct PlacementResult
     {
         public readonly bool Ok;
-        public readonly PlacementFailReason Reason;
+        public readonly PlacementFailReason FailReason;
         public readonly CellPos SuggestedRoadCell; // driveway conversion target (if any)
         public PlacementResult(bool ok, PlacementFailReason r, CellPos drivewayTarget)
-        { Ok=ok; Reason=r; SuggestedRoadCell=drivewayTarget; }
+        { Ok=ok; FailReason=r; SuggestedRoadCell=drivewayTarget; }
     }
 }

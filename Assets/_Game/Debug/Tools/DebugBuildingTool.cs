@@ -296,7 +296,7 @@ namespace SeasonalBastion.DebugTools
             var vr = _place.ValidateBuilding(_selectedDef, _hoverCell, _rotation);
             if (!vr.Ok)
             {
-                PushFail(vr.Reason);
+                PushFail(vr.FailReason);
                 return;
             }
 

@@ -196,11 +196,12 @@ namespace SeasonalBastion
 
         private static float ClampTimeScale(float scale)
         {
-            // Only allow 0/1/2/3 for now.
+            // Allow discrete steps: 0 / 1 / 2 / 3 / 5 (5x for debug)
             if (scale <= 0f) return 0f;
             if (scale <= 1f) return 1f;
             if (scale <= 2f) return 2f;
-            return 3f;
+            if (scale <= 3f) return 3f;
+            return 5f;
         }
 
         private static float GetSecondsPerDay(Season s)

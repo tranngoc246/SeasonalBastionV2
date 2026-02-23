@@ -137,7 +137,7 @@ namespace SeasonalBastion
                 _s?.NotificationService?.Push(
                     key: "CantPlace",
                     title: "Can't place",
-                    body: DescribeFail(v.Reason),
+                    body: DescribeFail(v.FailReason),
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(default, default, "placement"),
                     cooldownSeconds: 0.35f,

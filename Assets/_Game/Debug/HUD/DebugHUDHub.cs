@@ -255,24 +255,9 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Label($"Mode: {_mode}");
             GUILayout.EndHorizontal();
 
-            GUILayout.Space(6);
-
-            // ===== QUICK: NPC (spawn/select/job) =====
-            if (_npcTool != null)
-            {
-                GUILayout.BeginVertical(GUI.skin.box);
-                GUILayout.Label("Quick: NPC");
-                _npcTool.DrawQuickGUI();
-                GUILayout.EndVertical();
-            }
-            else
-            {
-                GUILayout.Label("DebugNpcTool not found in scene.");
-            }
-
             GUILayout.Space(8);
 
-            DrawQuick();
+            DrawQuick(); 
 
             if (_showAdvanced)
             {

@@ -150,11 +150,17 @@ namespace SeasonalBastion
             if (!_grid.IsInside(entry))
                 return new PlacementResult(false, PlacementFailReason.NoRoadConnection, entry);
 
-            // Driveway (entry) MUST be empty cell (NOT road, NOT site, NOT building).
+            // P1: Allow entry cell to already be a road (common layout).
+            // In this case, connectivity is satisfied and we do NOT need to auto-create a driveway.
             if (_grid.IsRoad(entry))
-                return new PlacementResult(false, PlacementFailReason.Overlap, entry);
+            {
+                // SuggestedRoadCell still = entry; CommitBuilding will skip auto-road because it’s already road.
+                return new PlacementResult(true, PlacementFailReason.None, entry);
+            }
 
+            // Otherwise entry must be an empty driveway cell (NOT site/building/road).
             var entryOcc = _grid.Get(entry);
+
             if (entryOcc.Kind == CellOccupancyKind.Site)
                 return new PlacementResult(false, PlacementFailReason.BlockedBySite, entry);
 

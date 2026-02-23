@@ -15,7 +15,7 @@ namespace SeasonalBastion
 
         public void StartNewRun(int seed, string startMapConfigJsonOrMarkdown = null)
         {
-            if (_s.RunOutcomeService is IResettable resetOutcome) resetOutcome.Reset();
+            _s.RunOutcomeService?.ResetOutcome();
 
             // Reset runtime state (world/grid/jobs/orders/notifications) to avoid leaks between runs.
             ResetForNewRun();

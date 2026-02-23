@@ -58,6 +58,14 @@ namespace SeasonalBastion
                 RunRegression(s);
             }
 
+            if (GUILayout.Button("Run QA Save/Load Matrix (8 checkpoints)", GUILayout.Width(320)))
+            {
+                if (QaSaveLoadScenario8.Run(s, out var sum))
+                    _last = sum;
+                else
+                    _last = "FAIL: " + sum;
+            }
+
             GUILayout.Label($"HasRunSave: {s.SaveService.HasRunSave()}");
         }
 

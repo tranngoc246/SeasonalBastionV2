@@ -63,7 +63,7 @@ namespace SeasonalBastion
                 _s.NotificationService?.Push(
                     key: "CantPlace",
                     title: "Can't place",
-                    body: vr.Reason switch
+                    body: vr.FailReason switch
                     {
                         PlacementFailReason.Overlap => "Overlaps road/building.",
                         PlacementFailReason.BlockedBySite => "Blocked by site.",
@@ -707,6 +707,110 @@ namespace SeasonalBastion
             _buildingIdsBuf.Clear();
             _autoRoadByOrder.Clear();
             _repairJobByOrder.Clear();
+        }
+
+        public int RebuildActivePlaceOrdersFromSitesAfterLoad()
+        {
+            EnsureBusSubscribed();
+
+            // Reset internal runtime tracking (jobs will be re-created by Tick)
+            _nextOrderId = 1;
+            _active.Clear();
+            _orders.Clear();
+            _deliverJobsBySite.Clear();
+            _workJobBySite.Clear();
+            _autoRoadByOrder.Clear();
+            _repairJobByOrder.Clear();
+
+            if (_s?.WorldState?.Sites == null || _s.WorldState.Buildings == null)
+                return 0;
+
+            // Index placeholders: (anchor + defId) -> buildingId (prefer smallest id)
+            var placeholderByKey = new Dictionary<long, BuildingId>(128);
+
+            foreach (var bid in _s.WorldState.Buildings.Ids)
+            {
+                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+                var b = _s.WorldState.Buildings.Get(bid);
+                if (b.IsConstructed) continue;
+
+                long k = Pack(b.Anchor.X, b.Anchor.Y, b.DefId);
+
+                if (!placeholderByKey.TryGetValue(k, out var old) || bid.Value < old.Value)
+                    placeholderByKey[k] = bid;
+            }
+
+            // Sites in deterministic order
+            var siteIds = new List<SiteId>(128);
+            foreach (var sid in _s.WorldState.Sites.Ids) siteIds.Add(sid);
+            siteIds.Sort((a, b) => a.Value.CompareTo(b.Value));
+
+            int created = 0;
+
+            for (int i = 0; i < siteIds.Count; i++)
+            {
+                var sid = siteIds[i];
+                if (!_s.WorldState.Sites.Exists(sid)) continue;
+
+                var site = _s.WorldState.Sites.Get(sid);
+                if (!site.IsActive) continue;
+
+                long key = Pack(site.Anchor.X, site.Anchor.Y, site.BuildingDefId);
+
+                if (!placeholderByKey.TryGetValue(key, out var buildingId) || buildingId.Value == 0 || !_s.WorldState.Buildings.Exists(buildingId))
+                {
+                    // Best-effort warning (don’t create new placeholder silently)
+                    _s.NotificationService?.Push(
+                        key: $"LoadMissingPlaceholder_{sid.Value}",
+                        title: "Load Warning",
+                        body: $"Missing placeholder for site #{sid.Value}: {site.BuildingDefId} @ ({site.Anchor.X},{site.Anchor.Y})",
+                        severity: NotificationSeverity.Warning,
+                        payload: new NotificationPayload(default, default, "load"),
+                        cooldownSeconds: 0f,
+                        dedupeByKey: true
+                    );
+                    continue;
+                }
+
+                int orderId = _nextOrderId++;
+
+                var order = new BuildOrder
+                {
+                    OrderId = orderId,
+                    Kind = BuildOrderKind.PlaceNew,
+                    BuildingDefId = site.BuildingDefId,
+                    TargetBuilding = buildingId,
+                    Site = sid,
+                    RequiredCost = default,
+                    Delivered = default,
+                    WorkSecondsRequired = site.WorkSecondsTotal,
+                    WorkSecondsDone = site.WorkSecondsDone,
+                    Completed = false
+                };
+
+                _orders[orderId] = order;
+                _active.Add(orderId);
+                created++;
+            }
+
+            return created;
+        }
+
+        // + ADD: deterministic cheap key (same spirit as SaveLoadApplier.Pack)
+        private static long Pack(int x, int y, string defId)
+        {
+            unchecked
+            {
+                long h = 1469598103934665603L;
+                h = (h ^ x) * 1099511628211L;
+                h = (h ^ y) * 1099511628211L;
+                if (!string.IsNullOrEmpty(defId))
+                {
+                    for (int i = 0; i < defId.Length; i++)
+                        h = (h ^ defId[i]) * 1099511628211L;
+                }
+                return h;
+            }
         }
 
         private static bool IsReadyToWork(in BuildSiteState site)

@@ -8,7 +8,8 @@
         "Game.World",
         "Game.Build",
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "Game.Jobs"
     ],
     "includePlatforms": [
         "Editor"

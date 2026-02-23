@@ -221,7 +221,7 @@ namespace SeasonalBastion.Tests.EditMode
             var res = placement.ValidateBuilding("b.house", new CellPos(2, 2), Dir4.N);
 
             Assert.That(res.Ok, Is.False);
-            Assert.That(res.Reason, Is.EqualTo(PlacementFailReason.NoRoadConnection));
+            Assert.That(res.FailReason, Is.EqualTo(PlacementFailReason.NoRoadConnection));
             Assert.That(res.SuggestedRoadCell.X, Is.EqualTo(2));
             Assert.That(res.SuggestedRoadCell.Y, Is.EqualTo(3));
         }
@@ -349,7 +349,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(res.Ok, Is.False, "Should fail when overlapping existing Building occupancy.");
 
-            Assert.That(res.Reason, Is.EqualTo(PlacementFailReason.Overlap));
+            Assert.That(res.FailReason, Is.EqualTo(PlacementFailReason.Overlap));
         }
 
         [Test]

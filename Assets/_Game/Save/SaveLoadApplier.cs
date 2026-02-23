@@ -173,6 +173,12 @@ namespace SeasonalBastion
                     }
                 }
 
+                // + ADD: rebuild build orders for active sites (so construction continues after load)
+                if (s.BuildOrderService is BuildOrderService bos)
+                {
+                    bos.RebuildActivePlaceOrdersFromSitesAfterLoad();
+                }
+
                 // 7) Rebuild index
                 s.WorldIndex?.RebuildAll();
 

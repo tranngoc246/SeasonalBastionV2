@@ -49,8 +49,9 @@ namespace SeasonalBastion
             var executorRegistry = new JobExecutorRegistry(services);
             services.JobScheduler = new JobScheduler( services.WorldState, services.JobBoard, services.ClaimService, executorRegistry, services.EventBus, services.DataRegistry, services.NotificationService);
 
-            services.ProducerLoopService = new ProducerLoopService(services.WorldState, services.DataRegistry, services.StorageService, services.JobBoard, services.NotificationService, services.RunClock);
-
+            //services.ProducerLoopService = new ProducerLoopService(services.WorldState, services.DataRegistry, services.StorageService, services.JobBoard, services.NotificationService, services.RunClock);
+            // P0: disable ProducerLoopService to avoid duplicate/invalid Harvest jobs (JobScheduler is the single source)
+            services.ProducerLoopService = null;
 
             // Build
             services.BuildOrderService = new BuildOrderService(services);

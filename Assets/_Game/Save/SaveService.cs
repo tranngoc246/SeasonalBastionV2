@@ -184,8 +184,6 @@ namespace SeasonalBastion
                     }
                 }
 
-                Debug.Log($"[SaveService] Save roads = {file.roads.Count}");
-
                 var json = JsonUtility.ToJson(file, true);
                 File.WriteAllText(RunPath, json);
 
@@ -244,8 +242,6 @@ namespace SeasonalBastion
                         dto.world.Roads.Add(new CellPosI32(c.x, c.y));
                     }
                 }
-
-                Debug.Log($"[SaveService] Load roads = {dto.world.Roads.Count}");
 
                 // Buildings
                 if (file.world?.buildings != null)

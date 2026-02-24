@@ -1,4 +1,3 @@
-// Assets/_Game/QA/QaSaveLoadScenario8.cs
 using System;
 using UnityEngine;
 using SeasonalBastion.Contracts;
@@ -97,6 +96,30 @@ namespace SeasonalBastion
                 else { fail++; Debug.LogError(msg6); }
             }
 
+            // ---- C7
+            if (RunCheckpoint(s, "C7: Defend start (Autumn Y1 D1)",
+                prepare: () =>
+                {
+                    ForceClock(s, year: 1, season: Season.Autumn, day: 1, timer: 0f, scale: 1f);
+
+                    if (s.RunClock is RunClockService rc)
+                        rc.Tick(0.01f);
+                },
+                validateBeforeSave: () => ValidateClockPhase(s, Season.Autumn, Phase.Defend, out _),
+                extraValidateAfterLoad: () => ValidateClockPhase(s, Season.Autumn, Phase.Defend, out _),
+                out var msg7))
+                pass++;
+            else { fail++; Debug.LogError(msg7); }
+
+            // ---- C8
+            if (RunCheckpoint(s, "C8: Mid-wave (spawn enemies, persist on save/load)",
+                prepare: () => PrepareMidWave(s),
+                validateBeforeSave: () => ValidateHasEnemies(s, out _),
+                extraValidateAfterLoad: () => ValidateHasEnemies(s, out _),
+                out var msg8))
+                pass++;
+            else { fail++; Debug.LogError(msg8); }
+
             summary = $"QA Save/Load Matrix done. PASS={pass} FAIL={fail}. Check Console for details.";
             return fail == 0;
         }
@@ -114,6 +137,8 @@ namespace SeasonalBastion
             out string msg)
         {
             msg = $"[QA] {name} :: ";
+
+            Debug.Log("[QA] START " + name);
 
             try
             {
@@ -351,8 +376,9 @@ namespace SeasonalBastion
 
             sites.Set(ctx.Site, st);
 
-            // Force finalize immediately
-            s.BuildOrderService?.Tick(0f);
+            // Force finalize immediately (BuildOrderService.Tick ignores dt<=0)
+            for (int i = 0; i < 3; i++)
+                s.BuildOrderService?.Tick(0.05f);
         }
 
         // -------------------------

@@ -9,6 +9,9 @@ namespace SeasonalBastion
     {
         private string _last = "";
 
+        private QaSoakRunner _soak;
+        private string _soakLast = "";
+
         private struct Checkpoint
         {
             public string Name;
@@ -58,12 +61,72 @@ namespace SeasonalBastion
                 RunRegression(s);
             }
 
-            if (GUILayout.Button("Run QA Save/Load Matrix (8 checkpoints)", GUILayout.Width(320)))
+            if (GUILayout.Button("Run Internal CI (B - Save/Load Matrix)", GUILayout.Width(320)))
             {
-                if (QaSaveLoadScenario8.Run(s, out var sum))
-                    _last = sum;
-                else
-                    _last = "FAIL: " + sum;
+                var rep = SeasonalBastion.QaInternalCiRunner.RunB(s, writeReport: true);
+                _last = (rep.passed ? "PASS: " : "FAIL: ") + rep.summary;
+
+                // optional: show report path if you have a line for it
+                _last += string.IsNullOrEmpty(rep.reportPath) ? "" : ("\nReport: " + rep.reportPath);
+            }
+
+            if (_soak == null) _soak = QaSoakRunner.Ensure();
+
+            GUILayout.Space(8);
+            GUILayout.Label("SOAK (C)");
+
+            if (!_soak.IsRunning)
+            {
+                if (GUILayout.Button("Start Soak 30m (auto)", GUILayout.Width(320)))
+                {
+                    var cfg = new QaSoakRunner.SoakConfig
+                    {
+                        durationMinutes = 30,
+                        buildTimeScale = 5f,
+                        actionIntervalSec = 75f,
+                        quickSaveLoadInterval = 180f,
+                        logIntervalSec = 60f,
+                        maxBuildAttemptsPerAction = 1
+                    };
+
+                    _soak.StartSoak(s, cfg);
+                    _soakLast = _soak.LastSummary;
+                }
+            }
+            else
+            {
+                if (GUILayout.Button("Stop Soak", GUILayout.Width(320)))
+                {
+                    _soak.StopSoak("Stopped by user");
+                    _soakLast = _soak.LastSummary;
+                }
+            }
+
+            _soakLast = _soak.LastSummary;
+            if (!string.IsNullOrEmpty(_soakLast))
+                GUILayout.Label(_soakLast);
+
+            if (GUILayout.Button("Start Combat Stress Soak 30m (auto)", GUILayout.Width(320)))
+            {
+                var cfg = new QaSoakRunner.SoakConfig
+                {
+                    durationMinutes = 30,
+                    buildTimeScale = 5f,
+                    actionIntervalSec = 75f,
+                    quickSaveLoadInterval = 180f,
+                    logIntervalSec = 60f,
+                    maxBuildAttemptsPerAction = 1,
+
+                    combatStress = true,
+                    combatSpawnIntervalSec = 150f,
+                    combatSpawnCount = 5,
+                    combatEnemyDefId = "Swarmling",
+                    combatLaneId = -1,            // rotate lanes
+                    combatMaxEnemiesAlive = 30,
+                    forceDefendAfterMinutes = 5f, // đảm bảo có combat
+                };
+
+                _soak.StartSoak(s, cfg);
             }
 
             GUILayout.Label($"HasRunSave: {s.SaveService.HasRunSave()}");

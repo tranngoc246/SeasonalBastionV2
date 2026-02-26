@@ -23,6 +23,10 @@ namespace SeasonalBastion
         private readonly Dictionary<string, WaveDef> _waves = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, RewardDef> _rewards = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, RecipeDef> _recipes = new(StringComparer.OrdinalIgnoreCase);
+        // Upgrade Graph (Node/Edge)
+        private readonly Dictionary<string, BuildableNodeDef> _buildableNodes = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, UpgradeEdgeDef> _upgradeEdgesById = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, List<UpgradeEdgeDef>> _upgradeEdgesFrom = new(StringComparer.OrdinalIgnoreCase);
 
         private readonly List<string> _loadErrors = new(32);
 
@@ -37,13 +41,13 @@ namespace SeasonalBastion
         [Serializable] private sealed class RecipesRoot { public RecipeJson[] recipes; }
         [Serializable] private sealed class WavesRoot { public WaveJson[] waves; public WavesNotesJson notes; }
         [Serializable] private sealed class RewardsRoot { public RewardJson[] rewards; }
-
         [Serializable] private sealed class EnemyScalingJson { public EnemyScalingYearJson year2; }
         [Serializable] private sealed class EnemyScalingYearJson { public float hpMul = 1f; public float damageMul = 1f; public float countMul = 1f; }
-
         [Serializable] private sealed class WavesNotesJson { public string source; public string year2Outline; }
-
         [Serializable] private sealed class StorageCapsJson { public int L1; public int L2; public int L3; }
+        [Serializable] private sealed class BuildablesGraphRoot { public BuildableNodeJson[] nodes; public UpgradeEdgeJson[] upgrades; }
+        [Serializable] private sealed class BuildableNodeJson { public string id; public int level = 1; public bool placeable = true; }
+        [Serializable] private sealed class UpgradeEdgeJson { public string id; public string from; public string to; public BuildingCostJson[] cost; public int workChunks = 0; public string requiresUnlocked; }
 
         [Serializable]
         private sealed class BuildingJson
@@ -209,7 +213,40 @@ namespace SeasonalBastion
         public IReadOnlyCollection<string> GetAllWaveIds() => _waves.Keys;
         public IReadOnlyCollection<string> GetAllRewardIds() => _rewards.Keys;
         public IReadOnlyCollection<string> GetAllRecipeIds() => _recipes.Keys;
+        public IReadOnlyCollection<string> GetAllBuildableNodeIds() => _buildableNodes.Keys;
+        public IReadOnlyCollection<string> GetAllUpgradeEdgeIds() => _upgradeEdgesById.Keys;
         public IReadOnlyList<string> GetLoadErrors() => _loadErrors;
+
+        public bool TryGetBuildableNode(string id, out BuildableNodeDef node)
+        {
+            node = null;
+            if (string.IsNullOrWhiteSpace(id)) return false;
+            return _buildableNodes.TryGetValue(id, out node) && node != null;
+        }
+
+        public IReadOnlyList<UpgradeEdgeDef> GetUpgradeEdgesFrom(string fromNodeId)
+        {
+            if (string.IsNullOrWhiteSpace(fromNodeId)) return Array.Empty<UpgradeEdgeDef>();
+            if (_upgradeEdgesFrom.TryGetValue(fromNodeId, out var list) && list != null)
+                return list;
+            return Array.Empty<UpgradeEdgeDef>();
+        }
+
+        public bool TryGetUpgradeEdge(string edgeId, out UpgradeEdgeDef edge)
+        {
+            edge = null;
+            if (string.IsNullOrWhiteSpace(edgeId)) return false;
+            return _upgradeEdgesById.TryGetValue(edgeId, out edge) && edge != null;
+        }
+
+        // UI helper: node có trong graph => theo Placeable; legacy => true
+        public bool IsPlaceableBuildable(string nodeId)
+        {
+            if (string.IsNullOrWhiteSpace(nodeId)) return false;
+            if (_buildableNodes.TryGetValue(nodeId, out var n) && n != null)
+                return n.Placeable;
+            return true;
+        }
 
         public bool TryGetEnemy(string id, out EnemyDef def) => _enemies.TryGetValue(id, out def);
         public bool TryGetWave(string id, out WaveDef def) => _waves.TryGetValue(id, out def);
@@ -223,6 +260,10 @@ namespace SeasonalBastion
             _waves.Clear();
             _rewards.Clear();
             _recipes.Clear();
+            _buildableNodes.Clear();
+            _upgradeEdgesById.Clear();
+            _upgradeEdgesFrom.Clear();
+            _balance = null;
             _loadErrors.Clear();
         }
 
@@ -238,6 +279,7 @@ namespace SeasonalBastion
             LoadWaves(_catalog != null ? _catalog.Waves : null);
             LoadRewards(_catalog != null ? _catalog.Rewards : null);
             LoadBalance(_catalog != null ? _catalog.Balance : null);
+            LoadBuildablesGraph(_catalog != null ? _catalog.BuildablesGraph : null);
 
             if (_loadErrors.Count > 0)
                 Debug.LogError($"[DataRegistry] Load finished with {_loadErrors.Count} error(s). Use DebugHUDHub -> Validate Data to inspect.");
@@ -727,6 +769,101 @@ namespace SeasonalBastion
             {
                 _loadErrors.Add("Balance JSON parse failed: " + e.Message);
                 _balance = null;
+            }
+        }
+
+        private void LoadBuildablesGraph(TextAsset ta)
+        {
+            if (ta == null) return; // optional
+
+            var json = ta.text;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _loadErrors.Add($"BuildablesGraph TextAsset '{ta.name}' is empty");
+                return;
+            }
+
+            BuildablesGraphRoot root;
+            try { root = JsonUtility.FromJson<BuildablesGraphRoot>(json); }
+            catch (Exception e)
+            {
+                _loadErrors.Add($"BuildablesGraph parse failed: {e.Message}");
+                return;
+            }
+
+            if (root == null)
+            {
+                _loadErrors.Add("BuildablesGraph parse returned null root");
+                return;
+            }
+
+            _buildableNodes.Clear();
+            _upgradeEdgesById.Clear();
+            _upgradeEdgesFrom.Clear();
+
+            if (root.nodes != null)
+            {
+                for (int i = 0; i < root.nodes.Length; i++)
+                {
+                    var n = root.nodes[i];
+                    if (n == null || string.IsNullOrWhiteSpace(n.id)) continue;
+
+                    _buildableNodes[n.id] = new BuildableNodeDef
+                    {
+                        Id = n.id,
+                        Level = n.level <= 0 ? 1 : n.level,
+                        Placeable = n.placeable
+                    };
+                }
+            }
+
+            if (root.upgrades != null)
+            {
+                for (int i = 0; i < root.upgrades.Length; i++)
+                {
+                    var e = root.upgrades[i];
+                    if (e == null || string.IsNullOrWhiteSpace(e.id) || string.IsNullOrWhiteSpace(e.from) || string.IsNullOrWhiteSpace(e.to))
+                        continue;
+
+                    var ed = new UpgradeEdgeDef
+                    {
+                        Id = e.id,
+                        From = e.from,
+                        To = e.to,
+                        WorkChunks = e.workChunks < 0 ? 0 : e.workChunks,
+                        RequiresUnlocked = e.requiresUnlocked ?? ""
+                    };
+
+                    if (e.cost != null && e.cost.Length > 0)
+                    {
+                        var costs = new CostDef[e.cost.Length];
+                        for (int k = 0; k < e.cost.Length; k++)
+                        {
+                            var c = e.cost[k];
+                            if (c == null) continue;
+                            costs[k] = new CostDef { Resource = (ResourceType)c.res, Amount = c.amt };
+                        }
+                        ed.Cost = costs;
+                    }
+                    else ed.Cost = Array.Empty<CostDef>();
+
+                    _upgradeEdgesById[ed.Id] = ed;
+
+                    if (!_upgradeEdgesFrom.TryGetValue(ed.From, out var list) || list == null)
+                    {
+                        list = new List<UpgradeEdgeDef>(4);
+                        _upgradeEdgesFrom[ed.From] = list;
+                    }
+                    list.Add(ed);
+                }
+
+                // deterministic: sort edges by Id within each From
+                foreach (var kv in _upgradeEdgesFrom)
+                {
+                    var list = kv.Value;
+                    if (list == null || list.Count <= 1) continue;
+                    list.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+                }
             }
         }
 

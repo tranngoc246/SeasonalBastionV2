@@ -2,11 +2,11 @@ namespace SeasonalBastion.Contracts
 {
     public enum ResourceType
     {
-        None,
-        Wood,
-        Food,
-        Stone,
-        Iron,
-        Ammo
+        None = 0,
+        Wood = 1,
+        Stone = 2,
+        Iron = 3,
+        Food = 4,
+        Ammo = 5
     }
 }

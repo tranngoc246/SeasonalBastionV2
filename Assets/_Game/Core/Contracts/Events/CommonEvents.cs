@@ -7,6 +7,15 @@ namespace SeasonalBastion.Contracts
         public BuildingPlacedEvent(string d, BuildingId b){DefId=d;Building=b;}
     }
 
+    public readonly struct BuildingUpgradedEvent
+    {
+        public readonly string FromDefId;
+        public readonly string ToDefId;
+        public readonly BuildingId Building;
+        public BuildingUpgradedEvent(string from, string to, BuildingId b)
+        { FromDefId = from; ToDefId = to; Building = b; }
+    }
+
     public readonly struct RoadPlacedEvent
     {
         public readonly CellPos Cell;

@@ -34,6 +34,8 @@
                 <ui:Label name="LblInspectDef" text="Def: -" class="row" />
                 <ui:Label name="LblInspectHP" text="HP: -" class="row" />
 
+                <ui:Button name="BtnInspectUpgrade" text="Upgrade" class="row" />
+
                 <ui:VisualElement class="divider" />
 
                 <ui:Label text="Storage:" class="row header" />

@@ -20,3 +20,4 @@ MonoBehaviour:
   Waves: {fileID: 4900000, guid: 6cc27021f0602bd41be3839d8cb22763, type: 3}
   Rewards: {fileID: 4900000, guid: 20835419c6eb1ae46bdebad3b7762da4, type: 3}
   Balance: {fileID: 4900000, guid: c775d5e366d864944a407aa2e250b124, type: 3}
+  BuildablesGraph: {fileID: 4900000, guid: 011a3766a9cefda40ac0624c9fc00589, type: 3}

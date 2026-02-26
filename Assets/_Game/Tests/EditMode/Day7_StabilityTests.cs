@@ -48,6 +48,11 @@ namespace SeasonalBastion.Tests.EditMode
 
         private sealed class TestDataRegistry : IDataRegistry
         {
+            public bool TryGetBuildableNode(string id, out BuildableNodeDef node) { node = null; return false; }
+            public IReadOnlyList<UpgradeEdgeDef> GetUpgradeEdgesFrom(string fromNodeId) => Array.Empty<UpgradeEdgeDef>();
+            public bool TryGetUpgradeEdge(string edgeId, out UpgradeEdgeDef edge) { edge = null; return false; }
+            public bool IsPlaceableBuildable(string nodeId) => true;
+
             private readonly Dictionary<string, BuildingDef> _buildings = new(StringComparer.Ordinal);
 
             public void Add(BuildingDef def)

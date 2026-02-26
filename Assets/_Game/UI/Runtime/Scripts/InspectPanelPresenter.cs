@@ -17,6 +17,8 @@ namespace SeasonalBastion
         private readonly Label _lblDef;
         private readonly Label _lblHp;
 
+        private readonly Button _btnUpgrade;
+
         private readonly Label _lblWood;
         private readonly Label _lblStone;
         private readonly Label _lblFood;
@@ -43,6 +45,7 @@ namespace SeasonalBastion
             _lblId = root.Q<Label>("LblInspectId");
             _lblDef = root.Q<Label>("LblInspectDef");
             _lblHp = root.Q<Label>("LblInspectHP");
+            _btnUpgrade = root.Q<Button>("BtnInspectUpgrade");
 
             _lblWood = root.Q<Label>("LblInspectWood");
             _lblStone = root.Q<Label>("LblInspectStone");
@@ -58,11 +61,13 @@ namespace SeasonalBastion
 
             if (_panel != null) _panel.AddToClassList("hidden");
             if (_btnClose != null) _btnClose.clicked += OnCloseClicked;
+            if (_btnUpgrade != null) _btnUpgrade.clicked += OnUpgradeClicked;
         }
 
         public void Unbind()
         {
             if (_btnClose != null) _btnClose.clicked -= OnCloseClicked;
+            if (_btnUpgrade != null) _btnUpgrade.clicked -= OnUpgradeClicked;
         }
 
         public void Tick(float dt)
@@ -197,6 +202,17 @@ namespace SeasonalBastion
                 && a.Food == b.Food
                 && a.Iron == b.Iron
                 && a.Ammo == b.Ammo;
+        }
+
+        private void OnUpgradeClicked()
+        {
+            if (_s == null || _s.BuildOrderService == null) return;
+            if (!_sel.HasSelection) return;
+
+            var id = _sel.SelectedBuilding;
+            if (id.Value == 0) return;
+
+            _s.BuildOrderService.CreateUpgradeOrder(id);
         }
     }
 }

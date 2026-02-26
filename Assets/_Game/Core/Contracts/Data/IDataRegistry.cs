@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace SeasonalBastion.Contracts
 {
@@ -15,5 +15,13 @@ namespace SeasonalBastion.Contracts
         RecipeDef GetRecipe(string id);
         NpcDef GetNpc(string id);
         TowerDef GetTower(string id);
+
+        // BuildablesGraph (Upgrade)
+        bool TryGetBuildableNode(string id, out BuildableNodeDef node);
+        IReadOnlyList<UpgradeEdgeDef> GetUpgradeEdgesFrom(string fromNodeId);
+        bool TryGetUpgradeEdge(string edgeId, out UpgradeEdgeDef edge);
+
+        // UI helper: nếu node có trong graph thì theo node.Placeable; không có => legacy true
+        bool IsPlaceableBuildable(string nodeId);
     }
 }

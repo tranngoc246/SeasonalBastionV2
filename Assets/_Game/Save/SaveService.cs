@@ -98,7 +98,11 @@ namespace SeasonalBastion
                         workDone = s.WorkSecondsDone,
                         workTotal = s.WorkSecondsTotal,
                         delivered = new List<SaveCost>(),
-                        remaining = new List<SaveCost>()
+                        remaining = new List<SaveCost>(),
+                        kind = s.Kind,
+                        targetBuildingId = s.TargetBuilding.Value,
+                        fromDefId = s.FromDefId,
+                        edgeId = s.EdgeId
                     };
 
                     if (s.DeliveredSoFar != null)
@@ -285,7 +289,11 @@ namespace SeasonalBastion
                             WorkSecondsDone = s.workDone,
                             WorkSecondsTotal = s.workTotal,
                             DeliveredSoFar = new List<CostDef>(),
-                            RemainingCosts = new List<CostDef>()
+                            RemainingCosts = new List<CostDef>(),
+                            Kind = (byte)s.kind,
+                            TargetBuilding = new BuildingId(s.targetBuildingId),
+                            FromDefId = s.fromDefId,
+                            EdgeId = s.edgeId
                         };
 
                         if (s.delivered != null)
@@ -523,6 +531,10 @@ namespace SeasonalBastion
             public int rot;
             public bool isActive;
             public float workDone, workTotal;
+            public int kind;
+            public int targetBuildingId;
+            public string fromDefId;
+            public string edgeId;
             public List<SaveCost> delivered;
             public List<SaveCost> remaining;
         }

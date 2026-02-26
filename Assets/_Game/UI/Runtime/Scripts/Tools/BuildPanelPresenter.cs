@@ -182,6 +182,10 @@ namespace SeasonalBastion
                 if (string.Equals(id, HQ_DEF_ID, StringComparison.OrdinalIgnoreCase))
                     continue;
 
+                var dr = _s.DataRegistry as DataRegistry;
+                if (dr != null && !dr.IsPlaceableBuildable(id))
+                    continue;
+
                 if (!TryGetBuildingDef(_s.DataRegistry, id, out var def))
                     continue;
 

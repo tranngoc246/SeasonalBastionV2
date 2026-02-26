@@ -28,5 +28,16 @@ namespace SeasonalBastion.Contracts
         public List<CostDef> RemainingCosts;
 
         public bool IsReadyToWork => RemainingCosts == null || RemainingCosts.Count == 0;
+
+        // 0 = PlaceNew, 1 = Upgrade
+        public byte Kind;
+
+        // Upgrade: building đang được nâng cấp (PlaceNew: placeholder building)
+        public BuildingId TargetBuilding;
+
+        // Upgrade metadata (optional, giúp debug/save/load)
+        public string FromDefId;
+        public string EdgeId;
+        public bool IsUpgrade => Kind == 1;
     }
 }

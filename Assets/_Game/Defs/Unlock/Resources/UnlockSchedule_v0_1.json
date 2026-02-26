@@ -2,19 +2,62 @@
   "SchemaVersion": 1,
   "StartUnlocked": [
     "bld_hq_t1",
+    "bld_house_t1",
     "bld_farmhouse_t1",
     "bld_lumbercamp_t1",
-    "bld_warehouse_t1"
+    "bld_tower_arrow_t1"
   ],
   "Entries": [
-    { "DefId": "bld_house_t1",        "Year": 1, "Season": 0, "Day": 1 },
+    { "DefId": "bld_warehouse_t1", "Year": 1, "Season": 0, "Day": 2 },
+    { "DefId": "bld_builderhut_t1", "Year": 1, "Season": 0, "Day": 2 },
 
-    { "DefId": "bld_quarry_t1",       "Year": 1, "Season": 0, "Day": 1 },
-    { "DefId": "bld_ironhut_t1",      "Year": 1, "Season": 0, "Day": 1 },
+    { "DefId": "bld_forge_t1", "Year": 1, "Season": 0, "Day": 3 },
+    { "DefId": "bld_armory_t1", "Year": 1, "Season": 0, "Day": 3 },
 
-    { "DefId": "bld_forge_t1",        "Year": 1, "Season": 0, "Day": 1 },
-    { "DefId": "bld_armory_t1",       "Year": 1, "Season": 0, "Day": 1 },
+    { "DefId": "bld_quarry_t1", "Year": 1, "Season": 1, "Day": 1 },
+    { "DefId": "bld_house_t2", "Year": 1, "Season": 1, "Day": 1 },
 
-    { "DefId": "bld_tower_arrow_t1",  "Year": 1, "Season": 0, "Day": 1 }
+    { "DefId": "bld_ironhut_t1", "Year": 1, "Season": 1, "Day": 2 },
+
+    { "DefId": "bld_tower_cannon_t1", "Year": 1, "Season": 1, "Day": 3 },
+    { "DefId": "bld_tower_frost_t1", "Year": 1, "Season": 1, "Day": 3 },
+
+    { "DefId": "bld_bonfire_t1", "Year": 1, "Season": 2, "Day": 1 },
+    { "DefId": "bld_farmhouse_t2", "Year": 1, "Season": 2, "Day": 1 },
+    { "DefId": "bld_lumbercamp_t2", "Year": 1, "Season": 2, "Day": 1 },
+    { "DefId": "bld_quarry_t2", "Year": 1, "Season": 2, "Day": 1 },
+    { "DefId": "bld_ironhut_t2", "Year": 1, "Season": 2, "Day": 1 },
+    { "DefId": "bld_tower_arrow_t2", "Year": 1, "Season": 2, "Day": 1 },
+
+    { "DefId": "bld_tower_fire_t1", "Year": 2, "Season": 0, "Day": 1 },
+    { "DefId": "bld_house_t3", "Year": 2, "Season": 0, "Day": 1 },
+    { "DefId": "bld_farmhouse_t3", "Year": 2, "Season": 0, "Day": 1 },
+    { "DefId": "bld_lumbercamp_t3", "Year": 2, "Season": 0, "Day": 1 },
+    { "DefId": "bld_bonfire_t2", "Year": 2, "Season": 0, "Day": 1 },
+
+    { "DefId": "bld_tower_sniper_t1", "Year": 2, "Season": 0, "Day": 2 },
+
+    { "DefId": "bld_builderhut_t2", "Year": 2, "Season": 1, "Day": 1 },
+    { "DefId": "bld_forge_t2", "Year": 2, "Season": 1, "Day": 2 },
+    { "DefId": "bld_armory_t2", "Year": 2, "Season": 1, "Day": 2 },
+    { "DefId": "bld_warehouse_t2", "Year": 2, "Season": 1, "Day": 2 },
+
+    { "DefId": "bld_quarry_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_ironhut_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_builderhut_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_forge_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_armory_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_warehouse_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_bonfire_t3", "Year": 2, "Season": 2, "Day": 1 },
+
+    { "DefId": "bld_tower_arrow_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_tower_cannon_t2", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_tower_cannon_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_tower_frost_t2", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_tower_frost_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_tower_fire_t2", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_tower_fire_t3", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_tower_sniper_t2", "Year": 2, "Season": 2, "Day": 1 },
+    { "DefId": "bld_tower_sniper_t3", "Year": 2, "Season": 2, "Day": 1 }
   ]
 }

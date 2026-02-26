@@ -6,97 +6,141 @@
       "hp": 260,
       "range": 5,
       "rof": 1.0,
-      "damage": 17,
-      "ammoMax": 100,
+      "damage": 6,
+      "ammoMax": 90,
       "ammoPerShot": 1,
       "needsAmmoThresholdPct": 0.25,
-      "buildCost": [
-        {
-          "res": 1,
-          "amt": 25
-        },
-        {
-          "res": 2,
-          "amt": 10
-        }
-      ],
+      "buildCost": [ { "res": 1, "amt": 25 }, { "res": 3, "amt": 10 } ],
       "buildChunks": 2,
-      "unlock": {
-        "year": 1,
-        "season": "Spring",
-        "day": 1
-      }
+      "unlock": { "year": 1, "season": "Spring", "day": 1 }
     },
+    {
+      "id": "bld_tower_arrow_t2",
+      "tier": 2,
+      "hp": 320,
+      "range": 6,
+      "rof": 1.0,
+      "damage": 7,
+      "ammoMax": 110,
+      "ammoPerShot": 1,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 45 }, { "res": 3, "amt": 30 } ],
+      "buildChunks": 3,
+      "unlock": { "year": 1, "season": "Autumn", "day": 1 }
+    },
+    {
+      "id": "bld_tower_arrow_t3",
+      "tier": 3,
+      "hp": 380,
+      "range": 6,
+      "rof": 1.1111111,
+      "damage": 8,
+      "ammoMax": 130,
+      "ammoPerShot": 1,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 75 }, { "res": 3, "amt": 60 }, { "res": 4, "amt": 10 } ],
+      "buildChunks": 4,
+      "unlock": { "year": 2, "season": "Autumn", "day": 1 }
+    },
+
     {
       "id": "bld_tower_cannon_t1",
       "tier": 1,
       "hp": 320,
       "range": 4,
-      "rof": 1.55,
+      "rof": 0.625,
       "damage": 18,
-      "ammoMax": 90,
+      "ammoMax": 80,
       "ammoPerShot": 2,
       "needsAmmoThresholdPct": 0.25,
-      "buildCost": [
-        {
-          "res": 1,
-          "amt": 20
-        },
-        {
-          "res": 2,
-          "amt": 40
-        },
-        {
-          "res": 3,
-          "amt": 10
-        }
-      ],
+      "buildCost": [ { "res": 1, "amt": 20 }, { "res": 3, "amt": 40 }, { "res": 4, "amt": 10 } ],
       "buildChunks": 3,
-      "unlock": {
-        "year": 1,
-        "season": "Summer",
-        "day": 3
-      }
+      "unlock": { "year": 1, "season": "Summer", "day": 3 }
     },
+    {
+      "id": "bld_tower_cannon_t2",
+      "tier": 2,
+      "hp": 380,
+      "range": 4,
+      "rof": 0.6666667,
+      "damage": 22,
+      "ammoMax": 95,
+      "ammoPerShot": 2,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 80 }, { "res": 4, "amt": 25 } ],
+      "buildChunks": 4,
+      "unlock": { "year": 2, "season": "Autumn", "day": 1 }
+    },
+    {
+      "id": "bld_tower_cannon_t3",
+      "tier": 3,
+      "hp": 440,
+      "range": 5,
+      "rof": 0.6666667,
+      "damage": 26,
+      "ammoMax": 110,
+      "ammoPerShot": 2,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 70 }, { "res": 3, "amt": 130 }, { "res": 4, "amt": 45 } ],
+      "buildChunks": 5,
+      "unlock": { "year": 2, "season": "Autumn", "day": 1 }
+    },
+
     {
       "id": "bld_tower_frost_t1",
       "tier": 1,
       "hp": 300,
       "range": 5,
-      "rof": 1.3,
+      "rof": 0.7692308,
       "damage": 4,
-      "slowPct": 0.3,
+      "slowPct": 0.30,
       "slowSec": 2.0,
       "ammoMax": 90,
       "ammoPerShot": 1,
       "needsAmmoThresholdPct": 0.25,
-      "buildCost": [
-        {
-          "res": 1,
-          "amt": 25
-        },
-        {
-          "res": 2,
-          "amt": 35
-        },
-        {
-          "res": 3,
-          "amt": 10
-        }
-      ],
+      "buildCost": [ { "res": 1, "amt": 25 }, { "res": 3, "amt": 35 }, { "res": 4, "amt": 10 } ],
       "buildChunks": 3,
-      "unlock": {
-        "year": 1,
-        "season": "Summer",
-        "day": 3
-      }
+      "unlock": { "year": 1, "season": "Summer", "day": 3 }
     },
+    {
+      "id": "bld_tower_frost_t2",
+      "tier": 2,
+      "hp": 360,
+      "range": 6,
+      "rof": 0.7692308,
+      "damage": 5,
+      "slowPct": 0.35,
+      "slowSec": 2.0,
+      "ammoMax": 110,
+      "ammoPerShot": 1,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 45 }, { "res": 3, "amt": 75 }, { "res": 4, "amt": 25 } ],
+      "buildChunks": 4,
+      "unlock": { "year": 2, "season": "Autumn", "day": 1 }
+    },
+    {
+      "id": "bld_tower_frost_t3",
+      "tier": 3,
+      "hp": 420,
+      "range": 6,
+      "rof": 0.8333333,
+      "damage": 6,
+      "slowPct": 0.40,
+      "slowSec": 2.0,
+      "ammoMax": 130,
+      "ammoPerShot": 1,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 75 }, { "res": 3, "amt": 125 }, { "res": 4, "amt": 45 } ],
+      "buildChunks": 5,
+      "unlock": { "year": 2, "season": "Autumn", "day": 1 }
+    },
+
     {
       "id": "bld_tower_fire_t1",
       "tier": 1,
       "hp": 340,
       "range": 5,
-      "rof": 1.5,
+      "rof": 0.6666667,
       "damage": 8,
       "aoe": "small",
       "dotDps": 3,
@@ -104,57 +148,86 @@
       "ammoMax": 90,
       "ammoPerShot": 2,
       "needsAmmoThresholdPct": 0.25,
-      "buildCost": [
-        {
-          "res": 1,
-          "amt": 30
-        },
-        {
-          "res": 2,
-          "amt": 45
-        },
-        {
-          "res": 3,
-          "amt": 20
-        }
-      ],
+      "buildCost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 45 }, { "res": 4, "amt": 20 } ],
       "buildChunks": 4,
-      "unlock": {
-        "year": 2,
-        "season": "Spring",
-        "day": 1
-      }
+      "unlock": { "year": 2, "season": "Spring", "day": 1 }
     },
+    {
+      "id": "bld_tower_fire_t2",
+      "tier": 2,
+      "hp": 400,
+      "range": 5,
+      "rof": 0.7142857,
+      "damage": 10,
+      "aoe": "small",
+      "dotDps": 4,
+      "dotSec": 2,
+      "ammoMax": 110,
+      "ammoPerShot": 2,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 55 }, { "res": 3, "amt": 100 }, { "res": 4, "amt": 45 } ],
+      "buildChunks": 5,
+      "unlock": { "year": 2, "season": "Autumn", "day": 1 }
+    },
+    {
+      "id": "bld_tower_fire_t3",
+      "tier": 3,
+      "hp": 460,
+      "range": 6,
+      "rof": 0.7142857,
+      "damage": 12,
+      "aoe": "med",
+      "dotDps": 5,
+      "dotSec": 2,
+      "ammoMax": 130,
+      "ammoPerShot": 2,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 90 }, { "res": 3, "amt": 170 }, { "res": 4, "amt": 80 } ],
+      "buildChunks": 6,
+      "unlock": { "year": 2, "season": "Autumn", "day": 1 }
+    },
+
     {
       "id": "bld_tower_sniper_t1",
       "tier": 1,
       "hp": 300,
       "range": 8,
-      "rof": 2.1,
+      "rof": 0.4545455,
       "damage": 40,
       "ammoMax": 70,
-      "ammoPerShot": 2,
+      "ammoPerShot": 3,
       "needsAmmoThresholdPct": 0.25,
-      "buildCost": [
-        {
-          "res": 1,
-          "amt": 25
-        },
-        {
-          "res": 2,
-          "amt": 40
-        },
-        {
-          "res": 3,
-          "amt": 30
-        }
-      ],
+      "buildCost": [ { "res": 1, "amt": 25 }, { "res": 3, "amt": 40 }, { "res": 4, "amt": 30 } ],
       "buildChunks": 4,
-      "unlock": {
-        "year": 2,
-        "season": "Spring",
-        "day": 2
-      }
+      "unlock": { "year": 2, "season": "Spring", "day": 2 }
+    },
+    {
+      "id": "bld_tower_sniper_t2",
+      "tier": 2,
+      "hp": 360,
+      "range": 8,
+      "rof": 0.4761905,
+      "damage": 48,
+      "ammoMax": 85,
+      "ammoPerShot": 3,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 50 }, { "res": 3, "amt": 95 }, { "res": 4, "amt": 65 } ],
+      "buildChunks": 5,
+      "unlock": { "year": 2, "season": "Autumn", "day": 1 }
+    },
+    {
+      "id": "bld_tower_sniper_t3",
+      "tier": 3,
+      "hp": 420,
+      "range": 9,
+      "rof": 0.5,
+      "damage": 56,
+      "ammoMax": 100,
+      "ammoPerShot": 3,
+      "needsAmmoThresholdPct": 0.25,
+      "buildCost": [ { "res": 1, "amt": 85 }, { "res": 3, "amt": 165 }, { "res": 4, "amt": 110 } ],
+      "buildChunks": 6,
+      "unlock": { "year": 2, "season": "Autumn", "day": 1 }
     }
   ]
 }

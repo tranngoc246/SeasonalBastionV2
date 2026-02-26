@@ -44,7 +44,6 @@ namespace SeasonalBastion
                 }
 
                 // 3) Restore sites first (occupy as Site)
-                // 3) Restore sites first (occupy as Site)
                 if (dto.build.Sites != null)
                 {
                     // ensure deterministic order
@@ -63,12 +62,16 @@ namespace SeasonalBastion
 
                         // occupy footprint
                         var def = s.DataRegistry.GetBuilding(site.BuildingDefId);
-                        int w = Math.Max(1, def.SizeX);
-                        int h = Math.Max(1, def.SizeY);
 
-                        for (int dy = 0; dy < h; dy++)
-                            for (int dx = 0; dx < w; dx++)
-                                s.GridMap.SetSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy), site.Id);
+                        if (site.Kind == 0)
+                        {
+                            int w = Math.Max(1, def.SizeX);
+                            int h = Math.Max(1, def.SizeY);
+
+                            for (int dy = 0; dy < h; dy++)
+                                for (int dx = 0; dx < w; dx++)
+                                    s.GridMap.SetSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy), site.Id);
+                        }
                     }
                 }
                 // 4) Restore buildings

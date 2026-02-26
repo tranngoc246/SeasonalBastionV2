@@ -37,6 +37,7 @@ namespace SeasonalBastion
             ValidateRecipes(dr, errors);
             ValidateNpcs(dr, errors);
             ValidateTowers(dr, errors);
+            ValidateBuildablesGraph(dr, errors);
 
             // 3) Cross references
             ValidateWaveEnemyRefs(dr, errors);
@@ -211,6 +212,86 @@ namespace SeasonalBastion
                     if (!dr.TryGetEnemy(eid, out _))
                         errors.Add($"Wave '{wid}': entries[{i}] references missing Enemy '{eid}'");
                 }
+            }
+        }
+
+        private static void ValidateBuildablesGraph(DataRegistry dr, List<string> errors)
+        {
+            var nodeIds = dr.GetAllBuildableNodeIds();
+            var edgeIds = dr.GetAllUpgradeEdgeIds();
+
+            bool hasAny = (nodeIds != null && nodeIds.Count > 0) || (edgeIds != null && edgeIds.Count > 0);
+            if (!hasAny) return;
+
+            // Node phải map được sang BuildingDef (BuildOrderService upgrade dùng GetBuilding)
+            if (nodeIds != null)
+            {
+                foreach (var nid in nodeIds)
+                {
+                    if (string.IsNullOrWhiteSpace(nid)) continue;
+                    try { dr.GetBuilding(nid); }
+                    catch { errors.Add($"BuildablesGraph: node '{nid}' missing BuildingDef (Buildings.json)"); }
+                }
+            }
+
+            if (edgeIds == null) return;
+
+            foreach (var eid in edgeIds)
+            {
+                if (string.IsNullOrWhiteSpace(eid)) continue;
+                if (!dr.TryGetUpgradeEdge(eid, out var e) || e == null)
+                {
+                    errors.Add($"BuildablesGraph: edge '{eid}' missing from registry");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(e.From) || string.IsNullOrWhiteSpace(e.To))
+                {
+                    errors.Add($"BuildablesGraph: edge '{eid}' has empty From/To");
+                    continue;
+                }
+
+                if (!dr.TryGetBuildableNode(e.From, out _))
+                    errors.Add($"BuildablesGraph: edge '{eid}' references missing node From '{e.From}'");
+                if (!dr.TryGetBuildableNode(e.To, out _))
+                    errors.Add($"BuildablesGraph: edge '{eid}' references missing node To '{e.To}'");
+
+                BuildingDef fromB = null;
+                BuildingDef toB = null;
+                try { fromB = dr.GetBuilding(e.From); }
+                catch { errors.Add($"BuildablesGraph: edge '{eid}' From '{e.From}' missing BuildingDef"); }
+                try { toB = dr.GetBuilding(e.To); }
+                catch { errors.Add($"BuildablesGraph: edge '{eid}' To '{e.To}' missing BuildingDef"); }
+
+                if (fromB != null && toB != null)
+                {
+                    if (Math.Max(1, fromB.SizeX) != Math.Max(1, toB.SizeX) ||
+                        Math.Max(1, fromB.SizeY) != Math.Max(1, toB.SizeY))
+                        errors.Add($"BuildablesGraph: edge '{eid}' footprint mismatch {e.From}({fromB.SizeX}x{fromB.SizeY}) -> {e.To}({toB.SizeX}x{toB.SizeY})");
+
+                    if (toB.BaseLevel <= fromB.BaseLevel)
+                        errors.Add($"BuildablesGraph: edge '{eid}' non-increasing level {fromB.BaseLevel}->{toB.BaseLevel} ({e.From}->{e.To})");
+
+                    if (toB.IsTower)
+                    {
+                        try { dr.GetTower(e.To); }
+                        catch { errors.Add($"BuildablesGraph: tower upgrade target '{e.To}' missing TowerDef (Towers.json)"); }
+                    }
+                }
+
+                if (e.Cost != null)
+                {
+                    for (int i = 0; i < e.Cost.Length; i++)
+                    {
+                        var c = e.Cost[i];
+                        if (c == null) { errors.Add($"BuildablesGraph: edge '{eid}' cost[{i}] is null"); continue; }
+                        if (c.Resource == ResourceType.None) errors.Add($"BuildablesGraph: edge '{eid}' cost[{i}] uses ResourceType.None");
+                        if (c.Amount < 0) errors.Add($"BuildablesGraph: edge '{eid}' cost[{i}] amt must be >=0");
+                    }
+                }
+
+                if (e.WorkChunks < 0)
+                    errors.Add($"BuildablesGraph: edge '{eid}' workChunks must be >=0");
             }
         }
     }

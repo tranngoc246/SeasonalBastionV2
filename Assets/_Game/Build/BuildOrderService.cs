@@ -143,7 +143,11 @@ namespace SeasonalBastion
                 WorkSecondsDone = 0f,
                 WorkSecondsTotal = Math.Max(0.1f, workTotal),
                 DeliveredSoFar = BuildDeliveredMirror(def.BuildCostsL1),
-                RemainingCosts = CloneCostsOrEmpty(def.BuildCostsL1) // VS2 Day18: delivery gate
+                RemainingCosts = CloneCostsOrEmpty(def.BuildCostsL1),
+                Kind = 0,
+                TargetBuilding = buildingId,
+                FromDefId = "",
+                EdgeId = ""
             };
             var siteId = _s.WorldState.Sites.Create(site);
             site.Id = siteId;
@@ -189,17 +193,169 @@ namespace SeasonalBastion
 
         public int CreateUpgradeOrder(BuildingId building)
         {
-            // VS#1/Day6 scope: not implemented yet -> return 0 instead of throwing
+            EnsureBusSubscribed();
+
+            if (building.Value == 0) return 0;
+            if (_s.WorldState == null || _s.WorldState.Buildings == null) return 0;
+            if (!_s.WorldState.Buildings.Exists(building)) return 0;
+
+            var bs = _s.WorldState.Buildings.Get(building);
+            if (!bs.IsConstructed) return 0;
+
+            // Prevent duplicate upgrade order on same building
+            for (int i = 0; i < _active.Count; i++)
+            {
+                int id = _active[i];
+                if (!_orders.TryGetValue(id, out var oo)) continue;
+                if (oo.Completed) continue;
+                if (oo.Kind != BuildOrderKind.Upgrade) continue;
+                if (oo.TargetBuilding.Value == building.Value) return id;
+            }
+
+            var dr = _s.DataRegistry as IDataRegistry;
+            if (dr == null)
+            {
+                _s.NotificationService?.Push(
+                    key: $"UpgradeNoGraph_{building.Value}",
+                    title: "Construction",
+                    body: "Upgrade graph not loaded.",
+                    severity: NotificationSeverity.Warning,
+                    payload: new NotificationPayload(building, default, "upgrade"),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
+                return 0;
+            }
+
+            var edges = dr.GetUpgradeEdgesFrom(bs.DefId);
+            if (edges == null || edges.Count == 0)
+            {
+                _s.NotificationService?.Push(
+                    key: $"UpgradeNoEdge_{building.Value}",
+                    title: "Construction",
+                    body: $"No upgrade available for: {bs.DefId}",
+                    severity: NotificationSeverity.Info,
+                    payload: new NotificationPayload(building, default, bs.DefId),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
+                return 0;
+            }
+
+            // deterministic pick: first edge (sorted in DataRegistry)
+            var edge = edges[0];
+
+            // Optional unlock gating
+            if (!string.IsNullOrWhiteSpace(edge.RequiresUnlocked) && _s.UnlockService != null && !_s.UnlockService.IsUnlocked(edge.RequiresUnlocked))
+            {
+                _s.NotificationService?.Push(
+                    key: $"UpgradeLocked_{building.Value}_{edge.RequiresUnlocked}",
+                    title: "Locked",
+                    body: $"Not unlocked yet: {edge.RequiresUnlocked}",
+                    severity: NotificationSeverity.Warning,
+                    payload: new NotificationPayload(building, default, edge.RequiresUnlocked),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
+                return 0;
+            }
+
+            // Validate target def exists + same footprint (in-place upgrade)
+            BuildingDef toDef;
+            try { toDef = _s.DataRegistry.GetBuilding(edge.To); }
+            catch { return 0; }
+
+            var fromDef = _s.DataRegistry.GetBuilding(bs.DefId);
+            if (fromDef != null && toDef != null)
+            {
+                if (Math.Max(1, fromDef.SizeX) != Math.Max(1, toDef.SizeX) || Math.Max(1, fromDef.SizeY) != Math.Max(1, toDef.SizeY))
+                {
+                    _s.NotificationService?.Push(
+                        key: $"UpgradeFootprintMismatch_{building.Value}",
+                        title: "Construction",
+                        body: "Upgrade footprint mismatch (not supported).",
+                        severity: NotificationSeverity.Warning,
+                        payload: new NotificationPayload(building, default, edge.To),
+                        cooldownSeconds: 0.25f,
+                        dedupeByKey: true
+                    );
+                    return 0;
+                }
+            }
+
+            // Build site (NO GridMap.SetSite for upgrade)
+            int targetLevel = 1;
+            if (dr.TryGetBuildableNode(edge.To, out var node) && node != null) targetLevel = Math.Max(1, node.Level);
+            else targetLevel = Math.Max(1, toDef.BaseLevel);
+
+            float workTotal = ComputeWorkSecondsTotalFromChunks(edge.WorkChunks);
+
+            var site = new BuildSiteState
+            {
+                Kind = 1,
+                TargetBuilding = building,
+                FromDefId = bs.DefId,
+                EdgeId = edge.Id,
+
+                BuildingDefId = edge.To,
+                TargetLevel = targetLevel,
+                Anchor = bs.Anchor,
+                Rotation = bs.Rotation,
+
+                IsActive = true,
+                WorkSecondsDone = 0f,
+                WorkSecondsTotal = Math.Max(0.1f, workTotal),
+                DeliveredSoFar = BuildDeliveredMirror(edge.Cost),
+                RemainingCosts = CloneCostsOrEmpty(edge.Cost)
+            };
+
+            var siteId = _s.WorldState.Sites.Create(site);
+            site.Id = siteId;
+            _s.WorldState.Sites.Set(siteId, site);
+
+            int orderId = _nextOrderId++;
+            var order = new BuildOrder
+            {
+                OrderId = orderId,
+                Kind = BuildOrderKind.Upgrade,
+                BuildingDefId = edge.To,     // target def id
+                TargetBuilding = building,
+                Site = siteId,
+
+                RequiredCost = default,
+                Delivered = default,
+                WorkSecondsRequired = site.WorkSecondsTotal,
+                WorkSecondsDone = 0f,
+                Completed = false
+            };
+
+            _orders[orderId] = order;
+            _active.Add(orderId);
+
             _s.NotificationService?.Push(
-                key: $"UpgradeNotImpl_{building.Value}",
+                key: $"UpgradeStart_{building.Value}",
                 title: "Construction",
-                body: "Upgrade is not available in VS#1.",
-                severity: NotificationSeverity.Warning,
-                payload: new NotificationPayload(building, default, "upgrade"),
+                body: $"Upgrade started: {bs.DefId} -> {edge.To}",
+                severity: NotificationSeverity.Info,
+                payload: new NotificationPayload(building, default, edge.To),
                 cooldownSeconds: 0.25f,
                 dedupeByKey: true
             );
-            return 0;
+
+            return orderId;
+        }
+
+        private float ComputeWorkSecondsTotalFromChunks(int chunks)
+        {
+            if (chunks <= 0) chunks = (_s.Balance != null ? _s.Balance.FallbackBuildChunksL1 : 2);
+
+            float chunkSec = _s.Balance != null ? _s.Balance.BuildChunkSec : 6f;
+            int builderTier = _s.Balance != null ? _s.Balance.GetBuilderTier() : 1;
+            float mult = _s.Balance != null ? _s.Balance.GetBuildSpeedMult(builderTier) : 1f;
+
+            float total = chunks * chunkSec * mult;
+            if (total < 0.1f) total = 0.1f;
+            return total;
         }
 
         public int CreateRepairOrder(BuildingId building)
@@ -441,19 +597,15 @@ namespace SeasonalBastion
                 if (!_orders.TryGetValue(id, out var o)) continue;
                 if (o.Completed) continue;
 
-                if (o.Kind == BuildOrderKind.PlaceNew)
-                {
-                    // giữ nguyên toàn bộ code PlaceNew hiện có (không đổi)
-                }
-                else if (o.Kind == BuildOrderKind.Repair)
+                if (o.Kind == BuildOrderKind.Repair)
                 {
                     TickRepairOrder(id, ref o, workplace);
                     _orders[id] = o;
+                    continue; // IMPORTANT: repair has no site
                 }
-                else
-                {
+
+                if (o.Kind != BuildOrderKind.PlaceNew && o.Kind != BuildOrderKind.Upgrade)
                     continue;
-                }
 
                 // Site might have been destroyed (edge case)
                 if (!_s.WorldState.Sites.Exists(o.Site))
@@ -481,7 +633,8 @@ namespace SeasonalBastion
                 {
                     CancelTrackedJobsForSite(o.Site);
 
-                    CompletePlaceOrder(ref o);
+                    if (o.Kind == BuildOrderKind.PlaceNew) CompletePlaceOrder(ref o);
+                    else if (o.Kind == BuildOrderKind.Upgrade) CompleteUpgradeOrder(ref o);
                     _orders[id] = o;
                     OnOrderCompleted?.Invoke(id);
                 }
@@ -685,6 +838,102 @@ namespace SeasonalBastion
             _autoRoadByOrder.Remove(o.OrderId);
         }
 
+        private void CompleteUpgradeOrder(ref BuildOrder o)
+        {
+            if (o.Completed) return;
+
+            CancelTrackedJobsForSite(o.Site);
+
+            var site = _s.WorldState.Sites.Get(o.Site);
+
+            // Destroy site (upgrade site không occupy grid)
+            _s.WorldState.Sites.Destroy(o.Site);
+
+            // Apply upgrade
+            var b = _s.WorldState.Buildings.Get(o.TargetBuilding);
+
+            string fromId = site.FromDefId;
+            string toId = o.BuildingDefId;
+
+            b.DefId = toId;
+            b.Level = Math.Max(1, site.TargetLevel);
+            b.IsConstructed = true;
+
+            // HP reset to new max (simple rule)
+            int mhp = 100;
+            try { mhp = Math.Max(1, _s.DataRegistry.GetBuilding(toId).MaxHp); } catch { }
+            b.MaxHP = mhp;
+            b.HP = mhp;
+
+            _s.WorldState.Buildings.Set(o.TargetBuilding, b);
+
+            // Tower sync (if upgraded def is tower)
+            try
+            {
+                var def = _s.DataRegistry.GetBuilding(toId);
+                if (def != null && def.IsTower && _s.WorldState?.Towers != null)
+                {
+                    int w = Math.Max(1, def.SizeX);
+                    int h = Math.Max(1, def.SizeY);
+                    var towerCell = new CellPos(b.Anchor.X + (w / 2), b.Anchor.Y + (h / 2));
+
+                    // find tower at cell
+                    TowerId found = default;
+                    foreach (var tid in _s.WorldState.Towers.Ids)
+                    {
+                        var ts0 = _s.WorldState.Towers.Get(tid);
+                        if (ts0.Cell.X == towerCell.X && ts0.Cell.Y == towerCell.Y) { found = tid; break; }
+                    }
+
+                    int hpMax = Math.Max(1, def.MaxHp);
+                    int ammoMax = 0;
+                    try
+                    {
+                        var tdef = _s.DataRegistry.GetTower(toId);
+                        if (tdef != null)
+                        {
+                            hpMax = Math.Max(1, tdef.MaxHp);
+                            ammoMax = Math.Max(0, tdef.AmmoMax);
+                        }
+                    }
+                    catch { }
+
+                    if (found.Value != 0)
+                    {
+                        var ts = _s.WorldState.Towers.Get(found);
+                        ts.HpMax = hpMax;
+                        ts.Hp = hpMax;
+                        ts.AmmoCap = ammoMax;
+                        if (ts.Ammo > ts.AmmoCap) ts.Ammo = ts.AmmoCap;
+                        _s.WorldState.Towers.Set(found, ts);
+
+                        b.Ammo = ts.Ammo;
+                        _s.WorldState.Buildings.Set(o.TargetBuilding, b);
+                    }
+                }
+            }
+            catch { }
+
+            // WorldIndex refresh (tags may change)
+            try { _s.WorldIndex?.OnBuildingDestroyed(o.TargetBuilding); } catch { }
+            try { _s.WorldIndex?.OnBuildingCreated(o.TargetBuilding); } catch { }
+
+            // Event
+            _s.EventBus.Publish(new BuildingUpgradedEvent(fromId, toId, o.TargetBuilding));
+
+            _s.NotificationService?.Push(
+                key: $"UpgradeComplete_{o.TargetBuilding.Value}",
+                title: "Construction",
+                body: $"Upgraded: {fromId} -> {toId} (Lv {b.Level})",
+                severity: NotificationSeverity.Info,
+                payload: new NotificationPayload(o.TargetBuilding, default, toId),
+                cooldownSeconds: 0.25f,
+                dedupeByKey: true
+            );
+
+            o.Completed = true;
+        }
+
         private float ComputeWorkSecondsTotal(BuildingDef def)
         {
             int chunks = def.BuildChunksL1 > 0 ? def.BuildChunksL1 : (_s.Balance != null ? _s.Balance.FallbackBuildChunksL1 : 2);
@@ -763,42 +1012,66 @@ namespace SeasonalBastion
                 var site = _s.WorldState.Sites.Get(sid);
                 if (!site.IsActive) continue;
 
-                long key = Pack(site.Anchor.X, site.Anchor.Y, site.BuildingDefId);
-
-                if (!placeholderByKey.TryGetValue(key, out var buildingId) || buildingId.Value == 0 || !_s.WorldState.Buildings.Exists(buildingId))
+                if (site.Kind == 0)
                 {
-                    // Best-effort warning (don’t create new placeholder silently)
-                    _s.NotificationService?.Push(
-                        key: $"LoadMissingPlaceholder_{sid.Value}",
-                        title: "Load Warning",
-                        body: $"Missing placeholder for site #{sid.Value}: {site.BuildingDefId} @ ({site.Anchor.X},{site.Anchor.Y})",
-                        severity: NotificationSeverity.Warning,
-                        payload: new NotificationPayload(default, default, "load"),
-                        cooldownSeconds: 0f,
-                        dedupeByKey: true
-                    );
-                    continue;
+                    long key = Pack(site.Anchor.X, site.Anchor.Y, site.BuildingDefId);
+
+                    if (!placeholderByKey.TryGetValue(key, out var buildingId) || buildingId.Value == 0 || !_s.WorldState.Buildings.Exists(buildingId))
+                    {
+                        // Best-effort warning (don’t create new placeholder silently)
+                        _s.NotificationService?.Push(
+                            key: $"LoadMissingPlaceholder_{sid.Value}",
+                            title: "Load Warning",
+                            body: $"Missing placeholder for site #{sid.Value}: {site.BuildingDefId} @ ({site.Anchor.X},{site.Anchor.Y})",
+                            severity: NotificationSeverity.Warning,
+                            payload: new NotificationPayload(default, default, "load"),
+                            cooldownSeconds: 0f,
+                            dedupeByKey: true
+                        );
+                        continue;
+                    }
+
+                    int orderId = _nextOrderId++;
+
+                    var order = new BuildOrder
+                    {
+                        OrderId = orderId,
+                        Kind = BuildOrderKind.PlaceNew,
+                        BuildingDefId = site.BuildingDefId,
+                        TargetBuilding = buildingId,
+                        Site = sid,
+                        RequiredCost = default,
+                        Delivered = default,
+                        WorkSecondsRequired = site.WorkSecondsTotal,
+                        WorkSecondsDone = site.WorkSecondsDone,
+                        Completed = false
+                    };
+
+                    _orders[orderId] = order;
+                    _active.Add(orderId);
+                    created++;
                 }
-
-                int orderId = _nextOrderId++;
-
-                var order = new BuildOrder
+                else
                 {
-                    OrderId = orderId,
-                    Kind = BuildOrderKind.PlaceNew,
-                    BuildingDefId = site.BuildingDefId,
-                    TargetBuilding = buildingId,
-                    Site = sid,
-                    RequiredCost = default,
-                    Delivered = default,
-                    WorkSecondsRequired = site.WorkSecondsTotal,
-                    WorkSecondsDone = site.WorkSecondsDone,
-                    Completed = false
-                };
+                    var buildingId = site.TargetBuilding;
+                    if (!_s.WorldState.Buildings.Exists(buildingId)) continue;
 
-                _orders[orderId] = order;
-                _active.Add(orderId);
-                created++;
+                    int orderId = _nextOrderId++;
+                    var order = new BuildOrder
+                    {
+                        OrderId = orderId,
+                        Kind = BuildOrderKind.Upgrade,
+                        BuildingDefId = site.BuildingDefId,
+                        TargetBuilding = buildingId,
+                        Site = sid,
+                        WorkSecondsRequired = site.WorkSecondsTotal,
+                        WorkSecondsDone = site.WorkSecondsDone,
+                        Completed = false
+                    };
+                    _orders[orderId] = order; _active.Add(orderId);
+                    created++;
+                    continue;
+                }                
             }
 
             return created;

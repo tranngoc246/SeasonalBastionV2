@@ -26,6 +26,9 @@ namespace SeasonalBastion
 
         private readonly List<string> _loadErrors = new(32);
 
+        private BalanceConfig _balance;
+        public BalanceConfig GetBalanceOrNull() => _balance;
+
         // --- JSON wrappers (Unity JsonUtility needs top-level object) ---
         [Serializable] private sealed class BuildingsRoot { public BuildingJson[] buildings; }
         [Serializable] private sealed class NpcsRoot { public NpcJson[] npcs; }
@@ -234,6 +237,7 @@ namespace SeasonalBastion
             LoadRecipes(_catalog != null ? _catalog.Recipes : null);
             LoadWaves(_catalog != null ? _catalog.Waves : null);
             LoadRewards(_catalog != null ? _catalog.Rewards : null);
+            LoadBalance(_catalog != null ? _catalog.Balance : null);
 
             if (_loadErrors.Count > 0)
                 Debug.LogError($"[DataRegistry] Load finished with {_loadErrors.Count} error(s). Use DebugHUDHub -> Validate Data to inspect.");
@@ -701,6 +705,29 @@ namespace SeasonalBastion
             }
 
             Debug.Log($"[DataRegistry] Loaded Rewards: {added} (TextAsset: {ta.name})");
+        }
+
+        private void LoadBalance(TextAsset json)
+        {
+            _balance = null;
+
+            if (json == null)
+            {
+                _loadErrors.Add("Balance JSON is missing (DefsCatalog.Balance is null).");
+                return;
+            }
+
+            try
+            {
+                _balance = JsonUtility.FromJson<BalanceConfig>(json.text);
+                if (_balance == null)
+                    _loadErrors.Add("Balance JSON parsed null.");
+            }
+            catch (Exception e)
+            {
+                _loadErrors.Add("Balance JSON parse failed: " + e.Message);
+                _balance = null;
+            }
         }
 
         // --- IDataRegistry contract (Part25) ---

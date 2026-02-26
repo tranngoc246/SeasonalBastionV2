@@ -41,6 +41,20 @@ namespace SeasonalBastion
             // 3) Cross references
             ValidateWaveEnemyRefs(dr, errors);
 
+            // 2.5) Balance JSON required
+            var bal = dr.GetBalanceOrNull();
+            if (bal == null)
+            {
+                errors.Add("Balance JSON missing: DefsCatalog.Balance not assigned or parse failed.");
+            }
+            else
+            {
+                if (bal.build == null || bal.build.workChunkSec <= 0f) errors.Add("Balance.build.workChunkSec must be > 0");
+                if (bal.repair == null || bal.repair.workChunkSec <= 0f) errors.Add("Balance.repair.workChunkSec must be > 0");
+                if (bal.repair == null || bal.repair.healPctPerChunk <= 0f) errors.Add("Balance.repair.healPctPerChunk must be > 0");
+                if (bal.carry == null) errors.Add("Balance.carry missing");
+            }
+
             return errors.Count == 0;
         }
 

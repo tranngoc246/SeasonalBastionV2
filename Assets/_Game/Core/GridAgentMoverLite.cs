@@ -12,22 +12,23 @@ namespace SeasonalBastion
     public sealed class GridAgentMoverLite
     {
         private readonly IGridMap _grid;
+        private readonly IDataRegistry _data;
+        private readonly BalanceService _bal;
 
-        // Tốc độ: số cell / giây (gợi ý 1.2f ~ 2.0f)
-        private float _cellsPerSecond = 1.5f;
+        // fallback nếu npc def thiếu
+        private readonly float _fallbackBase;
+        private readonly float _fallbackRoadMul;
 
-        // Accumulator theo từng NPC để không phụ thuộc FPS
         private readonly Dictionary<int, float> _accum = new();
 
-        public GridAgentMoverLite(IGridMap grid)
+        public GridAgentMoverLite(IGridMap grid, IDataRegistry data, BalanceService bal)
         {
             _grid = grid;
-        }
+            _data = data;
+            _bal = bal;
 
-        public void SetCellsPerSecond(float v)
-        {
-            if (v < 0.1f) v = 0.1f;
-            _cellsPerSecond = v;
+            _fallbackBase = bal != null ? bal.DefaultMoveSpeed : 1f;
+            _fallbackRoadMul = bal != null ? bal.DefaultRoadMult : 1.3f;
         }
 
         /// <returns>true when arrived at target (after possible steps)</returns>
@@ -42,7 +43,28 @@ namespace SeasonalBastion
             int key = st.Id.Value;
 
             if (!_accum.TryGetValue(key, out var a)) a = 0f;
-            a += dt * _cellsPerSecond;
+
+            float baseSpd = _fallbackBase;
+            float roadMul = _fallbackRoadMul;
+
+            if (_data != null && !string.IsNullOrEmpty(st.DefId))
+            {
+                try
+                {
+                    var def = _data.GetNpc(st.DefId);
+                    if (def != null)
+                    {
+                        if (def.BaseMoveSpeed > 0f) baseSpd = def.BaseMoveSpeed;
+                        if (def.RoadSpeedMultiplier > 0f) roadMul = def.RoadSpeedMultiplier;
+                    }
+                }
+                catch { }
+            }
+
+            bool onRoad = _grid != null && _grid.IsRoad(st.Cell);
+            float spd = onRoad ? (baseSpd * roadMul) : baseSpd;
+
+            a += dt * spd;
 
             // Mỗi khi đủ 1.0 => đi 1 cell
             int steps = (int)a;

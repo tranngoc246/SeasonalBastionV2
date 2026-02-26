@@ -8,8 +8,6 @@ namespace SeasonalBastion
     {
         private readonly GameServices _s;
 
-        private const int CarryCap = 10;
-
         private static bool IsWarehouseOnly(string defId) => EqualsIgnoreCase(defId, "bld_warehouse_t1");
         private static bool IsHQOnly(string defId) => EqualsIgnoreCase(defId, "bld_hq_t1");
 
@@ -132,8 +130,11 @@ namespace SeasonalBastion
                 }
                 _settle.Remove(jid);
 
-                // Take from source local storage
-                int want = CarryCap;
+                int whTier = _s.Balance != null ? _s.Balance.GetWarehouseTier() : 1;
+                int cap = _s.Balance != null ? _s.Balance.GetCarryHaulBasic(whTier) : 10;
+
+                int want = cap;
+
                 int taken = _s.StorageService.Remove(srcId, rt, want);
                 if (taken <= 0)
                 {

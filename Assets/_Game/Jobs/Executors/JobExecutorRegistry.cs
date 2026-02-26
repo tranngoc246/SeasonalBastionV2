@@ -13,10 +13,10 @@ namespace SeasonalBastion
             _map[JobArchetype.HaulToForge] = new HaulToForgeExecutor(s);
             _map[JobArchetype.BuildDeliver] = new BuildDeliverExecutor(s);
             _map[JobArchetype.BuildWork] = new BuildWorkExecutor(s);
+            _map[JobArchetype.RepairWork] = new RepairWorkExecutor(s);
             _map[JobArchetype.CraftAmmo] = new CraftAmmoExecutor(s);
             _map[JobArchetype.HaulAmmoToArmory] = new HaulAmmoToArmoryExecutor(s);
             _map[JobArchetype.ResupplyTower] = new ResupplyTowerExecutor(s);
-            _map[JobArchetype.RepairWork] = new RepairWorkExecutor(s);
         }
 
         public IJobExecutor Get(JobArchetype a) => _map[a];

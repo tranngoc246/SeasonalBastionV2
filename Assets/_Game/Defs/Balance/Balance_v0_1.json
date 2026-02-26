@@ -1,0 +1,48 @@
+{
+  "schema": "balance_v0.1",
+  "movement": {
+    "defaultBaseMoveSpeed": 1.0,
+    "defaultRoadSpeedMultiplier": 1.3
+  },
+  "carry": {
+    "harvest": { "L1": 6, "L2": 8, "L3": 10 },
+    "haulBasic": { "L1": 10, "L2": 14, "L3": 18 },
+    "builder": { "L1": 8, "L2": 12, "L3": 16 },
+    "armoryAmmo": { "L1": 40, "L2": 60, "L3": 80 }
+  },
+  "build": {
+    "workChunkSec": 6.0,
+    "fallbackBuildChunksL1": 2
+  },
+  "repair": {
+    "workChunkSec": 4.0,
+    "healPctPerChunk": 0.15,
+    "costFactorOfBuildCost": 0.30
+  },
+  "builderWorkplace": {
+    "builderDefIds": [ "bld_hq_t1" ],
+    "buildSpeedMult": { "L1": 1.0, "L2": 0.85, "L3": 0.70 },
+    "repairTimeMult": { "L1": 1.0, "L2": 0.85, "L3": 0.70 },
+    "repairCostMult": { "L1": 1.0, "L2": 0.85, "L3": 0.70 }
+  },
+  "warehouseWorkplace": {
+    "warehouseDefIds": [ "bld_warehouse_t1" ]
+  },
+  "armory": {
+    "resupplyTripAmmo": { "L1": 20, "L2": 30, "L3": 40 }
+  },
+
+  "crafting": {
+    "ammoRecipeId": "ForgeAmmo"
+  },
+  "ammoSupply": {
+    "forgeTargetCrafts": 5
+  },
+  "ammoMonitor": {
+    "lowAmmoPct": 25,
+    "reqCooldownLowSec": 8.0,
+    "reqCooldownEmptySec": 4.0,
+    "notifyCooldownLowSec": 6.0,
+    "notifyCooldownEmptySec": 4.0
+  }
+}

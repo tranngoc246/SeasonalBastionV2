@@ -12,16 +12,17 @@ namespace SeasonalBastion
     {
         private readonly GameServices _s;
 
+        // jobId -> whether we've already paid repair cost (upfront)
+        private readonly Dictionary<int, byte> _paid = new();
+        private readonly List<BuildingId> _payBuf = new(32);
+
         // jobId -> accumulated work seconds
         private readonly Dictionary<int, float> _acc = new();
 
         // jobId -> remaining settle seconds at entry before starting repair
         private readonly Dictionary<int, float> _settle = new();
         private const float RepairSettleSec = 1.5f;
-        // Tuning (Day22 minimal)
-        private const float ChunkSec = 4f;      // 4 seconds per repair chunk
-        private const float HealPctPerChunk = 0.15f; // heal ~15% maxHP per chunk
-
+        
         public RepairWorkExecutor(GameServices s) { _s = s; }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
@@ -33,6 +34,7 @@ namespace SeasonalBastion
             {
                 _acc.Remove(jid);
                 _settle.Remove(jid);
+                _paid.Remove(jid);
                 return true;
             }
 
@@ -41,6 +43,7 @@ namespace SeasonalBastion
                 job.Status = JobStatus.Failed;
                 _acc.Remove(jid);
                 _settle.Remove(jid);
+                _paid.Remove(jid);
                 return true;
             }
 
@@ -51,6 +54,7 @@ namespace SeasonalBastion
                 job.Status = JobStatus.Failed;
                 _acc.Remove(jid);
                 _settle.Remove(jid);
+                _paid.Remove(jid);
                 return true;
             }
 
@@ -60,6 +64,7 @@ namespace SeasonalBastion
                 job.Status = JobStatus.Failed;
                 _acc.Remove(jid);
                 _settle.Remove(jid);
+                _paid.Remove(jid);
                 return true;
             }
 
@@ -78,6 +83,7 @@ namespace SeasonalBastion
                 job.Status = JobStatus.Completed;
                 _acc.Remove(jid);
                 _settle.Remove(jid);
+                _paid.Remove(jid);
                 return true;
             }
 
@@ -108,16 +114,104 @@ namespace SeasonalBastion
             }
             _settle.Remove(jid);
 
+            // Pay repair cost ONCE (upfront) when starting actual repair work
+            if (!_paid.TryGetValue(jid, out var paid) || paid == 0)
+            {
+                if (_s.StorageService == null || _s.WorldIndex == null)
+                {
+                    job.Status = JobStatus.Failed;
+                    _acc.Remove(jid);
+                    _settle.Remove(jid);
+                    _paid.Remove(jid);
+                    return true;
+                }
+
+                var def = _s.DataRegistry.GetBuilding(bs.DefId);
+                var costs = def.BuildCostsL1;
+
+                if (costs != null && costs.Length > 0)
+                {
+                    float missingRatio = (bs.MaxHP - bs.HP) / (float)bs.MaxHP;
+                    if (missingRatio < 0f) missingRatio = 0f;
+                    if (missingRatio > 1f) missingRatio = 1f;
+
+                    int builderTier = 1;
+                    if (_s.Balance != null && job.Workplace.Value != 0 && w.Buildings.Exists(job.Workplace))
+                    {
+                        var wp = w.Buildings.Get(job.Workplace);
+                        builderTier = _s.Balance.GetTierFromLevel(wp.Level);
+                    }
+
+                    float factor = (_s.Balance != null ? _s.Balance.RepairCostFactor : 0.30f);
+                    float costMult = (_s.Balance != null ? _s.Balance.GetRepairCostMult(builderTier) : 1f);
+
+                    // Pre-check totals to avoid partial deduct
+                    int needWood = 0, needStone = 0, needIron = 0, needFood = 0;
+
+                    for (int i = 0; i < costs.Length; i++)
+                    {
+                        var c = costs[i];
+                        if (c == null || c.Amount <= 0) continue;
+
+                        int need = (int)Math.Ceiling(c.Amount * missingRatio * factor * costMult);
+                        if (need <= 0) continue;
+
+                        switch (c.Resource)
+                        {
+                            case ResourceType.Wood: needWood += need; break;
+                            case ResourceType.Stone: needStone += need; break;
+                            case ResourceType.Iron: needIron += need; break;
+                            case ResourceType.Food: needFood += need; break;
+                        }
+                    }
+
+                    bool ok =
+                        (needWood <= 0 || _s.StorageService.GetTotal(ResourceType.Wood) >= needWood) &&
+                        (needStone <= 0 || _s.StorageService.GetTotal(ResourceType.Stone) >= needStone) &&
+                        (needIron <= 0 || _s.StorageService.GetTotal(ResourceType.Iron) >= needIron) &&
+                        (needFood <= 0 || _s.StorageService.GetTotal(ResourceType.Food) >= needFood);
+
+                    if (!ok)
+                    {
+                        job.Status = JobStatus.Cancelled;
+                        _acc.Remove(jid);
+                        _settle.Remove(jid);
+                        _paid.Remove(jid);
+                        return true;
+                    }
+
+                    // Pay from nearest warehouses/HQ deterministically
+                    PayNearest(bs.Anchor, ResourceType.Wood, needWood);
+                    PayNearest(bs.Anchor, ResourceType.Stone, needStone);
+                    PayNearest(bs.Anchor, ResourceType.Iron, needIron);
+                    PayNearest(bs.Anchor, ResourceType.Food, needFood);
+                }
+
+                _paid[jid] = 1;
+            }
 
             // Work at site
             if (!_acc.TryGetValue(jid, out var t)) t = 0f;
             t += dt;
+            float chunkSec = _s.Balance != null ? _s.Balance.RepairChunkSec : 4f;
+            float healPct = _s.Balance != null ? _s.Balance.RepairHealPct : 0.15f;
 
-            while (t >= ChunkSec)
+            int builderTier2 = 1;
+            if (_s.Balance != null && job.Workplace.Value != 0 && w.Buildings.Exists(job.Workplace))
             {
-                t -= ChunkSec;
+                var wp = w.Buildings.Get(job.Workplace);
+                builderTier2 = _s.Balance.GetTierFromLevel(wp.Level);
+            }
+            float timeMult = _s.Balance != null ? _s.Balance.GetRepairTimeMult(builderTier2) : 1f;
+            if (timeMult < 0.1f) timeMult = 0.1f;
 
-                int heal = Math.Max(1, (int)Math.Ceiling(bs.MaxHP * HealPctPerChunk));
+            float effChunkSec = chunkSec * timeMult;
+
+            while (t >= effChunkSec)
+            {
+                t -= effChunkSec;
+
+                int heal = Math.Max(1, (int)Math.Ceiling(bs.MaxHP * healPct));
                 bs.HP += heal;
                 if (bs.HP > bs.MaxHP) bs.HP = bs.MaxHP;
 
@@ -128,6 +222,7 @@ namespace SeasonalBastion
                     job.Status = JobStatus.Completed;
                     _acc.Remove(jid);
                     _settle.Remove(jid);
+                    _paid.Remove(jid);
                     return true;
                 }
             }
@@ -135,6 +230,44 @@ namespace SeasonalBastion
             _acc[jid] = t;
             job.Status = JobStatus.InProgress;
             return true;
+        }
+
+        private void PayNearest(CellPos refPos, ResourceType rt, int amount)
+        {
+            if (amount <= 0) return;
+
+            _payBuf.Clear();
+
+            // Use WorldIndex.Warehouses (includes HQ in your v0.1 index)
+            var list = _s.WorldIndex.Warehouses;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var bid = list[i];
+                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+                var bs = _s.WorldState.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+                if (!_s.StorageService.CanStore(bid, rt)) continue;
+                _payBuf.Add(bid);
+            }
+
+            // sort by distance then id (deterministic)
+            _payBuf.Sort((a, b) =>
+            {
+                var aa = _s.WorldState.Buildings.Get(a).Anchor;
+                var bb = _s.WorldState.Buildings.Get(b).Anchor;
+                int da = System.Math.Abs(refPos.X - aa.X) + System.Math.Abs(refPos.Y - aa.Y);
+                int db = System.Math.Abs(refPos.X - bb.X) + System.Math.Abs(refPos.Y - bb.Y);
+                if (da != db) return da.CompareTo(db);
+                return a.Value.CompareTo(b.Value);
+            });
+
+            int left = amount;
+            for (int i = 0; i < _payBuf.Count && left > 0; i++)
+            {
+                var dst = _payBuf[i];
+                int removed = _s.StorageService.Remove(dst, rt, left);
+                left -= removed;
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using SeasonalBastion.Contracts;
+using System;
 using System.Collections.Generic;
 
 namespace SeasonalBastion
@@ -8,17 +9,6 @@ namespace SeasonalBastion
         private readonly GameServices _s;
         private readonly List<AmmoRequest> _urgent = new();
         private readonly List<AmmoRequest> _normal = new();
-
-        // ----------------- Day25: Tower low-ammo monitor + request queue -----------------
-
-        private const int LowAmmoPercent = 25;
-
-        // Cooldown (per tower). Values are tuned for non-spam UX; adjust later if needed.
-        private const float ReqCooldownLow = 8f;
-        private const float ReqCooldownEmpty = 4f;
-
-        private const float NotifyCooldownLow = 6f;
-        private const float NotifyCooldownEmpty = 4f;
 
         // Deterministic sim-time (no Unity realtime)
         private float _simTime;
@@ -53,13 +43,16 @@ namespace SeasonalBastion
 
         // Day26: 1 pending ResupplyTower job per Armory
         private readonly Dictionary<int, JobId> _resupplyJobByArmory = new();
-
         private readonly Dictionary<int, JobId> _resupplyJobByTower = new();
         private readonly List<int> _tmpTowerKeys = new(64);
 
         // Reuse buffers
         private readonly List<NpcId> _npcIds = new(64);
         private readonly HashSet<int> _workplacesWithNpc = new();
+
+        // Cached recipe snapshot (reloaded lazily)
+        private RecipeDef _cachedAmmoRecipe;
+        private string _cachedAmmoRecipeId = null;
 
         public int Debug_InFlightResupplyJobs => _resupplyJobByTower.Count;
         public int Debug_InFlightHaulAmmoJobs => _haulAmmoJobByArmory.Count;
@@ -69,6 +62,22 @@ namespace SeasonalBastion
         public AmmoService(GameServices s) { _s = s; }
 
         public int PendingRequests => _urgent.Count + _normal.Count;
+
+        // ----------------- Tunables (prefer Balance json if present; fallback to defaults) -----------------
+
+        private int LowAmmoPercent => GetBalInt("ammoMonitor", "lowAmmoPct", 25);
+
+        private float ReqCooldownLow => GetBalFloat("ammoMonitor", "reqCooldownLowSec", 8f);
+        private float ReqCooldownEmpty => GetBalFloat("ammoMonitor", "reqCooldownEmptySec", 4f);
+
+        private float NotifyCooldownLow => GetBalFloat("ammoMonitor", "notifyCooldownLowSec", 6f);
+        private float NotifyCooldownEmpty => GetBalFloat("ammoMonitor", "notifyCooldownEmptySec", 4f);
+
+        private int ForgeTargetCrafts => GetBalInt("ammoSupply", "forgeTargetCrafts", 5);
+
+        private string AmmoRecipeId => GetBalString("crafting", "ammoRecipeId", "ForgeAmmo");
+
+        // ----------------- Public API -----------------
 
         public void NotifyTowerAmmoChanged(TowerId tower, int current, int max)
         {
@@ -232,25 +241,39 @@ namespace SeasonalBastion
 
         public bool TryStartCraft(BuildingId forge)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.JobBoard == null) return false;
+            if (_s.WorldState == null || _s.StorageService == null || _s.JobBoard == null || _s.DataRegistry == null) return false;
             if (!_s.WorldState.Buildings.Exists(forge)) return false;
 
             var bs = _s.WorldState.Buildings.Get(forge);
             if (!bs.IsConstructed) return false;
+
+            if (!TryGetAmmoRecipe(out var recipe))
+                return false;
 
             // Must have NPC at forge workplace, otherwise enqueue is pointless
             RebuildWorkplaceHasNpcSet();
             if (!_workplacesWithNpc.Contains(forge.Value)) return false;
 
             // Check space for output
-            int ammoCap = _s.StorageService.GetCap(forge, ResourceType.Ammo);
-            int ammoCur = _s.StorageService.GetAmount(forge, ResourceType.Ammo);
-            if (ammoCap <= 0 || (ammoCap - ammoCur) < 10) return false;
+            int outCap = _s.StorageService.GetCap(forge, recipe.OutputType);
+            int outCur = _s.StorageService.GetAmount(forge, recipe.OutputType);
+            if (outCap <= 0 || (outCap - outCur) < recipe.OutputAmount) return false;
 
             // Check local inputs
-            int iron = _s.StorageService.GetAmount(forge, ResourceType.Iron);
-            int wood = _s.StorageService.GetAmount(forge, ResourceType.Wood);
-            if (iron < 2 || wood < 1) return false;
+            int inCur = _s.StorageService.GetAmount(forge, recipe.InputType);
+            if (inCur < recipe.InputAmount) return false;
+
+            var extras = recipe.ExtraInputs;
+            if (extras != null && extras.Length > 0)
+            {
+                for (int i = 0; i < extras.Length; i++)
+                {
+                    var c = extras[i];
+                    if (c == null || c.Amount <= 0) continue;
+                    int cur = _s.StorageService.GetAmount(forge, c.Resource);
+                    if (cur < c.Amount) return false;
+                }
+            }
 
             // 1 pending craft job per forge
             if (_craftJobByForge.TryGetValue(forge.Value, out var oldId))
@@ -266,8 +289,8 @@ namespace SeasonalBastion
                 Workplace = forge,
                 SourceBuilding = forge,
                 DestBuilding = default,
-                ResourceType = ResourceType.Ammo,
-                Amount = 10,
+                ResourceType = recipe.OutputType,
+                Amount = recipe.OutputAmount,
                 TargetCell = bs.Anchor,
                 CreatedAt = 0
             };
@@ -291,6 +314,9 @@ namespace SeasonalBastion
 
             RebuildWorkplaceHasNpcSet();
 
+            // Cache recipe once per tick (avoid repeated parse/lookup)
+            bool hasRecipe = TryGetAmmoRecipe(out var recipe);
+
             // For each Forge: ensure supply, then try start craft
             var forges = _s.WorldIndex.Forges;
             for (int i = 0; i < forges.Count; i++)
@@ -301,31 +327,18 @@ namespace SeasonalBastion
                 var bs = _s.WorldState.Buildings.Get(forge);
                 if (!bs.IsConstructed) continue;
 
-                // If no NPC at forge, skip (can't craft anyway)
+                // If no NPC at forge, skip starting craft (still can enqueue supply)
                 bool forgeHasNpc = _workplacesWithNpc.Contains(forge.Value);
+
+                if (!hasRecipe)
+                    continue;
 
                 // Ensure Forge has local caps for inputs (must be >0)
                 // If cap is 0, hauling won't work; user must set in Buildings.json
-                int capIron = _s.StorageService.GetCap(forge, ResourceType.Iron);
-                int capWood = _s.StorageService.GetCap(forge, ResourceType.Wood);
-
-                // If missing local cap, don't spam jobs
-                if (capIron <= 0 || capWood <= 0)
+                if (!HasCapForForgeInputs(forge, recipe))
                     continue;
 
-                // Check local input amounts
-                int iron = _s.StorageService.GetAmount(forge, ResourceType.Iron);
-                int wood = _s.StorageService.GetAmount(forge, ResourceType.Wood);
-
-                int needIron = iron >= 2 ? 0 : (2 - iron);
-                int needWood = wood >= 1 ? 0 : (1 - wood);
-
-                // Prefer Armory workplace; fallback Warehouse/HQ workplace
-                if (needIron > 0)
-                    EnsureSupplyJobToForge(forge, bs.Anchor, ResourceType.Iron, needIron);
-
-                if (needWood > 0)
-                    EnsureSupplyJobToForge(forge, bs.Anchor, ResourceType.Wood, needWood);
+                EnsureForgeSupplyByRecipe(forge, bs.Anchor, recipe);
 
                 // Start craft if possible (only if there is a worker at forge)
                 if (forgeHasNpc)
@@ -340,9 +353,6 @@ namespace SeasonalBastion
         public void ClearAll()
         {
             // IMPORTANT (VS3 hardening): clear ALL runtime caches.
-            // SaveLoadApplier calls this before restoring world state.
-            // If we only clear request lists, ScanTowers may not re-enqueue requests
-            // for towers that remain low/empty after load -> "resupply only when enemy" symptom.
 
             _urgent.Clear();
             _normal.Clear();
@@ -369,9 +379,157 @@ namespace SeasonalBastion
             _tmpTowerKeys.Clear();
             _npcIds.Clear();
             _workplacesWithNpc.Clear();
+
+            _cachedAmmoRecipe = null;
+            _cachedAmmoRecipeId = null;
         }
 
-        // ----------------- helpers -----------------
+        // ----------------- Recipe-driven forge supply -----------------
+
+        private bool TryGetAmmoRecipe(out RecipeDef recipe)
+        {
+            recipe = null;
+
+            string rid = AmmoRecipeId;
+            if (string.IsNullOrEmpty(rid)) rid = "ForgeAmmo";
+
+            // If recipe id changed, drop cache
+            if (!string.Equals(_cachedAmmoRecipeId, rid, StringComparison.OrdinalIgnoreCase))
+            {
+                _cachedAmmoRecipeId = rid;
+                _cachedAmmoRecipe = null;
+            }
+
+            if (_cachedAmmoRecipe != null)
+            {
+                recipe = _cachedAmmoRecipe;
+                return true;
+            }
+
+            try
+            {
+                var r = _s.DataRegistry.GetRecipe(rid);
+                if (r == null) return false;
+                _cachedAmmoRecipe = r;
+                recipe = r;
+                return true;
+            }
+            catch
+            {
+                // fallback to default once
+                if (!string.Equals(rid, "ForgeAmmo", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        var r = _s.DataRegistry.GetRecipe("ForgeAmmo");
+                        if (r == null) return false;
+                        _cachedAmmoRecipeId = "ForgeAmmo";
+                        _cachedAmmoRecipe = r;
+                        recipe = r;
+                        return true;
+                    }
+                    catch { }
+                }
+                return false;
+            }
+        }
+
+        private bool HasCapForForgeInputs(BuildingId forge, RecipeDef recipe)
+        {
+            int capMain = _s.StorageService.GetCap(forge, recipe.InputType);
+            if (capMain <= 0) return false;
+
+            var extras = recipe.ExtraInputs;
+            if (extras != null && extras.Length > 0)
+            {
+                for (int i = 0; i < extras.Length; i++)
+                {
+                    var c = extras[i];
+                    if (c == null || c.Amount <= 0) continue;
+                    int capX = _s.StorageService.GetCap(forge, c.Resource);
+                    if (capX <= 0) return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void EnsureForgeSupplyByRecipe(BuildingId forge, CellPos forgeAnchor, RecipeDef recipe)
+        {
+            // Target = perCraftAmount * ForgeTargetCrafts (clamp by cap)
+            // We enqueue HaulToForge jobs for any deficit.
+            int crafts = ForgeTargetCrafts;
+            if (crafts < 1) crafts = 1;
+
+            // main input
+            EnsureSupplyJobToForge_ByTarget(forge, forgeAnchor, recipe.InputType, recipe.InputAmount, crafts);
+
+            // extras
+            var extras = recipe.ExtraInputs;
+            if (extras != null && extras.Length > 0)
+            {
+                for (int i = 0; i < extras.Length; i++)
+                {
+                    var c = extras[i];
+                    if (c == null || c.Amount <= 0) continue;
+                    EnsureSupplyJobToForge_ByTarget(forge, forgeAnchor, c.Resource, c.Amount, crafts);
+                }
+            }
+        }
+
+        private void EnsureSupplyJobToForge_ByTarget(BuildingId forge, CellPos forgeAnchor, ResourceType rt, int perCraftAmount, int craftsTarget)
+        {
+            if (perCraftAmount <= 0) return;
+
+            int cap = _s.StorageService.GetCap(forge, rt);
+            int cur = _s.StorageService.GetAmount(forge, rt);
+            if (cap <= 0) return;
+            if (cur >= cap) return;
+
+            int target = perCraftAmount * craftsTarget;
+            if (target > cap) target = cap;
+
+            int want = target - cur;
+            if (want <= 0) return;
+
+            int free = cap - cur;
+            if (want > free) want = free;
+
+            // Clamp by per-trip carry cap (fallback = 10).
+            // If you later data-drive HaulToForge carry, update this constant or read from Balance.
+            const int CarryCapFallback = 10;
+            if (want > CarryCapFallback) want = CarryCapFallback;
+
+            if (want <= 0) return;
+
+            int key = forge.Value * 16 + (int)rt;
+            if (_supplyJobByForgeAndType.TryGetValue(key, out var oldId))
+            {
+                if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                    return;
+            }
+
+            if (!TryPickPreferredHaulerWorkplace(forgeAnchor, out var workplace))
+                return;
+
+            var j = new Job
+            {
+                Archetype = JobArchetype.HaulToForge,
+                Status = JobStatus.Created,
+
+                Workplace = workplace,
+                SourceBuilding = default,     // executor will pick nearest storage with amount
+                DestBuilding = forge,
+
+                ResourceType = rt,
+                Amount = want,
+                TargetCell = default,
+                CreatedAt = 0
+            };
+
+            var id = _s.JobBoard.Enqueue(j);
+            _supplyJobByForgeAndType[key] = id;
+        }
 
         // ----------------- Day26: ResupplyTower provider -----------------
 
@@ -380,7 +538,6 @@ namespace SeasonalBastion
             var armories = _s.WorldIndex.Armories;
             if (armories == null || armories.Count == 0) return;
 
-            // dọn request invalid để tránh "kẹt pending" vĩnh viễn
             PruneInvalidRequests(_urgent);
             PruneInvalidRequests(_normal);
 
@@ -392,28 +549,23 @@ namespace SeasonalBastion
                 var armSt = _s.WorldState.Buildings.Get(arm);
                 if (!armSt.IsConstructed) continue;
 
-                // Require NPC at Armory workplace, otherwise job will never be claimed
                 if (!_workplacesWithNpc.Contains(arm.Value)) continue;
-
                 if (!_s.StorageService.CanStore(arm, ResourceType.Ammo)) continue;
 
                 int armAmmo = _s.StorageService.GetAmount(arm, ResourceType.Ammo);
-                if (armAmmo <= 0) continue; // thiếu ammo thì chưa tạo job (tower sẽ tự enqueue lại theo scan)
+                if (armAmmo <= 0) continue;
 
-                // Avoid spam: 1 pending resupply job per armory
                 if (_resupplyJobByArmory.TryGetValue(arm.Value, out var oldId))
                 {
                     if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
                         continue;
                 }
 
-                // Pick request: urgent first, then normal; within same list: nearest tower (Manhattan)
                 if (!TryPickBestRequestForArmory(armSt.Anchor, out var list, out var idx, out var req))
                     continue;
 
                 if (!_s.WorldState.Towers.Exists(req.Tower))
                 {
-                    // request stale
                     ConsumeRequestAt(list, idx);
                     continue;
                 }
@@ -432,17 +584,12 @@ namespace SeasonalBastion
                     continue;
                 }
 
-                // LOCKED (Deliverable A): Resupply Amount per trip: L1 20 | L2 30 | L3 40
                 int trip = GetArmoryResupplyTripByLevel(armSt.Level);
                 int amount = trip;
                 if (amount > need) amount = need;
-
-                // if armory thiếu thì giao được bao nhiêu giao
                 if (amount > armAmmo) amount = armAmmo;
-
                 if (amount <= 0) continue;
 
-                // Consume request only when we are sure we can create a job
                 ConsumeRequestAt(list, idx);
 
                 var j = new Job
@@ -450,9 +597,8 @@ namespace SeasonalBastion
                     Archetype = JobArchetype.ResupplyTower,
                     Status = JobStatus.Created,
 
-                    Workplace = arm,          // Armory worker claims it
-                    SourceBuilding = arm,     // pickup from Armory storage
-                    DestBuilding = default,
+                    Workplace = arm,
+                    SourceBuilding = arm,
 
                     Tower = req.Tower,
                     ResourceType = ResourceType.Ammo,
@@ -483,10 +629,8 @@ namespace SeasonalBastion
 
                 if (!_s.JobBoard.TryGet(jid, out var j) || IsTerminal(j.Status))
                 {
-                    // remove tracking first
                     _resupplyJobByTower.Remove(tid);
 
-                    // Day38: nếu job fail/cancel và tower vẫn thiếu ammo => re-enqueue request (anti-stall)
                     if (_s.WorldState != null && _s.WorldState.Towers.Exists(new TowerId(tid)))
                     {
                         if (j.Status == JobStatus.Cancelled || j.Status == JobStatus.Failed)
@@ -498,14 +642,12 @@ namespace SeasonalBastion
 
         private bool TryPickBestRequestForArmory(CellPos armAnchor, out List<AmmoRequest> list, out int index, out AmmoRequest req)
         {
-            // urgent first
             if (TryFindBestRequestIndex(_urgent, armAnchor, out index, out req))
             {
                 list = _urgent;
                 return true;
             }
 
-            // then normal
             if (TryFindBestRequestIndex(_normal, armAnchor, out index, out req))
             {
                 list = _normal;
@@ -535,7 +677,6 @@ namespace SeasonalBastion
 
                 if (!_s.WorldState.Towers.Exists(r.Tower)) continue;
 
-                // 2.3: Nếu tower đang có ResupplyTower job chưa terminal => skip
                 if (_resupplyJobByTower.TryGetValue(tid, out var inFlightJob))
                 {
                     if (_s.JobBoard.TryGet(inFlightJob, out var jj) && !IsTerminal(jj.Status))
@@ -608,75 +749,6 @@ namespace SeasonalBastion
                     _pendingPriorityByTower.Remove(tid);
                 }
             }
-        }
-
-        private void EnsureSupplyJobToForge(BuildingId forge, CellPos forgeAnchor, ResourceType rt, int need)
-        {
-            if (need <= 0) return;
-
-            // If forge is already full for this resource, don't enqueue
-            int cap = _s.StorageService.GetCap(forge, rt);
-            int cur = _s.StorageService.GetAmount(forge, rt);
-            if (cap <= 0 || cur >= cap) return;
-
-            int free = cap - cur;
-
-            // Buffered target per resource (Day23 Option 2)
-            // - Iron: target 10 (enough for 5 crafts)
-            // - Wood: target 5  (enough for 5 crafts)
-            // Clamp by cap and by free space.
-            int target = rt switch
-            {
-                ResourceType.Iron => 10,
-                ResourceType.Wood => 5,
-                _ => 5
-            };
-
-            // never exceed storage cap
-            if (target > cap) target = cap;
-
-            // if already at/above target, don't enqueue
-            int want = target - cur;
-            if (want <= 0) return;
-
-            // clamp by free space
-            if (want > free) want = free;
-
-            // Optional: clamp by per-trip carry cap to avoid huge amounts.
-            // Keep this in sync with HaulToForgeExecutor CarryCap (currently 10).
-            const int CarryCap = 10;
-            if (want > CarryCap) want = CarryCap;
-
-            if (want <= 0) return;
-
-            // 1 pending supply job per (forge, rt)
-            int key = forge.Value * 16 + (int)rt;
-            if (_supplyJobByForgeAndType.TryGetValue(key, out var oldId))
-            {
-                if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
-                    return;
-            }
-
-            if (!TryPickPreferredHaulerWorkplace(forgeAnchor, out var workplace))
-                return;
-
-            var j = new Job
-            {
-                Archetype = JobArchetype.HaulToForge,
-                Status = JobStatus.Created,
-
-                Workplace = workplace,
-                SourceBuilding = default,     // executor will pick nearest storage with amount
-                DestBuilding = forge,
-
-                ResourceType = rt,
-                Amount = want,
-                TargetCell = default,
-                CreatedAt = 0
-            };
-
-            var id = _s.JobBoard.Enqueue(j);
-            _supplyJobByForgeAndType[key] = id;
         }
 
         private bool TryPickPreferredHaulerWorkplace(CellPos forgeAnchor, out BuildingId workplace)
@@ -761,7 +833,6 @@ namespace SeasonalBastion
             var armories = _s.WorldIndex.Armories;
             if (armories == null || armories.Count == 0) return;
 
-            // Reuse workplace/NPC cache already built in Tick()
             for (int i = 0; i < armories.Count; i++)
             {
                 var arm = armories[i];
@@ -770,7 +841,6 @@ namespace SeasonalBastion
                 var armSt = _s.WorldState.Buildings.Get(arm);
                 if (!armSt.IsConstructed) continue;
 
-                // Require NPC at Armory workplace, otherwise queue will never be claimed
                 if (!_workplacesWithNpc.Contains(arm.Value)) continue;
 
                 if (!_s.StorageService.CanStore(arm, ResourceType.Ammo)) continue;
@@ -780,18 +850,15 @@ namespace SeasonalBastion
 
                 int cur = _s.StorageService.GetAmount(arm, ResourceType.Ammo);
 
-                // Target buffer: 80% cap
                 int target = (cap * 80) / 100;
                 if (cur >= target) continue;
 
-                // Avoid spam: 1 pending job per armory
                 if (_haulAmmoJobByArmory.TryGetValue(arm.Value, out var oldId))
                 {
                     if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
                         continue;
                 }
 
-                // Pick nearest Forge that has "takeable" ammo above 20% cap
                 if (!TryPickForgeAmmoSource(armSt.Anchor, out var forge, out var takeable))
                     continue;
 
@@ -800,7 +867,6 @@ namespace SeasonalBastion
 
                 int need = target - cur;
 
-                // Chunk amount by Armory level (Deliverable C): 40/60/80
                 int chunk = GetArmoryChunkByLevel(armSt.Level);
 
                 int amount = chunk;
@@ -815,9 +881,9 @@ namespace SeasonalBastion
                     Archetype = JobArchetype.HaulAmmoToArmory,
                     Status = JobStatus.Created,
 
-                    Workplace = arm,        // Armory worker claims it
-                    SourceBuilding = forge, // Forge pickup
-                    DestBuilding = arm,     // Armory deposit
+                    Workplace = arm,
+                    SourceBuilding = forge,
+                    DestBuilding = arm,
 
                     ResourceType = ResourceType.Ammo,
                     Amount = amount,
@@ -858,7 +924,6 @@ namespace SeasonalBastion
                 int cur = _s.StorageService.GetAmount(f, ResourceType.Ammo);
                 if (cur <= 0) continue;
 
-                // Only haul if forge ammo >= 20% cap; and never drain below it.
                 int keep = (cap * 20 + 99) / 100; // ceil
                 if (keep < 1) keep = 1;
 
@@ -888,7 +953,6 @@ namespace SeasonalBastion
             return lvl == 1 ? 40 : (lvl == 2 ? 60 : 80);
         }
 
-        // LOCKED: Armory -> Tower resupply trip amount
         private static int GetArmoryResupplyTripByLevel(int level)
         {
             int lvl = level <= 0 ? 1 : (level > 3 ? 3 : level);
@@ -963,11 +1027,9 @@ namespace SeasonalBastion
             if (!DevHook_Enabled) return;
             if (_s.WorldState == null || _s.WorldIndex == null || _s.GridMap == null || _s.DataRegistry == null) return;
 
-            // Already has a tower => no need
             if (_s.WorldIndex.Towers != null && _s.WorldIndex.Towers.Count > 0)
                 return;
 
-            // Find HQ anchor (deterministic)
             CellPos center = default;
             bool foundHQ = false;
 
@@ -984,7 +1046,6 @@ namespace SeasonalBastion
 
             if (!foundHQ) center = new CellPos(0, 0);
 
-            // Find an empty cell near HQ (spiral scan, deterministic)
             CellPos spawn = default;
             bool found = false;
 
@@ -993,7 +1054,6 @@ namespace SeasonalBastion
             {
                 for (int dx = -r; dx <= r && !found; dx++)
                 {
-                    // top/bottom edge
                     var c1 = new CellPos(center.X + dx, center.Y + r);
                     var c2 = new CellPos(center.X + dx, center.Y - r);
 
@@ -1003,7 +1063,6 @@ namespace SeasonalBastion
 
                 for (int dy = -r + 1; dy <= r - 1 && !found; dy++)
                 {
-                    // left/right edge
                     var c1 = new CellPos(center.X + r, center.Y + dy);
                     var c2 = new CellPos(center.X - r, center.Y + dy);
 
@@ -1014,7 +1073,6 @@ namespace SeasonalBastion
 
             if (!found) return;
 
-            // Use a real TowerDef for realistic cap/hp
             TowerDef def;
             try { def = _s.DataRegistry.GetTower("bld_tower_arrow_t1"); }
             catch { def = null; }
@@ -1036,7 +1094,6 @@ namespace SeasonalBastion
             st.Id = tid;
             _s.WorldState.Towers.Set(tid, st);
 
-            // Rebuild index so WorldIndex.Towers sees it
             _s.WorldIndex.RebuildAll();
 
             _s.NotificationService?.Push(
@@ -1063,26 +1120,22 @@ namespace SeasonalBastion
             int need = cap - cur;
             if (need <= 0) return;
 
-            // nếu đang pending request rồi thì thôi
             if (_pendingReqTower.Contains(tower.Value)) return;
 
-            // nếu lại có job in-flight (race) thì thôi
             if (_resupplyJobByTower.TryGetValue(tower.Value, out var inflight))
             {
                 if (_s.JobBoard != null && _s.JobBoard.TryGet(inflight, out var jj) && !IsTerminal(jj.Status))
                     return;
             }
 
-            // ưu tiên: empty > low
             int thr = (cap * LowAmmoPercent + 99) / 100;
             if (thr < 1) thr = 1;
 
             AmmoRequestPriority pri;
             if (cur <= 0) pri = AmmoRequestPriority.Urgent;
             else if (cur <= thr) pri = AmmoRequestPriority.Normal;
-            else return; // không còn low nữa
+            else return;
 
-            // respect cooldown giống NotifyTowerAmmoChanged
             float now = _simTime;
             if (pri == AmmoRequestPriority.Urgent)
             {
@@ -1103,6 +1156,108 @@ namespace SeasonalBastion
                 CreatedAt = now
             };
             EnqueueRequest(req);
+        }
+
+        // ----------------- Balance reflection helpers -----------------
+        // These read:
+        // GameServices.Balance.Config.<section>.<key>
+        // If not present, return fallback.
+
+        private object TryGetBalanceConfig()
+        {
+            if (_s == null) return null;
+
+            try
+            {
+                var sType = _s.GetType();
+                var balField = sType.GetField("Balance");
+                if (balField == null) return null;
+
+                var balObj = balField.GetValue(_s);
+                if (balObj == null) return null;
+
+                var balType = balObj.GetType();
+                var cfgProp = balType.GetProperty("Config");
+                if (cfgProp != null)
+                    return cfgProp.GetValue(balObj, null);
+
+                var cfgField = balType.GetField("Config");
+                if (cfgField != null)
+                    return cfgField.GetValue(balObj);
+
+                return null;
+            }
+            catch { return null; }
+        }
+
+        private int GetBalInt(string section, string key, int fallback)
+        {
+            try
+            {
+                var cfg = TryGetBalanceConfig();
+                if (cfg == null) return fallback;
+
+                var secField = cfg.GetType().GetField(section);
+                if (secField == null) return fallback;
+
+                var secObj = secField.GetValue(cfg);
+                if (secObj == null) return fallback;
+
+                var keyField = secObj.GetType().GetField(key);
+                if (keyField == null) return fallback;
+
+                var v = keyField.GetValue(secObj);
+                if (v is int i) return i;
+            }
+            catch { }
+            return fallback;
+        }
+
+        private float GetBalFloat(string section, string key, float fallback)
+        {
+            try
+            {
+                var cfg = TryGetBalanceConfig();
+                if (cfg == null) return fallback;
+
+                var secField = cfg.GetType().GetField(section);
+                if (secField == null) return fallback;
+
+                var secObj = secField.GetValue(cfg);
+                if (secObj == null) return fallback;
+
+                var keyField = secObj.GetType().GetField(key);
+                if (keyField == null) return fallback;
+
+                var v = keyField.GetValue(secObj);
+                if (v is float f) return f;
+                if (v is double d) return (float)d;
+            }
+            catch { }
+            return fallback;
+        }
+
+        private string GetBalString(string section, string key, string fallback)
+        {
+            try
+            {
+                var cfg = TryGetBalanceConfig();
+                if (cfg == null) return fallback;
+
+                var secField = cfg.GetType().GetField(section);
+                if (secField == null) return fallback;
+
+                var secObj = secField.GetValue(cfg);
+                if (secObj == null) return fallback;
+
+                var keyField = secObj.GetType().GetField(key);
+                if (keyField == null) return fallback;
+
+                var v = keyField.GetValue(secObj) as string;
+                if (!string.IsNullOrEmpty(v)) return v;
+            }
+            catch { }
+            return fallback;
         }
     }
 }

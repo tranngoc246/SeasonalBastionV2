@@ -107,8 +107,11 @@ namespace SeasonalBastion
             if (ph == 0)
             {
                 int want = job.Amount > 0 ? job.Amount : 1;
-                // Day38: hard cap carry
-                if (want > 80) want = 80;
+
+                int tier = _s.Balance != null ? _s.Balance.GetTierFromLevel(dstState.Level) : 1;
+                int cap = _s.Balance != null ? _s.Balance.GetArmoryAmmoCarry(tier) : 80;
+                if (want > cap) want = cap;
+
                 if (want > dstFree) want = dstFree;
 
                 int srcAvail = _s.StorageService.GetAmount(src, ResourceType.Ammo);

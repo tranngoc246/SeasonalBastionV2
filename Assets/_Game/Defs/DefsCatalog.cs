@@ -17,5 +17,6 @@ namespace SeasonalBastion
         public TextAsset Recipes;
         public TextAsset Waves;
         public TextAsset Rewards;
+        public TextAsset Balance;
     }
 }

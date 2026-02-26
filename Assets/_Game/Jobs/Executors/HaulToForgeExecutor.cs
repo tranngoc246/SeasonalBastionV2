@@ -16,7 +16,6 @@ namespace SeasonalBastion
     public sealed class HaulToForgeExecutor : IJobExecutor
     {
         private readonly GameServices _s;
-        private const int CarryCap = 10;
 
         // jobId -> phase (0 pickup, 1 deliver)
         private readonly Dictionary<int, byte> _phase = new();
@@ -91,8 +90,12 @@ namespace SeasonalBastion
 
             if (ph == 0)
             {
-                int want = job.Amount > 0 ? job.Amount : CarryCap;
-                if (want > CarryCap) want = CarryCap;
+                int whTier = _s.Balance != null ? _s.Balance.GetWarehouseTier() : 1;
+                int carryCap = _s.Balance != null ? _s.Balance.GetCarryHaulBasic(whTier) : 10;
+
+                int want = job.Amount > 0 ? job.Amount : carryCap;
+                if (want > carryCap) want = carryCap;
+
                 if (want > free) want = free;
                 if (want <= 0)
                 {

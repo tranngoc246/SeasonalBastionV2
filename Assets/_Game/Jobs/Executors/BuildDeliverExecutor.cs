@@ -9,8 +9,6 @@ namespace SeasonalBastion
     {
         private readonly GameServices _s;
 
-        private const int CarryCap = 10;
-
         // jobId -> phase (0 pickup, 1 deliver)
         private readonly Dictionary<int, byte> _phase = new();
         private readonly Dictionary<int, int> _carry = new();
@@ -85,9 +83,17 @@ namespace SeasonalBastion
 
             if (ph == 0)
             {
-                // Decide pickup amount (clamp)
-                int want = job.Amount > 0 ? job.Amount : CarryCap;
-                if (want > CarryCap) want = CarryCap;
+                int builderTier = 1;
+                if (_s.Balance != null && job.Workplace.Value != 0 && _s.WorldState.Buildings.Exists(job.Workplace))
+                {
+                    var wp = _s.WorldState.Buildings.Get(job.Workplace);
+                    builderTier = _s.Balance.GetTierFromLevel(wp.Level);
+                }
+                int cap = _s.Balance != null ? _s.Balance.GetCarryBuilder(builderTier) : 10;
+
+                int want = job.Amount > 0 ? job.Amount : cap;
+                if (want > cap) want = cap;
+
                 if (want > remaining) want = remaining;
                 if (want <= 0)
                 {

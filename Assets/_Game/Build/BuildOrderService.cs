@@ -268,18 +268,23 @@ namespace SeasonalBastion
             return orderId;
         }
 
-        private static float ComputeRepairSeconds(int hp, int maxHp)
+        private float ComputeRepairSeconds(int hp, int maxHp)
         {
-            if (maxHp <= 0) return 6f;
+            if (maxHp <= 0) return 0f;
             int missing = maxHp - hp;
             if (missing <= 0) return 0f;
 
-            // Day22 time-only minimal:
-            // 4s per "chunk", heal ~15% maxHP per chunk => number of chunks = ceil(missing / (0.15*maxHP))
-            const float ChunkSec = 4f;
-            int perChunk = Math.Max(1, (int)Math.Ceiling(maxHp * 0.15f));
+            float chunkSec = _s.Balance != null ? _s.Balance.RepairChunkSec : 4f;
+            float healPct = _s.Balance != null ? _s.Balance.RepairHealPct : 0.15f;
+
+            int perChunk = Math.Max(1, (int)Math.Ceiling(maxHp * healPct));
             int chunks = (missing + perChunk - 1) / perChunk;
-            return Math.Max(ChunkSec, chunks * ChunkSec);
+
+            int builderTier = _s.Balance != null ? _s.Balance.GetBuilderTier() : 1;
+            float timeMult = _s.Balance != null ? _s.Balance.GetRepairTimeMult(builderTier) : 1f;
+
+            float total = chunks * chunkSec * timeMult;
+            return total < chunkSec ? chunkSec : total;
         }
 
         public bool TryGet(int orderId, out BuildOrder order) => _orders.TryGetValue(orderId, out order);
@@ -425,7 +430,7 @@ namespace SeasonalBastion
 
             if (dt <= 0f) return;
 
-            var workplace = ResolveBuildWorkplace();
+            var workplace = _s.Balance != null ? _s.Balance.ResolveBuilderWorkplace() : ResolveBuildWorkplace();
             if (workplace.Value == 0)
                 return; // no build workplace => cannot create jobs deterministically
 
@@ -680,14 +685,17 @@ namespace SeasonalBastion
             _autoRoadByOrder.Remove(o.OrderId);
         }
 
-        private static float ComputeWorkSecondsTotal(BuildingDef def)
+        private float ComputeWorkSecondsTotal(BuildingDef def)
         {
-            // Goal: after delivery, BUILD phase lasts ~10s at ts=1, ~3.33s at ts=3.
-            // Deterministic and simple for VS.
-            const float BuildAfterDeliverSeconds_L1 = 10f;
+            int chunks = def.BuildChunksL1 > 0 ? def.BuildChunksL1 : (_s.Balance != null ? _s.Balance.FallbackBuildChunksL1 : 2);
 
-            // If you later want per-building tuning, you can map via def.BuildChunksL1 (but not now).
-            return BuildAfterDeliverSeconds_L1;
+            float chunkSec = _s.Balance != null ? _s.Balance.BuildChunkSec : 6f;
+            int builderTier = _s.Balance != null ? _s.Balance.GetBuilderTier() : 1;
+            float mult = _s.Balance != null ? _s.Balance.GetBuildSpeedMult(builderTier) : 1f;
+
+            float total = chunks * chunkSec * mult;
+            if (total < 0.1f) total = 0.1f;
+            return total;
         }
 
         public void ClearAll()

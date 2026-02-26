@@ -4,6 +4,13 @@ using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
+    /// <summary>
+    /// Craft ammo at Forge using recipe from Recipes.json (DataRegistry).
+    /// - Moves to Forge entry.
+    /// - On start: checks output space, checks local inputs (incl. extra inputs), consumes inputs once.
+    /// - Counts down craft time.
+    /// - On finish: adds output to Forge, completes job.
+    /// </summary>
     public sealed class CraftAmmoExecutor : IJobExecutor
     {
         private readonly GameServices _s;
@@ -11,17 +18,18 @@ namespace SeasonalBastion
         // jobId -> remaining craft time
         private readonly Dictionary<int, float> _remain = new();
 
-        // LOCKED recipe
-        private const int InIron = 2;
-        private const int InWood = 1;
-        private const int OutAmmo = 10;
-        private const float CraftTime = 6f;
+        private const string DefaultAmmoRecipeId = "ForgeAmmo";
+        private string _ammoRecipeId;
 
-        public CraftAmmoExecutor(GameServices s) { _s = s; }
+        public CraftAmmoExecutor(GameServices s)
+        {
+            _s = s;
+            _ammoRecipeId = ResolveAmmoRecipeIdOrDefault();
+        }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null)
+            if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null || _s.DataRegistry == null)
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(job.Id.Value);
@@ -55,39 +63,81 @@ namespace SeasonalBastion
             // Start craft: consume inputs once
             if (!_remain.TryGetValue(jid, out var rem))
             {
+                if (!TryGetRecipe(out var recipe))
+                {
+                    job.Status = JobStatus.Failed;
+                    Cleanup(jid);
+                    return true;
+                }
+
+                // Sanity: this executor is intended for Ammo recipe
+                if (recipe.OutputType != ResourceType.Ammo)
+                {
+                    // Fail fast so you notice JSON mismatch (common mistake: wrong enum indices)
+                    // Fix by setting outputType in Recipes.json to Ammo (enum value 5).
+                    job.Status = JobStatus.Failed;
+                    Cleanup(jid);
+                    return true;
+                }
+
+                // Need local output space IN FORGE
+                int outCap = _s.StorageService.GetCap(forge, recipe.OutputType);
+                int outCur = _s.StorageService.GetAmount(forge, recipe.OutputType);
+                if (outCap <= 0 || (outCap - outCur) < recipe.OutputAmount)
+                {
+                    // Not enough output space -> cancel, AmmoService should retry later.
+                    job.Status = JobStatus.Cancelled;
+                    Cleanup(jid);
+                    return true;
+                }
+
                 // Need local inputs IN FORGE
-                int iron = _s.StorageService.GetAmount(forge, ResourceType.Iron);
-                int wood = _s.StorageService.GetAmount(forge, ResourceType.Wood);
-
-                // Need local ammo space for output
-                int ammoCap = _s.StorageService.GetCap(forge, ResourceType.Ammo);
-                int ammoCur = _s.StorageService.GetAmount(forge, ResourceType.Ammo);
-                if (ammoCap <= 0 || (ammoCap - ammoCur) < OutAmmo)
+                int inCur = _s.StorageService.GetAmount(forge, recipe.InputType);
+                if (inCur < recipe.InputAmount)
                 {
                     job.Status = JobStatus.Cancelled;
                     Cleanup(jid);
                     return true;
                 }
 
-                if (iron < InIron || wood < InWood)
+                var extras = recipe.ExtraInputs;
+                if (extras != null && extras.Length > 0)
                 {
-                    // Not enough input in forge => cancel so NPC can do other jobs;
-                    // AmmoService will enqueue haul-to-forge and re-enqueue craft later.
-                    job.Status = JobStatus.Cancelled;
-                    Cleanup(jid);
-                    return true;
+                    for (int i = 0; i < extras.Length; i++)
+                    {
+                        var c = extras[i];
+                        if (c == null || c.Amount <= 0) continue;
+
+                        int cur = _s.StorageService.GetAmount(forge, c.Resource);
+                        if (cur < c.Amount)
+                        {
+                            job.Status = JobStatus.Cancelled;
+                            Cleanup(jid);
+                            return true;
+                        }
+                    }
                 }
 
-                // consume (craft spent = inputs actually removed from forge)
-                int remIron = _s.StorageService.Remove(forge, ResourceType.Iron, InIron);
-                if (remIron > 0)
-                    _s.EventBus?.Publish(new ResourceSpentEvent(ResourceType.Iron, remIron, forge));
+                // Consume main input
+                int remIn = _s.StorageService.Remove(forge, recipe.InputType, recipe.InputAmount);
+                if (remIn > 0)
+                    _s.EventBus?.Publish(new ResourceSpentEvent(recipe.InputType, remIn, forge));
 
-                int remWood = _s.StorageService.Remove(forge, ResourceType.Wood, InWood);
-                if (remWood > 0)
-                    _s.EventBus?.Publish(new ResourceSpentEvent(ResourceType.Wood, remWood, forge));
+                // Consume extra inputs
+                if (extras != null && extras.Length > 0)
+                {
+                    for (int i = 0; i < extras.Length; i++)
+                    {
+                        var c = extras[i];
+                        if (c == null || c.Amount <= 0) continue;
 
-                rem = CraftTime;
+                        int remX = _s.StorageService.Remove(forge, c.Resource, c.Amount);
+                        if (remX > 0)
+                            _s.EventBus?.Publish(new ResourceSpentEvent(c.Resource, remX, forge));
+                    }
+                }
+
+                rem = recipe.CraftTimeSec > 0f ? recipe.CraftTimeSec : 0.1f;
                 _remain[jid] = rem;
             }
 
@@ -99,11 +149,19 @@ namespace SeasonalBastion
                 return true;
             }
 
-            // Finish: deposit ammo to forge
-            _s.StorageService.Add(forge, ResourceType.Ammo, OutAmmo);
+            // Finish: deposit output to forge
+            if (!TryGetRecipe(out var recipeFinish))
+            {
+                job.Status = JobStatus.Failed;
+                Cleanup(jid);
+                return true;
+            }
 
-            job.ResourceType = ResourceType.Ammo;
-            job.Amount = OutAmmo;
+            // Deposit
+            _s.StorageService.Add(forge, recipeFinish.OutputType, recipeFinish.OutputAmount);
+
+            job.ResourceType = recipeFinish.OutputType;
+            job.Amount = recipeFinish.OutputAmount;
             job.Status = JobStatus.Completed;
 
             Cleanup(jid);
@@ -113,6 +171,71 @@ namespace SeasonalBastion
         private void Cleanup(int jobId)
         {
             _remain.Remove(jobId);
+        }
+
+        private bool TryGetRecipe(out RecipeDef recipe)
+        {
+            recipe = null;
+
+            string rid = _ammoRecipeId;
+            if (string.IsNullOrEmpty(rid)) rid = DefaultAmmoRecipeId;
+
+            try
+            {
+                recipe = _s.DataRegistry.GetRecipe(rid);
+                return recipe != null;
+            }
+            catch
+            {
+                // fallback once to default
+                if (!string.Equals(rid, DefaultAmmoRecipeId, StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        recipe = _s.DataRegistry.GetRecipe(DefaultAmmoRecipeId);
+                        return recipe != null;
+                    }
+                    catch { }
+                }
+
+                return false;
+            }
+        }
+
+        private string ResolveAmmoRecipeIdOrDefault()
+        {
+            // Default
+            string rid = DefaultAmmoRecipeId;
+
+            // Optional: read from Balance.Config via reflection if exists:
+            // balance.crafting.ammoRecipeId
+            try
+            {
+                var bal = _s != null ? _s.Balance : null;
+                var cfg = bal != null ? bal.Config : null;
+                if (cfg == null) return rid;
+
+                var cfgType = cfg.GetType();
+                var craftingField = cfgType.GetField("crafting");
+                if (craftingField == null) return rid;
+
+                var craftingObj = craftingField.GetValue(cfg);
+                if (craftingObj == null) return rid;
+
+                var cType = craftingObj.GetType();
+                var idField = cType.GetField("ammoRecipeId");
+                if (idField == null) return rid;
+
+                var v = idField.GetValue(craftingObj) as string;
+                if (!string.IsNullOrWhiteSpace(v))
+                    rid = v.Trim();
+            }
+            catch
+            {
+                // ignore
+            }
+
+            return rid;
         }
     }
 }

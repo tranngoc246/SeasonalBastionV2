@@ -69,6 +69,8 @@ namespace SeasonalBastion
         private bool _combatSpawnedAtLeastOnce;
         private int _combatLaneCursor;
 
+        private bool _laneTowersEnsured;
+
         // temp lane ids (deterministic)
         private readonly System.Collections.Generic.List<int> _laneIdsTmp = new(8);
 
@@ -132,6 +134,8 @@ namespace SeasonalBastion
             _combatForcedDefend = false;
             _combatSpawnedAtLeastOnce = false;
             _combatLaneCursor = 0;
+
+            _laneTowersEnsured = false;
 
             LastSummary = "Soak START";
 
@@ -260,11 +264,182 @@ namespace SeasonalBastion
         {
             if (_s?.RunClock is not RunClockService rc) return;
 
+            // Ensure towers before entering defend (so combat stress is meaningful)
+            if (_cfg.combatStress && !_laneTowersEnsured)
+            {
+                EnsureLaneTowersForSoak();
+                _laneTowersEnsured = true;
+            }
+
             // Jump to Autumn Y1 D1, tick 1 nhịp để phase cập nhật chắc chắn
             rc.LoadSnapshot(yearIndex: 1, seasonText: Season.Autumn.ToString(), dayIndex: 1, dayTimerSeconds: 0f, timeScale: 1f);
             rc.Tick(0.01f);
 
             Debug.Log("[QA-Soak] ForceDefendNow -> Autumn Y1 D1");
+        }
+
+        private void EnsureLaneTowersForSoak()
+        {
+            if (_s?.RunStartRuntime == null || _s.RunStartRuntime.Lanes == null || _s.RunStartRuntime.Lanes.Count == 0)
+            {
+                Debug.LogWarning("[QA-Soak] EnsureLaneTowers: no lanes found, skip.");
+                return;
+            }
+
+            // Grant a lot of resources so placing towers/orders won't fail in soak
+            GrantResourcesToHQForSoak();
+
+            const string towerDefId = "bld_tower_arrow_t1";
+
+            // Lane ids deterministic
+            _laneIdsTmp.Clear();
+            foreach (var kv in _s.RunStartRuntime.Lanes) _laneIdsTmp.Add(kv.Key);
+            _laneIdsTmp.Sort();
+
+            int placed = 0;
+
+            for (int i = 0; i < _laneIdsTmp.Count; i++)
+            {
+                int laneId = _laneIdsTmp[i];
+                var lane = _s.RunStartRuntime.Lanes[laneId];
+
+                // Target a point "before HQ" along this lane direction
+                var step = DirStep(lane.DirToHQ);
+                var center = new CellPos(lane.TargetHQ.X - step.dx * 6, lane.TargetHQ.Y - step.dy * 6);
+
+                if (TryCommitBuildingNear(towerDefId, center, radius: 10, out var bId))
+                {
+                    placed++;
+                    Debug.Log($"[QA-Soak] EnsureLaneTowers: placed {towerDefId} for lane {laneId} => buildingId={bId.Value}");
+                }
+                else
+                {
+                    // fallback: try around HQ-ish area (still gives combat coverage)
+                    if (TryCommitBuildingNear(towerDefId, lane.TargetHQ, radius: 16, out bId))
+                    {
+                        placed++;
+                        Debug.Log($"[QA-Soak] EnsureLaneTowers: fallback placed {towerDefId} near HQ for lane {laneId} => buildingId={bId.Value}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[QA-Soak] EnsureLaneTowers: cannot place tower for lane {laneId} (no valid placement/road).");
+                    }
+                }
+            }
+
+            // Instantly complete all build sites so towers are constructed BEFORE defend
+            InstantCompleteAllBuildSites();
+
+            Debug.Log($"[QA-Soak] EnsureLaneTowers done. placed={placed}/{_laneIdsTmp.Count}");
+        }
+
+        private void GrantResourcesToHQForSoak()
+        {
+            if (_s?.StorageService == null || _s?.WorldState?.Buildings == null) return;
+
+            // Find HQ
+            BuildingId hq = default;
+            foreach (var bid in _s.WorldState.Buildings.Ids)
+            {
+                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+                var b = _s.WorldState.Buildings.Get(bid);
+                if (b.IsConstructed && string.Equals(b.DefId, "bld_hq_t1", StringComparison.OrdinalIgnoreCase))
+                {
+                    hq = bid;
+                    break;
+                }
+            }
+
+            if (hq.Value == 0) return;
+
+            _s.StorageService.Add(hq, ResourceType.Wood, 500);
+            _s.StorageService.Add(hq, ResourceType.Stone, 500);
+            _s.StorageService.Add(hq, ResourceType.Iron, 500);
+            _s.StorageService.Add(hq, ResourceType.Food, 500);
+        }
+
+        private void InstantCompleteAllBuildSites()
+        {
+            if (_s?.WorldState?.Sites == null) return;
+
+            var sites = _s.WorldState.Sites;
+            _tmpSiteIds.Clear();
+            foreach (var sid in sites.Ids) _tmpSiteIds.Add(sid);
+
+            int changed = 0;
+            for (int i = 0; i < _tmpSiteIds.Count; i++)
+            {
+                var sid = _tmpSiteIds[i];
+                if (!sites.Exists(sid)) continue;
+
+                var st = sites.Get(sid);
+                if (!st.IsActive) continue;
+
+                st.RemainingCosts?.Clear();
+                st.RemainingCosts = null;
+
+                if (st.WorkSecondsTotal <= 0f) st.WorkSecondsTotal = 0.1f;
+                st.WorkSecondsDone = st.WorkSecondsTotal;
+
+                sites.Set(sid, st);
+                changed++;
+            }
+
+            // IMPORTANT: BuildOrderService.Tick may ignore dt<=0 => tick with dt > 0
+            if (_s.BuildOrderService is BuildOrderService bos)
+            {
+                for (int i = 0; i < 3; i++)
+                    bos.Tick(0.05f);
+            }
+
+            Debug.Log($"[QA-Soak] InstantCompleteAllBuildSites changed={changed}");
+        }
+
+        // ---------- helpers ----------
+        private readonly System.Collections.Generic.List<SiteId> _tmpSiteIds = new(64);
+
+        private static (int dx, int dy) DirStep(Dir4 d)
+        {
+            return d switch
+            {
+                Dir4.N => (0, 1),
+                Dir4.S => (0, -1),
+                Dir4.E => (1, 0),
+                Dir4.W => (-1, 0),
+                _ => (0, 1),
+            };
+        }
+
+        private bool TryCommitBuildingNear(string defId, CellPos center, int radius, out BuildingId buildingId)
+        {
+            buildingId = default;
+
+            if (_s?.PlacementService == null || _s?.GridMap == null) return false;
+
+            // deterministic rot order
+            Dir4[] rots = { Dir4.N, Dir4.E, Dir4.S, Dir4.W };
+
+            for (int dy = -radius; dy <= radius; dy++)
+                for (int dx = -radius; dx <= radius; dx++)
+                {
+                    var anchor = new CellPos(center.X + dx, center.Y + dy);
+
+                    for (int r = 0; r < rots.Length; r++)
+                    {
+                        var rot = rots[r];
+                        var vr = _s.PlacementService.ValidateBuilding(defId, anchor, rot);
+                        if (!vr.Ok) continue;
+
+                        var bid = _s.PlacementService.CommitBuilding(defId, anchor, rot);
+                        if (bid.Value != 0)
+                        {
+                            buildingId = bid;
+                            return true;
+                        }
+                    }
+                }
+
+            return false;
         }
 
         private bool TrySpawnCombatEnemies(out string err)
@@ -419,10 +594,10 @@ namespace SeasonalBastion
                 if (!TryFindValidPlacement(defId, Dir4.N, out var anchor))
                     continue;
 
-                int orderId = _s.BuildOrderService.CreatePlaceOrder(defId, anchor, Dir4.N);
-                if (orderId > 0)
+                var bid = _s.PlacementService.CommitBuilding(defId, anchor, Dir4.N);
+                if (bid.Value != 0)
                 {
-                    Debug.Log($"[QA-Soak] Placed build site: {defId} at ({anchor.X},{anchor.Y}) orderId={orderId}");
+                    Debug.Log($"[QA-Soak] CommitBuilding: {defId} at ({anchor.X},{anchor.Y}) buildingId={bid.Value}");
                     return true;
                 }
             }

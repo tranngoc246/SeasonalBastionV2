@@ -13,6 +13,8 @@ namespace SeasonalBastion
             services.EventBus = new EventBus();
             services.DataRegistry = new DataRegistry(catalog);
             services.DataValidator = new DataValidator();
+            var dr = services.DataRegistry as DataRegistry;
+            services.Balance = new BalanceService(services, dr != null ? dr.GetBalanceOrNull() : null);
             services.RunClock = new RunClockService(services.EventBus);
             var unlockJson = UnityEngine.Resources.Load<UnityEngine.TextAsset>("UnlockSchedule_v0_1");
             services.UnlockService = new UnlockService(services.RunClock, unlockJson, services.EventBus);
@@ -35,7 +37,7 @@ namespace SeasonalBastion
             services.GridMap = new GridMap(width: 64, height: 64);
 
             // Day14: simple mover (cell-by-cell)
-            services.AgentMover = new GridAgentMoverLite(services.GridMap);
+            services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance);
 
             services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus);
 

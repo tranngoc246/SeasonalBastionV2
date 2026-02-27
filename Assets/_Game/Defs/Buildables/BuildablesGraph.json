@@ -1,110 +1,110 @@
 {
   "schemaVersion": 1,
   "nodes": [
-    { "id": "bld_house_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_house_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_house_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_house_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_house_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_house_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_farmhouse_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_farmhouse_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_farmhouse_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_farmhouse_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_farmhouse_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_farmhouse_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_lumbercamp_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_lumbercamp_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_lumbercamp_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_lumbercamp_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_lumbercamp_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_lumbercamp_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_quarry_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_quarry_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_quarry_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_quarry_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_quarry_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_quarry_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_ironhut_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_ironhut_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_ironhut_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_ironhut_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_ironhut_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_ironhut_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_warehouse_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_warehouse_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_warehouse_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_warehouse_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_warehouse_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_warehouse_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_forge_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_forge_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_forge_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_forge_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_forge_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_forge_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_armory_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_armory_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_armory_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_armory_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_armory_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_armory_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_builderhut_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_builderhut_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_builderhut_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_builderhut_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_builderhut_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_builderhut_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_bonfire_t1", "kind": "Building", "tier": 1, "placeable": true },
-    { "id": "bld_bonfire_t2", "kind": "Building", "tier": 2, "placeable": false },
-    { "id": "bld_bonfire_t3", "kind": "Building", "tier": 3, "placeable": false },
+    { "id": "bld_bonfire_t1", "kind": "Building", "level": 1, "placeable": true },
+    { "id": "bld_bonfire_t2", "kind": "Building", "level": 2, "placeable": false },
+    { "id": "bld_bonfire_t3", "kind": "Building", "level": 3, "placeable": false },
 
-    { "id": "bld_tower_arrow_t1", "kind": "Tower", "tier": 1, "placeable": true },
-    { "id": "bld_tower_arrow_t2", "kind": "Tower", "tier": 2, "placeable": false },
-    { "id": "bld_tower_arrow_t3", "kind": "Tower", "tier": 3, "placeable": false },
+    { "id": "bld_tower_arrow_t1", "kind": "Tower", "level": 1, "placeable": true },
+    { "id": "bld_tower_arrow_t2", "kind": "Tower", "level": 2, "placeable": false },
+    { "id": "bld_tower_arrow_t3", "kind": "Tower", "level": 3, "placeable": false },
 
-    { "id": "bld_tower_cannon_t1", "kind": "Tower", "tier": 1, "placeable": true },
-    { "id": "bld_tower_cannon_t2", "kind": "Tower", "tier": 2, "placeable": false },
-    { "id": "bld_tower_cannon_t3", "kind": "Tower", "tier": 3, "placeable": false },
+    { "id": "bld_tower_cannon_t1", "kind": "Tower", "level": 1, "placeable": true },
+    { "id": "bld_tower_cannon_t2", "kind": "Tower", "level": 2, "placeable": false },
+    { "id": "bld_tower_cannon_t3", "kind": "Tower", "level": 3, "placeable": false },
 
-    { "id": "bld_tower_frost_t1", "kind": "Tower", "tier": 1, "placeable": true },
-    { "id": "bld_tower_frost_t2", "kind": "Tower", "tier": 2, "placeable": false },
-    { "id": "bld_tower_frost_t3", "kind": "Tower", "tier": 3, "placeable": false },
+    { "id": "bld_tower_frost_t1", "kind": "Tower", "level": 1, "placeable": true },
+    { "id": "bld_tower_frost_t2", "kind": "Tower", "level": 2, "placeable": false },
+    { "id": "bld_tower_frost_t3", "kind": "Tower", "level": 3, "placeable": false },
 
-    { "id": "bld_tower_fire_t1", "kind": "Tower", "tier": 1, "placeable": true },
-    { "id": "bld_tower_fire_t2", "kind": "Tower", "tier": 2, "placeable": false },
-    { "id": "bld_tower_fire_t3", "kind": "Tower", "tier": 3, "placeable": false },
+    { "id": "bld_tower_fire_t1", "kind": "Tower", "level": 1, "placeable": true },
+    { "id": "bld_tower_fire_t2", "kind": "Tower", "level": 2, "placeable": false },
+    { "id": "bld_tower_fire_t3", "kind": "Tower", "level": 3, "placeable": false },
 
-    { "id": "bld_tower_sniper_t1", "kind": "Tower", "tier": 1, "placeable": true },
-    { "id": "bld_tower_sniper_t2", "kind": "Tower", "tier": 2, "placeable": false },
-    { "id": "bld_tower_sniper_t3", "kind": "Tower", "tier": 3, "placeable": false }
+    { "id": "bld_tower_sniper_t1", "kind": "Tower", "level": 1, "placeable": true },
+    { "id": "bld_tower_sniper_t2", "kind": "Tower", "level": 2, "placeable": false },
+    { "id": "bld_tower_sniper_t3", "kind": "Tower", "level": 3, "placeable": false }
   ],
   "upgrades": [
-    { "id": "up_house_t1_t2", "from": "bld_house_t1", "to": "bld_house_t2", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 10 } ], "workChunks": 3, "requiresUnlocked": true },
-    { "id": "up_house_t2_t3", "from": "bld_house_t2", "to": "bld_house_t3", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": true },
+    { "id": "up_house_t1_t2", "from": "bld_house_t1", "to": "bld_house_t2", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 10 } ], "workChunks": 3, "requiresUnlocked": "bld_house_t2" },
+    { "id": "up_house_t2_t3", "from": "bld_house_t2", "to": "bld_house_t3", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": "bld_house_t3" },
 
-    { "id": "up_farmhouse_t1_t2", "from": "bld_farmhouse_t1", "to": "bld_farmhouse_t2", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 10 } ], "workChunks": 3, "requiresUnlocked": true },
-    { "id": "up_farmhouse_t2_t3", "from": "bld_farmhouse_t2", "to": "bld_farmhouse_t3", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": true },
+    { "id": "up_farmhouse_t1_t2", "from": "bld_farmhouse_t1", "to": "bld_farmhouse_t2", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 10 } ], "workChunks": 3, "requiresUnlocked": "bld_farmhouse_t2" },
+    { "id": "up_farmhouse_t2_t3", "from": "bld_farmhouse_t2", "to": "bld_farmhouse_t3", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": "bld_farmhouse_t3" },
 
-    { "id": "up_lumbercamp_t1_t2", "from": "bld_lumbercamp_t1", "to": "bld_lumbercamp_t2", "cost": [ { "res": 1, "amt": 25 }, { "res": 3, "amt": 10 } ], "workChunks": 3, "requiresUnlocked": true },
-    { "id": "up_lumbercamp_t2_t3", "from": "bld_lumbercamp_t2", "to": "bld_lumbercamp_t3", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": true },
+    { "id": "up_lumbercamp_t1_t2", "from": "bld_lumbercamp_t1", "to": "bld_lumbercamp_t2", "cost": [ { "res": 1, "amt": 25 }, { "res": 3, "amt": 10 } ], "workChunks": 3, "requiresUnlocked": "bld_lumbercamp_t2" },
+    { "id": "up_lumbercamp_t2_t3", "from": "bld_lumbercamp_t2", "to": "bld_lumbercamp_t3", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": "bld_lumbercamp_t3" },
 
-    { "id": "up_quarry_t1_t2", "from": "bld_quarry_t1", "to": "bld_quarry_t2", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 30 } ], "workChunks": 4, "requiresUnlocked": true },
-    { "id": "up_quarry_t2_t3", "from": "bld_quarry_t2", "to": "bld_quarry_t3", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 40 } ], "workChunks": 5, "requiresUnlocked": true },
+    { "id": "up_quarry_t1_t2", "from": "bld_quarry_t1", "to": "bld_quarry_t2", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 30 } ], "workChunks": 4, "requiresUnlocked": "bld_quarry_t2" },
+    { "id": "up_quarry_t2_t3", "from": "bld_quarry_t2", "to": "bld_quarry_t3", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 40 } ], "workChunks": 5, "requiresUnlocked": "bld_quarry_t3" },
 
-    { "id": "up_ironhut_t1_t2", "from": "bld_ironhut_t1", "to": "bld_ironhut_t2", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 30 } ], "workChunks": 4, "requiresUnlocked": true },
-    { "id": "up_ironhut_t2_t3", "from": "bld_ironhut_t2", "to": "bld_ironhut_t3", "cost": [ { "res": 1, "amt": 45 }, { "res": 3, "amt": 40 } ], "workChunks": 5, "requiresUnlocked": true },
+    { "id": "up_ironhut_t1_t2", "from": "bld_ironhut_t1", "to": "bld_ironhut_t2", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 30 } ], "workChunks": 4, "requiresUnlocked": "bld_ironhut_t2" },
+    { "id": "up_ironhut_t2_t3", "from": "bld_ironhut_t2", "to": "bld_ironhut_t3", "cost": [ { "res": 1, "amt": 45 }, { "res": 3, "amt": 40 } ], "workChunks": 5, "requiresUnlocked": "bld_ironhut_t3" },
 
-    { "id": "up_warehouse_t1_t2", "from": "bld_warehouse_t1", "to": "bld_warehouse_t2", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 40 } ], "workChunks": 4, "requiresUnlocked": true },
-    { "id": "up_warehouse_t2_t3", "from": "bld_warehouse_t2", "to": "bld_warehouse_t3", "cost": [ { "res": 1, "amt": 60 }, { "res": 3, "amt": 60 } ], "workChunks": 5, "requiresUnlocked": true },
+    { "id": "up_warehouse_t1_t2", "from": "bld_warehouse_t1", "to": "bld_warehouse_t2", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 40 } ], "workChunks": 4, "requiresUnlocked": "bld_warehouse_t2" },
+    { "id": "up_warehouse_t2_t3", "from": "bld_warehouse_t2", "to": "bld_warehouse_t3", "cost": [ { "res": 1, "amt": 60 }, { "res": 3, "amt": 60 } ], "workChunks": 5, "requiresUnlocked": "bld_warehouse_t3" },
 
-    { "id": "up_forge_t1_t2", "from": "bld_forge_t1", "to": "bld_forge_t2", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 30 }, { "res": 4, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": true },
-    { "id": "up_forge_t2_t3", "from": "bld_forge_t2", "to": "bld_forge_t3", "cost": [ { "res": 1, "amt": 50 }, { "res": 3, "amt": 40 }, { "res": 4, "amt": 30 } ], "workChunks": 5, "requiresUnlocked": true },
+    { "id": "up_forge_t1_t2", "from": "bld_forge_t1", "to": "bld_forge_t2", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 30 }, { "res": 4, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": "bld_forge_t2" },
+    { "id": "up_forge_t2_t3", "from": "bld_forge_t2", "to": "bld_forge_t3", "cost": [ { "res": 1, "amt": 50 }, { "res": 3, "amt": 40 }, { "res": 4, "amt": 30 } ], "workChunks": 5, "requiresUnlocked": "bld_forge_t3" },
 
-    { "id": "up_armory_t1_t2", "from": "bld_armory_t1", "to": "bld_armory_t2", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 45 }, { "res": 4, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": true },
-    { "id": "up_armory_t2_t3", "from": "bld_armory_t2", "to": "bld_armory_t3", "cost": [ { "res": 1, "amt": 50 }, { "res": 3, "amt": 60 }, { "res": 4, "amt": 30 } ], "workChunks": 5, "requiresUnlocked": true },
+    { "id": "up_armory_t1_t2", "from": "bld_armory_t1", "to": "bld_armory_t2", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 45 }, { "res": 4, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": "bld_armory_t2" },
+    { "id": "up_armory_t2_t3", "from": "bld_armory_t2", "to": "bld_armory_t3", "cost": [ { "res": 1, "amt": 50 }, { "res": 3, "amt": 60 }, { "res": 4, "amt": 30 } ], "workChunks": 5, "requiresUnlocked": "bld_armory_t3" },
 
-    { "id": "up_builderhut_t1_t2", "from": "bld_builderhut_t1", "to": "bld_builderhut_t2", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": true },
-    { "id": "up_builderhut_t2_t3", "from": "bld_builderhut_t2", "to": "bld_builderhut_t3", "cost": [ { "res": 1, "amt": 55 }, { "res": 3, "amt": 35 } ], "workChunks": 5, "requiresUnlocked": true },
+    { "id": "up_builderhut_t1_t2", "from": "bld_builderhut_t1", "to": "bld_builderhut_t2", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 20 } ], "workChunks": 4, "requiresUnlocked": "bld_builderhut_t2" },
+    { "id": "up_builderhut_t2_t3", "from": "bld_builderhut_t2", "to": "bld_builderhut_t3", "cost": [ { "res": 1, "amt": 55 }, { "res": 3, "amt": 35 } ], "workChunks": 5, "requiresUnlocked": "bld_builderhut_t3" },
 
-    { "id": "up_bonfire_t1_t2", "from": "bld_bonfire_t1", "to": "bld_bonfire_t2", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 20 } ], "workChunks": 3, "requiresUnlocked": true },
-    { "id": "up_bonfire_t2_t3", "from": "bld_bonfire_t2", "to": "bld_bonfire_t3", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 30 } ], "workChunks": 4, "requiresUnlocked": true },
+    { "id": "up_bonfire_t1_t2", "from": "bld_bonfire_t1", "to": "bld_bonfire_t2", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 20 } ], "workChunks": 3, "requiresUnlocked": "bld_bonfire_t2" },
+    { "id": "up_bonfire_t2_t3", "from": "bld_bonfire_t2", "to": "bld_bonfire_t3", "cost": [ { "res": 1, "amt": 40 }, { "res": 3, "amt": 30 } ], "workChunks": 4, "requiresUnlocked": "bld_bonfire_t3" },
 
-    { "id": "up_tower_arrow_t1_t2", "from": "bld_tower_arrow_t1", "to": "bld_tower_arrow_t2", "cost": [ { "res": 1, "amt": 20 }, { "res": 3, "amt": 20 } ], "workChunks": 3, "requiresUnlocked": true },
-    { "id": "up_tower_arrow_t2_t3", "from": "bld_tower_arrow_t2", "to": "bld_tower_arrow_t3", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 30 }, { "res": 4, "amt": 10 } ], "workChunks": 4, "requiresUnlocked": true },
+    { "id": "up_tower_arrow_t1_t2", "from": "bld_tower_arrow_t1", "to": "bld_tower_arrow_t2", "cost": [ { "res": 1, "amt": 20 }, { "res": 3, "amt": 20 } ], "workChunks": 3, "requiresUnlocked": "bld_tower_arrow_t2" },
+    { "id": "up_tower_arrow_t2_t3", "from": "bld_tower_arrow_t2", "to": "bld_tower_arrow_t3", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 30 }, { "res": 4, "amt": 10 } ], "workChunks": 4, "requiresUnlocked": "bld_tower_arrow_t3" },
 
-    { "id": "up_tower_cannon_t1_t2", "from": "bld_tower_cannon_t1", "to": "bld_tower_cannon_t2", "cost": [ { "res": 1, "amt": 20 }, { "res": 3, "amt": 40 }, { "res": 4, "amt": 15 } ], "workChunks": 4, "requiresUnlocked": true },
-    { "id": "up_tower_cannon_t2_t3", "from": "bld_tower_cannon_t2", "to": "bld_tower_cannon_t3", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 50 }, { "res": 4, "amt": 20 } ], "workChunks": 5, "requiresUnlocked": true },
+    { "id": "up_tower_cannon_t1_t2", "from": "bld_tower_cannon_t1", "to": "bld_tower_cannon_t2", "cost": [ { "res": 1, "amt": 20 }, { "res": 3, "amt": 40 }, { "res": 4, "amt": 15 } ], "workChunks": 4, "requiresUnlocked": "bld_tower_cannon_t2" },
+    { "id": "up_tower_cannon_t2_t3", "from": "bld_tower_cannon_t2", "to": "bld_tower_cannon_t3", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 50 }, { "res": 4, "amt": 20 } ], "workChunks": 5, "requiresUnlocked": "bld_tower_cannon_t3" },
 
-    { "id": "up_tower_frost_t1_t2", "from": "bld_tower_frost_t1", "to": "bld_tower_frost_t2", "cost": [ { "res": 1, "amt": 20 }, { "res": 3, "amt": 40 }, { "res": 4, "amt": 15 } ], "workChunks": 4, "requiresUnlocked": true },
-    { "id": "up_tower_frost_t2_t3", "from": "bld_tower_frost_t2", "to": "bld_tower_frost_t3", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 50 }, { "res": 4, "amt": 20 } ], "workChunks": 5, "requiresUnlocked": true },
+    { "id": "up_tower_frost_t1_t2", "from": "bld_tower_frost_t1", "to": "bld_tower_frost_t2", "cost": [ { "res": 1, "amt": 20 }, { "res": 3, "amt": 40 }, { "res": 4, "amt": 15 } ], "workChunks": 4, "requiresUnlocked": "bld_tower_frost_t2" },
+    { "id": "up_tower_frost_t2_t3", "from": "bld_tower_frost_t2", "to": "bld_tower_frost_t3", "cost": [ { "res": 1, "amt": 30 }, { "res": 3, "amt": 50 }, { "res": 4, "amt": 20 } ], "workChunks": 5, "requiresUnlocked": "bld_tower_frost_t3" },
 
-    { "id": "up_tower_fire_t1_t2", "from": "bld_tower_fire_t1", "to": "bld_tower_fire_t2", "cost": [ { "res": 1, "amt": 25 }, { "res": 3, "amt": 55 }, { "res": 4, "amt": 25 } ], "workChunks": 5, "requiresUnlocked": true },
-    { "id": "up_tower_fire_t2_t3", "from": "bld_tower_fire_t2", "to": "bld_tower_fire_t3", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 70 }, { "res": 4, "amt": 35 } ], "workChunks": 6, "requiresUnlocked": true },
+    { "id": "up_tower_fire_t1_t2", "from": "bld_tower_fire_t1", "to": "bld_tower_fire_t2", "cost": [ { "res": 1, "amt": 25 }, { "res": 3, "amt": 55 }, { "res": 4, "amt": 25 } ], "workChunks": 5, "requiresUnlocked": "bld_tower_fire_t2" },
+    { "id": "up_tower_fire_t2_t3", "from": "bld_tower_fire_t2", "to": "bld_tower_fire_t3", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 70 }, { "res": 4, "amt": 35 } ], "workChunks": 6, "requiresUnlocked": "bld_tower_fire_t3" },
 
-    { "id": "up_tower_sniper_t1_t2", "from": "bld_tower_sniper_t1", "to": "bld_tower_sniper_t2", "cost": [ { "res": 1, "amt": 25 }, { "res": 3, "amt": 55 }, { "res": 4, "amt": 35 } ], "workChunks": 5, "requiresUnlocked": true },
-    { "id": "up_tower_sniper_t2_t3", "from": "bld_tower_sniper_t2", "to": "bld_tower_sniper_t3", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 70 }, { "res": 4, "amt": 45 } ], "workChunks": 6, "requiresUnlocked": true }
+    { "id": "up_tower_sniper_t1_t2", "from": "bld_tower_sniper_t1", "to": "bld_tower_sniper_t2", "cost": [ { "res": 1, "amt": 25 }, { "res": 3, "amt": 55 }, { "res": 4, "amt": 35 } ], "workChunks": 5, "requiresUnlocked": "bld_tower_sniper_t2" },
+    { "id": "up_tower_sniper_t2_t3", "from": "bld_tower_sniper_t2", "to": "bld_tower_sniper_t3", "cost": [ { "res": 1, "amt": 35 }, { "res": 3, "amt": 70 }, { "res": 4, "amt": 45 } ], "workChunks": 6, "requiresUnlocked": "bld_tower_sniper_t3" }
   ]
 }

@@ -4,9 +4,9 @@ namespace SeasonalBastion.Contracts
     {
         None = 0,
         Wood = 1,
-        Stone = 2,
-        Iron = 3,
-        Food = 4,
+        Food = 2,
+        Stone = 3,
+        Iron = 4,
         Ammo = 5
     }
 }

@@ -172,6 +172,8 @@ namespace SeasonalBastion
             var modalsRoot = _modalsDocument.rootVisualElement;
             if (modalsRoot == null) return false;
 
+            NormalizePanelSettingsAndSortOrders();
+
             _s = services;
 
             PreparePanelsLayer(panelsRoot);
@@ -189,7 +191,10 @@ namespace SeasonalBastion
 
             EnsureSelectionController();
             EnsureWorldCameraController();
+
+            _selection.SetUiDocuments(_hudDocument, _panelsDocument, _modalsDocument);
             _selection.Bind(_s);
+
             _worldCamera.Bind(_s, _selection, _hudDocument, _panelsDocument, _modalsDocument);
 
             // Runtime overlay views
@@ -233,7 +238,7 @@ namespace SeasonalBastion
         {
             // Panels layer must remain in the tree so it can be opened later.
             // When idle, disable picking to allow world clicks.
-            panelsRoot.pickingMode = PickingMode.Ignore;
+            panelsRoot.pickingMode = PickingMode.Position;
             panelsRoot.style.display = DisplayStyle.Flex;
         }
 
@@ -493,6 +498,25 @@ namespace SeasonalBastion
             }
 
             return null;
+        }
+
+        private void NormalizePanelSettingsAndSortOrders()
+        {
+            if (_hudDocument == null || _panelsDocument == null || _modalsDocument == null) return;
+
+            // Force all documents to share ONE PanelSettings => single runtime panel => input works across layers
+            var shared = _hudDocument.panelSettings ?? _panelsDocument.panelSettings ?? _modalsDocument.panelSettings;
+            if (shared != null)
+            {
+                if (_hudDocument.panelSettings != shared) _hudDocument.panelSettings = shared;
+                if (_panelsDocument.panelSettings != shared) _panelsDocument.panelSettings = shared;
+                if (_modalsDocument.panelSettings != shared) _modalsDocument.panelSettings = shared;
+            }
+
+            // Sort order: Panels (lowest) < HUD < Modals (highest)
+            _panelsDocument.sortingOrder = 0;
+            _hudDocument.sortingOrder = 10;
+            _modalsDocument.sortingOrder = 20;
         }
     }
 }

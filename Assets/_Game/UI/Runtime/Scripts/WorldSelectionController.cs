@@ -50,6 +50,14 @@ namespace SeasonalBastion
             ResolveUiDocumentsIfNeeded();
         }
 
+        public void SetUiDocuments(UIDocument hud, UIDocument panels, UIDocument modals)
+        {
+            _hudDocument = hud;
+            _panelsDocument = panels;
+            _modalsDocument = modals;
+            _uiDocsResolved = true;
+        }
+
         public void ClearSelection()
         {
             HasSelection = false;

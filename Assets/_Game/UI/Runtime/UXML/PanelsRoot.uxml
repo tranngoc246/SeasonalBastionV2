@@ -35,6 +35,7 @@
                 <ui:Label name="LblInspectHP" text="HP: -" class="row" />
 
                 <ui:Button name="BtnInspectUpgrade" text="Upgrade" class="row" />
+                <ui:Label name="LblInspectUpgradeReq" text="" class="row hidden" />
 
                 <ui:VisualElement class="divider" />
 

@@ -75,6 +75,8 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private int _quickLaneId = 0;
         [SerializeField] private int _quickSpawnCount = 1;
 
+        [SerializeField] private string _quickGiveAmtStr = "200";
+
         // tmp lists (avoid modifying stores while iterating)
         private readonly List<EnemyId> _enemyIdsTmp = new List<EnemyId>(128);
         private readonly List<TowerId> _towerIdsTmp = new List<TowerId>(64);
@@ -293,6 +295,32 @@ namespace SeasonalBastion.DebugTools
             if (GUILayout.Button("Complete ALL build sites now", GUILayout.Width(260)))
                 Quick_CompleteAllBuildSites();
 
+            if (GUILayout.Button("Complete CURRENT site under mouse", GUILayout.Width(260)))
+                Quick_CompleteCurrentSiteUnderMouse();
+
+            GUILayout.Space(6);
+
+            // ===== Resources =====
+            GUILayout.Label("Resources");
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Amt", GUILayout.Width(30));
+            _quickGiveAmtStr = GUILayout.TextField(_quickGiveAmtStr, GUILayout.Width(60));
+            if (GUILayout.Button("100", GUILayout.Width(50))) _quickGiveAmtStr = "100";
+            if (GUILayout.Button("300", GUILayout.Width(50))) _quickGiveAmtStr = "300";
+            if (GUILayout.Button("1000", GUILayout.Width(55))) _quickGiveAmtStr = "1000";
+            GUILayout.EndHorizontal();
+
+            int giveAmt = 200;
+            if (!int.TryParse(_quickGiveAmtStr, out giveAmt) || giveAmt <= 0) giveAmt = 200;
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Wood", GUILayout.Width(70))) Quick_GiveResource(ResourceType.Wood, giveAmt);
+            if (GUILayout.Button("Food", GUILayout.Width(70))) Quick_GiveResource(ResourceType.Food, giveAmt);
+            if (GUILayout.Button("Stone", GUILayout.Width(70))) Quick_GiveResource(ResourceType.Stone, giveAmt);
+            if (GUILayout.Button("Iron", GUILayout.Width(70))) Quick_GiveResource(ResourceType.Iron, giveAmt);
+            if (GUILayout.Button("Ammo", GUILayout.Width(70))) Quick_GiveResource(ResourceType.Ammo, giveAmt);
+            GUILayout.EndHorizontal();
+
             GUILayout.Space(6);
 
             // ===== Ammo =====
@@ -422,9 +450,167 @@ namespace SeasonalBastion.DebugTools
             }
 
             if (_gs.BuildOrderService is BuildOrderService bos)
-                bos.Tick(0f);
+                bos.Tick(0.0001f);
 
             _gs.NotificationService?.Push("debug_build_instant", "Debug", $"Instant completed {changed} build sites.", NotificationSeverity.Info, default, 0.2f, true);
+        }
+
+        private void Quick_CompleteCurrentSiteUnderMouse()
+        {
+            if (_gs?.WorldState == null || _gs.GridMap == null) return;
+            if (!SeasonalBastion.DebugTools.MouseCellSharedState.HasValue)
+            {
+                _gs.NotificationService?.Push("debug_site_none", "Debug", "No hover cell (MouseCellSharedState).", NotificationSeverity.Warning, default, 0.2f, true);
+                return;
+            }
+
+            if (!TryFindActiveSiteFromHover(out var sid, out var st))
+            {
+                _gs.NotificationService?.Push("debug_site_notfound", "Debug", "No active build/upgrade site found under mouse.", NotificationSeverity.Info, default, 0.2f, true);
+                return;
+            }
+
+            ForceCompleteSite(sid, st);
+        }
+
+        private bool TryFindActiveSiteFromHover(out SiteId sid, out BuildSiteState site)
+        {
+            sid = default;
+            site = default;
+
+            var cell = SeasonalBastion.DebugTools.MouseCellSharedState.Cell;
+            var occ = _gs.GridMap.Get(cell);
+
+            // Case 1: PlaceNew site occupies grid => GridMap stores SiteId
+            if (occ.Kind == CellOccupancyKind.Site && occ.Site.Value != 0 && _gs.WorldState.Sites.Exists(occ.Site))
+            {
+                var s = _gs.WorldState.Sites.Get(occ.Site);
+                if (s.IsActive)
+                {
+                    sid = occ.Site;
+                    site = s;
+                    return true;
+                }
+            }
+
+            // Case 2: Upgrade site does NOT occupy grid => find by TargetBuilding
+            if (occ.Kind == CellOccupancyKind.Building && occ.Building.Value != 0)
+            {
+                foreach (var x in _gs.WorldState.Sites.Ids)
+                {
+                    if (!_gs.WorldState.Sites.Exists(x)) continue;
+                    var s = _gs.WorldState.Sites.Get(x);
+                    if (!s.IsActive) continue;
+                    if (s.TargetBuilding.Value == occ.Building.Value)
+                    {
+                        sid = x;
+                        site = s;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private void ForceCompleteSite(SiteId sid, BuildSiteState st)
+        {
+            var sites = _gs.WorldState.Sites;
+            if (!sites.Exists(sid)) return;
+
+            st.RemainingCosts?.Clear();
+            st.RemainingCosts = null;
+
+            if (st.WorkSecondsTotal <= 0f) st.WorkSecondsTotal = 0.1f;
+            st.WorkSecondsDone = st.WorkSecondsTotal;
+
+            sites.Set(sid, st);
+
+            // Tick nhẹ để BuildOrderService detect completion ngay
+            if (_gs.BuildOrderService is BuildOrderService bos)
+                bos.Tick(0.0001f);
+
+            _gs.NotificationService?.Push("debug_site_complete_one", "Debug",
+                $"Completed site {sid.Value} (kind={(st.IsUpgrade ? "Upgrade" : "PlaceNew")}).",
+                NotificationSeverity.Info, default, 0.2f, true);
+        }
+
+        private void Quick_GiveResource(ResourceType type, int amount)
+        {
+            if (_gs?.WorldState == null || _gs.StorageService == null || _gs.DataRegistry == null) return;
+            if (amount <= 0) return;
+
+            int remaining = amount;
+            int addedTotal = 0;
+
+            // Pass order deterministic:
+            // - Non-ammo: HQ -> Warehouses -> any store that CanStore
+            // - Ammo: Armory -> Forge -> any store that CanStore
+            if (type == ResourceType.Ammo)
+            {
+                addedTotal += GiveToPreferredBuildings(type, ref remaining, preferArmory: true);
+                addedTotal += GiveToPreferredBuildings(type, ref remaining, preferForge: true);
+            }
+            else
+            {
+                addedTotal += GiveToPreferredBuildings(type, ref remaining, preferHQ: true);
+                addedTotal += GiveToPreferredBuildings(type, ref remaining, preferWarehouse: true);
+            }
+
+            // Fallback any
+            if (remaining > 0)
+            {
+                foreach (var bid in _gs.WorldState.Buildings.Ids)
+                {
+                    if (remaining <= 0) break;
+                    if (!_gs.WorldState.Buildings.Exists(bid)) continue;
+
+                    var bs = _gs.WorldState.Buildings.Get(bid);
+                    if (!bs.IsConstructed) continue;
+
+                    int add = _gs.StorageService.Add(bid, type, remaining);
+                    if (add <= 0) continue;
+
+                    remaining -= add;
+                    addedTotal += add;
+                }
+            }
+
+            _gs.NotificationService?.Push("debug_give_res", "Debug",
+                $"Give {type} {amount} -> added {addedTotal} (remain {remaining}).",
+                NotificationSeverity.Info, default, 0.2f, true);
+        }
+
+        private int GiveToPreferredBuildings(ResourceType type, ref int remaining,
+            bool preferHQ = false, bool preferWarehouse = false, bool preferArmory = false, bool preferForge = false)
+        {
+            if (remaining <= 0) return 0;
+
+            int added = 0;
+            foreach (var bid in _gs.WorldState.Buildings.Ids)
+            {
+                if (remaining <= 0) break;
+                if (!_gs.WorldState.Buildings.Exists(bid)) continue;
+
+                var bs = _gs.WorldState.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+
+                BuildingDef def = null;
+                try { def = _gs.DataRegistry.GetBuilding(bs.DefId); } catch { }
+                if (def == null) continue;
+
+                if (preferHQ && !def.IsHQ) continue;
+                if (preferWarehouse && !def.IsWarehouse) continue;
+                if (preferArmory && !def.IsArmory) continue;
+                if (preferForge && !def.IsForge) continue;
+
+                int a = _gs.StorageService.Add(bid, type, remaining);
+                if (a <= 0) continue;
+
+                remaining -= a;
+                added += a;
+            }
+            return added;
         }
 
         private void Quick_DrainAllTowersToZero()

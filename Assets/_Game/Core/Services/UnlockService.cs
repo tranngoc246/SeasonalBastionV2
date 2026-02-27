@@ -78,6 +78,58 @@ namespace SeasonalBastion
             return _unlocked.Contains(defId);
         }
 
+        public int CurrentYearIndex => _currentYear;
+
+        public bool IsStartUnlockedDef(string defId)
+        {
+            if (string.IsNullOrEmpty(defId)) return false;
+            if (_schedule?.StartUnlocked == null) return false;
+
+            for (int i = 0; i < _schedule.StartUnlocked.Count; i++)
+            {
+                var id = _schedule.StartUnlocked[i];
+                if (string.Equals(id, defId, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
+
+        public bool TryGetPlannedUnlock(string defId, out int year, out Season season, out int day)
+        {
+            year = 1;
+            season = Season.Spring;
+            day = 1;
+
+            if (string.IsNullOrEmpty(defId)) return false;
+            if (_schedule?.Entries == null || _schedule.Entries.Count == 0) return false;
+
+            UnlockEntryDef best = null;
+
+            for (int i = 0; i < _schedule.Entries.Count; i++)
+            {
+                var e = _schedule.Entries[i];
+                if (e == null || string.IsNullOrEmpty(e.DefId)) continue;
+                if (!string.Equals(e.DefId, defId, StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (best == null || CompareUnlockTime(e, best) < 0)
+                    best = e;
+            }
+
+            if (best == null) return false;
+
+            year = best.Year;
+            season = best.Season;
+            day = best.Day;
+            return true;
+        }
+
+        private static int CompareUnlockTime(UnlockEntryDef a, UnlockEntryDef b)
+        {
+            if (a.Year != b.Year) return a.Year.CompareTo(b.Year);
+            if (a.Season != b.Season) return ((int)a.Season).CompareTo((int)b.Season);
+            return a.Day.CompareTo(b.Day);
+        }
+
         private void Recompute()
         {
             if (_clock == null)

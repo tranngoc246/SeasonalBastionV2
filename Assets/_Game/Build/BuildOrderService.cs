@@ -200,7 +200,19 @@ namespace SeasonalBastion
             if (!_s.WorldState.Buildings.Exists(building)) return 0;
 
             var bs = _s.WorldState.Buildings.Get(building);
-            if (!bs.IsConstructed) return 0;
+            if (!bs.IsConstructed)
+            {
+                _s.NotificationService?.Push(
+                    key: $"UpgradeNotConstructed_{building.Value}",
+                    title: "Construction",
+                    body: "Can't upgrade while under construction. Finish building first.",
+                    severity: NotificationSeverity.Warning,
+                    payload: new NotificationPayload(building, default, bs.DefId),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
+                return 0;
+            }
 
             // Prevent duplicate upgrade order on same building
             for (int i = 0; i < _active.Count; i++)
@@ -209,7 +221,19 @@ namespace SeasonalBastion
                 if (!_orders.TryGetValue(id, out var oo)) continue;
                 if (oo.Completed) continue;
                 if (oo.Kind != BuildOrderKind.Upgrade) continue;
-                if (oo.TargetBuilding.Value == building.Value) return id;
+                if (oo.TargetBuilding.Value != building.Value) continue;
+
+                _s.NotificationService?.Push(
+                    key: $"UpgradeAlready_{building.Value}",
+                    title: "Construction",
+                    body: "Công trình đang nâng cấp rồi.",
+                    severity: NotificationSeverity.Info,
+                    payload: new NotificationPayload(building, default, "upgrade"),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
+
+                return id;
             }
 
             var dr = _s.DataRegistry as IDataRegistry;
@@ -263,7 +287,19 @@ namespace SeasonalBastion
             // Validate target def exists + same footprint (in-place upgrade)
             BuildingDef toDef;
             try { toDef = _s.DataRegistry.GetBuilding(edge.To); }
-            catch { return 0; }
+            catch
+            {
+                _s.NotificationService?.Push(
+                    key: $"UpgradeMissingDef_{building.Value}",
+                    title: "Construction",
+                    body: $"Upgrade target def missing: {edge.To}",
+                    severity: NotificationSeverity.Error,
+                    payload: new NotificationPayload(building, default, edge.To),
+                    cooldownSeconds: 0.25f,
+                    dedupeByKey: true
+                );
+                return 0;
+            }
 
             var fromDef = _s.DataRegistry.GetBuilding(bs.DefId);
             if (fromDef != null && toDef != null)
@@ -280,6 +316,32 @@ namespace SeasonalBastion
                         dedupeByKey: true
                     );
                     return 0;
+                }
+            }
+
+            // Authoritative resource gating: block upgrade if total storage is insufficient
+            if (edge.Cost != null && edge.Cost.Length > 0 && _s.StorageService != null)
+            {
+                for (int i = 0; i < edge.Cost.Length; i++)
+                {
+                    var c = edge.Cost[i];
+                    if (c == null) continue;
+                    if (c.Amount <= 0) continue;
+
+                    int total = _s.StorageService.GetTotal(c.Resource);
+                    if (total < c.Amount)
+                    {
+                        _s.NotificationService?.Push(
+                            key: $"NoRes_Upgrade_{building.Value}_{c.Resource}",
+                            title: "Not enough resources",
+                            body: $"Need {c.Amount} {c.Resource} (have {total})",
+                            severity: NotificationSeverity.Warning,
+                            payload: new NotificationPayload(building, default, edge.To),
+                            cooldownSeconds: 0.25f,
+                            dedupeByKey: true
+                        );
+                        return 0;
+                    }
                 }
             }
 

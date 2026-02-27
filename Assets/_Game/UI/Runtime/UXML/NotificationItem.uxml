@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<ui:UXML xmlns:ui="UnityEngine.UIElements">
-  <ui:VisualElement class="noti-item">
-    <ui:Label name="LblTitle" text="TITLE" class="noti-title" />
-    <ui:Label name="LblBody" text="Body..." class="noti-body" />
-  </ui:VisualElement>
-</ui:UXML>

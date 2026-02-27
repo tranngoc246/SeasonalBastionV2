@@ -1,0 +1,6 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Overlay.uss" />
+    <ui:VisualElement name="TooltipHost" class="tooltip-host" picking-mode="Ignore" />
+    <ui:VisualElement name="ToastHost" class="toast-host" picking-mode="Ignore" />
+</ui:UXML>

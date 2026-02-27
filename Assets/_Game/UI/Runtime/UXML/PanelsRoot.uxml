@@ -1,50 +1,50 @@
-<ui:UXML xmlns:ui="UnityEngine.UIElements">
-    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Panels.uss?fileID=7433441132597879392&amp;guid=aa31945e913f25a42afddf7de9aa18a8&amp;type=3#Panels" />
-    <ui:VisualElement class="panels-root">
-        <!-- Build Panel (M3) -->
-        <ui:VisualElement name="BuildPanel" class="panel build hidden ui-block">
-            <ui:VisualElement class="panel-header">
-                <ui:Label text="Build" class="panel-title" />
-                <ui:Button name="BtnBuildClose" text="X" class="panel-close" />
-            </ui:VisualElement>
+﻿<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Panels.uss" />
 
+    <!-- IMPORTANT: LeftDockHost/RightDockHost are TOP-LEVEL children -->
+    <ui:VisualElement name="LeftDockHost" class="dock-left ui-block-world" picking-mode="Position">
+        <ui:VisualElement name="BuildPanel" class="panel ui-block-world" picking-mode="Position" style="display:none;">
+            <ui:VisualElement class="panel-header">
+                <ui:Label name="Title" text="Build" class="panel-title" />
+                <ui:Button name="BtnClose" text="X" class="panel-close" />
+            </ui:VisualElement>
             <ui:VisualElement class="panel-body">
-                <ui:Label name="LblBuildHint" text="Chọn công trình, đặt gần road (EntryCell có road kề)" class="row" />
-                <!-- Tabs (M3.5): Always show ALL buildings; locked ones are dimmed + non-clickable and pushed to bottom. -->
-                <ui:VisualElement name="BuildTabs" class="build-tabs">
-                    <ui:Button name="BtnTabStorage" text="Kho" class="tab-btn is-selected" />
-                    <ui:Button name="BtnTabProduction" text="Farm" class="tab-btn" />
-                    <ui:Button name="BtnTabDefense" text="Tower" class="tab-btn" />
-                    <ui:Button name="BtnTabOther" text="Khác" class="tab-btn" />
+                <ui:Label name="LblBuildHint" text="Chọn công trình để đặt." />
+                <ui:VisualElement class="section">
+                    <ui:Label text="Buildables" class="section-title" />
+                    <ui:ScrollView name="BuildList" class="build-list" />
                 </ui:VisualElement>
-                <ui:VisualElement class="divider" />
-                <ui:ScrollView name="BuildList" class="build-list" />
             </ui:VisualElement>
         </ui:VisualElement>
+    </ui:VisualElement>
 
-        <!-- Inspect Panel -->
-        <ui:VisualElement name="InspectPanel" class="panel inspect hidden">
+    <ui:VisualElement name="RightDockHost" class="dock-right ui-block-world" picking-mode="Position">
+        <ui:VisualElement name="InspectPanel" class="panel ui-block-world" picking-mode="Position" style="display:none;">
             <ui:VisualElement class="panel-header">
-                <ui:Label name="LblInspectTitle" text="Inspect" class="panel-title" />
+                <ui:Label text="Inspect" class="panel-title" />
                 <ui:Button name="BtnInspectClose" text="X" class="panel-close" />
             </ui:VisualElement>
-
             <ui:VisualElement class="panel-body">
-                <ui:Label name="LblInspectId" text="ID: -" class="row" />
-                <ui:Label name="LblInspectDef" text="Def: -" class="row" />
-                <ui:Label name="LblInspectHP" text="HP: -" class="row" />
+                <!-- Backward compat: keep Info + BtnClear -->
+                <ui:Label name="Info" text="No selection" />
+                <ui:Button name="BtnClear" text="Clear Selection" />
 
-                <ui:Button name="BtnInspectUpgrade" text="Upgrade" class="row" />
-                <ui:Label name="LblInspectUpgradeReq" text="" class="row hidden" />
+                <ui:VisualElement class="section">
+                    <ui:Label text="Details" class="section-title" />
+                    <ui:Label name="LblInspectId" text="ID: -" />
+                    <ui:Label name="LblInspectDef" text="Def: -" />
+                    <ui:Label name="LblInspectHP" text="HP: -" />
+                </ui:VisualElement>
 
-                <ui:VisualElement class="divider" />
-
-                <ui:Label text="Storage:" class="row header" />
-                <ui:Label name="LblInspectWood" text="Wood: -" class="row" />
-                <ui:Label name="LblInspectStone" text="Stone: -" class="row" />
-                <ui:Label name="LblInspectFood" text="Food: -" class="row" />
-                <ui:Label name="LblInspectIron" text="Iron: -" class="row" />
-                <ui:Label name="LblInspectAmmo" text="Ammo: -" class="row" />
+                <ui:VisualElement class="section">
+                    <ui:Label text="Storage (local)" class="section-title" />
+                    <ui:Label name="LblInspectWood" text="Wood: -" />
+                    <ui:Label name="LblInspectFood" text="Food: -" />
+                    <ui:Label name="LblInspectStone" text="Stone: -" />
+                    <ui:Label name="LblInspectIron" text="Iron: -" />
+                    <ui:Label name="LblInspectAmmo" text="Ammo: -" />
+                </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>

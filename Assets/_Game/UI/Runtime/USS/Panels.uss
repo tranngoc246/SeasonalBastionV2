@@ -1,129 +1,51 @@
-.panels-root {
+.dock-left {
   position: absolute;
-  left: 0; right: 0; top: 0; bottom: 0;
+  left: 12px;
+  top: 70px;
+  bottom: 12px;
+  width: 360px;
+  max-width: 92%;
+}
+
+.dock-right {
+  position: absolute;
+  right: 12px;
+  top: 70px;
+  bottom: 12px;
+  width: 360px;
+  max-width: 92%;
 }
 
 .panel {
-  position: absolute;
-  left: 12px;
-  top: 110px;
-  width: 320px;
-  border-radius: 10px;
-  background-color: rgba(0, 0, 0, 0.60);
+  flex-direction: column;
+  border-radius: 12px;
+  background-color: rgba(0,0,0,0.62);
   padding: 10px;
+
+  border-left-width: 1px; border-right-width: 1px; border-top-width: 1px; border-bottom-width: 1px;
+  border-left-color: rgba(255,255,255,0.10);
+  border-right-color: rgba(255,255,255,0.10);
+  border-top-color: rgba(255,255,255,0.10);
+  border-bottom-color: rgba(255,255,255,0.10);
 }
 
-.panel.hidden {
-  display: none;
-}
+.panel-header { flex-direction: row; align-items: center; margin-bottom: 10px; }
+.panel-title { -unity-font-style: bold; font-size: 14px; flex-grow: 1; }
+.panel-close { height: 28px; min-width: 28px; padding-left: 0; padding-right: 0; }
 
-.panel-header {
-  flex-direction: row;
-  align-items: center;
-}
+.panel-body { flex-direction: column; }
+.section { margin-top: 10px; }
+.section-title { -unity-font-style: bold; margin-bottom: 6px; }
 
-.panel-title {
-  -unity-font-style: bold; 
-  font-size: 14px;
-  color: rgb(245,245,245);
-  flex-grow: 1;
-}
-
-.panel-close {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background-color: rgba(255,255,255,0.10);
-  color: rgb(245,245,245);
-}
-
-.panel-body {
-  margin-top: 8px;
-}
-
-.row {
-  margin-top: 6px;
-  font-size: 12px;
-  color: rgb(225,225,225);
-  white-space: normal;
-}
-
-.row.header {
-  margin-top: 8px;
-  -unity-font-style: bold;
-  color: rgb(245,245,245);
-}
-
-.divider {
-  height: 1px;
-  margin-top: 8px;
-  margin-bottom: 6px;
-  background-color: rgba(255,255,255,0.12);
-}
-
-/* ------------------------------ */
-/* Build Panel (M3) */
-/* ------------------------------ */
-
-.panel.build {
-  top: 110px;
-  width: 380px;
-}
-
-.build-list {
-  max-height: 400px;
-}
+.build-list { max-height: 520px; }
 
 .build-item {
-  margin-top: 6px;
+  flex-direction: column;
   padding: 8px;
-  border-radius: 10px;
-  background-color: rgba(255,255,255,0.08);
-}
-
-.build-item:hover {
-  background-color: rgba(255,255,255,0.12);
-}
-
-.build-item.is-disabled {
-  opacity: 0.45;
-}
-
-.build-item-title {
-  -unity-font-style: bold;
-  font-size: 12px;
-  color: rgb(245,245,245);
-}
-
-.build-item-sub {
-  margin-top: 4px;
-  font-size: 11px;
-  color: rgb(220,220,220);
-  white-space: normal;
-}
-
-.build-tabs {
   margin-top: 8px;
-  flex-direction: row;
+  border-radius: 10px;
+  background-color: rgba(255,255,255,0.06);
 }
-
-.tab-btn {
-  flex-grow: 1;
-  height: 26px;
-  margin-right: 6px;
-  border-radius: 8px;
-  background-color: rgba(255,255,255,0.08);
-  color: rgb(235,235,235);
-  font-size: 12px;
-}
-
-.tab-btn.is-selected {
-  background-color: rgba(255,255,255,0.16);
-  -unity-font-style: bold;
-}
-
-/* Locked (not unlocked yet): show dim + non-clickable (presenter will not register click) */
-.build-item.is-locked {
-  opacity: 0.35;
-}
-
+.build-item:hover { background-color: rgba(255,255,255,0.10); }
+.build-item-title { -unity-font-style: bold; font-size: 13px; }
+.build-item-sub { color: rgb(200,200,200); font-size: 11px; margin-top: 2px; }

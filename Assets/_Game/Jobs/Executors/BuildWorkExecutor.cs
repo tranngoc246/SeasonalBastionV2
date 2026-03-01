@@ -304,7 +304,6 @@ namespace SeasonalBastion
                         _dbgLastWork = site.WorkSecondsDone;
                         _dbgLastSite = job.Site.Value;
 
-                        UnityEngine.Debug.Log($"[BuildDbg] site={job.Site.Value} phase=BUILD dWorkPerWall1s={dWork:F2} dt={dt:F3} ts={ts:F1} done={site.WorkSecondsDone:F2}/{site.WorkSecondsTotal:F2}");
                         _dbgWallT = now;
                     }
                 }

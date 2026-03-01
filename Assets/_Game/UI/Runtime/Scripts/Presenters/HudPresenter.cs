@@ -10,6 +10,7 @@ namespace SeasonalBastion.UI.Presenters
     /// - time/phase from EventBus DayStartedEvent + RunClock
     /// - resources totals from StorageService.GetTotal
     /// - speed buttons -> RunClock.SetTimeScale
+    /// - tool buttons -> publish UiToolModeRequestedEvent (Road/Remove/None)
     /// - notifications -> NotificationService.GetVisible()
     /// </summary>
     public sealed class HudPresenter : UiPresenterBase
@@ -28,8 +29,12 @@ namespace SeasonalBastion.UI.Presenters
         private Button _btnPause;
         private Button _btnS1, _btnS2, _btnS3;
 
-        private VisualElement _notiHost;
+        // Bottom tool buttons (optional)
+        private Button _btnToolRoad;
+        private Button _btnToolRemove;
+        private Button _btnToolCancel;
 
+        private VisualElement _notiHost;
         private readonly List<VisualElement> _notiItems = new(8);
 
         // cached run state
@@ -51,6 +56,7 @@ namespace SeasonalBastion.UI.Presenters
             _iron = Root.Q<Label>("LblResIron");
             _ammo = Root.Q<Label>("LblResAmmo");
 
+            // NOTE: BtnBuild đã chuyển xuống bottom bar nhưng Q theo name vẫn tìm được
             _btnBuild = Root.Q<Button>("BtnBuild");
             _btnSettings = Root.Q<Button>("BtnSettings");
 
@@ -58,6 +64,11 @@ namespace SeasonalBastion.UI.Presenters
             _btnS1 = Root.Q<Button>("BtnSpeed1");
             _btnS2 = Root.Q<Button>("BtnSpeed2");
             _btnS3 = Root.Q<Button>("BtnSpeed3");
+
+            // Tool buttons trên bottom bar (đúng name theo HUD.uxml bạn đang dùng)
+            _btnToolRoad = Root.Q<Button>("BtnToolRoad");
+            _btnToolRemove = Root.Q<Button>("BtnToolRemove");
+            _btnToolCancel = Root.Q<Button>("BtnToolCancel");
 
             _notiHost = Root.Q<VisualElement>("NotiStack");
 
@@ -69,6 +80,11 @@ namespace SeasonalBastion.UI.Presenters
             if (_btnS1 != null) _btnS1.clicked += () => SetSpeed(1f);
             if (_btnS2 != null) _btnS2.clicked += () => SetSpeed(2f);
             if (_btnS3 != null) _btnS3.clicked += () => SetSpeed(3f);
+
+            // Tool actions
+            if (_btnToolRoad != null) _btnToolRoad.clicked += OnToolRoad;
+            if (_btnToolRemove != null) _btnToolRemove.clicked += OnToolRemove;
+            if (_btnToolCancel != null) _btnToolCancel.clicked += OnToolCancel;
 
             // Subscribe services
             if (_s?.EventBus != null)
@@ -101,6 +117,10 @@ namespace SeasonalBastion.UI.Presenters
             if (_btnSettings != null) _btnSettings.clicked -= OnSettingsClicked;
 
             if (_btnPause != null) _btnPause.clicked -= OnPauseClicked;
+
+            if (_btnToolRoad != null) _btnToolRoad.clicked -= OnToolRoad;
+            if (_btnToolRemove != null) _btnToolRemove.clicked -= OnToolRemove;
+            if (_btnToolCancel != null) _btnToolCancel.clicked -= OnToolCancel;
 
             if (_s?.EventBus != null)
             {
@@ -136,8 +156,6 @@ namespace SeasonalBastion.UI.Presenters
             _season = c.CurrentSeason;
             _dayIndex = c.DayIndex;
             _phase = c.CurrentPhase;
-
-            // YearIndex not in interface; will be updated via DayStartedEvent (preferred).
         }
 
         private void RefreshClockLabels()
@@ -178,8 +196,6 @@ namespace SeasonalBastion.UI.Presenters
             SetOn(_btnS1, Math.Abs(ts - 1f) < 0.01f);
             SetOn(_btnS2, Math.Abs(ts - 2f) < 0.01f);
             SetOn(_btnS3, Math.Abs(ts - 3f) < 0.01f);
-
-            // pause button could be highlighted when ts==0
             SetOn(_btnPause, ts <= 0.01f);
         }
 
@@ -195,7 +211,6 @@ namespace SeasonalBastion.UI.Presenters
         {
             if (_notiHost == null) return;
 
-            // clear old
             for (int i = 0; i < _notiItems.Count; i++)
                 _notiItems[i]?.RemoveFromHierarchy();
             _notiItems.Clear();
@@ -232,20 +247,51 @@ namespace SeasonalBastion.UI.Presenters
         }
 
         // ===== UI actions =====
+
         private void OnBuildClicked()
         {
+            // Khi mở build panel, cancel tool mode để tránh ghost/road mode còn chạy
+            PublishToolMode(UiToolMode.None);
             Ctx?.Panels?.Show(UiKeys.Panel_Build);
         }
 
         private void OnSettingsClicked()
         {
+            // Optional: cancel tool mode khi mở settings
+            PublishToolMode(UiToolMode.None);
             Ctx?.Modals?.Push(UiKeys.Modal_Settings);
         }
 
         private void OnPauseClicked()
         {
-            // Pause via modal (modal stack will call PauseUI if pause controller is wired)
+            PublishToolMode(UiToolMode.None);
             Ctx?.Modals?.Push(UiKeys.Modal_Settings);
+        }
+
+        private void OnToolRoad()
+        {
+            // đóng build panel nếu đang mở
+            Ctx?.Panels?.HideCurrent();
+            PublishToolMode(UiToolMode.Road);
+        }
+
+        private void OnToolRemove()
+        {
+            Ctx?.Panels?.HideCurrent();
+            PublishToolMode(UiToolMode.RemoveRoad);
+        }
+
+        private void OnToolCancel()
+        {
+            Ctx?.Panels?.HideCurrent();
+            PublishToolMode(UiToolMode.None);
+        }
+
+        private void PublishToolMode(UiToolMode mode)
+        {
+            var bus = _s?.EventBus;
+            if (bus == null) return;
+            bus.Publish(new UiToolModeRequestedEvent(mode));
         }
 
         private void SetSpeed(float scale)
@@ -253,7 +299,6 @@ namespace SeasonalBastion.UI.Presenters
             var c = _s?.RunClock;
             if (c == null) return;
 
-            // Defend speed gate
             if (c.CurrentPhase != Phase.Build && !c.DefendSpeedUnlocked && scale > 1.01f)
             {
                 _s?.NotificationService?.Push(
@@ -273,6 +318,7 @@ namespace SeasonalBastion.UI.Presenters
         }
 
         // ===== Events =====
+
         private void OnDayStarted(DayStartedEvent ev)
         {
             _yearIndex = ev.YearIndex;
@@ -293,29 +339,12 @@ namespace SeasonalBastion.UI.Presenters
             RefreshSpeedHighlight();
         }
 
-        private void OnResourceChanged(ResourceDeliveredEvent _)
-        {
-            RefreshResources();
-        }
+        private void OnResourceChanged(ResourceDeliveredEvent _) => RefreshResources();
+        private void OnResourceChanged(ResourceSpentEvent _) => RefreshResources();
 
-        private void OnResourceChanged(ResourceSpentEvent _)
-        {
-            RefreshResources();
-        }
+        private void OnBuildingChanged(BuildingPlacedEvent _) => RefreshResources();
+        private void OnBuildingUpgraded(BuildingUpgradedEvent _) => RefreshResources();
 
-        private void OnBuildingChanged(BuildingPlacedEvent _)
-        {
-            RefreshResources();
-        }
-
-        private void OnBuildingUpgraded(BuildingUpgradedEvent _)
-        {
-            RefreshResources();
-        }
-
-        private void OnNotificationsChanged()
-        {
-            RefreshNotifications();
-        }
+        private void OnNotificationsChanged() => RefreshNotifications();
     }
 }

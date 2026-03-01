@@ -3,23 +3,58 @@
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Panels.uss" />
 
     <!-- IMPORTANT: LeftDockHost/RightDockHost are TOP-LEVEL children -->
-    <ui:VisualElement name="LeftDockHost" class="dock-left ui-block-world" picking-mode="Position">
-        <ui:VisualElement name="BuildPanel" class="panel ui-block-world" picking-mode="Position" style="display:none;">
-            <ui:VisualElement class="panel-header">
-                <ui:Label name="Title" text="Build" class="panel-title" />
-                <ui:Button name="BtnClose" text="X" class="panel-close" />
+    <ui:VisualElement name="LeftDockHost" class="dock-left" picking-mode="Ignore">
+        <ui:VisualElement name="BuildPanel" class="panel build-panel ui-block-world" picking-mode="Position" style="display:none;">
+          <ui:VisualElement class="panel-header">
+            <ui:Label name="Title" text="Build" class="panel-title" />
+            <ui:Button name="BtnClose" text="X" class="panel-close" />
+          </ui:VisualElement>
+
+          <ui:VisualElement class="panel-body build-split">
+
+            <!-- LEFT: grid list -->
+            <ui:VisualElement class="build-left">
+              <ui:Label name="LblBuildHint" text="Chọn công trình để đặt." />
+
+              <ui:VisualElement name="BuildTabs" class="build-tabs">
+                <ui:Button name="BtnTabAll" text="All" class="tab-btn is-selected" />
+                <ui:Button name="BtnTabStorage" text="Kho" class="tab-btn" />
+                <ui:Button name="BtnTabFarm" text="Farm" class="tab-btn" />
+                <ui:Button name="BtnTabTower" text="Tower" class="tab-btn" />
+                <ui:Button name="BtnTabOther" text="Khác" class="tab-btn" />
+              </ui:VisualElement>
+
+              <!-- ScrollView giữ name BuildList để Presenter Q được -->
+              <ui:ScrollView name="BuildList" class="build-grid-scroll">
+                <ui:VisualElement name="BuildGridContainer" class="build-grid" />
+              </ui:ScrollView>
             </ui:VisualElement>
-            <ui:VisualElement class="panel-body">
-                <ui:Label name="LblBuildHint" text="Chọn công trình để đặt." />
-                <ui:VisualElement class="section">
-                    <ui:Label text="Buildables" class="section-title" />
-                    <ui:ScrollView name="BuildList" class="build-list" />
-                </ui:VisualElement>
+
+            <!-- RIGHT: detail -->
+            <ui:VisualElement class="build-right">
+              <ui:VisualElement name="DetailIcon" class="detail-icon">
+                <ui:Label name="DetailIconText" text="?" class="detail-icon-text" />
+              </ui:VisualElement>
+
+              <ui:Label name="DetailName" text="Chọn 1 building" class="detail-name" />
+              <ui:Label name="DetailSub" text="" class="detail-sub" />
+
+              <ui:VisualElement class="detail-block">
+                <ui:Label text="Costs (L1)" class="detail-block-title" />
+                <ui:VisualElement name="DetailCosts" class="detail-costs" />
+                <ui:Label name="DetailCostHint" text="" class="detail-hint hidden" />
+              </ui:VisualElement>
+
+              <ui:VisualElement class="detail-footer">
+                <ui:Button name="BtnBuildConfirm" text="BUILD" class="btn-build" />
+              </ui:VisualElement>
             </ui:VisualElement>
+
+          </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>
 
-    <ui:VisualElement name="RightDockHost" class="dock-right ui-block-world" picking-mode="Position">
+    <ui:VisualElement name="RightDockHost" class="dock-right" picking-mode="Ignore">
         <ui:VisualElement name="InspectPanel" class="panel ui-block-world" picking-mode="Position" style="display:none;">
             <ui:VisualElement class="panel-header">
                 <ui:Label text="Inspect" class="panel-title" />

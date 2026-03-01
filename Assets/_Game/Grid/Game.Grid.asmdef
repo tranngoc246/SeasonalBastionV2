@@ -4,7 +4,8 @@
     "references": [
         "Game.Contracts",
         "Game.Core",
-        "Game.World"
+        "Game.World",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

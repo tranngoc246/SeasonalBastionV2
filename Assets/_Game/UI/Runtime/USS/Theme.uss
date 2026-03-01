@@ -1,4 +1,4 @@
-.hidden { display: none; }
+﻿.hidden { display: none; }
 .ui-block-world {} /* marker only for UiHitTest */
 
 Label { color: rgb(245,245,245); font-size: 12px; }
@@ -19,12 +19,40 @@ Button:active { background-color: rgba(255,255,255,0.22); }
 .hud-root { position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
 
 .topbar {
-  position: absolute; left: 0; right: 0; top: 0;
+  position: absolute;
+  left: 0; right: 0; top: 0;
   min-height: 58px;
+
+  display: flex;
   flex-direction: row;
   align-items: center;
-  padding-left: 12px; padding-right: 12px; padding-top: 8px; padding-bottom: 8px;
+
+  padding-left: 12px;
+  padding-right: 12px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+
   background-color: rgba(0,0,0,0.55);
+}
+
+.top-left-res {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.top-center-time {
+  position: absolute;
+  left: 0; right: 0;
+  top: 0; bottom: 0;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  pointer-events: none;
 }
 
 .time-block { flex-direction: column; margin-right: 14px; }
@@ -76,3 +104,103 @@ Button:active { background-color: rgba(255,255,255,0.22); }
 
 .noti-title { -unity-font-style: bold; font-size: 12px; }
 .noti-body { color: rgb(210,210,210); font-size: 11px; margin-top: 2px; }
+
+  .lbl-time-center {
+  -unity-font-style: bold;
+  font-size: 14px;
+}
+
+.lbl-phase-center {
+  color: rgb(210,210,210);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* RIGHT controls */
+.top-right-controls {
+  margin-left: auto;
+
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.speed-btn {
+  height: 32px;
+  min-width: 44px;
+  margin-left: 6px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.speed-btn.is-on {
+  background-color: rgba(64,140,255,0.35);
+}
+
+.top-settings-btn {
+  height: 34px;
+  min-width: 98px;
+  margin-left: 12px;
+}
+
+/* ===== Resource chips (giữ như hiện tại nếu bạn đã có) ===== */
+.res-chip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+
+  padding-left: 8px;
+  padding-right: 8px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+
+  margin-right: 8px;
+
+  border-radius: 999px;
+  background-color: rgba(255,255,255,0.08);
+}
+
+.res-key { color: rgb(200,200,200); font-size: 11px; margin-right: 6px; }
+.res-val { -unity-font-style: bold; font-size: 12px; }
+
+/* ===== Bottom bar ===== */
+.bottombar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 72px;
+
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.tool-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Nút hình vuông */
+.tool-btn {
+  width: 48px;
+  height: 48px;
+  margin-left: 10px;
+  margin-right: 10px;
+
+  padding-left: 0;
+  padding-right: 0;
+
+  border-radius: 10px;
+  -unity-font-style: bold;
+  font-size: 13px;
+}
+
+/* Nút rộng hơn cho ESC/Cancel */
+.tool-btn-wide {
+  width: 72px;
+}

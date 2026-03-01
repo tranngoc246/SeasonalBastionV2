@@ -1,49 +1,74 @@
-<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+﻿<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
+
     <ui:VisualElement name="HUDRoot" class="hud-root">
 
+        <!-- TOP BAR (block world input) -->
         <ui:VisualElement name="TopBar" class="topbar ui-block-world" picking-mode="Position">
-            <ui:VisualElement class="time-block">
-                <ui:Label name="LblTime" text="Year 1 - Spring D1" class="lbl-time" />
-                <ui:Label name="LblPhase" text="Build" class="lbl-phase" />
-            </ui:VisualElement>
 
-            <ui:VisualElement name="ResourceBar" class="resbar">
+            <!-- LEFT: Resource bar sát lề trái -->
+            <ui:VisualElement name="ResourceBar" class="top-left-res">
                 <ui:VisualElement class="res-chip">
                     <ui:Label text="Wood" class="res-key" />
                     <ui:Label name="LblResWood" text="0" class="res-val" />
                 </ui:VisualElement>
+
                 <ui:VisualElement class="res-chip">
                     <ui:Label text="Food" class="res-key" />
                     <ui:Label name="LblResFood" text="0" class="res-val" />
                 </ui:VisualElement>
+
                 <ui:VisualElement class="res-chip">
                     <ui:Label text="Stone" class="res-key" />
                     <ui:Label name="LblResStone" text="0" class="res-val" />
                 </ui:VisualElement>
+
                 <ui:VisualElement class="res-chip">
                     <ui:Label text="Iron" class="res-key" />
                     <ui:Label name="LblResIron" text="0" class="res-val" />
                 </ui:VisualElement>
+
                 <ui:VisualElement class="res-chip">
                     <ui:Label text="Ammo" class="res-key" />
                     <ui:Label name="LblResAmmo" text="0" class="res-val" />
                 </ui:VisualElement>
             </ui:VisualElement>
 
-            <ui:VisualElement class="speed-group">
+            <!-- CENTER: Year/Day ở chính giữa -->
+            <ui:VisualElement class="top-center-time" picking-mode="Ignore">
+                <ui:Label name="LblTime" text="Year 1 • Spring D1" class="lbl-time-center" />
+                <ui:Label name="LblPhase" text="Build" class="lbl-phase-center" />
+            </ui:VisualElement>
+
+            <!-- RIGHT: speed + settings -->
+            <ui:VisualElement class="top-right-controls">
                 <ui:Button name="BtnPause" text="||" class="speed-btn" />
                 <ui:Button name="BtnSpeed1" text="x1" class="speed-btn is-on" />
                 <ui:Button name="BtnSpeed2" text="x2" class="speed-btn" />
                 <ui:Button name="BtnSpeed3" text="x3" class="speed-btn" />
+
+                <ui:Button name="BtnSettings" text="Settings" class="top-settings-btn" />
             </ui:VisualElement>
 
-            <ui:VisualElement class="hud-actions">
-                <ui:Button name="BtnBuild" text="Build" class="hud-btn primary" />
-                <ui:Button name="BtnSettings" text="Settings" class="hud-btn" />
+        </ui:VisualElement>
+
+        <!-- Notifications: non-blocking -->
+        <ui:VisualElement name="NotiStack" class="noti-stack" picking-mode="Ignore" />
+
+        <!-- BOTTOM BAR (block world input) -->
+        <ui:VisualElement name="BottomBar" class="bottombar ui-block-world" picking-mode="Position">
+            <ui:VisualElement class="tool-group">
+
+                <!-- IMPORTANT: giữ name BtnBuild để HudPresenter vẫn bắt click -->
+                <ui:Button name="BtnBuild" text="B" class="tool-btn" />
+
+                <!-- các nút tool khác: bạn wire sau -->
+                <ui:Button name="BtnToolRoad" text="R" class="tool-btn" />
+                <ui:Button name="BtnToolRemove" text="X" class="tool-btn" />
+                <ui:Button name="BtnToolCancel" text="ESC" class="tool-btn tool-btn-wide" />
+
             </ui:VisualElement>
         </ui:VisualElement>
 
-        <ui:VisualElement name="NotiStack" class="noti-stack" picking-mode="Ignore" />
     </ui:VisualElement>
 </ui:UXML>

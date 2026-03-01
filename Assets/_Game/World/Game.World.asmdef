@@ -1,17 +1,17 @@
 {
-"name": "Game.World",
-"rootNamespace": "SeasonalBastion",
-"references": [
-  "Game.Contracts",
-  "Game.Core"
-],
-  "includePlatforms": [],
-  "excludePlatforms": [],
-  "allowUnsafeCode": false,
-  "overrideReferences": false,
-  "precompiledReferences": [],
-  "autoReferenced": true,
-  "defineConstraints": [],
-  "versionDefines": [],
-  "noEngineReferences": false
+    "name": "Game.World",
+    "rootNamespace": "SeasonalBastion",
+    "references": [
+        "Game.Contracts",
+        "Game.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
 }

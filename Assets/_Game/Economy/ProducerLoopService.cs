@@ -127,10 +127,10 @@ namespace SeasonalBastion
         private static bool TryGetProducedResource(string defId, out ResourceType rt)
         {
             // Day36 subset (mở rộng để đủ bộ core resources): Farm/Lumber/Quarry/IronHut
-            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) { rt = ResourceType.Food; return true; }
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) { rt = ResourceType.Wood; return true; }
-            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) { rt = ResourceType.Stone; return true; }
-            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) { rt = ResourceType.Iron; return true; }
+            if (EqualsIgnoreCase(defId, "bld_farmhouse")) { rt = ResourceType.Food; return true; }
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) { rt = ResourceType.Wood; return true; }
+            if (EqualsIgnoreCase(defId, "bld_quarry")) { rt = ResourceType.Stone; return true; }
+            if (EqualsIgnoreCase(defId, "bld_ironhut")) { rt = ResourceType.Iron; return true; }
 
             rt = default;
             return false;
@@ -142,10 +142,10 @@ namespace SeasonalBastion
         private static string ShortName(string defId)
         {
             if (string.IsNullOrEmpty(defId)) return "Producer";
-            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return "Farmhouse";
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return "LumberCamp";
-            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return "Quarry";
-            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return "IronHut";
+            if (EqualsIgnoreCase(defId, "bld_farmhouse")) return "Farmhouse";
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return "LumberCamp";
+            if (EqualsIgnoreCase(defId, "bld_quarry")) return "Quarry";
+            if (EqualsIgnoreCase(defId, "bld_ironhut")) return "IronHut";
             return defId;
         }
     }

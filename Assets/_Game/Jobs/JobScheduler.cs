@@ -507,8 +507,8 @@ namespace SeasonalBastion
                 if (prt != rt) continue;
 
                 // M4: only wood+food producers
-                if (rt == ResourceType.Wood && !EqualsIgnoreCase(bs.DefId, "bld_lumbercamp_t1")) continue;
-                if (rt == ResourceType.Food && !EqualsIgnoreCase(bs.DefId, "bld_farmhouse_t1")) continue;
+                if (rt == ResourceType.Wood && !EqualsIgnoreCase(bs.DefId, "bld_lumbercamp")) continue;
+                if (rt == ResourceType.Food && !EqualsIgnoreCase(bs.DefId, "bld_farmhouse")) continue;
 
                 producer = bid;
                 return true;
@@ -591,35 +591,35 @@ namespace SeasonalBastion
 
         private static bool IsWarehouseWorkplace(string defId)
         {
-            return EqualsIgnoreCase(defId, "bld_warehouse_t1")
-                || EqualsIgnoreCase(defId, "bld_hq_t1");
+            return EqualsIgnoreCase(defId, "bld_warehouse")
+                || EqualsIgnoreCase(defId, "bld_hq");
         }
 
         // Harvest subset ONLY (do not include Forge)
         private static bool IsHarvestProducer(string defId)
         {
-            return EqualsIgnoreCase(defId, "bld_farmhouse_t1")
-                || EqualsIgnoreCase(defId, "bld_lumbercamp_t1")
-                || EqualsIgnoreCase(defId, "bld_quarry_t1")
-                || EqualsIgnoreCase(defId, "bld_ironhut_t1");
+            return EqualsIgnoreCase(defId, "bld_farmhouse")
+                || EqualsIgnoreCase(defId, "bld_lumbercamp")
+                || EqualsIgnoreCase(defId, "bld_quarry")
+                || EqualsIgnoreCase(defId, "bld_ironhut");
         }
 
         private static ResourceType HarvestResourceType(string defId)
         {
-            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return ResourceType.Food;
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return ResourceType.Wood;
-            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return ResourceType.Stone;
-            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return ResourceType.Iron;
+            if (EqualsIgnoreCase(defId, "bld_farmhouse")) return ResourceType.Food;
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return ResourceType.Wood;
+            if (EqualsIgnoreCase(defId, "bld_quarry")) return ResourceType.Stone;
+            if (EqualsIgnoreCase(defId, "bld_ironhut")) return ResourceType.Iron;
             return ResourceType.Food;
         }
 
         private static int HarvestLocalCap(string defId, int level)
         {
             // Local Storage Caps (LOCKED)
-            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return level == 1 ? 30 : level == 2 ? 60 : 90;
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            if (EqualsIgnoreCase(defId, "bld_farmhouse")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (EqualsIgnoreCase(defId, "bld_quarry")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (EqualsIgnoreCase(defId, "bld_ironhut")) return level == 1 ? 30 : level == 2 ? 60 : 90;
             return 0;
         }
 
@@ -627,7 +627,7 @@ namespace SeasonalBastion
         private static int DestCap(string defId, int level, ResourceType rt)
         {
             // Warehouse: 300/600/1000 each (Wood/Food/Stone/Iron), Ammo=0
-            if (EqualsIgnoreCase(defId, "bld_warehouse_t1"))
+            if (EqualsIgnoreCase(defId, "bld_warehouse"))
             {
                 return rt switch
                 {
@@ -638,7 +638,7 @@ namespace SeasonalBastion
             }
 
             // HQ: 120/180/240 each (core only), Ammo=0
-            if (EqualsIgnoreCase(defId, "bld_hq_t1"))
+            if (EqualsIgnoreCase(defId, "bld_hq"))
             {
                 return rt switch
                 {

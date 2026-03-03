@@ -204,28 +204,28 @@ namespace SeasonalBastion
         private static void GetHarvestParams(string defId, int level, out float workSec, out int yield)
         {
             // PART27 Day12 defaults (LOCKED tables)
-            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1"))
+            if (EqualsIgnoreCase(defId, "bld_farmhouse"))
             {
                 workSec = 6f;
                 yield = level == 1 ? 6 : level == 2 ? 8 : 10;
                 return;
             }
 
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1"))
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp"))
             {
                 workSec = 4f;
                 yield = level == 1 ? 6 : level == 2 ? 8 : 10;
                 return;
             }
 
-            if (EqualsIgnoreCase(defId, "bld_quarry_t1"))
+            if (EqualsIgnoreCase(defId, "bld_quarry"))
             {
                 workSec = 5f;
                 yield = level == 1 ? 6 : level == 2 ? 8 : 10;
                 return;
             }
 
-            if (EqualsIgnoreCase(defId, "bld_ironhut_t1"))
+            if (EqualsIgnoreCase(defId, "bld_ironhut"))
             {
                 workSec = 6f;
                 yield = level == 1 ? 4 : level == 2 ? 6 : 8;
@@ -238,18 +238,18 @@ namespace SeasonalBastion
 
         private static bool IsHarvestProducer(string defId)
         {
-            return EqualsIgnoreCase(defId, "bld_farmhouse_t1")
-                || EqualsIgnoreCase(defId, "bld_lumbercamp_t1")
-                || EqualsIgnoreCase(defId, "bld_quarry_t1")
-                || EqualsIgnoreCase(defId, "bld_ironhut_t1");
+            return EqualsIgnoreCase(defId, "bld_farmhouse")
+                || EqualsIgnoreCase(defId, "bld_lumbercamp")
+                || EqualsIgnoreCase(defId, "bld_quarry")
+                || EqualsIgnoreCase(defId, "bld_ironhut");
         }
 
         private static ResourceType HarvestResourceType(string defId)
         {
-            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return ResourceType.Food;
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return ResourceType.Wood;
-            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return ResourceType.Stone;
-            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return ResourceType.Iron;
+            if (EqualsIgnoreCase(defId, "bld_farmhouse")) return ResourceType.Food;
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return ResourceType.Wood;
+            if (EqualsIgnoreCase(defId, "bld_quarry")) return ResourceType.Stone;
+            if (EqualsIgnoreCase(defId, "bld_ironhut")) return ResourceType.Iron;
             return ResourceType.Food;
         }
 

@@ -8,8 +8,8 @@ namespace SeasonalBastion
     {
         private readonly GameServices _s;
 
-        private static bool IsWarehouseOnly(string defId) => EqualsIgnoreCase(defId, "bld_warehouse_t1");
-        private static bool IsHQOnly(string defId) => EqualsIgnoreCase(defId, "bld_hq_t1");
+        private static bool IsWarehouseOnly(string defId) => EqualsIgnoreCase(defId, "bld_warehouse");
+        private static bool IsHQOnly(string defId) => EqualsIgnoreCase(defId, "bld_hq");
 
         // jobId -> phase (0 pickup, 1 deliver)
         private readonly Dictionary<int, byte> _phase = new();
@@ -385,16 +385,16 @@ namespace SeasonalBastion
 
         private static bool IsWarehouseWorkplace(string defId)
         {
-            return EqualsIgnoreCase(defId, "bld_warehouse_t1")
-                || EqualsIgnoreCase(defId, "bld_hq_t1");
+            return EqualsIgnoreCase(defId, "bld_warehouse")
+                || EqualsIgnoreCase(defId, "bld_hq");
         }
 
         private static bool IsHarvestProducer(string defId)
         {
-            return EqualsIgnoreCase(defId, "bld_farmhouse_t1")
-                || EqualsIgnoreCase(defId, "bld_lumbercamp_t1")
-                || EqualsIgnoreCase(defId, "bld_quarry_t1")
-                || EqualsIgnoreCase(defId, "bld_ironhut_t1");
+            return EqualsIgnoreCase(defId, "bld_farmhouse")
+                || EqualsIgnoreCase(defId, "bld_lumbercamp")
+                || EqualsIgnoreCase(defId, "bld_quarry")
+                || EqualsIgnoreCase(defId, "bld_ironhut");
         }
 
         private static ResourceType HarvestResourceType(string defId)
@@ -424,7 +424,7 @@ namespace SeasonalBastion
             int lvl = NormalizeLevel(dstState.Level);
             int cap = 0;
 
-            if (EqualsIgnoreCase(dstState.DefId, "bld_warehouse_t1"))
+            if (EqualsIgnoreCase(dstState.DefId, "bld_warehouse"))
             {
                 cap = rt switch
                 {
@@ -433,7 +433,7 @@ namespace SeasonalBastion
                     _ => 0
                 };
             }
-            else if (EqualsIgnoreCase(dstState.DefId, "bld_hq_t1"))
+            else if (EqualsIgnoreCase(dstState.DefId, "bld_hq"))
             {
                 cap = rt switch
                 {
@@ -463,10 +463,10 @@ namespace SeasonalBastion
         private static int LocalCapForProducer(string defId, int level, ResourceType rt)
         {
             // local caps LOCKED (đúng mapping bạn đã dùng ở JobScheduler)
-            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return level == 1 ? 30 : level == 2 ? 60 : 90;
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            if (EqualsIgnoreCase(defId, "bld_farmhouse")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (EqualsIgnoreCase(defId, "bld_quarry")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (EqualsIgnoreCase(defId, "bld_ironhut")) return level == 1 ? 30 : level == 2 ? 60 : 90;
             return 0;
         }
 

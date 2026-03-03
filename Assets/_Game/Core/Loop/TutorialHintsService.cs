@@ -265,8 +265,8 @@ namespace SeasonalBastion
         private static bool TryGetProducedResource(string defId, out ResourceType rt)
         {
             // match Day36 subset
-            if (string.Equals(defId, "bld_farmhouse_t1", StringComparison.OrdinalIgnoreCase)) { rt = ResourceType.Food; return true; }
-            if (string.Equals(defId, "bld_lumbercamp_t1", StringComparison.OrdinalIgnoreCase)) { rt = ResourceType.Wood; return true; }
+            if (string.Equals(defId, "bld_farmhouse", StringComparison.OrdinalIgnoreCase)) { rt = ResourceType.Food; return true; }
+            if (string.Equals(defId, "bld_lumbercamp", StringComparison.OrdinalIgnoreCase)) { rt = ResourceType.Wood; return true; }
             rt = default;
             return false;
         }

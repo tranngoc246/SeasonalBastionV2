@@ -64,6 +64,11 @@ namespace SeasonalBastion
         private Dir4 _rot = Dir4.N;
         private UiToolMode _tool = UiToolMode.None;
 
+        // Expose state for UI world selection controller
+        public bool IsInPlacementMode => !string.IsNullOrEmpty(_placeDefId);
+        public UiToolMode ActiveToolMode => _tool;
+        public bool IsWorldActionActive => IsInPlacementMode || _tool != UiToolMode.None;
+
         private CellPos _lastPaint = new CellPos(int.MinValue, int.MinValue);
 
         // preview caching

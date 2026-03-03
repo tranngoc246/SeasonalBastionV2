@@ -1,5 +1,6 @@
 ﻿using System;
 using SeasonalBastion.Contracts;
+using SeasonalBastion.RunStart;
 
 namespace SeasonalBastion
 {
@@ -11,6 +12,8 @@ namespace SeasonalBastion
         private readonly IWorldIndex _index;
         private readonly IEventBus _bus;
 
+        private RunStartRuntime _runStart;
+
         private IBuildOrderService _buildOrders;
 
         public void BindBuildOrders(IBuildOrderService buildOrders)
@@ -20,6 +23,11 @@ namespace SeasonalBastion
 
         public PlacementService(IGridMap grid, IWorldState world, IDataRegistry data, IWorldIndex index, IEventBus bus)
         { _grid = grid; _world = world; _data = data; _index = index; _bus = bus; }
+
+        public void BindRunStart(RunStartRuntime runStart)
+        {
+            _runStart = runStart;
+        }
 
         private static CellPos Add(CellPos a, int dx, int dy) => new CellPos(a.X + dx, a.Y + dy);
 
@@ -37,6 +45,19 @@ namespace SeasonalBastion
                 Dir4.W => new CellPos(anchor.X - 1, anchor.Y + cy),
                 _ => new CellPos(anchor.X + cx, anchor.Y + h),
             };
+        }
+
+        private bool HasBuildableRect()
+        {
+            if (_runStart == null) return false;
+            // same pattern as RunStartApplier
+            return (_runStart.BuildableRect.XMax != 0 || _runStart.BuildableRect.YMax != 0);
+        }
+
+        private bool IsInBuildable(CellPos c)
+        {
+            if (!HasBuildableRect()) return true;
+            return _runStart.BuildableRect.Contains(c);
         }
 
         private bool HasAnyRoad()
@@ -69,6 +90,8 @@ namespace SeasonalBastion
         public bool CanPlaceRoad(CellPos c)
         {
             if (!_grid.IsInside(c)) return false;
+
+            if (!IsInBuildable(c)) return false;
 
             if (_grid.IsBlocked(c)) return false;
 
@@ -131,6 +154,9 @@ namespace SeasonalBastion
                     if (!_grid.IsInside(c))
                         return new PlacementResult(false, PlacementFailReason.OutOfBounds, entry);
 
+                    if (!IsInBuildable(c))
+                        return new PlacementResult(false, PlacementFailReason.OutOfBounds, entry);
+
                     // road overlap invalid
                     if (_grid.IsRoad(c))
                         return new PlacementResult(false, PlacementFailReason.Overlap, entry);
@@ -145,6 +171,9 @@ namespace SeasonalBastion
             }
 
             // 2) entry/road connectivity (len=1)
+
+            if (!IsInBuildable(entry))
+                return new PlacementResult(false, PlacementFailReason.OutOfBounds, entry);
 
             // If entry is outside map -> cannot connect
             if (!_grid.IsInside(entry))

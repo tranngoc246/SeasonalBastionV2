@@ -76,6 +76,7 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private int _quickSpawnCount = 1;
 
         [SerializeField] private string _quickGiveAmtStr = "200";
+        [SerializeField] private string _quickDamageAmtStr = "50";
 
         // tmp lists (avoid modifying stores while iterating)
         private readonly List<EnemyId> _enemyIdsTmp = new List<EnemyId>(128);
@@ -114,6 +115,11 @@ namespace SeasonalBastion.DebugTools
         private readonly List<string> _buildSlotsTmp = new List<string>(8);
 
         private DebugSaveLoadHUD _saveLoadHUD = new DebugSaveLoadHUD();
+
+        // ===== Hover cache (so button click doesn't lose target) =====
+        private BuildingId _cachedHoverBuilding;
+        private float _cachedHoverTime;
+        private const float HoverCacheTTL = 3.0f; // seconds
 
         private void Awake()
         {
@@ -161,6 +167,7 @@ namespace SeasonalBastion.DebugTools
         }
         private void Update()
         {
+            CacheHoverTarget();
             // Fallback: nếu scene chưa có DebugInputRouter thì Hub tự poll hotkeys để khỏi “mất phím”.
             if (_selfPollHotkeysWhenNoRouter)
             {
@@ -191,6 +198,50 @@ namespace SeasonalBastion.DebugTools
             if (_waveHud == null) _waveHud = FindObjectOfType<DebugWaveHUD>();
 
             ApplyMode(_mode);
+        }
+
+        private void CacheHoverTarget()
+        {
+            if (_gs?.WorldState?.Buildings == null || _gs.GridMap == null) return;
+            if (!SeasonalBastion.DebugTools.MouseCellSharedState.HasValue) return;
+
+            var cell = SeasonalBastion.DebugTools.MouseCellSharedState.Cell;
+            var occ = _gs.GridMap.Get(cell);
+
+            // Building
+            if (occ.Kind == CellOccupancyKind.Building && occ.Building.Value != 0 && _gs.WorldState.Buildings.Exists(occ.Building))
+            {
+                _cachedHoverBuilding = occ.Building;
+                _cachedHoverTime = Time.unscaledTime;
+                return;
+            }
+
+            // Site -> TargetBuilding
+            if (occ.Kind == CellOccupancyKind.Site && occ.Site.Value != 0 && _gs.WorldState.Sites != null && _gs.WorldState.Sites.Exists(occ.Site))
+            {
+                var st = _gs.WorldState.Sites.Get(occ.Site);
+                if (st.TargetBuilding.Value != 0 && _gs.WorldState.Buildings.Exists(st.TargetBuilding))
+                {
+                    _cachedHoverBuilding = st.TargetBuilding;
+                    _cachedHoverTime = Time.unscaledTime;
+                }
+            }
+        }
+
+        private bool TryGetCachedBuilding(out BuildingId bid, out BuildingState bs)
+        {
+            bid = default;
+            bs = default;
+
+            if (_gs?.WorldState?.Buildings == null) return false;
+            if (_cachedHoverBuilding.Value == 0) return false;
+
+            if (Time.unscaledTime - _cachedHoverTime > HoverCacheTTL) return false;
+            if (!_gs.WorldState.Buildings.Exists(_cachedHoverBuilding)) return false;
+
+            bid = _cachedHoverBuilding;
+            bs = _gs.WorldState.Buildings.Get(bid);
+            return true;
         }
 
         public void HandleHotkeys(Keyboard kb)
@@ -297,6 +348,31 @@ namespace SeasonalBastion.DebugTools
 
             if (GUILayout.Button("Complete CURRENT site under mouse", GUILayout.Width(260)))
                 Quick_CompleteCurrentSiteUnderMouse();
+
+            GUILayout.Space(6);
+
+            // ===== Repair Test =====
+            GUILayout.Label("Repair Test (building under mouse)");
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Dmg", GUILayout.Width(30));
+            _quickDamageAmtStr = GUILayout.TextField(_quickDamageAmtStr, GUILayout.Width(60));
+            if (GUILayout.Button("10", GUILayout.Width(40))) _quickDamageAmtStr = "10";
+            if (GUILayout.Button("50", GUILayout.Width(40))) _quickDamageAmtStr = "50";
+            if (GUILayout.Button("200", GUILayout.Width(50))) _quickDamageAmtStr = "200";
+            GUILayout.EndHorizontal();
+
+            int dmg = 50;
+            if (!int.TryParse(_quickDamageAmtStr, out dmg) || dmg <= 0) dmg = 50;
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button($"Damage -{dmg}", GUILayout.Width(140))) Quick_DamageBuildingUnderMouse(dmg);
+            if (GUILayout.Button("Set HP = 1", GUILayout.Width(120))) Quick_SetHpUnderMouse(1);
+            if (GUILayout.Button("Heal Full", GUILayout.Width(120))) Quick_HealBuildingUnderMouse();
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Create Repair Order", GUILayout.Width(170))) Quick_CreateRepairOrderUnderMouse();
+            GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
 
@@ -933,6 +1009,143 @@ namespace SeasonalBastion.DebugTools
             }
 
             GUILayout.EndScrollView();
+        }
+
+        private bool TryFindBuildingFromHover(out BuildingId bid, out BuildingState bs)
+        {
+            // NEW: ưu tiên cached hover (vì bấm nút thì chuột đã rời world)
+            if (TryGetCachedBuilding(out bid, out bs))
+                return true;
+
+            bid = default;
+            bs = default;
+
+            if (_gs?.WorldState?.Buildings == null || _gs.GridMap == null) return false;
+            if (!MouseCellSharedState.HasValue) return false;
+
+            var cell = MouseCellSharedState.Cell;
+            var occ = _gs.GridMap.Get(cell);
+
+            // Case 1: hover on building cell
+            if (occ.Kind == CellOccupancyKind.Building && occ.Building.Value != 0 && _gs.WorldState.Buildings.Exists(occ.Building))
+            {
+                bid = occ.Building;
+                bs = _gs.WorldState.Buildings.Get(bid);
+                return true;
+            }
+
+            // Case 2: hover on site cell -> use TargetBuilding
+            if (occ.Kind == CellOccupancyKind.Site && occ.Site.Value != 0 && _gs.WorldState.Sites != null && _gs.WorldState.Sites.Exists(occ.Site))
+            {
+                var st = _gs.WorldState.Sites.Get(occ.Site);
+                if (st.TargetBuilding.Value != 0 && _gs.WorldState.Buildings.Exists(st.TargetBuilding))
+                {
+                    bid = st.TargetBuilding;
+                    bs = _gs.WorldState.Buildings.Get(bid);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void EnsureHp(ref BuildingState bs)
+        {
+            if (bs.MaxHP <= 0)
+            {
+                int mhp = 100;
+                try { mhp = Mathf.Max(1, _gs.DataRegistry.GetBuilding(bs.DefId).MaxHp); } catch { }
+                bs.MaxHP = mhp;
+                if (bs.HP <= 0) bs.HP = bs.MaxHP;
+            }
+
+            if (bs.HP > bs.MaxHP) bs.HP = bs.MaxHP;
+            if (bs.HP < 0) bs.HP = 0;
+        }
+
+        private void Quick_DamageBuildingUnderMouse(int damage)
+        {
+            if (_gs == null) return;
+
+            if (!TryFindBuildingFromHover(out var bid, out var bs))
+            {
+                _gs.NotificationService?.Push("dbg_damage_none", "Debug", "No building under mouse (need MouseCellSharedState).",
+                    NotificationSeverity.Warning, default, 0.2f, true);
+                return;
+            }
+
+            EnsureHp(ref bs);
+
+            bs.HP -= Mathf.Max(1, damage);
+            if (bs.HP < 0) bs.HP = 0;
+
+            _gs.WorldState.Buildings.Set(bid, bs);
+
+            _gs.NotificationService?.Push("dbg_damage_ok", "Debug",
+                $"Damaged {bs.DefId} #{bid.Value}: {bs.HP}/{bs.MaxHP}",
+                NotificationSeverity.Warning, default, 0.1f, true);
+        }
+
+        private void Quick_SetHpUnderMouse(int hp)
+        {
+            if (_gs == null) return;
+
+            if (!TryFindBuildingFromHover(out var bid, out var bs))
+            {
+                _gs.NotificationService?.Push("dbg_sethp_none", "Debug", "No building under mouse.",
+                    NotificationSeverity.Warning, default, 0.2f, true);
+                return;
+            }
+
+            EnsureHp(ref bs);
+
+            bs.HP = Mathf.Clamp(hp, 0, bs.MaxHP);
+            _gs.WorldState.Buildings.Set(bid, bs);
+
+            _gs.NotificationService?.Push("dbg_sethp_ok", "Debug",
+                $"Set HP {bs.DefId} #{bid.Value}: {bs.HP}/{bs.MaxHP}",
+                NotificationSeverity.Info, default, 0.1f, true);
+        }
+
+        private void Quick_HealBuildingUnderMouse()
+        {
+            if (_gs == null) return;
+
+            if (!TryFindBuildingFromHover(out var bid, out var bs))
+            {
+                _gs.NotificationService?.Push("dbg_heal_none", "Debug", "No building under mouse.",
+                    NotificationSeverity.Warning, default, 0.2f, true);
+                return;
+            }
+
+            EnsureHp(ref bs);
+
+            bs.HP = bs.MaxHP;
+            _gs.WorldState.Buildings.Set(bid, bs);
+
+            _gs.NotificationService?.Push("dbg_heal_ok", "Debug",
+                $"Healed {bs.DefId} #{bid.Value}: {bs.HP}/{bs.MaxHP}",
+                NotificationSeverity.Info, default, 0.1f, true);
+        }
+
+        private void Quick_CreateRepairOrderUnderMouse()
+        {
+            if (_gs == null) return;
+
+            if (!TryFindBuildingFromHover(out var bid, out var bs))
+            {
+                _gs.NotificationService?.Push("dbg_repair_none", "Debug", "No building under mouse.",
+                    NotificationSeverity.Warning, default, 0.2f, true);
+                return;
+            }
+
+            int id = _gs.BuildOrderService.CreateRepairOrder(bid);
+            if (id > 0)
+                _gs.NotificationService?.Push("dbg_repair_ok", "Debug", $"Repair order #{id} created for #{bid.Value}",
+                    NotificationSeverity.Info, default, 0.1f, true);
+            else
+                _gs.NotificationService?.Push("dbg_repair_fail", "Debug", "Repair order not created (full HP / invalid / duplicate).",
+                    NotificationSeverity.Warning, default, 0.25f, true);
         }
     }
 }

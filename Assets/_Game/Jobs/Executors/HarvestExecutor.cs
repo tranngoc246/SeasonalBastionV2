@@ -203,7 +203,7 @@ namespace SeasonalBastion
 
         private static void GetHarvestParams(string defId, int level, out float workSec, out int yield)
         {
-            // PART27 Day12 defaults (LOCKED tables)
+            defId = DefIdTierUtil.BaseId(defId);
             if (EqualsIgnoreCase(defId, "bld_farmhouse"))
             {
                 workSec = 6f;
@@ -238,6 +238,7 @@ namespace SeasonalBastion
 
         private static bool IsHarvestProducer(string defId)
         {
+            defId = DefIdTierUtil.BaseId(defId);
             return EqualsIgnoreCase(defId, "bld_farmhouse")
                 || EqualsIgnoreCase(defId, "bld_lumbercamp")
                 || EqualsIgnoreCase(defId, "bld_quarry")
@@ -246,6 +247,7 @@ namespace SeasonalBastion
 
         private static ResourceType HarvestResourceType(string defId)
         {
+            defId = DefIdTierUtil.BaseId(defId);
             if (EqualsIgnoreCase(defId, "bld_farmhouse")) return ResourceType.Food;
             if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return ResourceType.Wood;
             if (EqualsIgnoreCase(defId, "bld_quarry")) return ResourceType.Stone;

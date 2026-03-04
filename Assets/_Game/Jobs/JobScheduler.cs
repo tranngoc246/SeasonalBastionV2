@@ -506,9 +506,9 @@ namespace SeasonalBastion
                 var prt = HarvestResourceType(bs.DefId);
                 if (prt != rt) continue;
 
-                // M4: only wood+food producers
-                if (rt == ResourceType.Wood && !EqualsIgnoreCase(bs.DefId, "bld_lumbercamp")) continue;
-                if (rt == ResourceType.Food && !EqualsIgnoreCase(bs.DefId, "bld_farmhouse")) continue;
+                var baseId = DefIdTierUtil.BaseId(bs.DefId);
+                if (rt == ResourceType.Wood && !EqualsIgnoreCase(baseId, "bld_lumbercamp")) continue;
+                if (rt == ResourceType.Food && !EqualsIgnoreCase(baseId, "bld_farmhouse")) continue;
 
                 producer = bid;
                 return true;
@@ -591,13 +591,14 @@ namespace SeasonalBastion
 
         private static bool IsWarehouseWorkplace(string defId)
         {
+            defId = DefIdTierUtil.BaseId(defId);
             return EqualsIgnoreCase(defId, "bld_warehouse")
                 || EqualsIgnoreCase(defId, "bld_hq");
         }
 
-        // Harvest subset ONLY (do not include Forge)
         private static bool IsHarvestProducer(string defId)
         {
+            defId = DefIdTierUtil.BaseId(defId);
             return EqualsIgnoreCase(defId, "bld_farmhouse")
                 || EqualsIgnoreCase(defId, "bld_lumbercamp")
                 || EqualsIgnoreCase(defId, "bld_quarry")
@@ -606,6 +607,7 @@ namespace SeasonalBastion
 
         private static ResourceType HarvestResourceType(string defId)
         {
+            defId = DefIdTierUtil.BaseId(defId);
             if (EqualsIgnoreCase(defId, "bld_farmhouse")) return ResourceType.Food;
             if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return ResourceType.Wood;
             if (EqualsIgnoreCase(defId, "bld_quarry")) return ResourceType.Stone;
@@ -615,7 +617,7 @@ namespace SeasonalBastion
 
         private static int HarvestLocalCap(string defId, int level)
         {
-            // Local Storage Caps (LOCKED)
+            defId = DefIdTierUtil.BaseId(defId);
             if (EqualsIgnoreCase(defId, "bld_farmhouse")) return level == 1 ? 30 : level == 2 ? 60 : 90;
             if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return level == 1 ? 40 : level == 2 ? 80 : 120;
             if (EqualsIgnoreCase(defId, "bld_quarry")) return level == 1 ? 40 : level == 2 ? 80 : 120;
@@ -623,10 +625,10 @@ namespace SeasonalBastion
             return 0;
         }
 
-        // NEW: Dest caps for hauling (LOCKED)
         private static int DestCap(string defId, int level, ResourceType rt)
         {
-            // Warehouse: 300/600/1000 each (Wood/Food/Stone/Iron), Ammo=0
+            defId = DefIdTierUtil.BaseId(defId);
+
             if (EqualsIgnoreCase(defId, "bld_warehouse"))
             {
                 return rt switch
@@ -637,7 +639,6 @@ namespace SeasonalBastion
                 };
             }
 
-            // HQ: 120/180/240 each (core only), Ammo=0
             if (EqualsIgnoreCase(defId, "bld_hq"))
             {
                 return rt switch

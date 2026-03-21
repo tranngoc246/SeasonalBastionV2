@@ -3,7 +3,7 @@ using System;
 namespace SeasonalBastion.RunStart
 {
     [Serializable]
-    internal sealed class StartMapConfigRootDto
+    internal sealed class StartMapConfigDto
     {
         public int schemaVersion;
         public CoordSystemDto coordSystem;

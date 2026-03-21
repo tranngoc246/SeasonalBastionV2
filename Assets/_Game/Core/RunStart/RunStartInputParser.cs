@@ -5,7 +5,7 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartInputParser
     {
-        public static bool TryParse(string jsonOrMarkdown, out StartMapConfigRootDto cfg, out string error)
+        public static bool TryParse(string jsonOrMarkdown, out StartMapConfigDto cfg, out string error)
         {
             cfg = null;
             error = null;
@@ -19,7 +19,7 @@ namespace SeasonalBastion.RunStart
 
             try
             {
-                cfg = JsonUtility.FromJson<StartMapConfigRootDto>(json);
+                cfg = JsonUtility.FromJson<StartMapConfigDto>(json);
             }
             catch (Exception ex)
             {

@@ -5,7 +5,7 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartHqResolver
     {
-        public static void BuildLaneRuntime(GameServices s, StartMapConfigRootDto cfg)
+        public static void BuildLaneRuntime(GameServices s, StartMapConfigDto cfg)
         {
             if (s?.RunStartRuntime == null) return;
             if (!TryResolveHQTargetCell(s, out _)) return;

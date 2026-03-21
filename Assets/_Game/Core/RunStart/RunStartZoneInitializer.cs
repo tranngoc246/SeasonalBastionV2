@@ -5,7 +5,7 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartZoneInitializer
     {
-        public static void Apply(GameServices s, StartMapConfigRootDto cfg)
+        public static void Apply(GameServices s, StartMapConfigDto cfg)
         {
             var zs = s?.WorldState?.Zones;
             if (zs == null) return;

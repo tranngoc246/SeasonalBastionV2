@@ -4,7 +4,7 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartNpcSpawner
     {
-        public static void Apply(GameServices s, StartMapConfigRootDto cfg, RunStartBuildContext ctx)
+        public static void Apply(GameServices s, StartMapConfigDto cfg, RunStartBuildContext ctx)
         {
             if (cfg.initialNpcs == null) return;
 

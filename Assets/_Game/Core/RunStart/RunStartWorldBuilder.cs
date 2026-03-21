@@ -6,7 +6,7 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartWorldBuilder
     {
-        public static bool Apply(GameServices s, StartMapConfigRootDto cfg, RunStartBuildContext ctx, out string error)
+        public static bool Apply(GameServices s, StartMapConfigDto cfg, RunStartBuildContext ctx, out string error)
         {
             error = null;
 

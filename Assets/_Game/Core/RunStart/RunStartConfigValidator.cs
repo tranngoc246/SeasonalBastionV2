@@ -2,7 +2,7 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartConfigValidator
     {
-        public static bool Validate(GameServices s, StartMapConfigRootDto cfg, out string error)
+        public static bool Validate(GameServices s, StartMapConfigDto cfg, out string error)
         {
             error = null;
             if (s == null) { error = "services=null"; return false; }
@@ -20,7 +20,7 @@ namespace SeasonalBastion.RunStart
             return ValidateStartMapHeader(cfg, out error);
         }
 
-        internal static bool ValidateStartMapHeader(StartMapConfigRootDto cfg, out string error)
+        internal static bool ValidateStartMapHeader(StartMapConfigDto cfg, out string error)
         {
             error = null;
 

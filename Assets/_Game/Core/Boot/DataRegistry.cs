@@ -239,7 +239,7 @@ namespace SeasonalBastion
             return _upgradeEdgesById.TryGetValue(edgeId, out edge) && edge != null;
         }
 
-        // UI helper: node có trong graph => theo Placeable; legacy => true
+        // UI helper: node cï¿½ trong graph => theo Placeable; legacy => true
         public bool IsPlaceableBuildable(string nodeId)
         {
             if (string.IsNullOrWhiteSpace(nodeId)) return false;
@@ -269,23 +269,16 @@ namespace SeasonalBastion
 
         private void LoadAllFromCatalog()
         {
-            ClearAll();
+            DataRegistryLoader.LoadAll(this, _catalog);
+        }
 
-            LoadBuildings(_catalog != null ? _catalog.Buildings : null);
-            LoadNpcs(_catalog != null ? _catalog.Npcs : null);
-            LoadTowers(_catalog != null ? _catalog.Towers : null);
-            LoadEnemies(_catalog != null ? _catalog.Enemies : null);
-            LoadRecipes(_catalog != null ? _catalog.Recipes : null);
-            LoadWaves(_catalog != null ? _catalog.Waves : null);
-            LoadRewards(_catalog != null ? _catalog.Rewards : null);
-            LoadBalance(_catalog != null ? _catalog.Balance : null);
-            LoadBuildablesGraph(_catalog != null ? _catalog.BuildablesGraph : null);
-
+        internal void ReportLoadErrorsIfAny()
+        {
             if (_loadErrors.Count > 0)
                 Debug.LogError($"[DataRegistry] Load finished with {_loadErrors.Count} error(s). Use DebugHUDHub -> Validate Data to inspect.");
         }
 
-        private void LoadBuildings(TextAsset ta)
+        internal void LoadBuildingsInternal(TextAsset ta)
         {
             if (ta == null)
             {
@@ -367,7 +360,7 @@ namespace SeasonalBastion
             Debug.Log($"[DataRegistry] Loaded Buildings: {added} (TextAsset: {ta.name})");
         }
 
-        private void LoadNpcs(TextAsset ta)
+        internal void LoadNpcsInternal(TextAsset ta)
         {
             if (ta == null)
             {
@@ -427,7 +420,7 @@ namespace SeasonalBastion
             Debug.Log($"[DataRegistry] Loaded Npcs: {added} (TextAsset: {ta.name})");
         }
 
-        private void LoadTowers(TextAsset ta)
+        internal void LoadTowersInternal(TextAsset ta)
         {
             if (ta == null)
             {
@@ -512,7 +505,7 @@ namespace SeasonalBastion
             Debug.Log($"[DataRegistry] Loaded Towers: {added} (TextAsset: {ta.name})");
         }
 
-        private void LoadEnemies(TextAsset ta)
+        internal void LoadEnemiesInternal(TextAsset ta)
         {
             if (ta == null)
             {
@@ -575,7 +568,7 @@ namespace SeasonalBastion
             Debug.Log($"[DataRegistry] Loaded Enemies: {added} (TextAsset: {ta.name})");
         }
 
-        private void LoadRecipes(TextAsset ta)
+        internal void LoadRecipesInternal(TextAsset ta)
         {
             if (ta == null)
             {
@@ -634,7 +627,7 @@ namespace SeasonalBastion
             Debug.Log($"[DataRegistry] Loaded Recipes: {added} (TextAsset: {ta.name})");
         }
 
-        private void LoadWaves(TextAsset ta)
+        internal void LoadWavesInternal(TextAsset ta)
         {
             if (ta == null)
             {
@@ -695,7 +688,7 @@ namespace SeasonalBastion
             Debug.Log($"[DataRegistry] Loaded Waves: {added} (TextAsset: {ta.name})");
         }
 
-        private void LoadRewards(TextAsset ta)
+        internal void LoadRewardsInternal(TextAsset ta)
         {
             if (ta == null)
             {
@@ -749,7 +742,7 @@ namespace SeasonalBastion
             Debug.Log($"[DataRegistry] Loaded Rewards: {added} (TextAsset: {ta.name})");
         }
 
-        private void LoadBalance(TextAsset json)
+        internal void LoadBalanceInternal(TextAsset json)
         {
             _balance = null;
 
@@ -772,7 +765,7 @@ namespace SeasonalBastion
             }
         }
 
-        private void LoadBuildablesGraph(TextAsset ta)
+        internal void LoadBuildablesGraphInternal(TextAsset ta)
         {
             if (ta == null) return; // optional
 

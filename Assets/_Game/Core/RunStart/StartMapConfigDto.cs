@@ -7,7 +7,7 @@ namespace SeasonalBastion.RunStart
     {
         public int schemaVersion;
         public CoordSystemDto coordSystem;
-        public MapRootDto map;
+        public MapDto map;
 
         public RoadCellDto[] roads;
         public SpawnGateDto[] spawnGates;
@@ -29,7 +29,7 @@ namespace SeasonalBastion.RunStart
     }
 
     [Serializable]
-    internal sealed class MapRootDto
+    internal sealed class MapDto
     {
         public int width;
         public int height;

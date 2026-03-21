@@ -337,7 +337,7 @@ namespace SeasonalBastion.DebugTools
             _lines.Add(new Line(true, "---- Day42: RunStartValidator (runtime invariants) ----"));
 
             var issues = new List<RunStartValidationIssue>(32);
-            RunStartValidator.ValidateRuntime(_s, issues);
+            RunStartValidator.CollectRuntimeIssues(_s, issues);
 
             if (issues.Count == 0)
             {
@@ -354,7 +354,7 @@ namespace SeasonalBastion.DebugTools
             for (int i = 0; i < issues.Count; i++)
             {
                 bool ok = issues[i].Severity != RunStartIssueSeverity.Error;
-                _lines.Add(new Line(ok, $"{issues[i].Severity} {issues[i].Code} — {issues[i].Message}"));
+                _lines.Add(new Line(ok, $"{issues[i].Severity} {issues[i].Code} ï¿½ {issues[i].Message}"));
             }
         }
     }

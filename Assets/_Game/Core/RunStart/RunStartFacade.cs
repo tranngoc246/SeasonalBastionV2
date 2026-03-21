@@ -30,11 +30,11 @@ namespace SeasonalBastion.RunStart
             try
             {
                 var issues = new List<RunStartValidationIssue>(32);
-                RunStartValidator.ValidateRuntime(s, issues);
+                RunStartValidator.CollectRuntimeIssues(s, issues);
 
-                if (RunStartValidator.HasErrors(issues))
+                if (RunStartValidator.ContainsErrors(issues))
                 {
-                    error = RunStartValidator.FormatSummary(issues, maxLines: 10);
+                    error = RunStartValidator.BuildSummary(issues, maxLines: 10);
                     return false;
                 }
             }

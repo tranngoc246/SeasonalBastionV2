@@ -4,7 +4,7 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartStorageInitializer
     {
-        public static void Apply(GameServices s)
+        internal static void ApplyStartingStorage(GameServices s)
         {
             if (s.WorldState == null || s.DataRegistry == null || s.StorageService == null) return;
 

@@ -5,7 +5,7 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartInputParser
     {
-        public static bool TryParse(string jsonOrMarkdown, out StartMapConfigDto cfg, out string error)
+        internal static bool TryParseConfig(string jsonOrMarkdown, out StartMapConfigDto cfg, out string error)
         {
             cfg = null;
             error = null;

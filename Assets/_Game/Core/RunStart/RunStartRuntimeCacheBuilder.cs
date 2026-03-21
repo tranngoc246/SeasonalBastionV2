@@ -4,7 +4,7 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartRuntimeCacheBuilder
     {
-        public static void Apply(GameServices s, StartMapConfigDto cfg)
+        internal static void ApplyRuntimeMetadata(GameServices s, StartMapConfigDto cfg)
         {
             if (s?.RunStartRuntime == null || cfg?.map == null) return;
 

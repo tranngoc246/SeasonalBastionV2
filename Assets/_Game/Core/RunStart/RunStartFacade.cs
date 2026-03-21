@@ -5,27 +5,27 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartFacade
     {
-        public static bool TryApply(GameServices s, string jsonOrMarkdown, out string error)
+        internal static bool TryApply(GameServices s, string jsonOrMarkdown, out string error)
         {
             error = null;
             if (s == null) { error = "services=null"; return false; }
 
-            if (!RunStartInputParser.TryParse(jsonOrMarkdown, out var cfg, out error))
+            if (!RunStartInputParser.TryParseConfig(jsonOrMarkdown, out var cfg, out error))
                 return false;
 
-            if (!RunStartConfigValidator.Validate(s, cfg, out error))
+            if (!RunStartConfigValidator.ValidateConfig(s, cfg, out error))
                 return false;
 
-            RunStartRuntimeCacheBuilder.Apply(s, cfg);
+            RunStartRuntimeCacheBuilder.ApplyRuntimeMetadata(s, cfg);
 
             var ctx = new RunStartBuildContext();
-            if (!RunStartWorldBuilder.Apply(s, cfg, ctx, out error))
+            if (!RunStartWorldBuilder.ApplyWorld(s, cfg, ctx, out error))
                 return false;
 
-            RunStartZoneInitializer.Apply(s, cfg);
-            RunStartHqResolver.BuildLaneRuntime(s, cfg);
-            RunStartStorageInitializer.Apply(s);
-            RunStartNpcSpawner.Apply(s, cfg, ctx);
+            RunStartZoneInitializer.ApplyZones(s, cfg);
+            RunStartHqResolver.BuildLanes(s, cfg);
+            RunStartStorageInitializer.ApplyStartingStorage(s);
+            RunStartNpcSpawner.SpawnInitialNpcs(s, cfg, ctx);
 
             try
             {

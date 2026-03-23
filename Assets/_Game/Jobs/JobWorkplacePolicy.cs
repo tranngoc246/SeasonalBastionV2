@@ -14,14 +14,15 @@ namespace SeasonalBastion
         internal WorkRoleFlags GetAllowedRoles(string defId)
         {
             if (_data == null || string.IsNullOrEmpty(defId)) return WorkRoleFlags.None;
-            try
-            {
-                return _data.GetBuilding(defId).WorkRoles;
-            }
-            catch
-            {
-                return WorkRoleFlags.None;
-            }
+
+            if (_data.TryGetBuilding(defId, out var exact) && exact != null)
+                return exact.WorkRoles;
+
+            var baseId = DefIdTierUtil.BaseId(defId);
+            if (!string.IsNullOrEmpty(baseId) && _data.TryGetBuilding(baseId, out var canonical) && canonical != null)
+                return canonical.WorkRoles;
+
+            return WorkRoleFlags.None;
         }
 
         internal bool HasRole(string defId, WorkRoleFlags required)

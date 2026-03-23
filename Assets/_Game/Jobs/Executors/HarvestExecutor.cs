@@ -204,28 +204,28 @@ namespace SeasonalBastion
         private static void GetHarvestParams(string defId, int level, out float workSec, out int yield)
         {
             // PART27 Day12 defaults (LOCKED tables)
-            if (EqualsIgnoreCase(defId, "bld_farmhouse"))
+            if (DefIdTierUtil.IsBase(defId, "bld_farmhouse"))
             {
                 workSec = 6f;
                 yield = level == 1 ? 6 : level == 2 ? 8 : 10;
                 return;
             }
 
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp"))
+            if (DefIdTierUtil.IsBase(defId, "bld_lumbercamp"))
             {
                 workSec = 4f;
                 yield = level == 1 ? 6 : level == 2 ? 8 : 10;
                 return;
             }
 
-            if (EqualsIgnoreCase(defId, "bld_quarry"))
+            if (DefIdTierUtil.IsBase(defId, "bld_quarry"))
             {
                 workSec = 5f;
                 yield = level == 1 ? 6 : level == 2 ? 8 : 10;
                 return;
             }
 
-            if (EqualsIgnoreCase(defId, "bld_ironhut"))
+            if (DefIdTierUtil.IsBase(defId, "bld_ironhut"))
             {
                 workSec = 6f;
                 yield = level == 1 ? 4 : level == 2 ? 6 : 8;
@@ -260,5 +260,8 @@ namespace SeasonalBastion
             if (a == null || b == null) return false;
             return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
         }
+    }
+}
+   }
     }
 }

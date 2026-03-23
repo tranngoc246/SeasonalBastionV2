@@ -154,6 +154,9 @@ namespace SeasonalBastion
 
         private bool AnyHarvestProducerHasAmount(ResourceType rt)
         {
+            if (_buildingIds.Count == 0)
+                _cacheService.BuildSortedBuildingIds(_buildingIds);
+
             for (int i = 0; i < _buildingIds.Count; i++)
             {
                 var bid = _buildingIds[i];

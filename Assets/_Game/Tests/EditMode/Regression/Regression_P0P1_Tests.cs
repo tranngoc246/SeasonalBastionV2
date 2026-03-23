@@ -480,7 +480,8 @@ namespace SeasonalBastion.Tests.EditMode
         {
             var bus = new TestEventBus();
             var services = MakeServices(bus, new TestDataRegistry(), new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: new WorldState());
-            services.JobBoard = new JobBoard();
+            var board = new JobBoard();
+            services.JobBoard = board;
 
             var deliver = new Dictionary<int, List<JobId>>();
             var work = new Dictionary<int, JobId>();
@@ -493,7 +494,7 @@ namespace SeasonalBastion.Tests.EditMode
             planner.EnsureBuildJobsForSite(siteId, site, workplace);
 
             Assert.That(work.Count, Is.EqualTo(1));
-            Assert.That(services.JobBoard.CountActiveJobs(JobArchetype.BuildWork), Is.EqualTo(1));
+            Assert.That(board.CountActiveJobs(JobArchetype.BuildWork), Is.EqualTo(1));
         }
 
         [Test]

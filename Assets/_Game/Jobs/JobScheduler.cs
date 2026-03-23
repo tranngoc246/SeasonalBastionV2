@@ -100,31 +100,7 @@ namespace SeasonalBastion
             if (!_cacheReady)
                 _cacheService.BuildSortedNpcIds(_npcIds);
 
-            for (int i = 0; i < _npcIds.Count; i++)
-            {
-                var nid = _npcIds[i];
-                if (!_w.Npcs.Exists(nid)) continue;
-
-                var ns = _w.Npcs.Get(nid);
-                if (ns.CurrentJob.Value == 0) { _w.Npcs.Set(nid, ns); continue; }
-
-                if (!_board.TryGet(ns.CurrentJob, out var job))
-                {
-                    _cleanupService.CleanupNpcJob(nid, ref ns);
-                    _w.Npcs.Set(nid, ns);
-                    continue;
-                }
-
-                var executor = _exec.Get(job.Archetype);
-                executor.Tick(nid, ref ns, ref job, dt);
-
-                _board.Update(job);
-
-                if (_cleanupService.IsTerminal(job.Status))
-                    _cleanupService.CleanupNpcJob(nid, ref ns);
-
-                _w.Npcs.Set(nid, ns);
-            }
+            _executionService.TickCurrentJobs(_npcIds, dt);
 
             // 2) Periodic cleanup
             _claimCleanupTimer += dt;
@@ -202,6 +178,32 @@ namespace SeasonalBastion
 
     }
 }
+
+ private bool AnyHarvestProducerHasAmount(ResourceType rt)
+        {
+            for (int i = 0; i < _buildingIds.Count; i++)
+            {
+                var bid = _buildingIds[i];
+                if (!_w.Buildings.Exists(bid)) continue;
+
+                var bs = _w.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+                if (!_workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
+                if (_resourcePolicy.HarvestResourceType(bs.DefId) != rt) continue;
+
+                if (_resourcePolicy.GetAmountFromBuilding(bs, rt) > 0) return true;
+            }
+            return false;
+        }
+
+        private bool AnyPileHasAmount(ResourceType rt, BuildingId owner)
+        {
+            return _w.Piles != null && owner.Value != 0 && _w.Piles.TryFindNonEmpty(rt, owner, out _);
+        }
+
+    }
+}
+
 
         {
             return _w.Piles != null && owner.Value != 0 && _w.Piles.TryFindNonEmpty(rt, owner, out _);

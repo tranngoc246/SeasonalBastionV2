@@ -238,18 +238,18 @@ namespace SeasonalBastion
 
         private static bool IsHarvestProducer(string defId)
         {
-            return EqualsIgnoreCase(defId, "bld_farmhouse")
-                || EqualsIgnoreCase(defId, "bld_lumbercamp")
-                || EqualsIgnoreCase(defId, "bld_quarry")
-                || EqualsIgnoreCase(defId, "bld_ironhut");
+            return DefIdTierUtil.IsBase(defId, "bld_farmhouse")
+                || DefIdTierUtil.IsBase(defId, "bld_lumbercamp")
+                || DefIdTierUtil.IsBase(defId, "bld_quarry")
+                || DefIdTierUtil.IsBase(defId, "bld_ironhut");
         }
 
         private static ResourceType HarvestResourceType(string defId)
         {
-            if (EqualsIgnoreCase(defId, "bld_farmhouse")) return ResourceType.Food;
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return ResourceType.Wood;
-            if (EqualsIgnoreCase(defId, "bld_quarry")) return ResourceType.Stone;
-            if (EqualsIgnoreCase(defId, "bld_ironhut")) return ResourceType.Iron;
+            if (DefIdTierUtil.IsBase(defId, "bld_farmhouse")) return ResourceType.Food;
+            if (DefIdTierUtil.IsBase(defId, "bld_lumbercamp")) return ResourceType.Wood;
+            if (DefIdTierUtil.IsBase(defId, "bld_quarry")) return ResourceType.Stone;
+            if (DefIdTierUtil.IsBase(defId, "bld_ironhut")) return ResourceType.Iron;
             return ResourceType.Food;
         }
 
@@ -260,8 +260,5 @@ namespace SeasonalBastion
             if (a == null || b == null) return false;
             return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
         }
-    }
-}
-   }
     }
 }

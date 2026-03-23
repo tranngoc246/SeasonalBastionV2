@@ -1,6 +1,6 @@
-using System;
 using SeasonalBastion.Contracts;
 using SeasonalBastion.RunStart;
+using System;
 
 namespace SeasonalBastion
 {
@@ -35,7 +35,7 @@ namespace SeasonalBastion
             // Apply StartMapConfig (if provided). If missing, keep empty world but deterministic.
             if (!string.IsNullOrEmpty(startMapConfigJsonOrMarkdown))
             {
-                if (!RunStartApplier.TryApply(_s, startMapConfigJsonOrMarkdown, out var err))
+                if (!RunStartFacade.TryApply(_s, startMapConfigJsonOrMarkdown, out var err))
                 {
                     // Fail-safe: notify + continue (empty world)
                     _s.NotificationService?.Push(

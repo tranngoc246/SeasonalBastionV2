@@ -424,7 +424,7 @@ namespace SeasonalBastion
             int lvl = NormalizeLevel(dstState.Level);
             int cap = 0;
 
-            if (EqualsIgnoreCase(dstState.DefId, "bld_warehouse"))
+            if (DefIdTierUtil.IsBase(dstState.DefId, "bld_warehouse"))
             {
                 cap = rt switch
                 {
@@ -433,7 +433,7 @@ namespace SeasonalBastion
                     _ => 0
                 };
             }
-            else if (EqualsIgnoreCase(dstState.DefId, "bld_hq"))
+            else if (DefIdTierUtil.IsBase(dstState.DefId, "bld_hq"))
             {
                 cap = rt switch
                 {
@@ -474,10 +474,6 @@ namespace SeasonalBastion
         {
             if (a == null || b == null) return false;
             return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-        }
-    }
-}
-rison.OrdinalIgnoreCase);
         }
     }
 }

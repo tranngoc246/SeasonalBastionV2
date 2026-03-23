@@ -140,6 +140,17 @@ namespace SeasonalBastion.Tests.EditMode
             public event Action<RunOutcome> OnRunEnded;
         }
 
+        private sealed class FakeStorageService : IStorageService
+        {
+            public StorageSnapshot GetStorage(BuildingId building) => default;
+            public bool CanStore(BuildingId building, ResourceType type) => true;
+            public int GetAmount(BuildingId building, ResourceType type) => 0;
+            public int GetCap(BuildingId building, ResourceType type) => 999;
+            public int Add(BuildingId building, ResourceType type, int amount) => amount < 0 ? 0 : amount;
+            public int Remove(BuildingId building, ResourceType type, int amount) => amount < 0 ? 0 : amount;
+            public int GetTotal(ResourceType type) => 0;
+        }
+
         // -------------------------
         // Helpers
         // -------------------------
@@ -588,7 +599,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var noti = new NotificationService(bus);
             var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world);
-            services.StorageService = new StorageService(world, data);
+            services.StorageService = new FakeStorageService();
 
             bool ok = SeasonalBastion.RunStart.RunStartStorageInitializer.ApplyStartingStorage(services, out var error);
 

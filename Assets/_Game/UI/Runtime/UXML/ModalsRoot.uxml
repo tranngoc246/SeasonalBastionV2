@@ -30,5 +30,20 @@
             </ui:VisualElement>
         </ui:VisualElement>
 
+        <!-- Assign NPC Modal (P0.4) -->
+        <ui:VisualElement name="AssignNpcModal" class="modal ui-block-world" picking-mode="Position" style="display:none;">
+            <ui:Label name="LblAssignTitle" text="ASSIGN NPC" class="modal-title" />
+            <ui:Label name="LblAssignTarget" text="Target: -" class="hint" />
+            <ui:Label name="LblAssignWorkers" text="Workers: -" class="hint" />
+
+            <ui:ScrollView name="NpcList" class="npc-list" />
+
+            <ui:Label name="LblAssignHint" text="" class="hint" />
+
+            <ui:VisualElement class="modal-actions">
+                <ui:Button name="BtnAssignClose" text="Close" class="btn-primary" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
     </ui:VisualElement>
 </ui:UXML>

@@ -80,6 +80,19 @@
                     <ui:Label name="LblInspectIron" text="Iron: -" />
                     <ui:Label name="LblInspectAmmo" text="Ammo: -" />
                 </ui:VisualElement>
+
+                <ui:VisualElement class="section">
+                    <ui:Label text="Actions" class="section-title" />
+                    <ui:Label name="LblInspectWorkers" text="Workers: -" />
+
+                    <ui:VisualElement class="inspect-actions">
+                        <ui:Button name="BtnInspectUpgrade" text="UPGRADE" class="inspect-btn primary" />
+                        <ui:Button name="BtnInspectRepair" text="REPAIR" class="inspect-btn" />
+                        <ui:Button name="BtnInspectAssignNpc" text="ASSIGN NPC" class="inspect-btn" />
+                    </ui:VisualElement>
+
+                    <ui:Label name="LblInspectActionHint" text="" class="detail-hint hidden" />
+                </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>

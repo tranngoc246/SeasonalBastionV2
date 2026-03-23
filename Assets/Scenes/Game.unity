@@ -1719,6 +1719,7 @@ GameObject:
   - component: {fileID: 3567365916245413941}
   - component: {fileID: 8279851975208040180}
   - component: {fileID: 5167759769221252601}
+  - component: {fileID: 8279851975208040181}
   m_Layer: 0
   m_Name: UIRoot
   m_TagString: Untagged
@@ -1873,6 +1874,28 @@ MonoBehaviour:
   _sharedPanelSettings: {fileID: 11400000, guid: 622e4310a3bc6d44995ac481af32ca16, type: 2}
   _servicesProvider: {fileID: 1656749908}
   _pauseController: {fileID: 1656749908}
+--- !u!114 &8279851975208040181
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3431434004664745748}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 67627fe8a296f3b46a9edafe21896f70, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _uiSystem: {fileID: 5167759769221252601}
+  _servicesProvider: {fileID: 1656749909}
+  _placement: {fileID: 435619732}
+  _cameraOverride: {fileID: 519420031}
+  _grid: {fileID: 2053131662}
+  _useXZ: 0
+  _planeZ: 0
+  _planeY: 0
+  _toggleOffWhenClickSame: 1
+  _clearSelectionWhenClickEmpty: 1
 --- !u!114 &8666351142398883621
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -12,6 +12,7 @@
         // Modals
         public const string Modal_Settings = "modal.settings";
         public const string Modal_Confirm = "modal.confirm";
+        public const string Modal_AssignNpc = "modal.assignNpc";
 
         // USS classes
         public const string Class_BlockWorld = "ui-block-world";

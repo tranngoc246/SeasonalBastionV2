@@ -40,6 +40,7 @@ namespace SeasonalBastion
             services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance);
 
             services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus);
+            ((PlacementService)services.PlacementService).BindRunStart(services.RunStartRuntime);
 
             // Economy
             services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);

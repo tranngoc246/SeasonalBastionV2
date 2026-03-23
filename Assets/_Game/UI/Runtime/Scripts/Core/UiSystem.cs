@@ -8,13 +8,9 @@ using UnityEngine.UIElements;
 
 namespace SeasonalBastion.UI
 {
-    /// <summary>
-    /// Orchestrator: bind presenters, manage registries, tick overlay, update input gate.
-    /// </summary>
     public sealed class UiSystem : MonoBehaviour
     {
         public UIContext Ctx { get; private set; }
-
         public IInputGate InputGate => Ctx?.InputGate;
 
         private UIDocument _hud;
@@ -34,13 +30,14 @@ namespace SeasonalBastion.UI
         private ToastController _toasts;
         private TooltipController _tooltips;
 
-        // Presenters (ví dụ)
         private HudPresenter _hudPresenter;
         private BuildPanelPresenter _buildPresenter;
         private InspectPanelPresenter _inspectPresenter;
         private SettingsModalPresenter _settingsModal;
         private ConfirmModalPresenter _confirmModal;
+        private AssignNpcModalPresenter _assignNpcModal;
 
+        private float _inspectRefreshTimer;
         private bool _initialized;
 
         public void Initialize(
@@ -97,7 +94,6 @@ namespace SeasonalBastion.UI
             var modalsRoot = _modals ? _modals.rootVisualElement : null;
             var overlayRoot = _overlay ? _overlay.rootVisualElement : null;
 
-            // Ensure base hosts exist (fallback nếu UXML thiếu)
             var leftDock = UiElementUtil.GetOrCreateChild(panelsRoot, "LeftDockHost");
             var rightDock = UiElementUtil.GetOrCreateChild(panelsRoot, "RightDockHost");
 
@@ -107,30 +103,25 @@ namespace SeasonalBastion.UI
             var toastHost = UiElementUtil.GetOrCreateChild(overlayRoot, "ToastHost");
             var tooltipHost = UiElementUtil.GetOrCreateChild(overlayRoot, "TooltipHost");
 
-            // Mark blockers by default (bạn có thể chuyển sang USS/UXML set class)
             leftDock?.AddToClassList(UiKeys.Class_BlockWorld);
             rightDock?.AddToClassList(UiKeys.Class_BlockWorld);
             scrim?.AddToClassList(UiKeys.Class_BlockWorld);
 
-            // Init controllers hosts
             _modalStack.Bind(modalsRoot, scrim, modalHost);
             _toasts.Bind(toastHost);
             _tooltips.Bind(tooltipHost);
 
-            // Register documents for hit test (order from topmost to bottom)
             _hitTest.SetDocuments(_overlay, _modals, _panels, _hud);
 
-            // Create presenters
             _hudPresenter = new HudPresenter();
             _buildPresenter = new BuildPanelPresenter();
             _inspectPresenter = new InspectPanelPresenter();
             _settingsModal = new SettingsModalPresenter();
             _confirmModal = new ConfirmModalPresenter();
+            _assignNpcModal = new AssignNpcModalPresenter();
 
-            // Bind presenters to their roots/templates
             _hudPresenter.Bind(Ctx, hudRoot);
 
-            // Panels: create containers (in real project, you should instantiate from UXML templates)
             var buildRoot = UiElementUtil.GetOrCreateChild(leftDock, "BuildPanel");
             var inspectRoot = UiElementUtil.GetOrCreateChild(rightDock, "InspectPanel");
 
@@ -140,40 +131,37 @@ namespace SeasonalBastion.UI
             _panelRegistry.Register(UiKeys.Panel_Build, _buildPresenter, buildRoot);
             _panelRegistry.Register(UiKeys.Panel_Inspect, _inspectPresenter, inspectRoot);
 
-            // Modals: modal content containers
             var settingsRoot = UiElementUtil.GetOrCreateChild(modalHost, "SettingsModal");
             var confirmRoot = UiElementUtil.GetOrCreateChild(modalHost, "ConfirmModal");
+            var assignRoot = UiElementUtil.GetOrCreateChild(modalHost, "AssignNpcModal");
 
             _settingsModal.Bind(Ctx, settingsRoot);
             _confirmModal.Bind(Ctx, confirmRoot);
+            _assignNpcModal.Bind(Ctx, assignRoot);
 
             _modalStack.Register(UiKeys.Modal_Settings, _settingsModal, settingsRoot);
             _modalStack.Register(UiKeys.Modal_Confirm, _confirmModal, confirmRoot);
+            _modalStack.Register(UiKeys.Modal_AssignNpc, _assignNpcModal, assignRoot);
 
-            // Default visibility
             UiElementUtil.SetVisible(buildRoot, false);
             UiElementUtil.SetVisible(inspectRoot, false);
             UiElementUtil.SetVisible(settingsRoot, false);
             UiElementUtil.SetVisible(confirmRoot, false);
+            UiElementUtil.SetVisible(assignRoot, false);
         }
 
         private void WireBasicFlow()
         {
-            // When selection changes -> open Inspect panel (demo)
             _store.SelectionChanged += id =>
             {
                 if (id >= 0) _panelRegistry.Show(UiKeys.Panel_Inspect);
                 else _panelRegistry.HideCurrent();
             };
 
-            // When modal stack changes -> ensure top modal is visible
             _store.ModalStackChanged += _ =>
             {
                 // handled by ModalStackController internals
             };
-
-            // Example: show Build panel at start if needed
-            // _panelRegistry.Show(UiKeys.Panel_Build);
         }
 
         private void Update()
@@ -183,6 +171,15 @@ namespace SeasonalBastion.UI
             _hitTest.UpdatePointerBlocking();
             _toasts.Tick(Time.unscaledDeltaTime);
             _tooltips.Tick(Time.unscaledDeltaTime);
+
+            // Keep Inspect panel reactive
+            _inspectRefreshTimer += Time.unscaledDeltaTime;
+            if (_inspectRefreshTimer >= 0.25f)
+            {
+                _inspectRefreshTimer = 0f;
+                if (Ctx?.Panels != null && Ctx.Store != null && Ctx.Panels.IsOpen(UiKeys.Panel_Inspect) && Ctx.Store.SelectedId >= 0)
+                    _inspectPresenter?.Refresh();
+            }
         }
 
         private void OnDestroy()
@@ -194,6 +191,7 @@ namespace SeasonalBastion.UI
             _inspectPresenter?.Unbind();
             _settingsModal?.Unbind();
             _confirmModal?.Unbind();
+            _assignNpcModal?.Unbind();
 
             _store?.ClearModals();
         }

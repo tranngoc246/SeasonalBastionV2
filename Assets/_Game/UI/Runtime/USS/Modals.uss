@@ -43,3 +43,32 @@
 .modal-actions Button { height: 34px; margin-left: 10px; min-width: 90px; }
 .btn-primary { background-color: rgba(64,140,255,0.55); }
 .btn-warn { background-color: rgba(210,72,72,0.55); }
+
+/* ===== Assign NPC Modal ===== */
+.npc-list {
+  height: 320px;
+  margin-top: 10px;
+  margin-bottom: 6px;
+  padding-right: 4px;
+  background-color: rgba(0,0,0,0.20);
+  border-radius: 10px;
+}
+
+.npc-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 8px;
+  margin-top: 6px;
+  border-radius: 10px;
+  background-color: rgba(255,255,255,0.06);
+}
+
+.npc-row:hover { background-color: rgba(255,255,255,0.10); }
+
+.npc-left { flex-direction: column; flex-grow: 1; margin-right: 10px; }
+.npc-right { flex-direction: row; align-items: center; }
+
+.npc-title { -unity-font-style: bold; font-size: 12px; }
+.npc-sub { color: rgb(205,205,205); font-size: 11px; margin-top: 2px; }

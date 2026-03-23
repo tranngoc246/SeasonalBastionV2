@@ -278,3 +278,21 @@
   border-radius: 12px;
   background-color: rgba(64,140,255,0.55);
 }
+
+/* ===== Inspect actions (P0.4) ===== */
+.inspect-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.inspect-btn {
+  height: 34px;
+  min-width: 102px;
+  margin-right: 8px;
+  margin-top: 6px;
+}
+
+.inspect-btn.primary {
+  background-color: rgba(64,140,255,0.40);
+}

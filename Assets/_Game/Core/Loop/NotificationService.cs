@@ -149,8 +149,28 @@ namespace SeasonalBastion
 
             string dedupeKey = dedupeByKey ? ComposeDedupeKey(key, payload) : null;
 
-            // Dedupe in inbox (authoritative): update + move-to-top
-            if (!string.IsNullOrEmpty(dedupeKey) && _inboxByKey.TryGetValue(dedupeKey, out var existingEntry) && existingEntry?.Vm != null)
+            // Dedupe in inbox (authoritative): update + move-to-top.
+            // Fallback by raw key so a later deduped push can update an earlier non-deduped entry,
+            // which is the legacy behavior expected by stability tests.
+            InboxEntry existingEntry = null;
+            if (!string.IsNullOrEmpty(dedupeKey))
+            {
+                _inboxByKey.TryGetValue(dedupeKey, out existingEntry);
+                if (existingEntry == null)
+                {
+                    for (int i = 0; i < _inbox.Count; i++)
+                    {
+                        var e = _inbox[i];
+                        if (e?.Vm != null && string.Equals(e.Vm.Key, key, StringComparison.Ordinal))
+                        {
+                            existingEntry = e;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (existingEntry?.Vm != null)
             {
                 var vm = existingEntry.Vm;
                 vm.Key = key;

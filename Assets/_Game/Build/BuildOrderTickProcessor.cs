@@ -60,6 +60,12 @@ namespace SeasonalBastion
 
                 if (o.Kind == BuildOrderKind.Repair)
                 {
+                    if (workplace.Value == 0)
+                    {
+                        _orders[id] = o;
+                        continue;
+                    }
+
                     _tickRepairOrder?.Invoke(id, ref o, workplace);
                     _orders[id] = o;
                     continue;

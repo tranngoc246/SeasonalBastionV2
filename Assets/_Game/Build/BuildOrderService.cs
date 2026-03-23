@@ -285,9 +285,7 @@ namespace SeasonalBastion
             }
 
             // Validate target def exists + same footprint (in-place upgrade)
-            BuildingDef toDef;
-            try { toDef = _s.DataRegistry.GetBuilding(edge.To); }
-            catch
+            if (!_s.DataRegistry.TryGetBuilding(edge.To, out var toDef) || toDef == null)
             {
                 _s.NotificationService?.Push(
                     key: $"UpgradeMissingDef_{building.Value}",
@@ -435,7 +433,8 @@ namespace SeasonalBastion
             if (bs.MaxHP <= 0)
             {
                 int mhp = 100;
-                try { mhp = Math.Max(1, _s.DataRegistry.GetBuilding(bs.DefId).MaxHp); } catch { }
+                if (_s.DataRegistry.TryGetBuilding(bs.DefId, out var repairDef) && repairDef != null)
+                    mhp = Math.Max(1, repairDef.MaxHp);
                 bs.MaxHP = mhp;
                 if (bs.HP <= 0) bs.HP = bs.MaxHP;
                 _s.WorldState.Buildings.Set(building, bs);
@@ -734,7 +733,8 @@ namespace SeasonalBastion
             if (bs.MaxHP <= 0)
             {
                 int mhp = 100;
-                try { mhp = Math.Max(1, _s.DataRegistry.GetBuilding(bs.DefId).MaxHp); } catch { }
+                if (_s.DataRegistry.TryGetBuilding(bs.DefId, out var repairDef) && repairDef != null)
+                    mhp = Math.Max(1, repairDef.MaxHp);
                 bs.MaxHP = mhp;
                 if (bs.HP <= 0) bs.HP = bs.MaxHP;
                 _s.WorldState.Buildings.Set(o.TargetBuilding, bs);
@@ -818,7 +818,8 @@ namespace SeasonalBastion
             if (b.MaxHP <= 0)
             {
                 int mhp = 100;
-                try { mhp = Math.Max(1, _s.DataRegistry.GetBuilding(b.DefId).MaxHp); } catch { }
+                if (_s.DataRegistry.TryGetBuilding(b.DefId, out var placedDef) && placedDef != null)
+                    mhp = Math.Max(1, placedDef.MaxHp);
                 b.MaxHP = mhp;
             }
             if (b.HP <= 0) b.HP = b.MaxHP;
@@ -850,16 +851,11 @@ namespace SeasonalBastion
                     int ammoMax = 0;
 
                     // Prefer TowerDef if present (Towers.json)
-                    try
+                    if (_s.DataRegistry.TryGetTower(b.DefId, out var tdef) && tdef != null)
                     {
-                        var tdef = _s.DataRegistry.GetTower(b.DefId);
-                        if (tdef != null)
-                        {
-                            hpMax = Math.Max(1, tdef.MaxHp);
-                            ammoMax = Math.Max(0, tdef.AmmoMax);
-                        }
+                        hpMax = Math.Max(1, tdef.MaxHp);
+                        ammoMax = Math.Max(0, tdef.AmmoMax);
                     }
-                    catch { }
 
                     var ts = new TowerState
                     {
@@ -923,7 +919,8 @@ namespace SeasonalBastion
 
             // HP reset to new max (simple rule)
             int mhp = 100;
-            try { mhp = Math.Max(1, _s.DataRegistry.GetBuilding(toId).MaxHp); } catch { }
+            if (_s.DataRegistry.TryGetBuilding(toId, out var upgradedDef) && upgradedDef != null)
+                mhp = Math.Max(1, upgradedDef.MaxHp);
             b.MaxHP = mhp;
             b.HP = mhp;
 
@@ -949,16 +946,11 @@ namespace SeasonalBastion
 
                     int hpMax = Math.Max(1, def.MaxHp);
                     int ammoMax = 0;
-                    try
+                    if (_s.DataRegistry.TryGetTower(toId, out var tdef) && tdef != null)
                     {
-                        var tdef = _s.DataRegistry.GetTower(toId);
-                        if (tdef != null)
-                        {
-                            hpMax = Math.Max(1, tdef.MaxHp);
-                            ammoMax = Math.Max(0, tdef.AmmoMax);
-                        }
+                        hpMax = Math.Max(1, tdef.MaxHp);
+                        ammoMax = Math.Max(0, tdef.AmmoMax);
                     }
-                    catch { }
 
                     if (found.Value != 0)
                     {

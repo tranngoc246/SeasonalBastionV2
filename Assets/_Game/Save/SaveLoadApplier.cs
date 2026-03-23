@@ -61,7 +61,11 @@ namespace SeasonalBastion
                         s.WorldState.Sites.Set(site.Id, site);
 
                         // occupy footprint
-                        var def = s.DataRegistry.GetBuilding(site.BuildingDefId);
+                        if (!s.DataRegistry.TryGetBuilding(site.BuildingDefId, out var def) || def == null)
+                        {
+                            error = $"Missing BuildingDef for site '{site.BuildingDefId}'";
+                            return false;
+                        }
 
                         if (site.Kind == 0)
                         {
@@ -112,7 +116,12 @@ namespace SeasonalBastion
 
                         if (shouldOccupyAsBuilding)
                         {
-                            var def = s.DataRegistry.GetBuilding(b.DefId);
+                            if (!s.DataRegistry.TryGetBuilding(b.DefId, out var def) || def == null)
+                            {
+                                error = $"Missing BuildingDef for building '{b.DefId}'";
+                                return false;
+                            }
+
                             int w = Math.Max(1, def.SizeX);
                             int h = Math.Max(1, def.SizeY);
 

@@ -80,11 +80,8 @@ namespace SeasonalBastion
                     towerDefId = "bld_tower_arrow_t1";
                 }
 
-                TowerDef tdef;
-                try { tdef = data.GetTower(towerDefId); }
-                catch { continue; }
-
-                if (tdef == null) continue;
+                if (!data.TryGetTower(towerDefId, out var tdef) || tdef == null)
+                    continue;
 
                 // ammo gate
                 int ammoPerShot = Math.Max(1, tdef.AmmoPerShot);
@@ -218,10 +215,8 @@ namespace SeasonalBastion
                 var b = w.Buildings.Get(bid);
                 if (!b.IsConstructed) continue;
 
-                BuildingDef bdef = null;
-                try { bdef = data.GetBuilding(b.DefId); } catch { }
-
-                if (bdef == null || !bdef.IsTower) continue;
+                if (!data.TryGetBuilding(b.DefId, out var bdef) || bdef == null || !bdef.IsTower)
+                    continue;
 
                 // TowerState.Cell là CENTER cell. Match bằng footprint.
                 if (!FootprintContainsCell(b.Anchor, bdef.SizeX, bdef.SizeY, towerCell))
@@ -253,10 +248,8 @@ namespace SeasonalBastion
                 var b = w.Buildings.Get(bid);
                 if (!b.IsConstructed) continue;
 
-                BuildingDef bdef = null;
-                try { bdef = data.GetBuilding(b.DefId); } catch { }
-
-                if (bdef == null || !bdef.IsTower) continue;
+                if (!data.TryGetBuilding(b.DefId, out var bdef) || bdef == null || !bdef.IsTower)
+                    continue;
 
                 if (!FootprintContainsCell(b.Anchor, bdef.SizeX, bdef.SizeY, towerCell))
                     continue;

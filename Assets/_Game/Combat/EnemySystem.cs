@@ -98,8 +98,7 @@ namespace SeasonalBastion
                 }
 
                 EnemyDef def;
-                try { def = data.GetEnemy(st.DefId); }
-                catch
+                if (!data.TryGetEnemy(st.DefId, out def) || def == null)
                 {
                     // fallback safe defaults
                     def = new EnemyDef { DefId = st.DefId, MaxHp = Mathf.Max(1, st.Hp), MoveSpeed = 1f, DamageToHQ = 1, DamageToBuildings = 1, Range = 0f };
@@ -259,15 +258,10 @@ namespace SeasonalBastion
                 if (!st.IsConstructed) continue;
 
                 bool isHQ = string.Equals(st.DefId, "bld_hq_t1", StringComparison.OrdinalIgnoreCase);
-                if (!isHQ)
+                if (!isHQ && data.TryGetBuilding(st.DefId, out var def) && def != null)
                 {
                     // If defs use tags, try them (safe)
-                    try
-                    {
-                        var def = data.GetBuilding(st.DefId);
-                        if (def != null && def.IsHQ) isHQ = true;
-                    }
-                    catch { }
+                    isHQ = def.IsHQ;
                 }
 
                 if (isHQ)
@@ -369,9 +363,8 @@ namespace SeasonalBastion
                 // Không tự ý destroy entity (tránh ripple), chỉ clear footprint + mark not constructed
                 b.IsConstructed = false;
 
-                try
+                if (data.TryGetBuilding(b.DefId, out var def) && def != null)
                 {
-                    var def = data.GetBuilding(b.DefId);
                     int wdx = Mathf.Max(1, def.SizeX);
                     int hdy = Mathf.Max(1, def.SizeY);
 
@@ -379,7 +372,7 @@ namespace SeasonalBastion
                         for (int dx = 0; dx < wdx; dx++)
                             grid.ClearBuilding(new CellPos(b.Anchor.X + dx, b.Anchor.Y + dy));
                 }
-                catch
+                else
                 {
                     // Nếu defs lỗi, vẫn cố clear đúng anchor cell (an toàn tối thiểu)
                     grid.ClearBuilding(b.Anchor);

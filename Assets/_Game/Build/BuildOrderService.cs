@@ -31,9 +31,27 @@ namespace SeasonalBastion
         // reuse buffers
         private readonly List<BuildingId> _buildingIdsBuf = new(128);
 
+        private readonly BuildOrderWorkplaceResolver _workplaceResolver;
+        private readonly BuildOrderReloadService _reloadService;
+
         public event Action<int> OnOrderCompleted;
 
-        public BuildOrderService(GameServices s) { _s = s; }
+        public BuildOrderService(GameServices s)
+        {
+            _s = s;
+            _workplaceResolver = new BuildOrderWorkplaceResolver(s);
+            _reloadService = new BuildOrderReloadService(
+                s,
+                _orders,
+                _active,
+                _deliverJobsBySite,
+                _workJobBySite,
+                _autoRoadByOrder,
+                _repairJobByOrder,
+                EnsureBusSubscribed,
+                ResetRuntimeTracking,
+                AllocateOrderId);
+        }
 
         public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
         {
@@ -647,7 +665,7 @@ namespace SeasonalBastion
 
             if (dt <= 0f) return;
 
-            var workplace = _s.Balance != null ? _s.Balance.ResolveBuilderWorkplace() : ResolveBuildWorkplace();
+            var workplace = _s.Balance != null ? _s.Balance.ResolveBuilderWorkplace() : _workplaceResolver.ResolveBuildWorkplace();
             if (workplace.Value == 0)
                 return; // no build workplace => cannot create jobs deterministically
 
@@ -1010,142 +1028,26 @@ namespace SeasonalBastion
                 _busSubscribed = false;
             }
 
+            ResetRuntimeTracking();
+            _buildingIdsBuf.Clear();
+        }
+
+        private void ResetRuntimeTracking()
+        {
             _nextOrderId = 1;
             _active.Clear();
             _orders.Clear();
             _deliverJobsBySite.Clear();
             _workJobBySite.Clear();
-            _buildingIdsBuf.Clear();
             _autoRoadByOrder.Clear();
             _repairJobByOrder.Clear();
         }
+
+        private int AllocateOrderId() => _nextOrderId++;
 
         public int RebuildActivePlaceOrdersFromSitesAfterLoad()
         {
-            EnsureBusSubscribed();
-
-            // Reset internal runtime tracking (jobs will be re-created by Tick)
-            _nextOrderId = 1;
-            _active.Clear();
-            _orders.Clear();
-            _deliverJobsBySite.Clear();
-            _workJobBySite.Clear();
-            _autoRoadByOrder.Clear();
-            _repairJobByOrder.Clear();
-
-            if (_s?.WorldState?.Sites == null || _s.WorldState.Buildings == null)
-                return 0;
-
-            // Index placeholders: (anchor + defId) -> buildingId (prefer smallest id)
-            var placeholderByKey = new Dictionary<long, BuildingId>(128);
-
-            foreach (var bid in _s.WorldState.Buildings.Ids)
-            {
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
-                var b = _s.WorldState.Buildings.Get(bid);
-                if (b.IsConstructed) continue;
-
-                long k = Pack(b.Anchor.X, b.Anchor.Y, b.DefId);
-
-                if (!placeholderByKey.TryGetValue(k, out var old) || bid.Value < old.Value)
-                    placeholderByKey[k] = bid;
-            }
-
-            // Sites in deterministic order
-            var siteIds = new List<SiteId>(128);
-            foreach (var sid in _s.WorldState.Sites.Ids) siteIds.Add(sid);
-            siteIds.Sort((a, b) => a.Value.CompareTo(b.Value));
-
-            int created = 0;
-
-            for (int i = 0; i < siteIds.Count; i++)
-            {
-                var sid = siteIds[i];
-                if (!_s.WorldState.Sites.Exists(sid)) continue;
-
-                var site = _s.WorldState.Sites.Get(sid);
-                if (!site.IsActive) continue;
-
-                if (site.Kind == 0)
-                {
-                    long key = Pack(site.Anchor.X, site.Anchor.Y, site.BuildingDefId);
-
-                    if (!placeholderByKey.TryGetValue(key, out var buildingId) || buildingId.Value == 0 || !_s.WorldState.Buildings.Exists(buildingId))
-                    {
-                        // Best-effort warning (don’t create new placeholder silently)
-                        _s.NotificationService?.Push(
-                            key: $"LoadMissingPlaceholder_{sid.Value}",
-                            title: "Load Warning",
-                            body: $"Missing placeholder for site #{sid.Value}: {site.BuildingDefId} @ ({site.Anchor.X},{site.Anchor.Y})",
-                            severity: NotificationSeverity.Warning,
-                            payload: new NotificationPayload(default, default, "load"),
-                            cooldownSeconds: 0f,
-                            dedupeByKey: true
-                        );
-                        continue;
-                    }
-
-                    int orderId = _nextOrderId++;
-
-                    var order = new BuildOrder
-                    {
-                        OrderId = orderId,
-                        Kind = BuildOrderKind.PlaceNew,
-                        BuildingDefId = site.BuildingDefId,
-                        TargetBuilding = buildingId,
-                        Site = sid,
-                        RequiredCost = default,
-                        Delivered = default,
-                        WorkSecondsRequired = site.WorkSecondsTotal,
-                        WorkSecondsDone = site.WorkSecondsDone,
-                        Completed = false
-                    };
-
-                    _orders[orderId] = order;
-                    _active.Add(orderId);
-                    created++;
-                }
-                else
-                {
-                    var buildingId = site.TargetBuilding;
-                    if (!_s.WorldState.Buildings.Exists(buildingId)) continue;
-
-                    int orderId = _nextOrderId++;
-                    var order = new BuildOrder
-                    {
-                        OrderId = orderId,
-                        Kind = BuildOrderKind.Upgrade,
-                        BuildingDefId = site.BuildingDefId,
-                        TargetBuilding = buildingId,
-                        Site = sid,
-                        WorkSecondsRequired = site.WorkSecondsTotal,
-                        WorkSecondsDone = site.WorkSecondsDone,
-                        Completed = false
-                    };
-                    _orders[orderId] = order; _active.Add(orderId);
-                    created++;
-                    continue;
-                }                
-            }
-
-            return created;
-        }
-
-        // + ADD: deterministic cheap key (same spirit as SaveLoadApplier.Pack)
-        private static long Pack(int x, int y, string defId)
-        {
-            unchecked
-            {
-                long h = 1469598103934665603L;
-                h = (h ^ x) * 1099511628211L;
-                h = (h ^ y) * 1099511628211L;
-                if (!string.IsNullOrEmpty(defId))
-                {
-                    for (int i = 0; i < defId.Length; i++)
-                        h = (h ^ defId[i]) * 1099511628211L;
-                }
-                return h;
-            }
+            return _reloadService.RebuildActivePlaceOrdersFromSitesAfterLoad();
         }
 
         private static bool IsReadyToWork(in BuildSiteState site)
@@ -1155,37 +1057,7 @@ namespace SeasonalBastion
 
         private BuildingId ResolveBuildWorkplace()
         {
-            _buildingIdsBuf.Clear();
-            foreach (var id in _s.WorldState.Buildings.Ids) _buildingIdsBuf.Add(id);
-            _buildingIdsBuf.Sort((a, b) => a.Value.CompareTo(b.Value));
-
-            // Prefer HQ (constructed)
-            for (int i = 0; i < _buildingIdsBuf.Count; i++)
-            {
-                var bid = _buildingIdsBuf[i];
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
-
-                var bs = _s.WorldState.Buildings.Get(bid);
-                if (!bs.IsConstructed) continue;
-
-                var def = _s.DataRegistry.GetBuilding(bs.DefId);
-                if (def.IsHQ) return bid;
-            }
-
-            // Fallback: any workplace with Build role (if you have such defs)
-            for (int i = 0; i < _buildingIdsBuf.Count; i++)
-            {
-                var bid = _buildingIdsBuf[i];
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
-
-                var bs = _s.WorldState.Buildings.Get(bid);
-                if (!bs.IsConstructed) continue;
-
-                var def = _s.DataRegistry.GetBuilding(bs.DefId);
-                if ((def.WorkRoles & WorkRoleFlags.Build) != 0) return bid;
-            }
-
-            return default;
+            return _workplaceResolver.ResolveBuildWorkplace();
         }
 
         private void EnsureBuildJobsForSite(SiteId siteId, BuildSiteState site, BuildingDef def, BuildingId workplace)

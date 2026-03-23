@@ -100,8 +100,11 @@ namespace SeasonalBastion.DebugTools
             foreach (var id in gs.WorldState.Buildings.Ids)
             {
                 var st = gs.WorldState.Buildings.Get(id);
-                var def = gs.DataRegistry.GetBuilding(st.DefId);
-                if (def != null && def.IsHQ) { hq = id; break; }
+                if (gs.DataRegistry.TryGetBuilding(st.DefId, out var def) && def != null && def.IsHQ)
+                {
+                    hq = id;
+                    break;
+                }
             }
             if (hq.Value == 0) return;
 

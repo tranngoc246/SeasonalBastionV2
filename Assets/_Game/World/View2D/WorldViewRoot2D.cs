@@ -345,7 +345,9 @@ namespace SeasonalBastion.View2D
                 sr.transform.position = pos;
                 sr.sortingOrder = ComputeOrder(pos);
 
-                var def = _data != null ? _data.GetBuilding(bs.DefId) : null;
+                BuildingDef def = null;
+                if (_data != null)
+                    _data.TryGetBuilding(bs.DefId, out def);
 
                 // Scale theo footprint
                 if (def != null)
@@ -422,7 +424,9 @@ namespace SeasonalBastion.View2D
             Vector3 basePos = CellToWorld(bs.Anchor);
 
             // if DataRegistry exists, try compute center of footprint
-            var def = _data != null ? _data.GetBuilding(bs.DefId) : null;
+            BuildingDef def = null;
+            if (_data != null)
+                _data.TryGetBuilding(bs.DefId, out def);
             if (def == null) return basePos;
 
             // center offset in world units
@@ -520,4 +524,5 @@ namespace SeasonalBastion.View2D
             sr.transform.localScale = new Vector3(targetW / nativeW, targetH / nativeH, 1f);
         }
     }
+}    }
 }

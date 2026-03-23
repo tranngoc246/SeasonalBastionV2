@@ -225,25 +225,26 @@ namespace SeasonalBastion.DebugTools
             try
             {
                 var bs = _world.Buildings.Get(buildingId);
-                var def = _data.GetBuilding(bs.DefId);
-
-                int max = GetMaxAssignedFor(def, bs.Level);
-                if (max <= 0)
+                if (_data != null && _data.TryGetBuilding(bs.DefId, out var def) && def != null)
                 {
-                    _noti?.Push($"NpcAssign_NoSlots_{_selectedNpc.Value}", "NPC",
-                        $"Building {bs.DefId} không nhận worker.",
-                        NotificationSeverity.Warning, default, 0.35f, true);
-                    return;
-                }
+                    int max = GetMaxAssignedFor(def, bs.Level);
+                    if (max <= 0)
+                    {
+                        _noti?.Push($"NpcAssign_NoSlots_{_selectedNpc.Value}", "NPC",
+                            $"Building {bs.DefId} không nhận worker.",
+                            NotificationSeverity.Warning, default, 0.35f, true);
+                        return;
+                    }
 
-                int assigned = CountAssignedToBuilding(buildingId, excludeNpc: _selectedNpc);
+                    int assigned = CountAssignedToBuilding(buildingId, excludeNpc: _selectedNpc);
 
-                if (assigned >= max)
-                {
-                    _noti?.Push($"NpcAssign_Full_{_selectedNpc.Value}", "NPC",
-                        $"Building {bs.DefId} đã đủ worker ({assigned}/{max}).",
-                        NotificationSeverity.Warning, default, 0.6f, true);
-                    return;
+                    if (assigned >= max)
+                    {
+                        _noti?.Push($"NpcAssign_Full_{_selectedNpc.Value}", "NPC",
+                            $"Building {bs.DefId} đã đủ worker ({assigned}/{max}).",
+                            NotificationSeverity.Warning, default, 0.6f, true);
+                        return;
+                    }
                 }
             }
             catch
@@ -277,7 +278,8 @@ namespace SeasonalBastion.DebugTools
             try
             {
                 var bs = _world.Buildings.Get(buildingId);
-                var def = _data.GetBuilding(bs.DefId);
+                if (_data == null || !_data.TryGetBuilding(bs.DefId, out var def) || def == null)
+                    return;
 
                 // 1) No roles => expected idle
                 if (def.WorkRoles == WorkRoleFlags.None)
@@ -404,13 +406,7 @@ namespace SeasonalBastion.DebugTools
             {
                 var b = _world.Buildings.Get(bid);
 
-                bool isHQ = false;
-                try
-                {
-                    var def = _data.GetBuilding(b.DefId);
-                    isHQ = def != null && def.IsHQ;
-                }
-                catch { }
+                bool isHQ = _data != null && _data.TryGetBuilding(b.DefId, out var def) && def != null && def.IsHQ;
 
                 if (!isHQ && b.DefId == "HQ") isHQ = true;
                 if (!isHQ) continue;
@@ -762,6 +758,22 @@ namespace SeasonalBastion.DebugTools
             };
 
             // Default conservative
+            return 1;
+        }
+    }
+}
+       1 => 1,
+                2 => 2,
+                3 => 2,
+                _ => 1
+            };
+
+            // Default conservative
+            return 1;
+        }
+    }
+}
+ // Default conservative
             return 1;
         }
     }

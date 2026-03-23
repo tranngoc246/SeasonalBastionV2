@@ -201,9 +201,7 @@ namespace SeasonalBastion.RunStart
                 var b = s.WorldState.Buildings.Get(bid);
                 if (string.IsNullOrEmpty(b.DefId) || !b.IsConstructed) continue;
 
-                BuildingDef def = null;
-                try { def = s.DataRegistry.GetBuilding(b.DefId); }
-                catch
+                if (!s.DataRegistry.TryGetBuilding(b.DefId, out var def) || def == null)
                 {
                     issues.Add(new RunStartValidationIssue(RunStartIssueSeverity.Error, "BUILD_DEF_MISSING",
                         $"BuildingDef missing for '{b.DefId}' (buildingId={bid.Value})."));

@@ -1073,9 +1073,8 @@ namespace SeasonalBastion
 
             if (!found) return;
 
-            TowerDef def;
-            try { def = _s.DataRegistry.GetTower("bld_tower_arrow_t1"); }
-            catch { def = null; }
+            TowerDef def = null;
+            _s.DataRegistry.TryGetTower("bld_tower_arrow_t1", out def);
 
             int ammoCap = def != null ? def.AmmoMax : 60;
             int hpMax = def != null ? def.MaxHp : 200;

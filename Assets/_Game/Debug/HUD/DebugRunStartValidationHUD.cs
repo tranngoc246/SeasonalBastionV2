@@ -289,12 +289,11 @@ namespace SeasonalBastion.DebugTools
                 var st = _s.WorldState.Buildings.Get(bid);
                 if (string.IsNullOrEmpty(st.DefId)) continue;
 
-                try
+                if (_s.DataRegistry.TryGetBuilding(st.DefId, out var def) && def != null && def.IsHQ)
                 {
-                    var def = _s.DataRegistry.GetBuilding(st.DefId);
-                    if (def.IsHQ) { hq = bid; break; }
+                    hq = bid;
+                    break;
                 }
-                catch { }
             }
 
             if (hq.Value == 0)

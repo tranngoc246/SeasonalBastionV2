@@ -585,8 +585,8 @@ namespace SeasonalBastion
             {
                 string defId = candidates[i];
 
-                try { _s.DataRegistry.GetBuilding(defId); }
-                catch { continue; }
+                if (!_s.DataRegistry.TryGetBuilding(defId, out var def) || def == null)
+                    continue;
 
                 if (_s.UnlockService != null && !_s.UnlockService.IsUnlocked(defId))
                     continue;

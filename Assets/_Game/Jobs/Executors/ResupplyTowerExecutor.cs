@@ -276,10 +276,8 @@ namespace SeasonalBastion
                 var b = w.Buildings.Get(bid);
                 if (!b.IsConstructed) continue;
 
-                BuildingDef bdef = null;
-                try { bdef = data.GetBuilding(b.DefId); } catch { }
-
-                if (bdef == null || !bdef.IsTower) continue;
+                if (!data.TryGetBuilding(b.DefId, out var bdef) || bdef == null || !bdef.IsTower)
+                    continue;
 
                 int w0 = bdef.SizeX <= 0 ? 1 : bdef.SizeX;
                 int h0 = bdef.SizeY <= 0 ? 1 : bdef.SizeY;

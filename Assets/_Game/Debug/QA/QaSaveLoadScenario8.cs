@@ -57,7 +57,7 @@ namespace SeasonalBastion
             var buildCtx = new BuildCtx();
             if (!EnsureOneBuildSiteCreated(s, ref buildCtx, out var createErr))
             {
-                // Don't stop silently — report and continue to C7/C8
+                // Don't stop silently ï¿½ report and continue to C7/C8
                 Debug.LogError("[QA] FAIL: cannot create build site for C3..C6: " + createErr);
                 fail += 4; // mark C3..C6 as failed
             }
@@ -630,8 +630,8 @@ namespace SeasonalBastion
             for (int i = 0; i < candidates.Length; i++)
             {
                 var id = candidates[i];
-                try { s.DataRegistry.GetBuilding(id); }
-                catch { continue; }
+                if (!s.DataRegistry.TryGetBuilding(id, out var def) || def == null)
+                    continue;
 
                 // optional unlock check
                 if (s.UnlockService != null && !s.UnlockService.IsUnlocked(id))

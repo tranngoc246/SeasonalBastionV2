@@ -43,14 +43,12 @@ namespace SeasonalBastion
             int w = 1, h = 1;
             bool isHQ = false;
 
-            try
+            if (s.DataRegistry.TryGetBuilding(site.BuildingDefId, out var def) && def != null)
             {
-                var def = s.DataRegistry.GetBuilding(site.BuildingDefId);
                 w = Math.Max(1, def.SizeX);
                 h = Math.Max(1, def.SizeY);
                 isHQ = def.IsHQ;
             }
-            catch { /* fallback */ }
 
             if (isHQ)
             {

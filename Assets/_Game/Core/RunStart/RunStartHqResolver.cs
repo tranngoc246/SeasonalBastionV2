@@ -92,13 +92,7 @@ namespace SeasonalBastion.RunStart
                 var st = s.WorldState.Buildings.Get(id);
                 if (!st.IsConstructed) continue;
 
-                bool isHQ = false;
-                try
-                {
-                    var def = s.DataRegistry.GetBuilding(st.DefId);
-                    isHQ = def.IsHQ;
-                }
-                catch { }
+                bool isHQ = s.DataRegistry.TryGetBuilding(st.DefId, out var def) && def != null && def.IsHQ;
 
                 if (!isHQ && !string.Equals(st.DefId, RunStartPlacementHelper.HqDefId, StringComparison.OrdinalIgnoreCase))
                     continue;
@@ -113,13 +107,11 @@ namespace SeasonalBastion.RunStart
 
             if (best.Value == 0) return false;
 
-            try
+            if (s.DataRegistry.TryGetBuilding(hq.DefId, out var hqDef) && hqDef != null)
             {
-                var def = s.DataRegistry.GetBuilding(hq.DefId);
-                w = Math.Max(1, def.SizeX);
-                h = Math.Max(1, def.SizeY);
+                w = Math.Max(1, hqDef.SizeX);
+                h = Math.Max(1, hqDef.SizeY);
             }
-            catch { }
 
             return true;
         }

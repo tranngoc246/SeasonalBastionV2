@@ -13,16 +13,11 @@ namespace SeasonalBastion.RunStart
             foreach (var bid in s.WorldState.Buildings.Ids)
             {
                 var st = s.WorldState.Buildings.Get(bid);
-                try
+                if (s.DataRegistry.TryGetBuilding(st.DefId, out var def) && def != null && def.IsHQ)
                 {
-                    var def = s.DataRegistry.GetBuilding(st.DefId);
-                    if (def.IsHQ)
-                    {
-                        hq = bid;
-                        break;
-                    }
+                    hq = bid;
+                    break;
                 }
-                catch { }
             }
 
             if (hq.Value == 0)

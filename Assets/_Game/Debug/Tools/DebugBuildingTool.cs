@@ -430,13 +430,11 @@ namespace SeasonalBastion.DebugTools
         private void DrawPreviewFootprint()
         {
             int w = 1, h = 1;
-            try
+            if (_data != null && _data.TryGetBuilding(_selectedDef, out var def) && def != null)
             {
-                var def = _data.GetBuilding(_selectedDef);
                 w = Mathf.Max(1, def.SizeX);
                 h = Mathf.Max(1, def.SizeY);
             }
-            catch { }
 
             for (int dy = 0; dy < h; dy++)
                 for (int dx = 0; dx < w; dx++)

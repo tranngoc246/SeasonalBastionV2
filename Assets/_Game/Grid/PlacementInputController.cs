@@ -257,7 +257,9 @@ namespace SeasonalBastion
             if (!string.IsNullOrEmpty(_placeDefId))
             {
                 int w = 1, h = 1;
-                var def = _data != null ? _data.GetBuilding(_placeDefId) : null;
+                BuildingDef def = null;
+                if (_data != null)
+                    _data.TryGetBuilding(_placeDefId, out def);
                 if (def != null)
                 {
                     w = Mathf.Max(1, def.SizeX);

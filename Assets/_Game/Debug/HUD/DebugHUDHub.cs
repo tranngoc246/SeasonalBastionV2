@@ -595,9 +595,8 @@ namespace SeasonalBastion.DebugTools
                 var bs = _gs.WorldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
-                BuildingDef def = null;
-                try { def = _gs.DataRegistry.GetBuilding(bs.DefId); } catch { }
-                if (def == null) continue;
+                if (!_gs.DataRegistry.TryGetBuilding(bs.DefId, out var def) || def == null)
+                    continue;
 
                 if (preferHQ && !def.IsHQ) continue;
                 if (preferWarehouse && !def.IsWarehouse) continue;

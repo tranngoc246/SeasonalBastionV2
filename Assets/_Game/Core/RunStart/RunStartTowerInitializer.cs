@@ -20,27 +20,20 @@ namespace SeasonalBastion.RunStart
             int hpMax = 260;
             int ammoMax = 90;
 
-            try
+            if (s.DataRegistry.TryGetTower(TowerArrowDefId, out var tdef) && tdef != null)
             {
-                var tdef = s.DataRegistry.GetTower(TowerArrowDefId);
-                if (tdef != null)
-                {
-                    hpMax = Mathf.Max(1, tdef.MaxHp);
-                    ammoMax = Mathf.Max(0, tdef.AmmoMax);
-                }
+                hpMax = Mathf.Max(1, tdef.MaxHp);
+                ammoMax = Mathf.Max(0, tdef.AmmoMax);
             }
-            catch { }
 
             int ammo = ResolveAmmo(ammoMax, b);
 
             int bw = 1, bh = 1;
-            try
+            if (s.DataRegistry.TryGetBuilding(building.DefId, out var bdef) && bdef != null)
             {
-                var bdef = s.DataRegistry.GetBuilding(building.DefId);
                 bw = Math.Max(1, bdef.SizeX);
                 bh = Math.Max(1, bdef.SizeY);
             }
-            catch { }
 
             var towerCell = new CellPos(building.Anchor.X + (bw / 2), building.Anchor.Y + (bh / 2));
             var st = new TowerState { Cell = towerCell, Hp = hpMax, HpMax = hpMax, Ammo = ammo, AmmoCap = ammoMax };
@@ -147,6 +140,10 @@ namespace SeasonalBastion.RunStart
             if (x < min) return min;
             if (x > max) return max;
             return x;
+        }
+    }
+}
+x;
         }
     }
 }

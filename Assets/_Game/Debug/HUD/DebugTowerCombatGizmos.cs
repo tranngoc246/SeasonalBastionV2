@@ -155,16 +155,11 @@ namespace SeasonalBastion.DebugTools
                 if (!b.IsConstructed) continue;
                 if (b.Anchor.X != towerAnchor.X || b.Anchor.Y != towerAnchor.Y) continue;
 
-                try
+                if (data.TryGetBuilding(b.DefId, out var bdef) && bdef != null && bdef.IsTower)
                 {
-                    var bdef = data.GetBuilding(b.DefId);
-                    if (bdef != null && bdef.IsTower)
-                    {
-                        towerDefId = b.DefId;
-                        return true;
-                    }
+                    towerDefId = b.DefId;
+                    return true;
                 }
-                catch { }
             }
 
             return false;

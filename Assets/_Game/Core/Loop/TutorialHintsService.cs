@@ -175,9 +175,8 @@ namespace SeasonalBastion
                 var bs = w.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
-                BuildingDef bdef = null;
-                try { bdef = data.GetBuilding(bs.DefId); } catch { }
-                if (bdef == null || !bdef.IsProducer) continue;
+                if (!data.TryGetBuilding(bs.DefId, out var bdef) || bdef == null || !bdef.IsProducer)
+                    continue;
 
                 if (!TryGetProducedResource(bs.DefId, out var rt)) continue;
 

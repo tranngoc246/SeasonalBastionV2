@@ -111,9 +111,8 @@ namespace SeasonalBastion
             if (rotation != Dir4.N && rotation != Dir4.E && rotation != Dir4.S && rotation != Dir4.W)
                 return new PlacementResult(false, PlacementFailReason.InvalidRotation, anchor);
 
-            BuildingDef def;
-            try { def = _data.GetBuilding(buildingDefId); }
-            catch { return new PlacementResult(false, PlacementFailReason.Unknown, anchor); }
+            if (!_data.TryGetBuilding(buildingDefId, out var def) || def == null)
+                return new PlacementResult(false, PlacementFailReason.Unknown, anchor);
 
             int w = Math.Max(1, def.SizeX);
             int h = Math.Max(1, def.SizeY);

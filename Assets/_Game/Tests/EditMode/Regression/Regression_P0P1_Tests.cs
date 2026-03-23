@@ -59,13 +59,21 @@ namespace SeasonalBastion.Tests.EditMode
                 throw new KeyNotFoundException($"BuildingDef not found: {id}");
             }
 
+            public bool TryGetBuilding(string id, out BuildingDef def) => _b.TryGetValue(id, out def);
+
             // Not used in these tests
             public EnemyDef GetEnemy(string id) => throw new NotSupportedException();
+            public bool TryGetEnemy(string id, out EnemyDef def) { def = default; return false; }
             public WaveDef GetWave(string id) => throw new NotSupportedException();
+            public bool TryGetWave(string id, out WaveDef def) { def = default; return false; }
             public RewardDef GetReward(string id) => throw new NotSupportedException();
+            public bool TryGetReward(string id, out RewardDef def) { def = default; return false; }
             public RecipeDef GetRecipe(string id) => throw new NotSupportedException();
+            public bool TryGetRecipe(string id, out RecipeDef def) { def = default; return false; }
             public NpcDef GetNpc(string id) => throw new NotSupportedException();
+            public bool TryGetNpc(string id, out NpcDef def) { def = default; return false; }
             public TowerDef GetTower(string id) => throw new NotSupportedException();
+            public bool TryGetTower(string id, out TowerDef def) { def = default; return false; }
 
             public T GetDef<T>(string id) where T : UnityEngine.Object => throw new NotSupportedException();
             public bool TryGetDef<T>(string id, out T def) where T : UnityEngine.Object { def = default; return false; }

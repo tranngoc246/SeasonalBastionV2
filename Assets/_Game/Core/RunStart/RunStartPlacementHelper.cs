@@ -76,8 +76,10 @@ namespace SeasonalBastion.RunStart
 
         internal static bool HasBuildingDef(GameServices s, string id)
         {
-            try { s.DataRegistry.GetBuilding(id); return true; }
-            catch { return false; }
+            return s?.DataRegistry != null
+                && !string.IsNullOrEmpty(id)
+                && s.DataRegistry.TryGetBuilding(id, out var def)
+                && def != null;
         }
 
         internal static Dir4 ParseDir4(string s)

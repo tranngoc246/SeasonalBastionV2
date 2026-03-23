@@ -71,9 +71,8 @@ namespace SeasonalBastion
             // Index only constructed buildings (construction sites / placeholders are excluded).
             if (!st.IsConstructed) return;
 
-            BuildingDef def;
-            try { def = _data.GetBuilding(st.DefId); }
-            catch { return; }
+            if (!_data.TryGetBuilding(st.DefId, out var def) || def == null)
+                return;
 
             // Resolve classification (prefer explicit tags; fallback by def id for VS#1).
             ResolveTags(st.DefId, def,

@@ -72,7 +72,8 @@ namespace SeasonalBastion
             if (bs.MaxHP <= 0)
             {
                 int mhp = 100;
-                try { mhp = Math.Max(1, _s.DataRegistry.GetBuilding(bs.DefId).MaxHp); } catch { }
+                if (_s.DataRegistry.TryGetBuilding(bs.DefId, out var repairDef) && repairDef != null)
+                    mhp = Math.Max(1, repairDef.MaxHp);
                 bs.MaxHP = mhp;
                 if (bs.HP <= 0) bs.HP = bs.MaxHP;
                 w.Buildings.Set(job.DestBuilding, bs);

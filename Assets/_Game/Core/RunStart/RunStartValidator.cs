@@ -5,9 +5,9 @@ using UnityEngine;
 
 namespace SeasonalBastion.RunStart
 {
-    internal enum RunStartIssueSeverity { Error, Warning }
+    public enum RunStartIssueSeverity { Error, Warning }
 
-    internal readonly struct RunStartValidationIssue
+    public readonly struct RunStartValidationIssue
     {
         public readonly RunStartIssueSeverity Severity;
         public readonly string Code;
@@ -23,10 +23,10 @@ namespace SeasonalBastion.RunStart
         public override string ToString() => $"{Code}: {Message}";
     }
 
-    internal static class RunStartValidator
+    public static class RunStartValidator
     {
         // Main entry used by RunStart facade and Debug HUD.
-        internal static void CollectRuntimeIssues(GameServices s, List<RunStartValidationIssue> issues)
+        public static void CollectRuntimeIssues(GameServices s, List<RunStartValidationIssue> issues)
         {
             if (issues == null) return;
             if (s == null)
@@ -397,3 +397,5 @@ namespace SeasonalBastion.RunStart
 
     }
 }
+
+

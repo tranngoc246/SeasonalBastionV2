@@ -148,9 +148,8 @@ namespace SeasonalBastion
                 var bs = _s.WorldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
-                BuildingDef def;
-                try { def = _s.DataRegistry.GetBuilding(bs.DefId); } catch { continue; }
-                if (!def.IsHQ) continue;
+                if (!_s.DataRegistry.TryGetBuilding(bs.DefId, out var def) || def == null || !def.IsHQ)
+                    continue;
 
                 if (bid.Value < bestId)
                 {

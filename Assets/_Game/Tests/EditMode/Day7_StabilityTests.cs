@@ -76,20 +76,27 @@ namespace SeasonalBastion.Tests.EditMode
                 throw new KeyNotFoundException($"BuildingDef not found: {id}");
             }
 
+            public bool TryGetBuilding(string id, out BuildingDef def) => _buildings.TryGetValue(id, out def);
             public EnemyDef GetEnemy(string id) => throw new NotSupportedException();
+            public bool TryGetEnemy(string id, out EnemyDef def) { def = default; return false; }
             public WaveDef GetWave(string id) => throw new NotSupportedException();
+            public bool TryGetWave(string id, out WaveDef def) { def = default; return false; }
             public RewardDef GetReward(string id) => throw new NotSupportedException();
+            public bool TryGetReward(string id, out RewardDef def) { def = default; return false; }
             public RecipeDef GetRecipe(string id) => throw new NotSupportedException();
+            public bool TryGetRecipe(string id, out RecipeDef def) { def = default; return false; }
 
             public NpcDef GetNpc(string id)
             {
                 throw new NotImplementedException();
             }
+            public bool TryGetNpc(string id, out NpcDef def) { def = default; return false; }
 
             public TowerDef GetTower(string id)
             {
                 throw new NotImplementedException();
             }
+            public bool TryGetTower(string id, out TowerDef def) { def = default; return false; }
         }
 
         /// <summary>

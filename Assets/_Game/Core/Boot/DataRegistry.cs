@@ -9,7 +9,8 @@ namespace SeasonalBastion
     /// Runtime JSON-backed data registry.
     /// v0.1: JSON TextAssets are referenced via DefsCatalog.asset.
     /// Notes:
-    /// - Keep maps deterministic (case-insensitive keys, last wins by file order).
+    /// - Keys are case-insensitive for deterministic lookup.
+    /// - On duplicate ids within a loaded source, later entries overwrite earlier ones and an error is recorded.
     /// - Collect load errors so DataValidator can gate play.
     /// </summary>
     public sealed partial class DataRegistry : IDataRegistry
@@ -23,6 +24,7 @@ namespace SeasonalBastion
         private readonly Dictionary<string, WaveDef> _waves = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, RewardDef> _rewards = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, RecipeDef> _recipes = new(StringComparer.OrdinalIgnoreCase);
+
         // Upgrade Graph (Node/Edge)
         private readonly Dictionary<string, BuildableNodeDef> _buildableNodes = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, UpgradeEdgeDef> _upgradeEdgesById = new(StringComparer.OrdinalIgnoreCase);
@@ -215,7 +217,7 @@ namespace SeasonalBastion
         public IReadOnlyCollection<string> GetAllRecipeIds() => _recipes.Keys;
         public IReadOnlyCollection<string> GetAllBuildableNodeIds() => _buildableNodes.Keys;
         public IReadOnlyCollection<string> GetAllUpgradeEdgeIds() => _upgradeEdgesById.Keys;
-        public IReadOnlyList<string> GetLoadErrors() => _loadErrors;
+        public IReadOnlyList<string> GetLoadErrors() => _loadErrors.AsReadOnly();
 
         public bool TryGetBuildableNode(string id, out BuildableNodeDef node)
         {
@@ -228,7 +230,7 @@ namespace SeasonalBastion
         {
             if (string.IsNullOrWhiteSpace(fromNodeId)) return Array.Empty<UpgradeEdgeDef>();
             if (_upgradeEdgesFrom.TryGetValue(fromNodeId, out var list) && list != null)
-                return list;
+                return list.AsReadOnly();
             return Array.Empty<UpgradeEdgeDef>();
         }
 
@@ -239,7 +241,7 @@ namespace SeasonalBastion
             return _upgradeEdgesById.TryGetValue(edgeId, out edge) && edge != null;
         }
 
-        // UI helper: node c� trong graph => theo Placeable; legacy => true
+        // UI helper: if the node exists in the graph, use node.Placeable; otherwise allow legacy content.
         public bool IsPlaceableBuildable(string nodeId)
         {
             if (string.IsNullOrWhiteSpace(nodeId)) return false;
@@ -248,8 +250,13 @@ namespace SeasonalBastion
             return true;
         }
 
+        public bool TryGetBuilding(string id, out BuildingDef def) => _buildings.TryGetValue(id, out def);
+        public bool TryGetNpc(string id, out NpcDef def) => _npcs.TryGetValue(id, out def);
+        public bool TryGetTower(string id, out TowerDef def) => _towers.TryGetValue(id, out def);
         public bool TryGetEnemy(string id, out EnemyDef def) => _enemies.TryGetValue(id, out def);
         public bool TryGetWave(string id, out WaveDef def) => _waves.TryGetValue(id, out def);
+        public bool TryGetReward(string id, out RewardDef def) => _rewards.TryGetValue(id, out def);
+        public bool TryGetRecipe(string id, out RecipeDef def) => _recipes.TryGetValue(id, out def);
 
         public void ClearAll()
         {
@@ -281,7 +288,9 @@ namespace SeasonalBastion
         // --- IDataRegistry contract (Part25) ---
         public T GetDef<T>(string id) where T : UnityEngine.Object
         {
-            throw new KeyNotFoundException($"No ScriptableObject def for type {typeof(T).Name} id='{id}'.");
+            throw new NotSupportedException(
+                $"{nameof(DataRegistry)} does not support generic UnityEngine.Object lookup. " +
+                $"Use typed accessors instead. Requested type={typeof(T).Name}, id='{id}'.");
         }
 
         public bool TryGetDef<T>(string id, out T def) where T : UnityEngine.Object
@@ -331,7 +340,5 @@ namespace SeasonalBastion
             if (_towers.TryGetValue(id, out var v)) return v;
             throw new KeyNotFoundException($"TowerDef not found: '{id}'");
         }
-
     }
 }
-

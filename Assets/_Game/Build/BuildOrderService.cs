@@ -33,6 +33,7 @@ namespace SeasonalBastion
 
         private readonly BuildOrderWorkplaceResolver _workplaceResolver;
         private readonly BuildOrderReloadService _reloadService;
+        private readonly BuildOrderCompletionService _completionService;
 
         public event Action<int> OnOrderCompleted;
 
@@ -51,6 +52,10 @@ namespace SeasonalBastion
                 EnsureBusSubscribed,
                 ResetRuntimeTracking,
                 AllocateOrderId);
+            _completionService = new BuildOrderCompletionService(
+                s,
+                CancelTrackedJobsForSite,
+                RemoveAutoRoadByOrder);
         }
 
         public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
@@ -808,6 +813,9 @@ namespace SeasonalBastion
 
         private void CompletePlaceOrder(ref BuildOrder o)
         {
+            _completionService.CompletePlace(ref o);
+            return;
+
             if (o.Completed) return;
 
             // Day19: cancel any leftover jobs for this site (safety)
@@ -916,6 +924,9 @@ namespace SeasonalBastion
 
         private void CompleteUpgradeOrder(ref BuildOrder o)
         {
+            _completionService.CompleteUpgrade(ref o);
+            return;
+
             if (o.Completed) return;
 
             CancelTrackedJobsForSite(o.Site);
@@ -1044,6 +1055,11 @@ namespace SeasonalBastion
         }
 
         private int AllocateOrderId() => _nextOrderId++;
+
+        private void RemoveAutoRoadByOrder(int orderId)
+        {
+            _autoRoadByOrder.Remove(orderId);
+        }
 
         public int RebuildActivePlaceOrdersFromSitesAfterLoad()
         {
@@ -1254,4 +1270,12 @@ namespace SeasonalBastion
             return list;
         }
     }
+}
+}
+.Resource, Amount = 0 });
+            }
+            return list;
+        }
+    }
+}
 }

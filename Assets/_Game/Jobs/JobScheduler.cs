@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -8,19 +9,15 @@ namespace SeasonalBastion
         private readonly IWorldState _w;
         private readonly IJobBoard _board;
         private readonly IClaimService _claims;
-        private readonly JobExecutorRegistry _exec;
-        private readonly IEventBus _bus;
-        private readonly JobWorkplacePolicy _workplacePolicy;
-        private readonly ResourceLogisticsPolicy _resourcePolicy;
-        private readonly JobNotificationPolicy _notificationPolicy;
+
         private readonly JobStateCleanupService _cleanupService;
-        private readonly JobAssignmentService _assignmentService;
         private readonly JobSchedulerCache _cacheService;
+        private readonly JobAssignmentService _assignmentService;
         private readonly JobEnqueueService _enqueueService;
+        private readonly JobExecutionService _executionService;
 
         public int AssignedThisTick { get; private set; }
 
-        // Reuse buffers (avoid per-tick GC)
         private readonly List<NpcId> _npcIds = new(64);
         private readonly List<BuildingId> _buildingIds = new(128);
         private readonly HashSet<int> _workplacesWithNpc = new();
@@ -46,22 +43,23 @@ namespace SeasonalBastion
             _w = w;
             _board = board;
             _claims = claims;
-            _exec = exec;
-            _bus = bus;
-            _workplacePolicy = new JobWorkplacePolicy(data);
-            _resourcePolicy = new ResourceLogisticsPolicy();
-            _notificationPolicy = new JobNotificationPolicy(noti);
+
+            var workplacePolicy = new JobWorkplacePolicy(data);
+            var resourcePolicy = new ResourceLogisticsPolicy();
+            var notificationPolicy = new JobNotificationPolicy(noti);
+
             _cleanupService = new JobStateCleanupService(claims);
-            _assignmentService = new JobAssignmentService(w, board, _workplacePolicy, _notificationPolicy);
             _cacheService = new JobSchedulerCache(w);
+            _assignmentService = new JobAssignmentService(w, board, workplacePolicy, notificationPolicy);
+            _enqueueService = new JobEnqueueService(w, board, workplacePolicy, resourcePolicy, _cleanupService);
+            _executionService = new JobExecutionService(w, board, exec, _cleanupService);
         }
 
         public void Tick(float dt)
         {
             AssignedThisTick = 0;
 
-            // 0) Maintain caches + enqueue + assign only every X sim seconds (avoid heavy per-frame cost)
-            const float MaintenanceInterval = 0.25f; // sim seconds
+            const float MaintenanceInterval = 0.25f;
             _maintenanceTimer += dt;
 
             if (!_cacheReady || _maintenanceTimer >= MaintenanceInterval)
@@ -69,40 +67,28 @@ namespace SeasonalBastion
                 _maintenanceTimer = 0f;
                 _cacheReady = true;
 
-                _cacheService.BuildSortedNpcIds(_npcIds);
-                _cacheService.BuildSortedBuildingIds(_buildingIds);
-                _cacheService.BuildWorkplaceHasNpcSet(_npcIds, _workplacesWithNpc, _workplaceNpcCount);
+                RebuildCaches();
 
-                // Ensure jobs exist (Harvest + HaulBasic)
-                _enqueueService.EnqueueHarvestJobsIfNeeded(_buildingIds, _workplacesWithNpc, _workplaceNpcCount, _harvestJobByWorkplaceSlot);
-                _enqueueService.EnqueueHaulJobsIfNeeded(_buildingIds, _workplacesWithNpc, _haulJobByWorkplaceAndType, AnyHarvestProducerHasAmount);
+                _enqueueService.EnqueueHarvestJobsIfNeeded(
+                    _buildingIds,
+                    _workplacesWithNpc,
+                    _workplaceNpcCount,
+                    _harvestJobByWorkplaceSlot);
 
-                // Assign jobs to idle NPCs (deterministic order from cached lists)
-                for (int i = 0; i < _npcIds.Count; i++)
-                {
-                    var nid = _npcIds[i];
-                    if (!_w.Npcs.Exists(nid)) continue;
+                _enqueueService.EnqueueHaulJobsIfNeeded(
+                    _buildingIds,
+                    _workplacesWithNpc,
+                    _haulJobByWorkplaceAndType,
+                    AnyHarvestProducerHasAmount);
 
-                    var ns = _w.Npcs.Get(nid);
-
-                    if (!ns.IsIdle || ns.CurrentJob.Value != 0) { _w.Npcs.Set(nid, ns); continue; }
-                    if (ns.Workplace.Value == 0) { _w.Npcs.Set(nid, ns); continue; }
-
-                    if (_assignmentService.TryAssign(nid, ref ns, AnyHarvestProducerHasAmount))
-                        AssignedThisTick++;
-
-                    _w.Npcs.Set(nid, ns);
-                }
+                AssignedThisTick = AssignIdleNpcs();
             }
 
-            // 1) ALWAYS tick current jobs every frame (so Build progress is smooth and respects x3)
-            // If cache wasn't built yet (very first frame), build minimal npc list now.
             if (!_cacheReady)
                 _cacheService.BuildSortedNpcIds(_npcIds);
 
             _executionService.TickCurrentJobs(_npcIds, dt);
 
-            // 2) Periodic cleanup
             _claimCleanupTimer += dt;
             if (_claimCleanupTimer >= 2f)
             {
@@ -120,38 +106,50 @@ namespace SeasonalBastion
             if (!ns.IsIdle || ns.CurrentJob.Value != 0) return false;
             if (ns.Workplace.Value == 0) return false;
 
-            if (!_assignmentService.TryAssign(npc, ref ns, AnyHarvestProducerHasAmount)) return false;
-            _w.Npcs.Set(npc, ns);
+            if (!_assignmentService.TryAssign(npc, ref ns, AnyHarvestProducerHasAmount))
+                return false;
 
+            _w.Npcs.Set(npc, ns);
             return _board.TryGet(ns.CurrentJob, out assigned);
         }
 
-        private bool TryGetProducerFor(ResourceType rt, out BuildingId producer)
+        private void RebuildCaches()
         {
-            // Deterministic: pick smallest BuildingId that is constructed and matches resource type
-            producer = default;
+            _cacheService.BuildSortedNpcIds(_npcIds);
+            _cacheService.BuildSortedBuildingIds(_buildingIds);
+            _cacheService.BuildWorkplaceHasNpcSet(_npcIds, _workplacesWithNpc, _workplaceNpcCount);
+        }
 
-            for (int i = 0; i < _buildingIds.Count; i++)
+        private int AssignIdleNpcs()
+        {
+            int assignedThisTick = 0;
+
+            for (int i = 0; i < _npcIds.Count; i++)
             {
-                var bid = _buildingIds[i];
-                if (!_w.Buildings.Exists(bid)) continue;
+                var nid = _npcIds[i];
+                if (!_w.Npcs.Exists(nid)) continue;
 
-                var bs = _w.Buildings.Get(bid);
-                if (!bs.IsConstructed) continue;
-                if (!_workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
+                var ns = _w.Npcs.Get(nid);
 
-                var prt = _resourcePolicy.HarvestResourceType(bs.DefId);
-                if (prt != rt) continue;
+                if (!ns.IsIdle || ns.CurrentJob.Value != 0)
+                {
+                    _w.Npcs.Set(nid, ns);
+                    continue;
+                }
 
-                // M4: only wood+food producers
-                if (rt == ResourceType.Wood && !DefIdTierUtil.IsBase(bs.DefId, "bld_lumbercamp")) continue;
-                if (rt == ResourceType.Food && !DefIdTierUtil.IsBase(bs.DefId, "bld_farmhouse")) continue;
+                if (ns.Workplace.Value == 0)
+                {
+                    _w.Npcs.Set(nid, ns);
+                    continue;
+                }
 
-                producer = bid;
-                return true;
+                if (_assignmentService.TryAssign(nid, ref ns, AnyHarvestProducerHasAmount))
+                    assignedThisTick++;
+
+                _w.Npcs.Set(nid, ns);
             }
 
-            return false;
+            return assignedThisTick;
         }
 
         private bool AnyHarvestProducerHasAmount(ResourceType rt)
@@ -163,52 +161,32 @@ namespace SeasonalBastion
 
                 var bs = _w.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
-                if (!_workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
-                if (_resourcePolicy.HarvestResourceType(bs.DefId) != rt) continue;
 
-                if (_resourcePolicy.GetAmountFromBuilding(bs, rt) > 0) return true;
+                if (rt switch
+                {
+                    ResourceType.Food => DefIdTierUtil.IsBase(bs.DefId, "bld_farmhouse"),
+                    ResourceType.Wood => DefIdTierUtil.IsBase(bs.DefId, "bld_lumbercamp"),
+                    ResourceType.Stone => DefIdTierUtil.IsBase(bs.DefId, "bld_quarry"),
+                    ResourceType.Iron => DefIdTierUtil.IsBase(bs.DefId, "bld_ironhut"),
+                    _ => false,
+                })
+                {
+                    int amount = rt switch
+                    {
+                        ResourceType.Wood => bs.Wood,
+                        ResourceType.Food => bs.Food,
+                        ResourceType.Stone => bs.Stone,
+                        ResourceType.Iron => bs.Iron,
+                        ResourceType.Ammo => bs.Ammo,
+                        _ => 0,
+                    };
+
+                    if (amount > 0)
+                        return true;
+                }
             }
+
             return false;
         }
-
-        private bool AnyPileHasAmount(ResourceType rt, BuildingId owner)
-        {
-            return _w.Piles != null && owner.Value != 0 && _w.Piles.TryFindNonEmpty(rt, owner, out _);
-        }
-
     }
 }
-
- private bool AnyHarvestProducerHasAmount(ResourceType rt)
-        {
-            for (int i = 0; i < _buildingIds.Count; i++)
-            {
-                var bid = _buildingIds[i];
-                if (!_w.Buildings.Exists(bid)) continue;
-
-                var bs = _w.Buildings.Get(bid);
-                if (!bs.IsConstructed) continue;
-                if (!_workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
-                if (_resourcePolicy.HarvestResourceType(bs.DefId) != rt) continue;
-
-                if (_resourcePolicy.GetAmountFromBuilding(bs, rt) > 0) return true;
-            }
-            return false;
-        }
-
-        private bool AnyPileHasAmount(ResourceType rt, BuildingId owner)
-        {
-            return _w.Piles != null && owner.Value != 0 && _w.Piles.TryFindNonEmpty(rt, owner, out _);
-        }
-
-    }
-}
-
-
-        {
-            return _w.Piles != null && owner.Value != 0 && _w.Piles.TryFindNonEmpty(rt, owner, out _);
-        }
-
-    }
-}
-

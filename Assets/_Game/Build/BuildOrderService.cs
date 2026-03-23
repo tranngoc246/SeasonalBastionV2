@@ -35,6 +35,7 @@ namespace SeasonalBastion
         private readonly BuildOrderReloadService _reloadService;
         private readonly BuildOrderCompletionService _completionService;
         private readonly BuildOrderCreationService _creationService;
+        private readonly BuildOrderTickProcessor _tickProcessor;
 
         public event Action<int> OnOrderCompleted;
 
@@ -83,158 +84,7 @@ namespace SeasonalBastion
 
         public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
         {
-            EnsureBusSubscribed();
-
-            // Unlock gating must be enforced at authoritative layer (not only UI/debug).
-            if (_s.UnlockService != null && !_s.UnlockService.IsUnlocked(buildingDefId))
-            {
-                _s.NotificationService?.Push(
-                    key: $"LockedBuild_{buildingDefId}",
-                    title: "Locked",
-                    body: $"Not unlocked yet: {buildingDefId}",
-                    severity: NotificationSeverity.Warning,
-                    payload: new NotificationPayload(default, default, buildingDefId),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true
-                );
-                return 0;
-            }
-
-            // 1) Validate via PlacementService (single source of truth)
-            var placement = _s.PlacementService;
-            var vr = placement.ValidateBuilding(buildingDefId, anchor, rotation);
-            if (!vr.Ok)
-            {
-                // Authoritative "Can't place" notification (commit-time only)
-                _s.NotificationService?.Push(
-                    key: "CantPlace",
-                    title: "Can't place",
-                    body: vr.FailReason switch
-                    {
-                        PlacementFailReason.Overlap => "Overlaps road/building.",
-                        PlacementFailReason.BlockedBySite => "Blocked by site.",
-                        PlacementFailReason.NoRoadConnection => "No road connection.",
-                        PlacementFailReason.OutOfBounds => "Out of bounds.",
-                        PlacementFailReason.InvalidRotation => "Invalid rotation.",
-                        _ => "Invalid placement."
-                    },
-                    severity: NotificationSeverity.Warning,
-                    // Global event: no building/tower yet
-                    payload: new NotificationPayload(default, default, "placement"),
-                    cooldownSeconds: 0.35f,
-                    dedupeByKey: true
-                );
-
-                return 0;
-            }
-
-
-            // 2) Read def for footprint + base level
-            BuildingDef def = _s.DataRegistry.GetBuilding(buildingDefId);
-
-            // Authoritative resource gating: block placing if total storage is insufficient
-            if (def.BuildCostsL1 != null && def.BuildCostsL1.Length > 0 && _s.StorageService != null)
-            {
-                for (int i = 0; i < def.BuildCostsL1.Length; i++)
-                {
-                    var c = def.BuildCostsL1[i];
-                    if (c == null) continue;
-                    if (c.Amount <= 0) continue;
-
-                    int total = _s.StorageService.GetTotal(c.Resource);
-                    if (total < c.Amount)
-                    {
-                        _s.NotificationService?.Push(
-                            key: $"NoRes_{buildingDefId}_{c.Resource}",
-                            title: "Not enough resources",
-                            body: $"Need {c.Amount} {c.Resource} (have {total})",
-                            severity: NotificationSeverity.Warning,
-                            payload: new NotificationPayload(default, default, buildingDefId),
-                            cooldownSeconds: 0.25f,
-                            dedupeByKey: true
-                        );
-                        return 0;
-                    }
-                }
-            }
-
-            int w = Math.Max(1, def.SizeX);
-            int h = Math.Max(1, def.SizeY);
-            int level = Math.Max(1, def.BaseLevel);
-
-            // 3) Create placeholder building (not constructed yet)
-            var bst = new BuildingState
-            {
-                DefId = buildingDefId,
-                Anchor = anchor,
-                Rotation = rotation,
-                Level = level,
-                IsConstructed = false,
-                MaxHP = Math.Max(1, def.MaxHp),
-                HP = Math.Max(1, def.MaxHp),
-            };
-            var buildingId = _s.WorldState.Buildings.Create(bst);
-            bst.Id = buildingId;
-            _s.WorldState.Buildings.Set(buildingId, bst);
-
-            // 4) Create build site state
-            float workTotal = ComputeWorkSecondsTotal(def);
-            var site = new BuildSiteState
-            {
-                BuildingDefId = buildingDefId,
-                TargetLevel = level,
-                Anchor = anchor,
-                Rotation = rotation,
-                IsActive = true,
-                WorkSecondsDone = 0f,
-                WorkSecondsTotal = Math.Max(0.1f, workTotal),
-                DeliveredSoFar = BuildDeliveredMirror(def.BuildCostsL1),
-                RemainingCosts = CloneCostsOrEmpty(def.BuildCostsL1),
-                Kind = 0,
-                TargetBuilding = buildingId,
-                FromDefId = "",
-                EdgeId = ""
-            };
-            var siteId = _s.WorldState.Sites.Create(site);
-            site.Id = siteId;
-            _s.WorldState.Sites.Set(siteId, site);
-
-            // 5) Occupy footprint as Site
-            for (int dy = 0; dy < h; dy++)
-                for (int dx = 0; dx < w; dx++)
-                    _s.GridMap.SetSite(new CellPos(anchor.X + dx, anchor.Y + dy), siteId);
-
-            // 6) Create order
-            int orderId = _nextOrderId++;
-            var order = new BuildOrder
-            {
-                OrderId = orderId,
-                Kind = BuildOrderKind.PlaceNew,
-                BuildingDefId = buildingDefId,
-                TargetBuilding = buildingId,
-                Site = siteId,
-                RequiredCost = default,
-                Delivered = default,
-                WorkSecondsRequired = site.WorkSecondsTotal,
-                WorkSecondsDone = 0f,
-                Completed = false
-            };
-
-            _orders[orderId] = order;
-            _active.Add(orderId);
-
-            // Notify: started construction (Site created)
-            _s.NotificationService?.Push(
-                key: $"BuildStart_{buildingId.Value}",
-                title: "Construction",
-                body: $"Started: {buildingDefId}",
-                severity: NotificationSeverity.Info,
-                payload: new NotificationPayload(buildingId, default, buildingDefId),
-                cooldownSeconds: 0.25f,
-                dedupeByKey: true
-            );
-
-            return orderId;
+            return _creationService.CreatePlaceOrder(buildingDefId, anchor, rotation);
         }
 
         public int CreateUpgradeOrder(BuildingId building)
@@ -257,69 +107,7 @@ namespace SeasonalBastion
 
         public int CreateRepairOrder(BuildingId building)
         {
-            EnsureBusSubscribed();
-
-            if (building.Value == 0) return 0;
-            if (_s.WorldState == null || _s.WorldState.Buildings == null) return 0;
-            if (!_s.WorldState.Buildings.Exists(building)) return 0;
-
-            var bs = _s.WorldState.Buildings.Get(building);
-            if (!bs.IsConstructed) return 0;
-
-            // fix-up max hp from def if missing
-            if (bs.MaxHP <= 0)
-            {
-                int mhp = 100;
-                if (_s.DataRegistry.TryGetBuilding(bs.DefId, out var repairDef) && repairDef != null)
-                    mhp = Math.Max(1, repairDef.MaxHp);
-                bs.MaxHP = mhp;
-                if (bs.HP <= 0) bs.HP = bs.MaxHP;
-                _s.WorldState.Buildings.Set(building, bs);
-            }
-
-            if (bs.HP >= bs.MaxHP) return 0;
-
-            // prevent duplicate repair orders for same building
-            for (int i = 0; i < _active.Count; i++)
-            {
-                int id = _active[i];
-                if (!_orders.TryGetValue(id, out var oo)) continue;
-                if (oo.Completed) continue;
-                if (oo.Kind != BuildOrderKind.Repair) continue;
-                if (oo.TargetBuilding.Value == building.Value) return id;
-            }
-
-            int orderId = _nextOrderId++;
-            var order = new BuildOrder
-            {
-                OrderId = orderId,
-                Kind = BuildOrderKind.Repair,
-                BuildingDefId = bs.DefId,
-                TargetBuilding = building,
-                Site = default,
-                RequiredCost = default,
-                Delivered = default,
-
-                // time-only minimal: work seconds proportional to missing hp
-                WorkSecondsRequired = ComputeRepairSeconds(bs.HP, bs.MaxHP),
-                WorkSecondsDone = 0f,
-                Completed = false
-            };
-
-            _orders[orderId] = order;
-            _active.Add(orderId);
-
-            _s.NotificationService?.Push(
-                key: $"RepairStart_{building.Value}",
-                title: "Construction",
-                body: $"Repair started: {bs.DefId} ({bs.HP}/{bs.MaxHP})",
-                severity: NotificationSeverity.Info,
-                payload: new NotificationPayload(building, default, bs.DefId),
-                cooldownSeconds: 0.25f,
-                dedupeByKey: true
-            );
-
-            return orderId;
+            return _creationService.CreateRepairOrder(building);
         }
 
         private float ComputeRepairSeconds(int hp, int maxHp)

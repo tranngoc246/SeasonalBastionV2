@@ -34,6 +34,7 @@ namespace SeasonalBastion
         private readonly BuildOrderWorkplaceResolver _workplaceResolver;
         private readonly BuildOrderReloadService _reloadService;
         private readonly BuildOrderCompletionService _completionService;
+        private readonly BuildOrderCreationService _creationService;
 
         public event Action<int> OnOrderCompleted;
 
@@ -56,6 +57,17 @@ namespace SeasonalBastion
                 s,
                 CancelTrackedJobsForSite,
                 RemoveAutoRoadByOrder);
+            _creationService = new BuildOrderCreationService(
+                s,
+                _orders,
+                _active,
+                EnsureBusSubscribed,
+                AllocateOrderId,
+                ComputeWorkSecondsTotal,
+                ComputeWorkSecondsTotalFromChunks,
+                ComputeRepairSeconds,
+                CloneCostsOrEmpty,
+                BuildDeliveredMirror);
         }
 
         public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
@@ -216,216 +228,7 @@ namespace SeasonalBastion
 
         public int CreateUpgradeOrder(BuildingId building)
         {
-            EnsureBusSubscribed();
-
-            if (building.Value == 0) return 0;
-            if (_s.WorldState == null || _s.WorldState.Buildings == null) return 0;
-            if (!_s.WorldState.Buildings.Exists(building)) return 0;
-
-            var bs = _s.WorldState.Buildings.Get(building);
-            if (!bs.IsConstructed)
-            {
-                _s.NotificationService?.Push(
-                    key: $"UpgradeNotConstructed_{building.Value}",
-                    title: "Construction",
-                    body: "Can't upgrade while under construction. Finish building first.",
-                    severity: NotificationSeverity.Warning,
-                    payload: new NotificationPayload(building, default, bs.DefId),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true
-                );
-                return 0;
-            }
-
-            // Prevent duplicate upgrade order on same building
-            for (int i = 0; i < _active.Count; i++)
-            {
-                int id = _active[i];
-                if (!_orders.TryGetValue(id, out var oo)) continue;
-                if (oo.Completed) continue;
-                if (oo.Kind != BuildOrderKind.Upgrade) continue;
-                if (oo.TargetBuilding.Value != building.Value) continue;
-
-                _s.NotificationService?.Push(
-                    key: $"UpgradeAlready_{building.Value}",
-                    title: "Construction",
-                    body: "Công trình đang nâng cấp rồi.",
-                    severity: NotificationSeverity.Info,
-                    payload: new NotificationPayload(building, default, "upgrade"),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true
-                );
-
-                return id;
-            }
-
-            var dr = _s.DataRegistry as IDataRegistry;
-            if (dr == null)
-            {
-                _s.NotificationService?.Push(
-                    key: $"UpgradeNoGraph_{building.Value}",
-                    title: "Construction",
-                    body: "Upgrade graph not loaded.",
-                    severity: NotificationSeverity.Warning,
-                    payload: new NotificationPayload(building, default, "upgrade"),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true
-                );
-                return 0;
-            }
-
-            var edges = dr.GetUpgradeEdgesFrom(bs.DefId);
-            if (edges == null || edges.Count == 0)
-            {
-                _s.NotificationService?.Push(
-                    key: $"UpgradeNoEdge_{building.Value}",
-                    title: "Construction",
-                    body: $"No upgrade available for: {bs.DefId}",
-                    severity: NotificationSeverity.Info,
-                    payload: new NotificationPayload(building, default, bs.DefId),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true
-                );
-                return 0;
-            }
-
-            // deterministic pick: first edge (sorted in DataRegistry)
-            var edge = edges[0];
-
-            // Optional unlock gating
-            if (!string.IsNullOrWhiteSpace(edge.RequiresUnlocked) && _s.UnlockService != null && !_s.UnlockService.IsUnlocked(edge.RequiresUnlocked))
-            {
-                _s.NotificationService?.Push(
-                    key: $"UpgradeLocked_{building.Value}_{edge.RequiresUnlocked}",
-                    title: "Locked",
-                    body: $"Not unlocked yet: {edge.RequiresUnlocked}",
-                    severity: NotificationSeverity.Warning,
-                    payload: new NotificationPayload(building, default, edge.RequiresUnlocked),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true
-                );
-                return 0;
-            }
-
-            // Validate target def exists + same footprint (in-place upgrade)
-            if (!_s.DataRegistry.TryGetBuilding(edge.To, out var toDef) || toDef == null)
-            {
-                _s.NotificationService?.Push(
-                    key: $"UpgradeMissingDef_{building.Value}",
-                    title: "Construction",
-                    body: $"Upgrade target def missing: {edge.To}",
-                    severity: NotificationSeverity.Error,
-                    payload: new NotificationPayload(building, default, edge.To),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true
-                );
-                return 0;
-            }
-
-            var fromDef = _s.DataRegistry.GetBuilding(bs.DefId);
-            if (fromDef != null && toDef != null)
-            {
-                if (Math.Max(1, fromDef.SizeX) != Math.Max(1, toDef.SizeX) || Math.Max(1, fromDef.SizeY) != Math.Max(1, toDef.SizeY))
-                {
-                    _s.NotificationService?.Push(
-                        key: $"UpgradeFootprintMismatch_{building.Value}",
-                        title: "Construction",
-                        body: "Upgrade footprint mismatch (not supported).",
-                        severity: NotificationSeverity.Warning,
-                        payload: new NotificationPayload(building, default, edge.To),
-                        cooldownSeconds: 0.25f,
-                        dedupeByKey: true
-                    );
-                    return 0;
-                }
-            }
-
-            // Authoritative resource gating: block upgrade if total storage is insufficient
-            if (edge.Cost != null && edge.Cost.Length > 0 && _s.StorageService != null)
-            {
-                for (int i = 0; i < edge.Cost.Length; i++)
-                {
-                    var c = edge.Cost[i];
-                    if (c == null) continue;
-                    if (c.Amount <= 0) continue;
-
-                    int total = _s.StorageService.GetTotal(c.Resource);
-                    if (total < c.Amount)
-                    {
-                        _s.NotificationService?.Push(
-                            key: $"NoRes_Upgrade_{building.Value}_{c.Resource}",
-                            title: "Not enough resources",
-                            body: $"Need {c.Amount} {c.Resource} (have {total})",
-                            severity: NotificationSeverity.Warning,
-                            payload: new NotificationPayload(building, default, edge.To),
-                            cooldownSeconds: 0.25f,
-                            dedupeByKey: true
-                        );
-                        return 0;
-                    }
-                }
-            }
-
-            // Build site (NO GridMap.SetSite for upgrade)
-            int targetLevel = 1;
-            if (dr.TryGetBuildableNode(edge.To, out var node) && node != null) targetLevel = Math.Max(1, node.Level);
-            else targetLevel = Math.Max(1, toDef.BaseLevel);
-
-            float workTotal = ComputeWorkSecondsTotalFromChunks(edge.WorkChunks);
-
-            var site = new BuildSiteState
-            {
-                Kind = 1,
-                TargetBuilding = building,
-                FromDefId = bs.DefId,
-                EdgeId = edge.Id,
-
-                BuildingDefId = edge.To,
-                TargetLevel = targetLevel,
-                Anchor = bs.Anchor,
-                Rotation = bs.Rotation,
-
-                IsActive = true,
-                WorkSecondsDone = 0f,
-                WorkSecondsTotal = Math.Max(0.1f, workTotal),
-                DeliveredSoFar = BuildDeliveredMirror(edge.Cost),
-                RemainingCosts = CloneCostsOrEmpty(edge.Cost)
-            };
-
-            var siteId = _s.WorldState.Sites.Create(site);
-            site.Id = siteId;
-            _s.WorldState.Sites.Set(siteId, site);
-
-            int orderId = _nextOrderId++;
-            var order = new BuildOrder
-            {
-                OrderId = orderId,
-                Kind = BuildOrderKind.Upgrade,
-                BuildingDefId = edge.To,     // target def id
-                TargetBuilding = building,
-                Site = siteId,
-
-                RequiredCost = default,
-                Delivered = default,
-                WorkSecondsRequired = site.WorkSecondsTotal,
-                WorkSecondsDone = 0f,
-                Completed = false
-            };
-
-            _orders[orderId] = order;
-            _active.Add(orderId);
-
-            _s.NotificationService?.Push(
-                key: $"UpgradeStart_{building.Value}",
-                title: "Construction",
-                body: $"Upgrade started: {bs.DefId} -> {edge.To}",
-                severity: NotificationSeverity.Info,
-                payload: new NotificationPayload(building, default, edge.To),
-                cooldownSeconds: 0.25f,
-                dedupeByKey: true
-            );
-
-            return orderId;
+            return _creationService.CreateUpgradeOrder(building);
         }
 
         private float ComputeWorkSecondsTotalFromChunks(int chunks)
@@ -892,6 +695,191 @@ namespace SeasonalBastion
             if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
             {
                 if (!_s.JobBoard.TryGet(wid, out var wj) || IsTerminal(wj.Status))
+                    _workJobBySite.Remove(siteId.Value);
+            }
+
+            // New behavior: 1 builder job handles BOTH delivery + build.
+            // So we never enqueue BuildDeliver jobs. Also cancel any legacy deliver jobs still tracked.
+            CancelDeliveryJobs(siteId);
+
+            // Ensure 1 BuildWork job always exists while site is active (even when not ready).
+            if (!_workJobBySite.ContainsKey(siteId.Value))
+            {
+                var j = new Job
+                {
+                    Archetype = JobArchetype.BuildWork,
+                    Status = JobStatus.Created,
+                    Workplace = workplace,
+
+                    SourceBuilding = default,
+                    DestBuilding = default,
+                    Site = siteId,
+                    Tower = default,
+
+                    // BuildWorkExecutor will reuse these fields for its internal delivery phases:
+                    // ResourceType = current hauling resource
+                    // Amount = carried amount
+                    ResourceType = 0,
+                    Amount = 0,
+
+                    TargetCell = site.Anchor,
+                    CreatedAt = 0
+                };
+
+                var newId = _s.JobBoard.Enqueue(j);
+                _workJobBySite[siteId.Value] = newId;
+            }
+        }
+
+        private void CancelTrackedJobsForSite(SiteId siteId)
+        {
+            CancelDeliveryJobs(siteId);
+
+            if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
+            {
+                _s.JobBoard.Cancel(wid);
+                _workJobBySite.Remove(siteId.Value);
+            }
+        }
+
+        private void CancelRepairJob(int orderId)
+        {
+            if (_repairJobByOrder.TryGetValue(orderId, out var jid))
+            {
+                _s.JobBoard.Cancel(jid);
+                _repairJobByOrder.Remove(orderId);
+            }
+        }
+
+        private void CancelDeliveryJobs(SiteId siteId)
+        {
+            if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
+            {
+                for (int i = 0; i < list.Count; i++)
+                    _s.JobBoard.Cancel(list[i]);
+                list.Clear();
+                _deliverJobsBySite.Remove(siteId.Value);
+            }
+        }
+
+        private void PruneTerminal(List<JobId> list)
+        {
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var id = list[i];
+                if (!_s.JobBoard.TryGet(id, out var j) || IsTerminal(j.Status))
+                    list.RemoveAt(i);
+            }
+        }
+
+        private static bool IsTerminal(JobStatus s)
+        {
+            return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
+        }
+        // -------------------------
+        // Day21: Cancel refund policy
+        // -------------------------
+        private void RefundDeliveredToNearestStorage(in BuildSiteState st)
+        {
+            if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null) return;
+            if (st.DeliveredSoFar == null || st.DeliveredSoFar.Count == 0) return;
+
+            var whs = _s.WorldIndex.Warehouses;
+            if (whs == null || whs.Count == 0) return;
+
+            // Build candidate list once (deterministic)
+            _buildingIdsBuf.Clear();
+            for (int i = 0; i < whs.Count; i++)
+            {
+                var bid = whs[i];
+                if (bid.Value == 0) continue;
+                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+
+                var bs = _s.WorldState.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+
+                _buildingIdsBuf.Add(bid);
+            }
+
+            if (_buildingIdsBuf.Count == 0) return;
+
+            var from = st.Anchor;
+            _buildingIdsBuf.Sort((a, b) =>
+            {
+                var aa = _s.WorldState.Buildings.Get(a).Anchor;
+                var bb = _s.WorldState.Buildings.Get(b).Anchor;
+                int da = Manhattan(from, aa);
+                int db = Manhattan(from, bb);
+                if (da != db) return da.CompareTo(db);
+                return a.Value.CompareTo(b.Value);
+            });
+
+            // Refund each delivered cost line to nearest storage/HQ (best-effort).
+            for (int i = 0; i < st.DeliveredSoFar.Count; i++)
+            {
+                var c = st.DeliveredSoFar[i];
+                if (c.Amount <= 0) continue;
+
+                int left = c.Amount;
+                var rt = c.Resource;
+
+                for (int k = 0; k < _buildingIdsBuf.Count && left > 0; k++)
+                {
+                    var dst = _buildingIdsBuf[k];
+                    if (!_s.StorageService.CanStore(dst, rt)) continue;
+
+                    int added = _s.StorageService.Add(dst, rt, left);
+                    left -= added;
+                }
+            }
+        }
+
+        private static int Manhattan(CellPos a, CellPos b)
+        {
+            int dx = a.X - b.X; if (dx < 0) dx = -dx;
+            int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
+            return dx + dy;
+        }
+
+        // VS2 Day18: helpers for site cost tracking (delivery gate)
+        private static List<CostDef> CloneCostsOrEmpty(CostDef[] arr)
+        {
+            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
+
+            var list = new List<CostDef>(arr.Length);
+            for (int i = 0; i < arr.Length; i++)
+            {
+                var c = arr[i];
+                if (c == null) continue;
+
+                int amt = c.Amount;
+                if (amt <= 0) continue;
+
+                list.Add(new CostDef { Resource = c.Resource, Amount = amt });
+            }
+            return list;
+        }
+
+        private static List<CostDef> BuildDeliveredMirror(CostDef[] arr)
+        {
+            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
+
+            var list = new List<CostDef>(arr.Length);
+            for (int i = 0; i < arr.Length; i++)
+            {
+                var c = arr[i];
+                if (c == null) continue;
+
+                // keep only positive cost lines
+                if (c.Amount <= 0) continue;
+
+                list.Add(new CostDef { Resource = c.Resource, Amount = 0 });
+            }
+            return list;
+        }
+    }
+}
+ IsTerminal(wj.Status))
                     _workJobBySite.Remove(siteId.Value);
             }
 

@@ -458,5 +458,125 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(haulMap.Count, Is.EqualTo(1));
             Assert.That(board.CountActiveJobs(JobArchetype.HaulBasic), Is.EqualTo(1));
         }
+
+        [Test]
+        public void BuildOrderEventBridge_StoresAutoRoadByOrderId()
+        {
+            var bus = new TestEventBus();
+            var roads = new Dictionary<int, CellPos>();
+            var services = MakeServices(bus, new TestDataRegistry(), new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService());
+            var bridge = new BuildOrderEventBridge(services, roads);
+
+            bridge.EnsureSubscribed();
+            bus.Publish(new BuildOrderAutoRoadCreatedEvent(42, new CellPos(9, 11)));
+
+            Assert.That(roads.TryGetValue(42, out var road), Is.True);
+            Assert.That(road.X, Is.EqualTo(9));
+            Assert.That(road.Y, Is.EqualTo(11));
+        }
+
+        [Test]
+        public void BuildJobPlanner_EnsureBuildJobsForSite_DoesNotDuplicateActiveWorkJob()
+        {
+            var bus = new TestEventBus();
+            var services = MakeServices(bus, new TestDataRegistry(), new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: new WorldState());
+            services.JobBoard = new JobBoard();
+
+            var deliver = new Dictionary<int, List<JobId>>();
+            var work = new Dictionary<int, JobId>();
+            var planner = new BuildJobPlanner(services, deliver, work);
+            var siteId = new SiteId(7);
+            var site = new BuildSiteState { Anchor = new CellPos(4, 4) };
+            var workplace = new BuildingId(3);
+
+            planner.EnsureBuildJobsForSite(siteId, site, workplace);
+            planner.EnsureBuildJobsForSite(siteId, site, workplace);
+
+            Assert.That(work.Count, Is.EqualTo(1));
+            Assert.That(services.JobBoard.CountActiveJobs(JobArchetype.BuildWork), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BuildOrderCancellationService_PlaceCancel_RollsBackAutoRoad_WhenCellIsOtherwiseEmpty()
+        {
+            var bus = new TestEventBus();
+            var grid = new GridMap(12, 12);
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_test", SizeX = 1, SizeY = 1, MaxHp = 10 });
+            var noti = new NotificationService(bus);
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.JobBoard = new JobBoard();
+
+            var target = world.Buildings.Create(new BuildingState { DefId = "bld_test", Anchor = new CellPos(2, 2), IsConstructed = false, HP = 10, MaxHP = 10 });
+            var b = world.Buildings.Get(target); b.Id = target; world.Buildings.Set(target, b);
+
+            var siteId = world.Sites.Create(new BuildSiteState { BuildingDefId = "bld_test", Anchor = new CellPos(2, 2), IsActive = true, WorkSecondsTotal = 1f });
+            var s = world.Sites.Get(siteId); s.Id = siteId; world.Sites.Set(siteId, s);
+            grid.SetSite(new CellPos(2, 2), siteId);
+
+            var roads = new Dictionary<int, CellPos> { [99] = new CellPos(1, 1) };
+            grid.SetRoad(new CellPos(1, 1), true);
+
+            var cancellation = new BuildOrderCancellationService(services, true, roads, new Dictionary<int, JobId>(), _ => { });
+            var order = new BuildOrder { OrderId = 99, Kind = BuildOrderKind.PlaceNew, BuildingDefId = "bld_test", TargetBuilding = target, Site = siteId, Completed = false };
+
+            cancellation.Cancel(ref order);
+
+            Assert.That(grid.IsRoad(new CellPos(1, 1)), Is.False);
+            Assert.That(world.Sites.Exists(siteId), Is.False);
+            Assert.That(world.Buildings.Exists(target), Is.False);
+        }
+
+        [Test]
+        public void BuildOrderTickProcessor_CompletesPlaceOrder_WhenSiteReadyAndWorkDone()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var services = MakeServices(bus, new TestDataRegistry(), new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+
+            var orders = new Dictionary<int, BuildOrder>();
+            var active = new List<int>();
+            var siteId = world.Sites.Create(new BuildSiteState
+            {
+                Id = default,
+                BuildingDefId = "bld_test",
+                Anchor = new CellPos(3, 3),
+                IsActive = true,
+                WorkSecondsDone = 5f,
+                WorkSecondsTotal = 5f,
+                RemainingCosts = new List<CostDef>()
+            });
+            var st = world.Sites.Get(siteId); st.Id = siteId; world.Sites.Set(siteId, st);
+
+            orders[1] = new BuildOrder { OrderId = 1, Kind = BuildOrderKind.PlaceNew, Site = siteId, BuildingDefId = "bld_test", Completed = false };
+            active.Add(1);
+
+            int ensureCalled = 0;
+            int cancelCalled = 0;
+            int completeCalled = 0;
+            int completedEvent = 0;
+
+            var tick = new BuildOrderTickProcessor(
+                services,
+                orders,
+                active,
+                () => new BuildingId(5),
+                (sid, site, workplace) => ensureCalled++,
+                sid => cancelCalled++,
+                (int id, ref BuildOrder order, BuildingId workplace) => { },
+                (ref BuildOrder order) => { order.Completed = true; completeCalled++; },
+                (ref BuildOrder order) => { },
+                id => completedEvent++);
+
+            tick.Tick(0.1f);
+
+            Assert.That(ensureCalled, Is.EqualTo(1));
+            Assert.That(cancelCalled, Is.EqualTo(1));
+            Assert.That(completeCalled, Is.EqualTo(1));
+            Assert.That(completedEvent, Is.EqualTo(1));
+            Assert.That(active.Count, Is.EqualTo(0));
+            Assert.That(orders[1].Completed, Is.True);
+        }
     }
 }

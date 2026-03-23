@@ -53,8 +53,8 @@ namespace SeasonalBastion
         public NotificationService(IEventBus bus)
         {
             _bus = bus;
-            _muted = true;
-            _muteUntilRealtime = Time.realtimeSinceStartup + 1.5f;
+            _muted = false;
+            _muteUntilRealtime = 0f;
         }
 
         // ===== INotificationService (toast) =====

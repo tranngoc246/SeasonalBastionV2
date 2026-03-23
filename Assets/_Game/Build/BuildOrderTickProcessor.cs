@@ -79,6 +79,14 @@ namespace SeasonalBastion
                 var site = _s.WorldState.Sites.Get(o.Site);
                 _ensureBuildJobsForSite?.Invoke(o.Site, site, workplace);
 
+                if (IsReadyToWork(site) && dt > 0f && site.WorkSecondsDone < site.WorkSecondsTotal)
+                {
+                    site.WorkSecondsDone += dt;
+                    if (site.WorkSecondsDone > site.WorkSecondsTotal)
+                        site.WorkSecondsDone = site.WorkSecondsTotal;
+                    _s.WorldState.Sites.Set(o.Site, site);
+                }
+
                 o.WorkSecondsDone = site.WorkSecondsDone;
                 _orders[id] = o;
 

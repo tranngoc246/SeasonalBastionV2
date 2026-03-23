@@ -24,7 +24,8 @@ namespace SeasonalBastion.RunStart
 
             RunStartZoneInitializer.ApplyZones(s, cfg);
             RunStartHqResolver.BuildLanes(s, cfg);
-            RunStartStorageInitializer.ApplyStartingStorage(s);
+            if (!RunStartStorageInitializer.ApplyStartingStorage(s, out error))
+                return false;
             RunStartNpcSpawner.SpawnInitialNpcs(s, cfg, ctx);
 
             try

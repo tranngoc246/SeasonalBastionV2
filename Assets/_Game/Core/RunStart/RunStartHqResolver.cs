@@ -94,7 +94,7 @@ namespace SeasonalBastion.RunStart
 
                 bool isHQ = s.DataRegistry.TryGetBuilding(st.DefId, out var def) && def != null && def.IsHQ;
 
-                if (!isHQ && !string.Equals(st.DefId, RunStartPlacementHelper.HqDefId, StringComparison.OrdinalIgnoreCase))
+                if (!isHQ && !DefIdTierUtil.IsBase(st.DefId, "bld_hq"))
                     continue;
 
                 if (id.Value < bestId)

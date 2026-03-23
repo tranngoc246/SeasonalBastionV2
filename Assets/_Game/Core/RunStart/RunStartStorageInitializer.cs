@@ -4,9 +4,14 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartStorageInitializer
     {
-        internal static void ApplyStartingStorage(GameServices s)
+        internal static bool ApplyStartingStorage(GameServices s, out string error)
         {
-            if (s.WorldState == null || s.DataRegistry == null || s.StorageService == null) return;
+            error = null;
+            if (s.WorldState == null || s.DataRegistry == null || s.StorageService == null)
+            {
+                error = "RunStart storage init missing WorldState/DataRegistry/StorageService.";
+                return false;
+            }
 
             BuildingId hq = default;
 
@@ -22,16 +27,16 @@ namespace SeasonalBastion.RunStart
 
             if (hq.Value == 0)
             {
-                foreach (var bid in s.WorldState.Buildings.Ids) { hq = bid; break; }
+                error = "RunStart storage init could not find a constructed HQ.";
+                return false;
             }
-
-            if (hq.Value == 0) return;
 
             s.StorageService.Add(hq, ResourceType.Wood, 30);
             s.StorageService.Add(hq, ResourceType.Stone, 20);
             s.StorageService.Add(hq, ResourceType.Food, 10);
             s.StorageService.Add(hq, ResourceType.Iron, 0);
             s.StorageService.Add(hq, ResourceType.Ammo, 0);
+            return true;
         }
     }
 }

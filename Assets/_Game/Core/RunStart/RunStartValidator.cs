@@ -41,6 +41,10 @@ namespace SeasonalBastion.RunStart
                 return;
             }
 
+            // 0) Critical runtime invariants
+            ValidateHqExists(s, issues);
+            ValidateNpcSpawnAndWorkplaces(s, issues);
+
             // 1) Road graph + components
             BuildRoadComponents(s.GridMap, out var compId, out int roadCount, out int visited, out CellPos firstRoad);
             if (roadCount <= 0)
@@ -106,6 +110,80 @@ namespace SeasonalBastion.RunStart
         // -----------------------------
         // Checks
         // -----------------------------
+
+        private static void ValidateHqExists(GameServices s, List<RunStartValidationIssue> issues)
+        {
+            bool found = false;
+            foreach (var bid in s.WorldState.Buildings.Ids)
+            {
+                if (!s.WorldState.Buildings.Exists(bid)) continue;
+                var st = s.WorldState.Buildings.Get(bid);
+                if (!st.IsConstructed) continue;
+
+                bool isHQ = s.DataRegistry.TryGetBuilding(st.DefId, out var def) && def != null && def.IsHQ;
+                if (!isHQ && !DefIdTierUtil.IsBase(st.DefId, "bld_hq")) continue;
+
+                found = true;
+                break;
+            }
+
+            if (!found)
+            {
+                issues.Add(new RunStartValidationIssue(
+                    RunStartIssueSeverity.Error,
+                    "HQ_MISSING",
+                    "No constructed HQ found after RunStart world apply."));
+            }
+        }
+
+        private static void ValidateNpcSpawnAndWorkplaces(GameServices s, List<RunStartValidationIssue> issues)
+        {
+            foreach (var nid in s.WorldState.Npcs.Ids)
+            {
+                if (!s.WorldState.Npcs.Exists(nid)) continue;
+                var ns = s.WorldState.Npcs.Get(nid);
+
+                if (!s.GridMap.IsInside(ns.Cell))
+                {
+                    issues.Add(new RunStartValidationIssue(
+                        RunStartIssueSeverity.Error,
+                        "NPC_SPAWN_OOB",
+                        $"NPC {nid.Value} spawned out of bounds at ({ns.Cell.X},{ns.Cell.Y})."));
+                    continue;
+                }
+
+                var occ = s.GridMap.Get(ns.Cell).Kind;
+                if (occ == CellOccupancyKind.Building || occ == CellOccupancyKind.Site)
+                {
+                    issues.Add(new RunStartValidationIssue(
+                        RunStartIssueSeverity.Error,
+                        "NPC_SPAWN_BLOCKED",
+                        $"NPC {nid.Value} spawned into occupied cell ({ns.Cell.X},{ns.Cell.Y})."));
+                }
+
+                if (ns.Workplace.Value != 0)
+                {
+                    if (!s.WorldState.Buildings.Exists(ns.Workplace))
+                    {
+                        issues.Add(new RunStartValidationIssue(
+                            RunStartIssueSeverity.Error,
+                            "NPC_WORKPLACE_MISSING",
+                            $"NPC {nid.Value} references missing workplace #{ns.Workplace.Value}."));
+                    }
+                    else
+                    {
+                        var ws = s.WorldState.Buildings.Get(ns.Workplace);
+                        if (!ws.IsConstructed)
+                        {
+                            issues.Add(new RunStartValidationIssue(
+                                RunStartIssueSeverity.Error,
+                                "NPC_WORKPLACE_UNBUILT",
+                                $"NPC {nid.Value} references unconstructed workplace #{ns.Workplace.Value}."));
+                        }
+                    }
+                }
+            }
+        }
 
         private static void ValidateSpawnGates(GameServices s, int[] compId, int refComp, List<RunStartValidationIssue> issues)
         {

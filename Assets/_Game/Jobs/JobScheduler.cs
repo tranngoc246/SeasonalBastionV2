@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -11,8 +10,10 @@ namespace SeasonalBastion
         private readonly IClaimService _claims;
         private readonly JobExecutorRegistry _exec;
         private readonly IEventBus _bus;
-        private readonly IDataRegistry _data;
-        private readonly INotificationService _noti;
+        private readonly JobWorkplacePolicy _workplacePolicy;
+        private readonly ResourceLogisticsPolicy _resourcePolicy;
+        private readonly JobNotificationPolicy _notificationPolicy;
+        private readonly JobStateCleanupService _cleanupService;
 
         public int AssignedThisTick { get; private set; }
 
@@ -25,10 +26,6 @@ namespace SeasonalBastion
         private readonly Dictionary<int, JobId> _harvestJobByWorkplaceSlot = new();
         private readonly Dictionary<int, JobId> _haulJobByWorkplaceAndType = new(); // key = workplace*16 + type
         private readonly Dictionary<int, int> _workplaceNpcCount = new();
-
-
-        // No-job notifications (throttle per workplace)
-        private readonly Dictionary<int, float> _noJobNextNotifyAt = new();
 
         private float _claimCleanupTimer;
         private float _maintenanceTimer;
@@ -48,8 +45,10 @@ namespace SeasonalBastion
             _claims = claims;
             _exec = exec;
             _bus = bus;
-            _data = data;
-            _noti = noti;
+            _workplacePolicy = new JobWorkplacePolicy(data);
+            _resourcePolicy = new ResourceLogisticsPolicy();
+            _notificationPolicy = new JobNotificationPolicy(noti);
+            _cleanupService = new JobStateCleanupService(claims);
         }
 
         public void Tick(float dt)
@@ -106,7 +105,7 @@ namespace SeasonalBastion
 
                 if (!_board.TryGet(ns.CurrentJob, out var job))
                 {
-                    CleanupNpcJob(nid, ref ns);
+                    _cleanupService.CleanupNpcJob(nid, ref ns);
                     _w.Npcs.Set(nid, ns);
                     continue;
                 }
@@ -116,8 +115,8 @@ namespace SeasonalBastion
 
                 _board.Update(job);
 
-                if (IsTerminal(job.Status))
-                    CleanupNpcJob(nid, ref ns);
+                if (_cleanupService.IsTerminal(job.Status))
+                    _cleanupService.CleanupNpcJob(nid, ref ns);
 
                 _w.Npcs.Set(nid, ns);
             }
@@ -151,10 +150,10 @@ namespace SeasonalBastion
             if (!_w.Buildings.Exists(ns.Workplace)) return false;
 
             var wps = _w.Buildings.Get(ns.Workplace);
-            var allowed = GetWorkplaceAllowedRoles(wps.DefId);
+            var allowed = _workplacePolicy.GetAllowedRoles(wps.DefId);
             if (allowed == WorkRoleFlags.None)
             {
-                NotifyNoJobs(ns.Workplace, wps.DefId);
+                _notificationPolicy.NotifyNoJobs(ns.Workplace, wps.DefId);
                 return false;
             }
 
@@ -164,7 +163,7 @@ namespace SeasonalBastion
             {
                 if (!jb.TryPeekForWorkplaceFiltered(ns.Workplace, allowed, out peek))
                 {
-                    NotifyNoJobs(ns.Workplace, wps.DefId);
+                    _notificationPolicy.NotifyNoJobs(ns.Workplace, wps.DefId);
                     return false;
                 }
             }
@@ -172,13 +171,13 @@ namespace SeasonalBastion
             {
                 if (!_board.TryPeekForWorkplace(ns.Workplace, out peek))
                 {
-                    NotifyNoJobs(ns.Workplace, wps.DefId);
+                    _notificationPolicy.NotifyNoJobs(ns.Workplace, wps.DefId);
                     return false;
                 }
 
-                if (!IsJobAllowed(allowed, peek.Archetype))
+                if (!_workplacePolicy.IsJobAllowed(allowed, peek.Archetype))
                 {
-                    NotifyNoJobs(ns.Workplace, wps.DefId);
+                    _notificationPolicy.NotifyNoJobs(ns.Workplace, wps.DefId);
                     return false;
                 }
             }
@@ -203,68 +202,6 @@ namespace SeasonalBastion
             return true;
         }
 
-        private WorkRoleFlags GetWorkplaceAllowedRoles(string defId)
-        {
-            if (_data == null || string.IsNullOrEmpty(defId)) return WorkRoleFlags.None;
-            try
-            {
-                return _data.GetBuilding(defId).WorkRoles;
-            }
-            catch
-            {
-                // Missing def => treat as no roles (fail-safe)
-                return WorkRoleFlags.None;
-            }
-        }
-
-        private bool HasWorkRole(string defId, WorkRoleFlags required)
-        {
-            var roles = GetWorkplaceAllowedRoles(defId);
-            return (roles & required) != 0;
-        }
-
-        private static bool IsJobAllowed(WorkRoleFlags allowed, JobArchetype archetype)
-        {
-            return archetype switch
-            {
-                JobArchetype.Harvest => (allowed & WorkRoleFlags.Harvest) != 0,
-                JobArchetype.HaulBasic => (allowed & WorkRoleFlags.HaulBasic) != 0,
-                JobArchetype.HaulToForge => (allowed & (WorkRoleFlags.HaulBasic | WorkRoleFlags.Armory)) != 0,
-                JobArchetype.BuildDeliver or JobArchetype.BuildWork => (allowed & WorkRoleFlags.Build) != 0,
-                JobArchetype.CraftAmmo => (allowed & WorkRoleFlags.Craft) != 0,
-                JobArchetype.ResupplyTower => (allowed & WorkRoleFlags.Armory) != 0,
-                _ => true,
-            };
-        }
-
-        private void NotifyNoJobs(BuildingId workplace, string workplaceDefId)
-        {
-            if (_noti == null) return;
-
-            // Per-workplace throttle (plus NotificationService built-in cooldown by key)
-            float now = UnityEngine.Time.realtimeSinceStartup;
-            if (_noJobNextNotifyAt.TryGetValue(workplace.Value, out var next) && now < next)
-                return;
-
-            _noJobNextNotifyAt[workplace.Value] = now + 3f; // matches default cooldown
-
-            _noti.Push(
-                key: $"NoJobs_{workplace.Value}",
-                title: "NPC không có việc để làm",
-                body: $"Workplace={workplaceDefId} (#{workplace.Value}) không có job hợp lệ.",
-                severity: NotificationSeverity.Info,
-                payload: new NotificationPayload(workplace, default, "no_jobs"),
-                cooldownSeconds: 3f,
-                dedupeByKey: true);
-        }
-
-        private void CleanupNpcJob(NpcId npc, ref NpcState ns)
-        {
-            ns.CurrentJob = default;
-            ns.IsIdle = true;
-            _claims.ReleaseAll(npc); // safest against claim leak
-        }
-
         // -------------------------
         // Enqueue logic (Day 12)
         // -------------------------
@@ -280,7 +217,7 @@ namespace SeasonalBastion
                 if (!bs.IsConstructed) continue;
 
                 // Day13: harvest only if workplace roles allow it
-                if (!HasWorkRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
+                if (!_workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
 
                 // only if there is at least 1 NPC assigned to this workplace
                 if (!_workplacesWithNpc.Contains(bid.Value)) continue;
@@ -297,9 +234,9 @@ namespace SeasonalBastion
                 // Local cap gate (LOCKED caps) — giống bản cũ.
                 // Lưu ý: gate này áp cho workplace, nên vẫn OK khi nhiều slot:
                 // nếu local full thì không enqueue slot nào.
-                var rt = HarvestResourceType(bs.DefId);
-                int cap = HarvestLocalCap(bs.DefId, NormalizeLevel(bs.Level));
-                int cur = GetAmountFromBuilding(bs, rt);
+                var rt = _resourcePolicy.HarvestResourceType(bs.DefId);
+                int cap = _resourcePolicy.HarvestLocalCap(bs.DefId, _resourcePolicy.NormalizeLevel(bs.Level));
+                int cur = _resourcePolicy.GetAmountFromBuilding(bs, rt);
                 if (cap > 0 && cur >= cap) continue;
 
                 var zoneCell = _w.Zones.PickCell(rt, bs.Anchor);
@@ -316,7 +253,7 @@ namespace SeasonalBastion
                     // Slot này đang có job sống thì bỏ qua (không tạo thêm)
                     if (_harvestJobByWorkplaceSlot.TryGetValue(key, out var oldId))
                     {
-                        if (_board.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                        if (_board.TryGet(oldId, out var old) && !_cleanupService.IsTerminal(old.Status))
                             continue;
                     }
 
@@ -351,7 +288,7 @@ namespace SeasonalBastion
 
                 var bs = _w.Buildings.Get(wid);
                 if (!bs.IsConstructed) continue;
-                if (!HasWorkRole(bs.DefId, WorkRoleFlags.HaulBasic)) continue;
+                if (!_workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.HaulBasic)) continue;
                 if (!_workplacesWithNpc.Contains(wid.Value)) continue;
 
                 TryEnsureHaulJob(wid, bs, ResourceType.Wood);
@@ -370,10 +307,10 @@ namespace SeasonalBastion
             if (destState.Anchor.X == 0 && destState.Anchor.Y == 0)
                 return;
 
-            int cap = DestCap(destState.DefId, NormalizeLevel(destState.Level), rt);
+            int cap = _resourcePolicy.DestCap(destState.DefId, _resourcePolicy.NormalizeLevel(destState.Level), rt);
             if (cap <= 0) return;
 
-            int cur = GetAmountFromBuilding(destState, rt);
+            int cur = _resourcePolicy.GetAmountFromBuilding(destState, rt);
             if (cur >= cap) return;
 
             // Gate only by "ANY destination has free capacity" (NOT by workplace itself).
@@ -383,7 +320,7 @@ namespace SeasonalBastion
 
             if (_haulJobByWorkplaceAndType.TryGetValue(key, out var oldId))
             {
-                if (_board.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                if (_board.TryGet(oldId, out var old) && !_cleanupService.IsTerminal(old.Status))
                     return;
             }
 
@@ -425,8 +362,8 @@ namespace SeasonalBastion
             if (_w.Buildings.Exists(producer))
             {
                 var ps = _w.Buildings.Get(producer);
-                int cap = HarvestLocalCap(ps.DefId, NormalizeLevel(ps.Level));
-                int cur = GetAmountFromBuilding(ps, rt);
+                int cap = _resourcePolicy.HarvestLocalCap(ps.DefId, _resourcePolicy.NormalizeLevel(ps.Level));
+                int cur = _resourcePolicy.GetAmountFromBuilding(ps, rt);
                 if (cap > 0 && cur >= cap)
                     return;
             }
@@ -436,7 +373,7 @@ namespace SeasonalBastion
 
             if (_haulJobByWorkplaceAndType.TryGetValue(key, out var oldId))
             {
-                if (_board.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                if (_board.TryGet(oldId, out var old) && !_cleanupService.IsTerminal(old.Status))
                     return;
             }
 
@@ -477,12 +414,12 @@ namespace SeasonalBastion
                     continue;
 
                 // destinations are Warehouse/HQ only
-                if (!IsWarehouseWorkplace(bs.DefId)) continue;
+                if (!_resourcePolicy.IsWarehouseWorkplace(bs.DefId)) continue;
 
-                int cap = DestCap(bs.DefId, NormalizeLevel(bs.Level), rt);
+                int cap = _resourcePolicy.DestCap(bs.DefId, _resourcePolicy.NormalizeLevel(bs.Level), rt);
                 if (cap <= 0) continue;
 
-                int cur = GetAmountFromBuilding(bs, rt);
+                int cur = _resourcePolicy.GetAmountFromBuilding(bs, rt);
                 if (cur < cap) return true; // has free space
             }
 
@@ -501,14 +438,14 @@ namespace SeasonalBastion
 
                 var bs = _w.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
-                if (!HasWorkRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
+                if (!_workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
 
-                var prt = HarvestResourceType(bs.DefId);
+                var prt = _resourcePolicy.HarvestResourceType(bs.DefId);
                 if (prt != rt) continue;
 
                 // M4: only wood+food producers
-                if (rt == ResourceType.Wood && !EqualsIgnoreCase(bs.DefId, "bld_lumbercamp")) continue;
-                if (rt == ResourceType.Food && !EqualsIgnoreCase(bs.DefId, "bld_farmhouse")) continue;
+                if (rt == ResourceType.Wood && !DefIdTierUtil.IsBase(bs.DefId, "bld_lumbercamp")) continue;
+                if (rt == ResourceType.Food && !DefIdTierUtil.IsBase(bs.DefId, "bld_farmhouse")) continue;
 
                 producer = bid;
                 return true;
@@ -526,10 +463,10 @@ namespace SeasonalBastion
 
                 var bs = _w.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
-                if (!HasWorkRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
-                if (HarvestResourceType(bs.DefId) != rt) continue;
+                if (!_workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.Harvest)) continue;
+                if (_resourcePolicy.HarvestResourceType(bs.DefId) != rt) continue;
 
-                if (GetAmountFromBuilding(bs, rt) > 0) return true;
+                if (_resourcePolicy.GetAmountFromBuilding(bs, rt) > 0) return true;
             }
             return false;
         }
@@ -578,98 +515,6 @@ namespace SeasonalBastion
             }
         }
 
-        private static bool IsTerminal(JobStatus s)
-        {
-            return s == JobStatus.Completed
-                || s == JobStatus.Failed
-                || s == JobStatus.Cancelled;
-        }
-
-        // -------------------------
-        // Day12 mapping (Buildings.json)
-        // -------------------------
-
-        private static bool IsWarehouseWorkplace(string defId)
-        {
-            return EqualsIgnoreCase(defId, "bld_warehouse")
-                || EqualsIgnoreCase(defId, "bld_hq");
-        }
-
-        // Harvest subset ONLY (do not include Forge)
-        private static bool IsHarvestProducer(string defId)
-        {
-            return EqualsIgnoreCase(defId, "bld_farmhouse")
-                || EqualsIgnoreCase(defId, "bld_lumbercamp")
-                || EqualsIgnoreCase(defId, "bld_quarry")
-                || EqualsIgnoreCase(defId, "bld_ironhut");
-        }
-
-        private static ResourceType HarvestResourceType(string defId)
-        {
-            if (EqualsIgnoreCase(defId, "bld_farmhouse")) return ResourceType.Food;
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return ResourceType.Wood;
-            if (EqualsIgnoreCase(defId, "bld_quarry")) return ResourceType.Stone;
-            if (EqualsIgnoreCase(defId, "bld_ironhut")) return ResourceType.Iron;
-            return ResourceType.Food;
-        }
-
-        private static int HarvestLocalCap(string defId, int level)
-        {
-            // Local Storage Caps (LOCKED)
-            if (EqualsIgnoreCase(defId, "bld_farmhouse")) return level == 1 ? 30 : level == 2 ? 60 : 90;
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "bld_quarry")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "bld_ironhut")) return level == 1 ? 30 : level == 2 ? 60 : 90;
-            return 0;
-        }
-
-        // NEW: Dest caps for hauling (LOCKED)
-        private static int DestCap(string defId, int level, ResourceType rt)
-        {
-            // Warehouse: 300/600/1000 each (Wood/Food/Stone/Iron), Ammo=0
-            if (EqualsIgnoreCase(defId, "bld_warehouse"))
-            {
-                return rt switch
-                {
-                    ResourceType.Wood or ResourceType.Food or ResourceType.Stone or ResourceType.Iron
-                        => level == 1 ? 300 : level == 2 ? 600 : 1000,
-                    _ => 0
-                };
-            }
-
-            // HQ: 120/180/240 each (core only), Ammo=0
-            if (EqualsIgnoreCase(defId, "bld_hq"))
-            {
-                return rt switch
-                {
-                    ResourceType.Wood or ResourceType.Food or ResourceType.Stone or ResourceType.Iron
-                        => level == 1 ? 120 : level == 2 ? 180 : 240,
-                    _ => 0
-                };
-            }
-
-            return 0;
-        }
-
-        private static int GetAmountFromBuilding(in BuildingState bs, ResourceType rt)
-        {
-            return rt switch
-            {
-                ResourceType.Wood => bs.Wood,
-                ResourceType.Food => bs.Food,
-                ResourceType.Stone => bs.Stone,
-                ResourceType.Iron => bs.Iron,
-                ResourceType.Ammo => bs.Ammo,
-                _ => 0
-            };
-        }
-
-        private static int NormalizeLevel(int level) => level <= 0 ? 1 : (level > 3 ? 3 : level);
-
-        private static bool EqualsIgnoreCase(string a, string b)
-        {
-            if (a == null || b == null) return false;
-            return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-        }
     }
 }
+

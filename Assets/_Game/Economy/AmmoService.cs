@@ -97,9 +97,9 @@ namespace SeasonalBastion
             if (thr < 1) thr = 1;
 
             byte stateNow;
-            if (current <= 0) stateNow = 2;          // empty
-            else if (current <= thr) stateNow = 1;   // low
-            else stateNow = 0;                       // ok
+            if (current <= thr) stateNow = 2;            // urgent (includes empty)
+            else if (current < max) stateNow = 1;        // normal top-up: any non-full tower
+            else stateNow = 0;                           // full
 
             _lastStateByTower.TryGetValue(tid, out var statePrev);
             _lastStateByTower[tid] = stateNow;
@@ -558,7 +558,38 @@ namespace SeasonalBastion
                 if (_resupplyJobByArmory.TryGetValue(arm.Value, out var oldId))
                 {
                     if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                    {
+                        // Soft preemption: if this armory still has an unclaimed queued resupply job,
+                        // let an urgent tower cut in line before the next delivery starts.
+                        if (old.Status == JobStatus.Created && TryFindBestRequestIndex(_urgent, armSt.Anchor, out var urgIdx, out var urgReq))
+                        {
+                            int currentTid = old.Tower.Value;
+                            int urgentTid = urgReq.Tower.Value;
+                            if (urgentTid != 0 && urgentTid != currentTid && _s.WorldState.Towers.Exists(urgReq.Tower))
+                            {
+                                var uts = _s.WorldState.Towers.Get(urgReq.Tower);
+                                int urgentNeed = uts.AmmoCap - uts.Ammo;
+                                int urgentTrip = GetArmoryResupplyTripByLevel(armSt.Level);
+                                int urgentAmount = urgentTrip;
+                                if (urgentAmount > urgentNeed) urgentAmount = urgentNeed;
+                                if (urgentAmount > armAmmo) urgentAmount = armAmmo;
+
+                                if (urgentAmount > 0)
+                                {
+                                    if (currentTid != 0)
+                                        _resupplyJobByTower.Remove(currentTid);
+
+                                    ConsumeRequestAt(_urgent, urgIdx);
+                                    old.Tower = urgReq.Tower;
+                                    old.Amount = urgentAmount;
+                                    _s.JobBoard.Update(old);
+                                    _resupplyJobByArmory[arm.Value] = old.Id;
+                                    _resupplyJobByTower[urgentTid] = old.Id;
+                                }
+                            }
+                        }
                         continue;
+                    }
                 }
 
                 if (!TryPickBestRequestForArmory(armSt.Anchor, out var list, out var idx, out var req))
@@ -1131,8 +1162,8 @@ namespace SeasonalBastion
             if (thr < 1) thr = 1;
 
             AmmoRequestPriority pri;
-            if (cur <= 0) pri = AmmoRequestPriority.Urgent;
-            else if (cur <= thr) pri = AmmoRequestPriority.Normal;
+            if (cur <= thr) pri = AmmoRequestPriority.Urgent;
+            else if (cur < cap) pri = AmmoRequestPriority.Normal;
             else return;
 
             float now = _simTime;

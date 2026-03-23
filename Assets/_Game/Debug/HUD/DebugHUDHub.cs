@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
 using SeasonalBastion.Contracts;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -77,6 +79,7 @@ namespace SeasonalBastion.DebugTools
 
         [SerializeField] private string _quickGiveAmtStr = "200";
         [SerializeField] private string _quickDamageAmtStr = "50";
+        [SerializeField] private string _quickAmmoDrainAmtStr = "30";
 
         // tmp lists (avoid modifying stores while iterating)
         private readonly List<EnemyId> _enemyIdsTmp = new List<EnemyId>(128);
@@ -118,6 +121,7 @@ namespace SeasonalBastion.DebugTools
 
         // ===== Hover cache (so button click doesn't lose target) =====
         private BuildingId _cachedHoverBuilding;
+        private BuildingId _lockedTargetBuilding;
         private float _cachedHoverTime;
         private const float HoverCacheTTL = 3.0f; // seconds
 
@@ -168,10 +172,11 @@ namespace SeasonalBastion.DebugTools
         private void Update()
         {
             CacheHoverTarget();
-            // Fallback: nếu scene chưa có DebugInputRouter thì Hub tự poll hotkeys để khỏi “mất phím”.
+            TryLockTargetFromClick();
+            // Fallback: n?u scene chua c� DebugInputRouter th� Hub t? poll hotkeys d? kh?i �m?t ph�m�.
             if (_selfPollHotkeysWhenNoRouter)
             {
-                // Nếu sau này bạn add Router vào scene, Hub sẽ tự tắt fallback.
+                // N?u sau n�y b?n add Router v�o scene, Hub s? t? t?t fallback.
                 _hasRouter = _hasRouter || (FindObjectOfType<DebugInputRouter>(true) != null);
 
                 if (!_hasRouter)
@@ -242,6 +247,36 @@ namespace SeasonalBastion.DebugTools
             bid = _cachedHoverBuilding;
             bs = _gs.WorldState.Buildings.Get(bid);
             return true;
+        }
+
+        private void TryLockTargetFromClick()
+        {
+            if (_gs?.WorldState?.Buildings == null) return;
+            var mouse = Mouse.current;
+            if (mouse == null || !mouse.leftButton.wasPressedThisFrame) return;
+
+            if (!MouseCellSharedState.HasValue) return;
+            var cell = MouseCellSharedState.Cell;
+            var occ = _gs.GridMap.Get(cell);
+
+            if (occ.Kind == CellOccupancyKind.Building && occ.Building.Value != 0 && _gs.WorldState.Buildings.Exists(occ.Building))
+            {
+                _lockedTargetBuilding = occ.Building;
+                _cachedHoverBuilding = occ.Building;
+                _cachedHoverTime = Time.unscaledTime;
+                return;
+            }
+
+            if (occ.Kind == CellOccupancyKind.Site && occ.Site.Value != 0 && _gs.WorldState.Sites != null && _gs.WorldState.Sites.Exists(occ.Site))
+            {
+                var st = _gs.WorldState.Sites.Get(occ.Site);
+                if (st.TargetBuilding.Value != 0 && _gs.WorldState.Buildings.Exists(st.TargetBuilding))
+                {
+                    _lockedTargetBuilding = st.TargetBuilding;
+                    _cachedHoverBuilding = st.TargetBuilding;
+                    _cachedHoverTime = Time.unscaledTime;
+                }
+            }
         }
 
         public void HandleHotkeys(Keyboard kb)
@@ -329,61 +364,39 @@ namespace SeasonalBastion.DebugTools
                 return;
             }
 
-            // ===== TimeScale =====
-            GUILayout.Label("TimeScale");
+            GUILayout.Label("ESSENTIAL DEBUG PANEL");
+            GUILayout.Label("Core actions only. Advanced tabs stay below for deep debugging.");
+
+            GUILayout.Space(4);
+            GUILayout.Label("Time");
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("0x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(0f);
+            if (GUILayout.Button("Pause", GUILayout.Width(70))) _gs.RunClock?.SetTimeScale(0f);
             if (GUILayout.Button("1x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(1f);
             if (GUILayout.Button("2x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(2f);
             if (GUILayout.Button("3x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(3f);
-            if (GUILayout.Button("5x", GUILayout.Width(50))) _gs.RunClock?.SetTimeScale(5f);
+            if (GUILayout.Button("5x", GUILayout.Width(60))) _gs.RunClock?.SetTimeScale(5f);
             GUILayout.EndHorizontal();
+
+            if (_gs.RunClock is RunClockService clockImpl)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"Now: Y{clockImpl.YearIndex} {clockImpl.CurrentSeason} D{clockImpl.DayIndex}", GUILayout.Width(180));
+                if (GUILayout.Button("Prev Day", GUILayout.Width(90))) Quick_AdvanceDay(-1);
+                if (GUILayout.Button("Next Day", GUILayout.Width(90))) Quick_AdvanceDay(1);
+                if (GUILayout.Button("Next Season", GUILayout.Width(110))) Quick_AdvanceSeason();
+                GUILayout.EndHorizontal();
+            }
 
             GUILayout.Space(6);
-
-            // ===== Build =====
-            GUILayout.Label("Build");
-            if (GUILayout.Button("Complete ALL build sites now", GUILayout.Width(260)))
-                Quick_CompleteAllBuildSites();
-
-            if (GUILayout.Button("Complete CURRENT site under mouse", GUILayout.Width(260)))
-                Quick_CompleteCurrentSiteUnderMouse();
-
-            GUILayout.Space(6);
-
-            // ===== Repair Test =====
-            GUILayout.Label("Repair Test (building under mouse)");
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Dmg", GUILayout.Width(30));
-            _quickDamageAmtStr = GUILayout.TextField(_quickDamageAmtStr, GUILayout.Width(60));
-            if (GUILayout.Button("10", GUILayout.Width(40))) _quickDamageAmtStr = "10";
-            if (GUILayout.Button("50", GUILayout.Width(40))) _quickDamageAmtStr = "50";
-            if (GUILayout.Button("200", GUILayout.Width(50))) _quickDamageAmtStr = "200";
-            GUILayout.EndHorizontal();
-
-            int dmg = 50;
-            if (!int.TryParse(_quickDamageAmtStr, out dmg) || dmg <= 0) dmg = 50;
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button($"Damage -{dmg}", GUILayout.Width(140))) Quick_DamageBuildingUnderMouse(dmg);
-            if (GUILayout.Button("Set HP = 1", GUILayout.Width(120))) Quick_SetHpUnderMouse(1);
-            if (GUILayout.Button("Heal Full", GUILayout.Width(120))) Quick_HealBuildingUnderMouse();
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Create Repair Order", GUILayout.Width(170))) Quick_CreateRepairOrderUnderMouse();
-            GUILayout.EndHorizontal();
-
-            GUILayout.Space(6);
-
-            // ===== Resources =====
-            GUILayout.Label("Resources");
+            GUILayout.Label("Economy / Unlock");
             GUILayout.BeginHorizontal();
             GUILayout.Label("Amt", GUILayout.Width(30));
             _quickGiveAmtStr = GUILayout.TextField(_quickGiveAmtStr, GUILayout.Width(60));
             if (GUILayout.Button("100", GUILayout.Width(50))) _quickGiveAmtStr = "100";
             if (GUILayout.Button("300", GUILayout.Width(50))) _quickGiveAmtStr = "300";
             if (GUILayout.Button("1000", GUILayout.Width(55))) _quickGiveAmtStr = "1000";
+            if (GUILayout.Button("Give Core x4", GUILayout.Width(110))) Quick_GiveCoreResources();
+            if (GUILayout.Button("Unlock ALL", GUILayout.Width(110))) Quick_UnlockAll();
             GUILayout.EndHorizontal();
 
             int giveAmt = 200;
@@ -398,62 +411,74 @@ namespace SeasonalBastion.DebugTools
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
-
-            // ===== Ammo =====
-            GUILayout.Label("Ammo");
+            DrawCurrentHoverTargetInfo();
+            GUILayout.Label("Build / Repair (under mouse when applicable)");
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Drain ALL towers to 0", GUILayout.Width(170)))
-                Quick_DrainAllTowersToZero();
-            if (GUILayout.Button("Refill ALL towers", GUILayout.Width(150)))
-                Quick_RefillAllTowers();
-            if (_gs.AmmoService is AmmoService a)
-            {
-                string label = a.DevHook_Enabled ? "DevHook: ON" : "DevHook: OFF";
-                if (GUILayout.Button(label, GUILayout.Width(120))) a.DevHook_Enabled = !a.DevHook_Enabled;
-            }
+            if (GUILayout.Button("Complete hovered site", GUILayout.Width(160))) Quick_CompleteCurrentSiteUnderMouse();
+            if (GUILayout.Button("Complete ALL sites", GUILayout.Width(150))) Quick_CompleteAllBuildSites();
+            if (GUILayout.Button("Create Repair", GUILayout.Width(120))) Quick_CreateRepairOrderUnderMouse();
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Dmg", GUILayout.Width(30));
+            _quickDamageAmtStr = GUILayout.TextField(_quickDamageAmtStr, GUILayout.Width(60));
+            if (GUILayout.Button("10", GUILayout.Width(40))) _quickDamageAmtStr = "10";
+            if (GUILayout.Button("50", GUILayout.Width(40))) _quickDamageAmtStr = "50";
+            if (GUILayout.Button("200", GUILayout.Width(50))) _quickDamageAmtStr = "200";
+            GUILayout.EndHorizontal();
+
+            int dmg = 50;
+            if (!int.TryParse(_quickDamageAmtStr, out dmg) || dmg <= 0) dmg = 50;
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button($"Damage -{dmg}", GUILayout.Width(130))) Quick_DamageBuildingUnderMouse(dmg);
+            if (GUILayout.Button("Set HP = 1", GUILayout.Width(110))) Quick_SetHpUnderMouse(1);
+            if (GUILayout.Button("Heal Full", GUILayout.Width(110))) Quick_HealBuildingUnderMouse();
+            if (GUILayout.Button("Finish Building", GUILayout.Width(120))) Quick_CompleteHoveredBuildingIfSiteOrRepairTarget();
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
-
-            // ===== Combat =====
-            GUILayout.Label("Combat");
+            GUILayout.Label("Tower Ammo");
             GUILayout.BeginHorizontal();
-            GUILayout.Label("DefId", GUILayout.Width(40));
-            _quickEnemyDefId = GUILayout.TextField(_quickEnemyDefId, GUILayout.Width(140));
-            GUILayout.Label("Lane", GUILayout.Width(35));
-            var laneStr = GUILayout.TextField(_quickLaneId.ToString(), GUILayout.Width(40));
-            if (int.TryParse(laneStr, out var l)) _quickLaneId = l;
+            GUILayout.Label("Drain", GUILayout.Width(35));
+            _quickAmmoDrainAmtStr = GUILayout.TextField(_quickAmmoDrainAmtStr, GUILayout.Width(50));
+            if (GUILayout.Button("10", GUILayout.Width(40))) _quickAmmoDrainAmtStr = "10";
+            if (GUILayout.Button("30", GUILayout.Width(40))) _quickAmmoDrainAmtStr = "30";
+            if (GUILayout.Button("90", GUILayout.Width(40))) _quickAmmoDrainAmtStr = "90";
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Drain hovered tower", GUILayout.Width(160))) Quick_DrainTowerUnderMouse();
+            if (GUILayout.Button("Refill hovered tower", GUILayout.Width(160))) Quick_RefillTowerUnderMouse();
+            if (GUILayout.Button("Drain ALL towers", GUILayout.Width(140))) Quick_DrainAllTowersToZero();
+            if (GUILayout.Button("Refill ALL towers", GUILayout.Width(140))) Quick_RefillAllTowers();
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+            GUILayout.Label("Combat / Lane Spawn");
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Enemy", GUILayout.Width(42));
+            GUILayout.Label(_quickEnemyDefId, GUILayout.Width(100));
             GUILayout.Label("x", GUILayout.Width(12));
             var cntStr = GUILayout.TextField(_quickSpawnCount.ToString(), GUILayout.Width(40));
             if (int.TryParse(cntStr, out var c)) _quickSpawnCount = Mathf.Clamp(c, 1, 50);
-            if (GUILayout.Button("Spawn", GUILayout.Width(80)))
-                Quick_SpawnEnemy(_quickEnemyDefId, _quickLaneId, _quickSpawnCount);
             GUILayout.EndHorizontal();
 
+            DrawEnemyPresetButtons();
+            DrawQuickLaneButtons();
+
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Kill ALL enemies", GUILayout.Width(150)))
-                Quick_KillAllEnemies();
-            if (GUILayout.Button("Force Resolve Wave", GUILayout.Width(170)))
-                _gs.CombatService?.ForceResolveWave();
+            if (GUILayout.Button("Kill ALL enemies", GUILayout.Width(150))) Quick_KillAllEnemies();
+            if (GUILayout.Button("Force Resolve Wave", GUILayout.Width(170))) _gs.CombatService?.ForceResolveWave();
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
-
-            // ===== NPC =====
-            GUILayout.Label("NPC (Assign + Job)");
+            GUILayout.Label("NPC Quick Spawn");
             GUILayout.BeginHorizontal();
-            bool npcMode = _mode == DebugHubMode.Npc;
-            if (GUILayout.Button(npcMode ? "NPC Assign: ON" : "NPC Assign: OFF", GUILayout.Width(150)))
-            {
-                ApplyMode(npcMode ? DebugHubMode.None : DebugHubMode.Npc);
-            }
-            GUILayout.Label("(Bật ON để click LMB lên building cell gán NPC)");
+            if (GUILayout.Button("Spawn Worker x1", GUILayout.Width(140))) Quick_SpawnNpc("Worker", 1);
+            if (GUILayout.Button("Spawn Worker x5", GUILayout.Width(140))) Quick_SpawnNpc("Worker", 5);
+            if (GUILayout.Button("Spawn NPC x10", GUILayout.Width(140))) Quick_SpawnNpc("Worker", 10);
             GUILayout.EndHorizontal();
-
-            if (_npcTool != null)
-                _npcTool.DrawQuickGUI();
-            else
-                GUILayout.Label("DebugNpcTool not found in scene.");
         }
 
         private void DrawAdvancedTabs()
@@ -497,6 +522,35 @@ namespace SeasonalBastion.DebugTools
                     else GUILayout.Label("DebugStorageHUD not found in scene.");
                     break;
             }
+        }
+
+        private void DrawCurrentHoverTargetInfo()
+        {
+            if (_gs == null)
+                return;
+
+            string buildingLabel = "Building: (none)";
+            string towerLabel = "Tower: (none)";
+            string lockLabel = _lockedTargetBuilding.Value != 0 ? $"Lock: #{_lockedTargetBuilding.Value}" : "Lock: hover only";
+
+            if (TryFindBuildingFromHover(out var bid, out var bs))
+            {
+                EnsureHp(ref bs);
+                buildingLabel = $"Building: {bs.DefId} #{bid.Value}  HP {bs.HP}/{bs.MaxHP}";
+
+                if (TryResolveTowerForBuilding(bid, bs, out var tid, out var ts))
+                    towerLabel = $"Tower: #{tid.Value}  Ammo {ts.Ammo}/{ts.AmmoCap}  HP {ts.Hp}/{ts.HpMax}";
+            }
+
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("CURRENT TARGET");
+            GUILayout.Label(buildingLabel);
+            GUILayout.Label(towerLabel);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(lockLabel, GUILayout.Width(180));
+            if (GUILayout.Button("Clear Lock", GUILayout.Width(100))) _lockedTargetBuilding = default;
+            GUILayout.EndHorizontal();
+            GUILayout.EndVertical();
         }
 
         private void Quick_CompleteAllBuildSites()
@@ -602,7 +656,7 @@ namespace SeasonalBastion.DebugTools
 
             sites.Set(sid, st);
 
-            // Tick nhẹ để BuildOrderService detect completion ngay
+            // Tick nh? d? BuildOrderService detect completion ngay
             if (_gs.BuildOrderService is BuildOrderService bos)
                 bos.Tick(0.0001f);
 
@@ -753,6 +807,11 @@ namespace SeasonalBastion.DebugTools
                 return;
             }
 
+            // Debug convenience: auto-enable combat so spawned enemies start marching immediately,
+            // even if the run is currently outside normal Defend flow.
+            if (_gs.CombatService is CombatService combat && !combat.IsActive)
+                combat.OnDefendPhaseStarted();
+
             int spawned = 0;
             for (int i = 0; i < count; i++)
             {
@@ -771,7 +830,8 @@ namespace SeasonalBastion.DebugTools
                 spawned++;
             }
 
-            _gs.NotificationService?.Push("debug_spawn_enemy", "Debug", $"Spawned {spawned} '{enemyDefId}' lane {laneId}.", NotificationSeverity.Info, default, 0.2f, true);
+            string phaseNote = _gs.RunClock != null ? $" phase={_gs.RunClock.CurrentPhase}" : string.Empty;
+            _gs.NotificationService?.Push("debug_spawn_enemy", "Debug", $"Spawned {spawned} '{enemyDefId}' lane {laneId}; combat auto-enabled.{phaseNote}", NotificationSeverity.Info, default, 0.2f, true);
         }
 
         private void Quick_KillAllEnemies()
@@ -1012,10 +1072,16 @@ namespace SeasonalBastion.DebugTools
 
         private bool TryFindBuildingFromHover(out BuildingId bid, out BuildingState bs)
         {
-            // NEW: ưu tiên cached hover (vì bấm nút thì chuột đã rời world)
+            if (_lockedTargetBuilding.Value != 0 && _gs?.WorldState?.Buildings != null && _gs.WorldState.Buildings.Exists(_lockedTargetBuilding))
+            {
+                bid = _lockedTargetBuilding;
+                bs = _gs.WorldState.Buildings.Get(bid);
+                return true;
+            }
+
+            // NEW: uu ti?n cached hover (v? b?m n?t th? chu?t da r?i world)
             if (TryGetCachedBuilding(out bid, out bs))
                 return true;
-
             bid = default;
             bs = default;
 
@@ -1146,5 +1212,254 @@ namespace SeasonalBastion.DebugTools
                 _gs.NotificationService?.Push("dbg_repair_fail", "Debug", "Repair order not created (full HP / invalid / duplicate).",
                     NotificationSeverity.Warning, default, 0.25f, true);
         }
+
+        private void Quick_GiveCoreResources()
+        {
+            int giveAmt = 200;
+            if (!int.TryParse(_quickGiveAmtStr, out giveAmt) || giveAmt <= 0) giveAmt = 200;
+            Quick_GiveResource(ResourceType.Wood, giveAmt);
+            Quick_GiveResource(ResourceType.Food, giveAmt);
+            Quick_GiveResource(ResourceType.Stone, giveAmt);
+            Quick_GiveResource(ResourceType.Iron, giveAmt);
+        }
+
+        private void Quick_AdvanceDay(int delta)
+        {
+            if (!(_gs?.RunClock is RunClockService clock))
+                return;
+
+            int target = Mathf.Max(1, clock.DayIndex + delta);
+            clock.ForceSeasonDay(clock.CurrentSeason, target);
+            _gs.NotificationService?.Push("dbg_adv_day", "Debug", $"Jumped to {clock.CurrentSeason} D{target}.", NotificationSeverity.Info, default, 0.15f, true);
+        }
+
+        private void Quick_AdvanceSeason()
+        {
+            if (!(_gs?.RunClock is RunClockService clock))
+                return;
+
+            Season next = clock.CurrentSeason switch
+            {
+                Season.Spring => Season.Summer,
+                Season.Summer => Season.Autumn,
+                Season.Autumn => Season.Winter,
+                _ => Season.Spring
+            };
+
+            clock.ForceSeasonDay(next, 1);
+            _gs.NotificationService?.Push("dbg_adv_season", "Debug", $"Jumped to {next} D1.", NotificationSeverity.Info, default, 0.15f, true);
+        }
+
+        private void Quick_SpawnNpc(string defId, int count)
+        {
+            if (_npcTool == null)
+                _npcTool = FindObjectOfType<DebugNpcTool>(true);
+
+            if (_npcTool == null)
+            {
+                _gs?.NotificationService?.Push("dbg_spawn_npc_missing", "Debug", "DebugNpcTool not found in scene.", NotificationSeverity.Warning, default, 0.3f, true);
+                return;
+            }
+
+            _npcTool.DebugSpawn(string.IsNullOrWhiteSpace(defId) ? "Worker" : defId, Mathf.Max(1, count));
+        }
+
+        private void Quick_UnlockAll()
+        {
+            if (_gs?.UnlockService == null)
+                return;
+
+            try
+            {
+                var t = _gs.UnlockService.GetType();
+                var unlockedField = t.GetField("_unlocked", BindingFlags.Instance | BindingFlags.NonPublic);
+                var scheduleField = t.GetField("_schedule", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (unlockedField == null || scheduleField == null)
+                    throw new InvalidOperationException("UnlockService internals not found.");
+
+                var unlocked = unlockedField.GetValue(_gs.UnlockService) as System.Collections.IEnumerable;
+                var unlockedSet = unlockedField.GetValue(_gs.UnlockService);
+                var schedule = scheduleField.GetValue(_gs.UnlockService);
+                if (unlockedSet == null || schedule == null)
+                    throw new InvalidOperationException("UnlockService state missing.");
+
+                var addMethod = unlockedSet.GetType().GetMethod("Add");
+                int added = 0;
+
+                var startUnlockedField = schedule.GetType().GetField("StartUnlocked");
+                if (startUnlockedField?.GetValue(schedule) is System.Collections.IEnumerable startList)
+                {
+                    foreach (var id in startList)
+                        if (id is string s && !string.IsNullOrWhiteSpace(s)) { addMethod?.Invoke(unlockedSet, new object[] { s }); added++; }
+                }
+
+                var entriesField = schedule.GetType().GetField("Entries");
+                if (entriesField?.GetValue(schedule) is System.Collections.IEnumerable entries)
+                {
+                    foreach (var e in entries)
+                    {
+                        if (e == null) continue;
+                        var defField = e.GetType().GetField("DefId");
+                        var id = defField?.GetValue(e) as string;
+                        if (!string.IsNullOrWhiteSpace(id)) { addMethod?.Invoke(unlockedSet, new object[] { id }); added++; }
+                    }
+                }
+
+                var bus = _gs.EventBus;
+                var evtType = Type.GetType("SeasonalBastion.Contracts.UnlocksChangedEvent, Assembly-CSharp") ?? Type.GetType("SeasonalBastion.UnlocksChangedEvent, Assembly-CSharp");
+                if (bus != null && evtType != null)
+                {
+                    var ctor = evtType.GetConstructor(new[] { typeof(int) });
+                    if (ctor != null)
+                    {
+                        var publish = bus.GetType().GetMethod("Publish")?.MakeGenericMethod(evtType);
+                        publish?.Invoke(bus, new[] { ctor.Invoke(new object[] { Environment.TickCount }) });
+                    }
+                }
+
+                _gs.NotificationService?.Push("dbg_unlock_all", "Debug", "Unlocked all scheduled defs.", NotificationSeverity.Info, default, 0.2f, true);
+            }
+            catch (Exception e)
+            {
+                _gs.NotificationService?.Push("dbg_unlock_all_fail", "Debug", "Unlock ALL failed: " + e.Message, NotificationSeverity.Warning, default, 0.5f, true);
+            }
+        }
+
+        private void DrawEnemyPresetButtons()
+        {
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Swarmling", GUILayout.Width(100))) _quickEnemyDefId = "Swarmling";
+            if (GUILayout.Button("Raider", GUILayout.Width(100))) _quickEnemyDefId = "Raider";
+            if (GUILayout.Button("Bruiser", GUILayout.Width(100))) _quickEnemyDefId = "Bruiser";
+            if (GUILayout.Button("Archer", GUILayout.Width(100))) _quickEnemyDefId = "Archer";
+            if (GUILayout.Button("Sapper", GUILayout.Width(100))) _quickEnemyDefId = "Sapper";
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("SiegeBrute", GUILayout.Width(100))) _quickEnemyDefId = "SiegeBrute";
+            GUILayout.Label("Selected: " + _quickEnemyDefId);
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawQuickLaneButtons()
+        {
+            GUILayout.BeginHorizontal();
+            bool any = false;
+            if (_gs?.RunStartRuntime?.Lanes != null)
+            {
+                foreach (var kv in _gs.RunStartRuntime.Lanes)
+                {
+                    any = true;
+                    int laneId = kv.Key;
+                    if (GUILayout.Button($"Lane {laneId}", GUILayout.Width(85)))
+                        Quick_SpawnEnemy(_quickEnemyDefId, laneId, _quickSpawnCount);
+                }
+            }
+
+            if (!any)
+            {
+                GUILayout.Label("No lane cache; use manual lane in Advanced.");
+            }
+            GUILayout.EndHorizontal();
+        }
+
+        private void Quick_CompleteHoveredBuildingIfSiteOrRepairTarget()
+        {
+            if (TryFindActiveSiteFromHover(out _, out _))
+            {
+                Quick_CompleteCurrentSiteUnderMouse();
+                return;
+            }
+
+            if (!TryFindBuildingFromHover(out var bid, out var bs))
+                return;
+
+            EnsureHp(ref bs);
+            bs.HP = bs.MaxHP;
+            _gs.WorldState.Buildings.Set(bid, bs);
+            _gs.NotificationService?.Push("dbg_finish_hovered", "Debug", $"Finished/Healed hovered building #{bid.Value}.", NotificationSeverity.Info, default, 0.15f, true);
+        }
+
+        private bool TryResolveTowerForBuilding(BuildingId bid, BuildingState bs, out TowerId tid, out TowerState ts)
+        {
+            tid = default;
+            ts = default;
+            if (_gs?.WorldState?.Towers == null || _gs.DataRegistry == null) return false;
+            if (bid.Value == 0) return false;
+
+            int bw = 1, bh = 1;
+            try
+            {
+                if (_gs.DataRegistry.TryGetBuilding(bs.DefId, out var def) && def != null)
+                {
+                    bw = Mathf.Max(1, def.SizeX);
+                    bh = Mathf.Max(1, def.SizeY);
+                }
+            }
+            catch { }
+
+            var towerCell = new CellPos(bs.Anchor.X + (bw / 2), bs.Anchor.Y + (bh / 2));
+            foreach (var id in _gs.WorldState.Towers.Ids)
+            {
+                if (!_gs.WorldState.Towers.Exists(id)) continue;
+                var t = _gs.WorldState.Towers.Get(id);
+                if (t.Cell.X == towerCell.X && t.Cell.Y == towerCell.Y)
+                {
+                    tid = id;
+                    ts = t;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void Quick_DrainTowerUnderMouse()
+        {
+            if (!TryFindBuildingFromHover(out var bid, out var bs) || !TryResolveTowerForBuilding(bid, bs, out var tid, out var ts))
+            {
+                _gs?.NotificationService?.Push("dbg_tower_drain_none", "Debug", "Current building target has no linked tower.", NotificationSeverity.Warning, default, 0.2f, true);
+                return;
+            }
+
+            int amount = 30;
+            if (!int.TryParse(_quickAmmoDrainAmtStr, out amount) || amount <= 0) amount = 30;
+            ts.Ammo = Mathf.Max(0, ts.Ammo - amount);
+            _gs.WorldState.Towers.Set(tid, ts);
+
+            try
+            {
+                bs.Ammo = ts.Ammo;
+                _gs.WorldState.Buildings.Set(bid, bs);
+            }
+            catch { }
+
+            _gs.AmmoService?.NotifyTowerAmmoChanged(tid, ts.Ammo, ts.AmmoCap);
+            _gs.NotificationService?.Push("dbg_tower_drain_one", "Debug", $"{bs.DefId} #{bid.Value} ammo -> {ts.Ammo}/{ts.AmmoCap}", NotificationSeverity.Info, default, 0.1f, true);
+        }
+
+        private void Quick_RefillTowerUnderMouse()
+        {
+            if (!TryFindBuildingFromHover(out var bid, out var bs) || !TryResolveTowerForBuilding(bid, bs, out var tid, out var ts))
+            {
+                _gs?.NotificationService?.Push("dbg_tower_refill_none", "Debug", "Current building target has no linked tower.", NotificationSeverity.Warning, default, 0.2f, true);
+                return;
+            }
+
+            ts.Ammo = ts.AmmoCap;
+            _gs.WorldState.Towers.Set(tid, ts);
+
+            try
+            {
+                bs.Ammo = ts.Ammo;
+                _gs.WorldState.Buildings.Set(bid, bs);
+            }
+            catch { }
+
+            _gs.AmmoService?.NotifyTowerAmmoChanged(tid, ts.Ammo, ts.AmmoCap);
+            _gs.NotificationService?.Push("dbg_tower_refill_one", "Debug", $"{bs.DefId} #{bid.Value} ammo -> {ts.Ammo}/{ts.AmmoCap}", NotificationSeverity.Info, default, 0.1f, true);
+        }
     }
 }
+
+

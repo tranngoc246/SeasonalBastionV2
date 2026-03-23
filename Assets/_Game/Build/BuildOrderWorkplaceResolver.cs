@@ -23,7 +23,22 @@ namespace SeasonalBastion
             foreach (var id in _s.WorldState.Buildings.Ids) _buildingIdsBuf.Add(id);
             _buildingIdsBuf.Sort((a, b) => a.Value.CompareTo(b.Value));
 
-            // Prefer HQ (constructed)
+            // Prefer dedicated build workplaces first (e.g. Builder Hut).
+            // HQ should only act as fallback when no constructed Build-role workplace exists.
+            for (int i = 0; i < _buildingIdsBuf.Count; i++)
+            {
+                var bid = _buildingIdsBuf[i];
+                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+
+                var bs = _s.WorldState.Buildings.Get(bid);
+                if (!bs.IsConstructed) continue;
+
+                var def = _s.DataRegistry.GetBuilding(bs.DefId);
+                if ((def.WorkRoles & WorkRoleFlags.Build) != 0 && !def.IsHQ)
+                    return bid;
+            }
+
+            // Fallback: HQ can service build/repair work if no Builder Hut-style workplace exists.
             for (int i = 0; i < _buildingIdsBuf.Count; i++)
             {
                 var bid = _buildingIdsBuf[i];
@@ -36,7 +51,7 @@ namespace SeasonalBastion
                 if (def.IsHQ) return bid;
             }
 
-            // Fallback: any workplace with Build role
+            // Last fallback: any remaining Build-role workplace (covers unusual data setups).
             for (int i = 0; i < _buildingIdsBuf.Count; i++)
             {
                 var bid = _buildingIdsBuf[i];

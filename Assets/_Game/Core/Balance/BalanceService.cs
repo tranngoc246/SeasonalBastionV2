@@ -72,12 +72,20 @@ namespace SeasonalBastion
 
         public BuildingId ResolveBuilderWorkplace()
         {
-            // Prefer best builder workplace by defId list (level desc, id asc)
-            if (TryPickBestBuildingByDefSet(_builderDefs, out var best))
-                return best;
+            // Prefer a dedicated builder workplace that currently has at least one idle assigned NPC.
+            if (TryPickBestBuildingByDefSet(_builderDefs, requireIdleNpc: true, out var bestReadyBuilder))
+                return bestReadyBuilder;
 
-            // Fallback: HQ
-            if (TryPickHQ(out var hq))
+            // Fallback: HQ can take over when builder huts have no available workers.
+            if (TryPickHQ(requireIdleNpc: true, out var readyHq))
+                return readyHq;
+
+            // If nobody is idle right now, still prefer a dedicated builder workplace so jobs stay anchored there
+            // until HQ fallback is truly needed on the next retargetable Created job.
+            if (TryPickBestBuildingByDefSet(_builderDefs, requireIdleNpc: false, out var anyBuilder))
+                return anyBuilder;
+
+            if (TryPickHQ(requireIdleNpc: false, out var hq))
                 return hq;
 
             return default;
@@ -118,14 +126,14 @@ namespace SeasonalBastion
         public int GetWarehouseTier()
         {
             // Warehouse only (do NOT use HQ tier unless no warehouse exists)
-            if (TryPickBestBuildingByDefSet(_warehouseDefs, out var wh))
+            if (TryPickBestBuildingByDefSet(_warehouseDefs, requireIdleNpc: false, out var wh))
             {
                 var st = _s.WorldState.Buildings.Get(wh);
                 return GetTierFromLevel(st.Level);
             }
 
             // Fallback: HQ tier
-            if (TryPickHQ(out var hq))
+            if (TryPickHQ(requireIdleNpc: false, out var hq))
             {
                 var st = _s.WorldState.Buildings.Get(hq);
                 return GetTierFromLevel(st.Level);
@@ -134,7 +142,7 @@ namespace SeasonalBastion
             return 1;
         }
 
-        private bool TryPickHQ(out BuildingId hq)
+        private bool TryPickHQ(bool requireIdleNpc, out BuildingId hq)
         {
             hq = default;
             if (_s?.WorldState?.Buildings == null) return false;
@@ -150,6 +158,8 @@ namespace SeasonalBastion
 
                 if (!_s.DataRegistry.TryGetBuilding(bs.DefId, out var def) || def == null || !def.IsHQ)
                     continue;
+                if (requireIdleNpc && !HasIdleAssignedNpc(bid))
+                    continue;
 
                 if (bid.Value < bestId)
                 {
@@ -162,7 +172,7 @@ namespace SeasonalBastion
             return hq.Value != 0;
         }
 
-        private bool TryPickBestBuildingByDefSet(HashSet<string> defSet, out BuildingId best)
+        private bool TryPickBestBuildingByDefSet(HashSet<string> defSet, bool requireIdleNpc, out BuildingId best)
         {
             best = default;
             if (defSet == null || defSet.Count == 0) return false;
@@ -177,6 +187,7 @@ namespace SeasonalBastion
                 var bs = _s.WorldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
                 if (!defSet.Contains(bs.DefId)) continue;
+                if (requireIdleNpc && !HasIdleAssignedNpc(bid)) continue;
 
                 int lvl = GetTierFromLevel(bs.Level);
                 int idv = bid.Value;
@@ -190,6 +201,24 @@ namespace SeasonalBastion
             }
 
             return best.Value != 0;
+        }
+
+        private bool HasIdleAssignedNpc(BuildingId workplace)
+        {
+            if (workplace.Value == 0) return false;
+            if (_s?.WorldState?.Npcs == null) return false;
+
+            foreach (var nid in _s.WorldState.Npcs.Ids)
+            {
+                if (!_s.WorldState.Npcs.Exists(nid)) continue;
+                var ns = _s.WorldState.Npcs.Get(nid);
+                if (ns.Workplace.Value != workplace.Value) continue;
+                if (!ns.IsIdle) continue;
+                if (ns.CurrentJob.Value != 0) continue;
+                return true;
+            }
+
+            return false;
         }
     }
 }

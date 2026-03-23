@@ -20,7 +20,7 @@
     "costFactorOfBuildCost": 0.30
   },
   "builderWorkplace": {
-    "builderDefIds": [ "bld_hq_t1" ],
+    "builderDefIds": [ "bld_builderhut_t1", "bld_builderhut_t2", "bld_builderhut_t3" ],
     "buildSpeedMult": { "L1": 1.0, "L2": 0.85, "L3": 0.70 },
     "repairTimeMult": { "L1": 1.0, "L2": 0.85, "L3": 0.70 },
     "repairCostMult": { "L1": 1.0, "L2": 0.85, "L3": 0.70 }

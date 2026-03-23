@@ -16,7 +16,7 @@ namespace SeasonalBastion
         private readonly Dictionary<int, byte> _paid = new();
         private readonly List<BuildingId> _payBuf = new(32);
 
-        // jobId -> accumulated work seconds
+        // jobId -> accumulated fractional repair HP (continuous progress like BuildWork)
         private readonly Dictionary<int, float> _acc = new();
 
         // jobId -> remaining settle seconds at entry before starting repair
@@ -191,9 +191,10 @@ namespace SeasonalBastion
                 _paid[jid] = 1;
             }
 
-            // Work at site
-            if (!_acc.TryGetValue(jid, out var t)) t = 0f;
-            t += dt;
+            // Work continuously like BuildWork: progress every tick instead of waiting for a full chunk pulse.
+            // Keep the same overall pacing by converting chunk settings into heal-per-second.
+            if (!_acc.TryGetValue(jid, out var hpFrac)) hpFrac = 0f;
+
             float chunkSec = _s.Balance != null ? _s.Balance.RepairChunkSec : 4f;
             float healPct = _s.Balance != null ? _s.Balance.RepairHealPct : 0.15f;
 
@@ -207,28 +208,32 @@ namespace SeasonalBastion
             if (timeMult < 0.1f) timeMult = 0.1f;
 
             float effChunkSec = chunkSec * timeMult;
+            if (effChunkSec < 0.01f) effChunkSec = 0.01f;
 
-            while (t >= effChunkSec)
+            float healPerChunk = Math.Max(1f, (float)Math.Ceiling(bs.MaxHP * healPct));
+            float healPerSecond = healPerChunk / effChunkSec;
+
+            hpFrac += healPerSecond * dt;
+
+            int applyHeal = (int)Math.Floor(hpFrac);
+            if (applyHeal > 0)
             {
-                t -= effChunkSec;
-
-                int heal = Math.Max(1, (int)Math.Ceiling(bs.MaxHP * healPct));
-                bs.HP += heal;
+                hpFrac -= applyHeal;
+                bs.HP += applyHeal;
                 if (bs.HP > bs.MaxHP) bs.HP = bs.MaxHP;
-
                 w.Buildings.Set(job.DestBuilding, bs);
-
-                if (bs.HP >= bs.MaxHP)
-                {
-                    job.Status = JobStatus.Completed;
-                    _acc.Remove(jid);
-                    _settle.Remove(jid);
-                    _paid.Remove(jid);
-                    return true;
-                }
             }
 
-            _acc[jid] = t;
+            if (bs.HP >= bs.MaxHP)
+            {
+                job.Status = JobStatus.Completed;
+                _acc.Remove(jid);
+                _settle.Remove(jid);
+                _paid.Remove(jid);
+                return true;
+            }
+
+            _acc[jid] = hpFrac;
             job.Status = JobStatus.InProgress;
             return true;
         }

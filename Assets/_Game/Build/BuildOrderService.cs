@@ -273,11 +273,21 @@ namespace SeasonalBastion
             if (_repairJobByOrder.TryGetValue(orderId, out var jid))
             {
                 if (!_s.JobBoard.TryGet(jid, out var j) || IsTerminal(j.Status))
+                {
                     _repairJobByOrder.Remove(orderId);
+                }
+                else
+                {
+                    // Retarget recoverable queued repair jobs when builder availability changes
+                    // (BuilderHut preferred, HQ fallback if BuilderHut has no idle worker).
+                    if (j.Status == JobStatus.Created && j.Workplace.Value != workplace.Value)
+                    {
+                        j.Workplace = workplace;
+                        _s.JobBoard.Update(j);
+                    }
+                    return;
+                }
             }
-
-            if (_repairJobByOrder.ContainsKey(orderId))
-                return;
 
             var job = new Job
             {

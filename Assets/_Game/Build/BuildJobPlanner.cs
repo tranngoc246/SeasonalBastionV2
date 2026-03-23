@@ -29,7 +29,18 @@ namespace SeasonalBastion
             if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
             {
                 if (!_s.JobBoard.TryGet(wid, out var wj) || IsTerminal(wj.Status))
+                {
                     _workJobBySite.Remove(siteId.Value);
+                }
+                else
+                {
+                    // Retarget queued build work when builder availability changes.
+                    if (wj.Status == JobStatus.Created && wj.Workplace.Value != workplace.Value)
+                    {
+                        wj.Workplace = workplace;
+                        _s.JobBoard.Update(wj);
+                    }
+                }
             }
 
             CancelDeliveryJobs(siteId);

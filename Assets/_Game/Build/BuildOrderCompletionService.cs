@@ -177,7 +177,10 @@ namespace SeasonalBastion
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[BuildOrderCompletionService] Tower sync failed during upgrade '{fromId}' -> '{toId}' for building {o.TargetBuilding.Value}: {ex.Message}");
+            }
 
             try { _s.WorldIndex?.OnBuildingDestroyed(o.TargetBuilding); } catch { }
             try { _s.WorldIndex?.OnBuildingCreated(o.TargetBuilding); } catch { }

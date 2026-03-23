@@ -6,15 +6,18 @@ namespace SeasonalBastion
 {
     internal sealed class BuildOrderTickProcessor
     {
+        internal delegate void TickRepairOrderDelegate(int orderId, ref BuildOrder order, BuildingId workplace);
+        internal delegate void CompleteOrderDelegate(ref BuildOrder order);
+
         private readonly GameServices _s;
         private readonly Dictionary<int, BuildOrder> _orders;
         private readonly List<int> _active;
         private readonly Func<BuildingId> _resolveBuildWorkplace;
-        private readonly Action<SiteId, BuildSiteState, BuildingDef, BuildingId> _ensureBuildJobsForSite;
+        private readonly Action<SiteId, BuildSiteState, BuildingId> _ensureBuildJobsForSite;
         private readonly Action<SiteId> _cancelTrackedJobsForSite;
-        private readonly Action<int, ref BuildOrder, BuildingId> _tickRepairOrder;
-        private readonly Action<ref BuildOrder> _completePlaceOrder;
-        private readonly Action<ref BuildOrder> _completeUpgradeOrder;
+        private readonly TickRepairOrderDelegate _tickRepairOrder;
+        private readonly CompleteOrderDelegate _completePlaceOrder;
+        private readonly CompleteOrderDelegate _completeUpgradeOrder;
         private readonly Action<int> _onOrderCompleted;
 
         public BuildOrderTickProcessor(
@@ -22,7 +25,7 @@ namespace SeasonalBastion
             Dictionary<int, BuildOrder> orders,
             List<int> active,
             Func<BuildingId> resolveBuildWorkplace,
-            Action<SiteId, BuildSiteState, BuildingDef, BuildingId> ensureBuildJobsForSite,
+            Action<SiteId, BuildSiteState, BuildingId> ensureBuildJobsForSite,
             Action<SiteId> cancelTrackedJobsForSite,
             TickRepairOrderDelegate tickRepairOrder,
             CompleteOrderDelegate completePlaceOrder,
@@ -74,8 +77,7 @@ namespace SeasonalBastion
                 }
 
                 var site = _s.WorldState.Sites.Get(o.Site);
-                var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
-                _ensureBuildJobsForSite?.Invoke(o.Site, site, def, workplace);
+                _ensureBuildJobsForSite?.Invoke(o.Site, site, workplace);
 
                 o.WorkSecondsDone = site.WorkSecondsDone;
                 _orders[id] = o;
@@ -97,15 +99,6 @@ namespace SeasonalBastion
                 if (_orders.TryGetValue(id, out var o) && o.Completed)
                     _active.RemoveAt(i);
             }
-        }
-
-        private static bool IsReadyToWork(in BuildSiteState site)
-        {
-            return site.RemainingCosts == null || site.RemainingCosts.Count == 0;
-        }
-    }
-}
- }
         }
 
         private static bool IsReadyToWork(in BuildSiteState site)

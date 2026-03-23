@@ -143,7 +143,3 @@ namespace SeasonalBastion.RunStart
         }
     }
 }
-x;
-        }
-    }
-}

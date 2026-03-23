@@ -68,6 +68,17 @@ namespace SeasonalBastion
                 ComputeRepairSeconds,
                 CloneCostsOrEmpty,
                 BuildDeliveredMirror);
+            _tickProcessor = new BuildOrderTickProcessor(
+                s,
+                _orders,
+                _active,
+                ResolveBuildWorkplace,
+                EnsureBuildJobsForSite,
+                CancelTrackedJobsForSite,
+                TickRepairOrder,
+                CompletePlaceOrder,
+                CompleteUpgradeOrder,
+                RaiseOrderCompleted);
         }
 
         public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
@@ -420,7 +431,6 @@ namespace SeasonalBastion
                 _s.GridMap.SetRoad(c, false);
         }
 
-        // Day21: tiện ích cancel theo Site/Building để debug tool gọi (không cần biết orderId)
         public bool CancelBySite(SiteId siteId)
         {
             if (siteId.Value == 0) return false;
@@ -669,6 +679,11 @@ namespace SeasonalBastion
             _autoRoadByOrder.Remove(orderId);
         }
 
+        private void RaiseOrderCompleted(int orderId)
+        {
+            OnOrderCompleted?.Invoke(orderId);
+        }
+
         public int RebuildActivePlaceOrdersFromSitesAfterLoad()
         {
             return _reloadService.RebuildActivePlaceOrdersFromSitesAfterLoad();
@@ -776,9 +791,7 @@ namespace SeasonalBastion
         {
             return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
         }
-        // -------------------------
-        // Day21: Cancel refund policy
-        // -------------------------
+        
         private void RefundDeliveredToNearestStorage(in BuildSiteState st)
         {
             if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null) return;
@@ -841,192 +854,6 @@ namespace SeasonalBastion
             return dx + dy;
         }
 
-        // VS2 Day18: helpers for site cost tracking (delivery gate)
-        private static List<CostDef> CloneCostsOrEmpty(CostDef[] arr)
-        {
-            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
-
-            var list = new List<CostDef>(arr.Length);
-            for (int i = 0; i < arr.Length; i++)
-            {
-                var c = arr[i];
-                if (c == null) continue;
-
-                int amt = c.Amount;
-                if (amt <= 0) continue;
-
-                list.Add(new CostDef { Resource = c.Resource, Amount = amt });
-            }
-            return list;
-        }
-
-        private static List<CostDef> BuildDeliveredMirror(CostDef[] arr)
-        {
-            if (arr == null || arr.Length == 0) return new List<CostDef>(0);
-
-            var list = new List<CostDef>(arr.Length);
-            for (int i = 0; i < arr.Length; i++)
-            {
-                var c = arr[i];
-                if (c == null) continue;
-
-                // keep only positive cost lines
-                if (c.Amount <= 0) continue;
-
-                list.Add(new CostDef { Resource = c.Resource, Amount = 0 });
-            }
-            return list;
-        }
-    }
-}
- IsTerminal(wj.Status))
-                    _workJobBySite.Remove(siteId.Value);
-            }
-
-            // New behavior: 1 builder job handles BOTH delivery + build.
-            // So we never enqueue BuildDeliver jobs. Also cancel any legacy deliver jobs still tracked.
-            CancelDeliveryJobs(siteId);
-
-            // Ensure 1 BuildWork job always exists while site is active (even when not ready).
-            if (!_workJobBySite.ContainsKey(siteId.Value))
-            {
-                var j = new Job
-                {
-                    Archetype = JobArchetype.BuildWork,
-                    Status = JobStatus.Created,
-                    Workplace = workplace,
-
-                    SourceBuilding = default,
-                    DestBuilding = default,
-                    Site = siteId,
-                    Tower = default,
-
-                    // BuildWorkExecutor will reuse these fields for its internal delivery phases:
-                    // ResourceType = current hauling resource
-                    // Amount = carried amount
-                    ResourceType = 0,
-                    Amount = 0,
-
-                    TargetCell = site.Anchor,
-                    CreatedAt = 0
-                };
-
-                var newId = _s.JobBoard.Enqueue(j);
-                _workJobBySite[siteId.Value] = newId;
-            }
-        }
-
-        private void CancelTrackedJobsForSite(SiteId siteId)
-        {
-            CancelDeliveryJobs(siteId);
-
-            if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
-            {
-                _s.JobBoard.Cancel(wid);
-                _workJobBySite.Remove(siteId.Value);
-            }
-        }
-
-        private void CancelRepairJob(int orderId)
-        {
-            if (_repairJobByOrder.TryGetValue(orderId, out var jid))
-            {
-                _s.JobBoard.Cancel(jid);
-                _repairJobByOrder.Remove(orderId);
-            }
-        }
-
-        private void CancelDeliveryJobs(SiteId siteId)
-        {
-            if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
-            {
-                for (int i = 0; i < list.Count; i++)
-                    _s.JobBoard.Cancel(list[i]);
-                list.Clear();
-                _deliverJobsBySite.Remove(siteId.Value);
-            }
-        }
-
-        private void PruneTerminal(List<JobId> list)
-        {
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var id = list[i];
-                if (!_s.JobBoard.TryGet(id, out var j) || IsTerminal(j.Status))
-                    list.RemoveAt(i);
-            }
-        }
-
-        private static bool IsTerminal(JobStatus s)
-        {
-            return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
-        }
-        // -------------------------
-        // Day21: Cancel refund policy
-        // -------------------------
-        private void RefundDeliveredToNearestStorage(in BuildSiteState st)
-        {
-            if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null) return;
-            if (st.DeliveredSoFar == null || st.DeliveredSoFar.Count == 0) return;
-
-            var whs = _s.WorldIndex.Warehouses;
-            if (whs == null || whs.Count == 0) return;
-
-            // Build candidate list once (deterministic)
-            _buildingIdsBuf.Clear();
-            for (int i = 0; i < whs.Count; i++)
-            {
-                var bid = whs[i];
-                if (bid.Value == 0) continue;
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
-
-                var bs = _s.WorldState.Buildings.Get(bid);
-                if (!bs.IsConstructed) continue;
-
-                _buildingIdsBuf.Add(bid);
-            }
-
-            if (_buildingIdsBuf.Count == 0) return;
-
-            var from = st.Anchor;
-            _buildingIdsBuf.Sort((a, b) =>
-            {
-                var aa = _s.WorldState.Buildings.Get(a).Anchor;
-                var bb = _s.WorldState.Buildings.Get(b).Anchor;
-                int da = Manhattan(from, aa);
-                int db = Manhattan(from, bb);
-                if (da != db) return da.CompareTo(db);
-                return a.Value.CompareTo(b.Value);
-            });
-
-            // Refund each delivered cost line to nearest storage/HQ (best-effort).
-            for (int i = 0; i < st.DeliveredSoFar.Count; i++)
-            {
-                var c = st.DeliveredSoFar[i];
-                if (c.Amount <= 0) continue;
-
-                int left = c.Amount;
-                var rt = c.Resource;
-
-                for (int k = 0; k < _buildingIdsBuf.Count && left > 0; k++)
-                {
-                    var dst = _buildingIdsBuf[k];
-                    if (!_s.StorageService.CanStore(dst, rt)) continue;
-
-                    int added = _s.StorageService.Add(dst, rt, left);
-                    left -= added;
-                }
-            }
-        }
-
-        private static int Manhattan(CellPos a, CellPos b)
-        {
-            int dx = a.X - b.X; if (dx < 0) dx = -dx;
-            int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
-            return dx + dy;
-        }
-
-        // VS2 Day18: helpers for site cost tracking (delivery gate)
         private static List<CostDef> CloneCostsOrEmpty(CostDef[] arr)
         {
             if (arr == null || arr.Length == 0) return new List<CostDef>(0);

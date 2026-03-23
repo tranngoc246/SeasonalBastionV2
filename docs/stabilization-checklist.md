@@ -18,10 +18,10 @@ Before adding major features, ensure the repo is:
 
 ### 1. Compile + test baseline
 
-- [ ] Unity compile is clean across the whole project
-- [ ] No asmdef/reference/protection-level errors remain
-- [ ] Run all EditMode tests
-- [ ] Record baseline pass count
+- [x] Unity compile is clean across the whole project
+- [x] No asmdef/reference/protection-level errors remain
+- [x] Run all EditMode tests
+- [x] Record baseline pass count (`29/29` green as of 2026-03-23)
 
 ### 2. Jobs smoke test
 
@@ -186,8 +186,8 @@ Before adding major features, ensure the repo is:
 
 ### Immediate
 
-- [ ] Compile clean
-- [ ] Run EditMode tests
+- [x] Compile clean
+- [x] Run EditMode tests
 - [ ] Smoke test Jobs
 - [ ] Smoke test Build
 - [ ] Smoke test RunStart

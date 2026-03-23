@@ -524,5 +524,4 @@ namespace SeasonalBastion.View2D
             sr.transform.localScale = new Vector3(targetW / nativeW, targetH / nativeH, 1f);
         }
     }
-}    }
 }

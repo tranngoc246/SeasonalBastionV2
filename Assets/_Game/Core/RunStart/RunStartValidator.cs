@@ -211,7 +211,7 @@ namespace SeasonalBastion.RunStart
                 int sx = Mathf.Max(1, def.SizeX);
                 int sy = Mathf.Max(1, def.SizeY);
 
-                if (string.Equals(b.DefId, HQ_DEFID, StringComparison.OrdinalIgnoreCase))
+                if (DefIdTierUtil.IsBase(b.DefId, DefIdTierUtil.BaseId(HQ_DEFID)))
                 {
                     // HQ expects 4 entry roads
                     var eN = ComputeEntryOutsideFootprint(b.Anchor, sx, sy, Dir4.N);

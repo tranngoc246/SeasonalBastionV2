@@ -262,9 +262,9 @@ namespace SeasonalBastion.Tests.EditMode
         [TestCase("bld_lumbercamp_t2", "bld_lumbercamp")]
         [TestCase("bld_quarry_t3", "bld_quarry")]
         [TestCase(" bld_hq_t1 ", "bld_hq")]
-        public void JobDefIdUtil_NormalizeBuildingDefId_StripsTierSuffix(string raw, string expected)
+        public void DefIdTierUtil_BaseId_StripsTierSuffix(string raw, string expected)
         {
-            var actual = JobDefIdUtil.NormalizeBuildingDefId(raw);
+            var actual = DefIdTierUtil.BaseId(raw?.Trim());
             Assert.That(actual, Is.EqualTo(expected));
         }
 

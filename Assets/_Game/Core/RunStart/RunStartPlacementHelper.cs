@@ -100,7 +100,7 @@ namespace SeasonalBastion.RunStart
         {
             if (s == null || s.GridMap == null) return;
 
-            if (string.Equals(b.DefId, HqDefId, StringComparison.OrdinalIgnoreCase))
+            if (DefIdTierUtil.IsBase(b.DefId, DefIdTierUtil.BaseId(HqDefId)))
             {
                 PromoteRoadIfPossible(s, ComputeEntryOutsideFootprint(b.Anchor, w, h, Dir4.N));
                 PromoteRoadIfPossible(s, ComputeEntryOutsideFootprint(b.Anchor, w, h, Dir4.S));

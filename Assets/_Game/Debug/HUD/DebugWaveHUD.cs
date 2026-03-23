@@ -123,7 +123,7 @@ namespace SeasonalBastion.DebugTools
             foreach (var id in gs.WorldState.Buildings.Ids)
             {
                 var st = gs.WorldState.Buildings.Get(id);
-                if (!string.IsNullOrEmpty(st.DefId) && st.DefId == "bld_armory_t1")
+                if (!string.IsNullOrEmpty(st.DefId) && DefIdTierUtil.IsBase(st.DefId, "bld_armory"))
                 { arm = id; break; }
             }
             if (arm.Value == 0) return;

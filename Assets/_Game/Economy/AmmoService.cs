@@ -1036,7 +1036,7 @@ namespace SeasonalBastion
             foreach (var bid in _s.WorldState.Buildings.Ids)
             {
                 var bs = _s.WorldState.Buildings.Get(bid);
-                if (bs.IsConstructed && bs.DefId == "bld_hq_t1")
+                if (bs.IsConstructed && DefIdTierUtil.IsBase(bs.DefId, "bld_hq"))
                 {
                     center = bs.Anchor;
                     foundHQ = true;

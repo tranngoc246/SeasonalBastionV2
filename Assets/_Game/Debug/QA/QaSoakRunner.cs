@@ -343,7 +343,7 @@ namespace SeasonalBastion
             {
                 if (!_s.WorldState.Buildings.Exists(bid)) continue;
                 var b = _s.WorldState.Buildings.Get(bid);
-                if (b.IsConstructed && string.Equals(b.DefId, "bld_hq_t1", StringComparison.OrdinalIgnoreCase))
+                if (b.IsConstructed && DefIdTierUtil.IsBase(b.DefId, "bld_hq"))
                 {
                     hq = bid;
                     break;

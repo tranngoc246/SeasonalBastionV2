@@ -673,10 +673,10 @@ namespace SeasonalBastion.DebugTools
         {
             if (string.IsNullOrEmpty(defId)) return ResourceType.None;
 
-            if (defId.Equals("bld_farmhouse_t1", StringComparison.OrdinalIgnoreCase)) return ResourceType.Food;
-            if (defId.Equals("bld_lumbercamp_t1", StringComparison.OrdinalIgnoreCase)) return ResourceType.Wood;
-            if (defId.Equals("bld_quarry_t1", StringComparison.OrdinalIgnoreCase)) return ResourceType.Stone;
-            if (defId.Equals("bld_ironhut_t1", StringComparison.OrdinalIgnoreCase)) return ResourceType.Iron;
+            if (DefIdTierUtil.IsBase(defId, "bld_farmhouse")) return ResourceType.Food;
+            if (DefIdTierUtil.IsBase(defId, "bld_lumbercamp")) return ResourceType.Wood;
+            if (DefIdTierUtil.IsBase(defId, "bld_quarry")) return ResourceType.Stone;
+            if (DefIdTierUtil.IsBase(defId, "bld_ironhut")) return ResourceType.Iron;
 
             return ResourceType.None;
         }
@@ -758,22 +758,6 @@ namespace SeasonalBastion.DebugTools
             };
 
             // Default conservative
-            return 1;
-        }
-    }
-}
-       1 => 1,
-                2 => 2,
-                3 => 2,
-                _ => 1
-            };
-
-            // Default conservative
-            return 1;
-        }
-    }
-}
- // Default conservative
             return 1;
         }
     }

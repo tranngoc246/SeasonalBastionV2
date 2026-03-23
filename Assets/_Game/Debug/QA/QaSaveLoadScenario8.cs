@@ -422,11 +422,11 @@ namespace SeasonalBastion
                 var b = buildings.Get(bid);
                 if (!b.IsConstructed) continue;
 
-                if (string.Equals(b.DefId, "bld_hq_t1", StringComparison.OrdinalIgnoreCase))
+                if (DefIdTierUtil.IsBase(b.DefId, "bld_hq"))
                     return true;
             }
 
-            err = "HQ not found (expected a constructed building with defId = bld_hq_t1).";
+            err = "HQ not found (expected a constructed building with canonical defId = bld_hq).";
             return false;
         }
 

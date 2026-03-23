@@ -172,20 +172,20 @@ namespace SeasonalBastion
             }
 
             // VS#1 fallback by known ids (keeps game playable even if defs are minimal).
-            isHQ = JobDefIdUtil.EqualsCanonical(defId, "bld_hq");
-            isWarehouse = JobDefIdUtil.EqualsCanonical(defId, "bld_warehouse");
+            isHQ = DefIdTierUtil.IsBase(defId, "bld_hq");
+            isWarehouse = DefIdTierUtil.IsBase(defId, "bld_warehouse");
 
             // Producers in v0.1 (Buildings.json): Farm, Lumber, Quarry, IronHut, Forge
             isProducer =
-                   JobDefIdUtil.EqualsCanonical(defId, "bld_farmhouse")
-                || JobDefIdUtil.EqualsCanonical(defId, "bld_lumbercamp")
-                || JobDefIdUtil.EqualsCanonical(defId, "bld_quarry")
-                || JobDefIdUtil.EqualsCanonical(defId, "bld_ironhut")
-                || JobDefIdUtil.EqualsCanonical(defId, "bld_forge");
+                   DefIdTierUtil.IsBase(defId, "bld_farmhouse")
+                || DefIdTierUtil.IsBase(defId, "bld_lumbercamp")
+                || DefIdTierUtil.IsBase(defId, "bld_quarry")
+                || DefIdTierUtil.IsBase(defId, "bld_ironhut")
+                || DefIdTierUtil.IsBase(defId, "bld_forge");
 
-            IsHouse = JobDefIdUtil.EqualsCanonical(defId, "bld_house");
-            isForge = JobDefIdUtil.EqualsCanonical(defId, "bld_forge");
-            isArmory = JobDefIdUtil.EqualsCanonical(defId, "bld_armory");
+            IsHouse = DefIdTierUtil.IsBase(defId, "bld_house");
+            isForge = DefIdTierUtil.IsBase(defId, "bld_forge");
+            isArmory = DefIdTierUtil.IsBase(defId, "bld_armory");
             isTower = false;
         }
 

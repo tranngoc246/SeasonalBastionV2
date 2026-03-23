@@ -81,8 +81,8 @@ namespace SeasonalBastion
         {
             if (string.IsNullOrEmpty(defId)) return false;
 
-            // Fallback hard-coded (data hiện tại dùng bld_hq_t1)
-            if (defId == "bld_hq_t1") return true;
+            // Fallback hard-coded by canonical base id
+            if (DefIdTierUtil.IsBase(defId, "bld_hq")) return true;
 
             try
             {

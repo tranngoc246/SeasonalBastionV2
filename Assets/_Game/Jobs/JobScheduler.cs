@@ -14,6 +14,8 @@ namespace SeasonalBastion
         private readonly ResourceLogisticsPolicy _resourcePolicy;
         private readonly JobNotificationPolicy _notificationPolicy;
         private readonly JobStateCleanupService _cleanupService;
+        private readonly JobAssignmentService _assignmentService;
+        private readonly JobSchedulerCache _cacheService;
 
         public int AssignedThisTick { get; private set; }
 
@@ -49,6 +51,8 @@ namespace SeasonalBastion
             _resourcePolicy = new ResourceLogisticsPolicy();
             _notificationPolicy = new JobNotificationPolicy(noti);
             _cleanupService = new JobStateCleanupService(claims);
+            _assignmentService = new JobAssignmentService(w, board, _workplacePolicy, _notificationPolicy);
+            _cacheService = new JobSchedulerCache(w);
         }
 
         public void Tick(float dt)
@@ -64,9 +68,9 @@ namespace SeasonalBastion
                 _maintenanceTimer = 0f;
                 _cacheReady = true;
 
-                BuildSortedNpcIds();
-                BuildSortedBuildingIds();
-                BuildWorkplaceHasNpcSet();
+                _cacheService.BuildSortedNpcIds(_npcIds);
+                _cacheService.BuildSortedBuildingIds(_buildingIds);
+                _cacheService.BuildWorkplaceHasNpcSet(_npcIds, _workplacesWithNpc, _workplaceNpcCount);
 
                 // Ensure jobs exist (Harvest + HaulBasic)
                 EnqueueHarvestJobsIfNeeded();
@@ -83,7 +87,7 @@ namespace SeasonalBastion
                     if (!ns.IsIdle || ns.CurrentJob.Value != 0) { _w.Npcs.Set(nid, ns); continue; }
                     if (ns.Workplace.Value == 0) { _w.Npcs.Set(nid, ns); continue; }
 
-                    if (TryAssignInternal(nid, ref ns))
+                    if (_assignmentService.TryAssign(nid, ref ns, AnyHarvestProducerHasAmount))
                         AssignedThisTick++;
 
                     _w.Npcs.Set(nid, ns);
@@ -93,7 +97,7 @@ namespace SeasonalBastion
             // 1) ALWAYS tick current jobs every frame (so Build progress is smooth and respects x3)
             // If cache wasn't built yet (very first frame), build minimal npc list now.
             if (!_cacheReady)
-                BuildSortedNpcIds();
+                _cacheService.BuildSortedNpcIds(_npcIds);
 
             for (int i = 0; i < _npcIds.Count; i++)
             {
@@ -139,67 +143,10 @@ namespace SeasonalBastion
             if (!ns.IsIdle || ns.CurrentJob.Value != 0) return false;
             if (ns.Workplace.Value == 0) return false;
 
-            if (!TryAssignInternal(npc, ref ns)) return false;
+            if (!_assignmentService.TryAssign(npc, ref ns, AnyHarvestProducerHasAmount)) return false;
             _w.Npcs.Set(npc, ns);
 
             return _board.TryGet(ns.CurrentJob, out assigned);
-        }
-
-        private bool TryAssignInternal(NpcId npc, ref NpcState ns)
-        {
-            if (!_w.Buildings.Exists(ns.Workplace)) return false;
-
-            var wps = _w.Buildings.Get(ns.Workplace);
-            var allowed = _workplacePolicy.GetAllowedRoles(wps.DefId);
-            if (allowed == WorkRoleFlags.None)
-            {
-                _notificationPolicy.NotifyNoJobs(ns.Workplace, wps.DefId);
-                return false;
-            }
-
-            // Day13: only pull jobs allowed by workplace roles
-            Job peek;
-            if (_board is JobBoard jb)
-            {
-                if (!jb.TryPeekForWorkplaceFiltered(ns.Workplace, allowed, out peek))
-                {
-                    _notificationPolicy.NotifyNoJobs(ns.Workplace, wps.DefId);
-                    return false;
-                }
-            }
-            else
-            {
-                if (!_board.TryPeekForWorkplace(ns.Workplace, out peek))
-                {
-                    _notificationPolicy.NotifyNoJobs(ns.Workplace, wps.DefId);
-                    return false;
-                }
-
-                if (!_workplacePolicy.IsJobAllowed(allowed, peek.Archetype))
-                {
-                    _notificationPolicy.NotifyNoJobs(ns.Workplace, wps.DefId);
-                    return false;
-                }
-            }
-
-            // Preflight for HaulBasic (NEW): only claim if any harvest producer has something in LOCAL storage.
-            if (peek.Archetype == JobArchetype.HaulBasic && !AnyHarvestProducerHasAmount(peek.ResourceType))
-                return false;
-
-            if (!_board.TryClaim(peek.Id, npc))
-                return false;
-
-            // Refresh job after claim (board updated internal copy)
-            if (!_board.TryGet(peek.Id, out var job))
-                return false;
-
-            job.Status = JobStatus.InProgress;
-            job.ClaimedBy = npc;
-            _board.Update(job);
-
-            ns.CurrentJob = job.Id;
-            ns.IsIdle = false;
-            return true;
         }
 
         // -------------------------
@@ -474,45 +421,6 @@ namespace SeasonalBastion
         private bool AnyPileHasAmount(ResourceType rt, BuildingId owner)
         {
             return _w.Piles != null && owner.Value != 0 && _w.Piles.TryFindNonEmpty(rt, owner, out _);
-        }
-
-        // -------------------------
-        // Determinism helpers
-        // -------------------------
-
-        private void BuildSortedNpcIds()
-        {
-            _npcIds.Clear();
-            foreach (var id in _w.Npcs.Ids) _npcIds.Add(id);
-            _npcIds.Sort((a, b) => a.Value.CompareTo(b.Value));
-        }
-
-        private void BuildSortedBuildingIds()
-        {
-            _buildingIds.Clear();
-            foreach (var id in _w.Buildings.Ids) _buildingIds.Add(id);
-            _buildingIds.Sort((a, b) => a.Value.CompareTo(b.Value));
-        }
-
-        private void BuildWorkplaceHasNpcSet()
-        {
-            _workplacesWithNpc.Clear();
-            _workplaceNpcCount.Clear();
-
-            for (int i = 0; i < _npcIds.Count; i++)
-            {
-                var nid = _npcIds[i];
-                if (!_w.Npcs.Exists(nid)) continue;
-
-                var ns = _w.Npcs.Get(nid);
-                int wp = ns.Workplace.Value;
-                if (wp == 0) continue;
-
-                _workplacesWithNpc.Add(wp);
-
-                if (_workplaceNpcCount.TryGetValue(wp, out var c)) _workplaceNpcCount[wp] = c + 1;
-                else _workplaceNpcCount[wp] = 1;
-            }
         }
 
     }

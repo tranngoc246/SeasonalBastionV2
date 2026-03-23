@@ -27,6 +27,7 @@ namespace SeasonalBastion
         private readonly BuildOrderEventBridge _eventBridge;
         private readonly BuildJobPlanner _jobPlanner;
         private readonly BuildOrderCancellationService _cancellationService;
+        private readonly BuildOrderCostTracker _costTracker;
 
         public event Action<int> OnOrderCompleted;
 
@@ -67,8 +68,8 @@ namespace SeasonalBastion
                 ComputeWorkSecondsTotal,
                 ComputeWorkSecondsTotalFromChunks,
                 ComputeRepairSeconds,
-                CloneCostsOrEmpty,
-                BuildDeliveredMirror);
+                _costTracker.CloneCostsOrEmpty,
+                _costTracker.BuildDeliveredMirror);
             _tickProcessor = new BuildOrderTickProcessor(
                 s,
                 _orders,

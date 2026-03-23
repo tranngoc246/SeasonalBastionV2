@@ -362,5 +362,101 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(order.WorkSecondsRequired, Is.EqualTo(10f));
             Assert.That(order.WorkSecondsDone, Is.EqualTo(2f));
         }
+
+        [Test]
+        public void JobBoard_ArmoryFilteredPeek_PrioritizesResupplyTower()
+        {
+            var board = new JobBoard();
+            var workplace = new BuildingId(10);
+
+            board.Enqueue(new Job { Workplace = workplace, Archetype = JobArchetype.HaulToForge, Status = JobStatus.Created });
+            board.Enqueue(new Job { Workplace = workplace, Archetype = JobArchetype.HaulAmmoToArmory, Status = JobStatus.Created });
+            board.Enqueue(new Job { Workplace = workplace, Archetype = JobArchetype.ResupplyTower, Status = JobStatus.Created });
+
+            bool ok = board.TryPeekForWorkplaceFiltered(workplace, WorkRoleFlags.Armory, out var peek);
+
+            Assert.That(ok, Is.True);
+            Assert.That(peek.Archetype, Is.EqualTo(JobArchetype.ResupplyTower));
+        }
+
+        [Test]
+        public void JobScheduler_AnyHarvestProducerHasAmount_AcceptsTieredDefIds()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            var world = new WorldState();
+            var claims = new ClaimService();
+            var board = new JobBoard();
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            var exec = new JobExecutorRegistry(services);
+
+            var bId = world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_lumbercamp_t2",
+                Anchor = new CellPos(5, 5),
+                Rotation = Dir4.N,
+                Level = 2,
+                IsConstructed = true,
+                Wood = 7,
+                HP = 10,
+                MaxHP = 10
+            });
+            var b = world.Buildings.Get(bId);
+            b.Id = bId;
+            world.Buildings.Set(bId, b);
+
+            var scheduler = new JobScheduler(world, board, claims, exec, bus, data, noti);
+
+            var mi = typeof(JobScheduler).GetMethod("AnyHarvestProducerHasAmount", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.That(mi, Is.Not.Null);
+
+            bool hasWood = (bool)mi.Invoke(scheduler, new object[] { ResourceType.Wood });
+            bool hasFood = (bool)mi.Invoke(scheduler, new object[] { ResourceType.Food });
+
+            Assert.That(hasWood, Is.True);
+            Assert.That(hasFood, Is.False);
+        }
+
+        [Test]
+        public void JobEnqueueService_Haul_DoesNotDuplicateActiveJobForSameWorkplaceAndType()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_warehouse", WorkRoles = WorkRoleFlags.HaulBasic });
+
+            var world = new WorldState();
+            var board = new JobBoard();
+            var cleanup = new JobStateCleanupService(new ClaimService());
+            var workplacePolicy = new JobWorkplacePolicy(data);
+            var resourcePolicy = new ResourceLogisticsPolicy();
+            var enqueue = new JobEnqueueService(world, board, workplacePolicy, resourcePolicy, cleanup);
+
+            var wid = world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_warehouse_t1",
+                Anchor = new CellPos(8, 8),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                Wood = 0,
+                HP = 10,
+                MaxHP = 10
+            });
+            var w = world.Buildings.Get(wid);
+            w.Id = wid;
+            world.Buildings.Set(wid, w);
+
+            var buildingIds = new List<BuildingId> { wid };
+            var workplacesWithNpc = new HashSet<int> { wid.Value };
+            var haulMap = new Dictionary<int, JobId>();
+
+            enqueue.EnqueueHaulJobsIfNeeded(buildingIds, workplacesWithNpc, haulMap, rt => rt == ResourceType.Wood);
+            enqueue.EnqueueHaulJobsIfNeeded(buildingIds, workplacesWithNpc, haulMap, rt => rt == ResourceType.Wood);
+
+            Assert.That(haulMap.Count, Is.EqualTo(1));
+            Assert.That(board.CountActiveJobs(JobArchetype.HaulBasic), Is.EqualTo(1));
+        }
     }
 }

@@ -1,10 +1,9 @@
-# Changelog — 2026-03-23
+# CHANGELOG
 
-## Summary
+## 2026-03-23
 
+### Summary
 Stabilization pass focused on Jobs, Build/Repair workplace routing, tower ammo resupply behavior, and a much cleaner in-game debug workflow.
-
-## What changed
 
 ### Jobs / Build / Repair
 - Builder workplace routing was corrected so **BuilderHut is preferred** for `BuildWork` / `RepairWork`.
@@ -42,6 +41,6 @@ Stabilization pass focused on Jobs, Build/Repair workplace routing, tower ammo r
 - RunStart wording in the checklist was normalized to match actual invariant names in code.
 - Jobs smoke test items that were verified today were checked off.
 
-## Notes
+### Notes
 - Current focus was practical stabilization, not broad refactor cleanup.
 - Save/load stabilization and remaining Build / RunStart smoke passes are still pending.

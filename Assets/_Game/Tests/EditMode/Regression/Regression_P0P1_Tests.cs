@@ -579,5 +579,118 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(active.Count, Is.EqualTo(0));
             Assert.That(orders[1].Completed, Is.True);
         }
+
+        [Test]
+        public void RunStartStorageInitializer_Fails_WhenNoConstructedHqExists()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var noti = new NotificationService(bus);
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            services.StorageService = new StorageService(world, data);
+
+            bool ok = SeasonalBastion.RunStart.RunStartStorageInitializer.ApplyStartingStorage(services, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain("constructed HQ"));
+        }
+
+        [Test]
+        public void RunStartHqResolver_TryResolveHQTargetCell_AcceptsCanonicalTieredFallback()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(20, 20);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t2", SizeX = 2, SizeY = 2, MaxHp = 100 });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+
+            var hqId = world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_hq_t2",
+                Anchor = new CellPos(4, 6),
+                Rotation = Dir4.N,
+                Level = 2,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var hq = world.Buildings.Get(hqId); hq.Id = hqId; world.Buildings.Set(hqId, hq);
+
+            bool ok = SeasonalBastion.RunStart.RunStartHqResolver.TryResolveHQTargetCell(services, out var target);
+
+            Assert.That(ok, Is.True);
+            Assert.That(target.X, Is.EqualTo(4));
+            Assert.That(target.Y, Is.EqualTo(6));
+        }
+
+        [Test]
+        public void RunStartValidator_CollectRuntimeIssues_FlagsBlockedNpcSpawn_AndMissingWorkplace()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var hqId = world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(2, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var hq = world.Buildings.Get(hqId); hq.Id = hqId; world.Buildings.Set(hqId, hq);
+            grid.SetBuilding(new CellPos(2, 2), hqId);
+            grid.SetBuilding(new CellPos(3, 2), hqId);
+            grid.SetBuilding(new CellPos(2, 3), hqId);
+            grid.SetBuilding(new CellPos(3, 3), hqId);
+            grid.SetRoad(new CellPos(3, 4), true);
+            grid.SetRoad(new CellPos(3, 1), true);
+            grid.SetRoad(new CellPos(1, 3), true);
+            grid.SetRoad(new CellPos(4, 3), true);
+
+            var npcId = world.Npcs.Create(new NpcState
+            {
+                Id = default,
+                DefId = "npc_test",
+                Cell = new CellPos(2, 2),
+                Workplace = new BuildingId(999),
+                IsIdle = true
+            });
+            var npc = world.Npcs.Get(npcId); npc.Id = npcId; world.Npcs.Set(npcId, npc);
+
+            var issues = new List<SeasonalBastion.RunStart.RunStartValidationIssue>();
+            SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
+
+            Assert.That(issues.Exists(x => x.Code == "NPC_SPAWN_BLOCKED"), Is.True);
+            Assert.That(issues.Exists(x => x.Code == "NPC_WORKPLACE_MISSING"), Is.True);
+        }
+
+        [Test]
+        public void RunStartValidator_CollectRuntimeIssues_FlagsMissingHq()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(8, 8);
+            var data = new TestDataRegistry();
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            grid.SetRoad(new CellPos(1, 1), true);
+
+            var issues = new List<SeasonalBastion.RunStart.RunStartValidationIssue>();
+            SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
+
+            Assert.That(issues.Exists(x => x.Code == "HQ_MISSING"), Is.True);
+        }
     }
 }

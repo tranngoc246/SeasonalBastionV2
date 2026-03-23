@@ -8,8 +8,8 @@ namespace SeasonalBastion
     {
         private readonly GameServices _s;
 
-        private static bool IsWarehouseOnly(string defId) => EqualsIgnoreCase(defId, "bld_warehouse");
-        private static bool IsHQOnly(string defId) => EqualsIgnoreCase(defId, "bld_hq");
+        private static bool IsWarehouseOnly(string defId) => JobDefIdUtil.EqualsCanonical(defId, "bld_warehouse");
+        private static bool IsHQOnly(string defId) => JobDefIdUtil.EqualsCanonical(defId, "bld_hq");
 
         // jobId -> phase (0 pickup, 1 deliver)
         private readonly Dictionary<int, byte> _phase = new();
@@ -385,24 +385,24 @@ namespace SeasonalBastion
 
         private static bool IsWarehouseWorkplace(string defId)
         {
-            return EqualsIgnoreCase(defId, "bld_warehouse")
-                || EqualsIgnoreCase(defId, "bld_hq");
+            return JobDefIdUtil.EqualsCanonical(defId, "bld_warehouse")
+                || JobDefIdUtil.EqualsCanonical(defId, "bld_hq");
         }
 
         private static bool IsHarvestProducer(string defId)
         {
-            return EqualsIgnoreCase(defId, "bld_farmhouse")
-                || EqualsIgnoreCase(defId, "bld_lumbercamp")
-                || EqualsIgnoreCase(defId, "bld_quarry")
-                || EqualsIgnoreCase(defId, "bld_ironhut");
+            return JobDefIdUtil.EqualsCanonical(defId, "bld_farmhouse")
+                || JobDefIdUtil.EqualsCanonical(defId, "bld_lumbercamp")
+                || JobDefIdUtil.EqualsCanonical(defId, "bld_quarry")
+                || JobDefIdUtil.EqualsCanonical(defId, "bld_ironhut");
         }
 
         private static ResourceType HarvestResourceType(string defId)
         {
-            if (EqualsIgnoreCase(defId, "bld_farmhouse_t1")) return ResourceType.Food;
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp_t1")) return ResourceType.Wood;
-            if (EqualsIgnoreCase(defId, "bld_quarry_t1")) return ResourceType.Stone;
-            if (EqualsIgnoreCase(defId, "bld_ironhut_t1")) return ResourceType.Iron;
+            if (JobDefIdUtil.EqualsCanonical(defId, "bld_farmhouse")) return ResourceType.Food;
+            if (JobDefIdUtil.EqualsCanonical(defId, "bld_lumbercamp")) return ResourceType.Wood;
+            if (JobDefIdUtil.EqualsCanonical(defId, "bld_quarry")) return ResourceType.Stone;
+            if (JobDefIdUtil.EqualsCanonical(defId, "bld_ironhut")) return ResourceType.Iron;
             return ResourceType.Food;
         }
 
@@ -463,10 +463,10 @@ namespace SeasonalBastion
         private static int LocalCapForProducer(string defId, int level, ResourceType rt)
         {
             // local caps LOCKED (đúng mapping bạn đã dùng ở JobScheduler)
-            if (EqualsIgnoreCase(defId, "bld_farmhouse")) return level == 1 ? 30 : level == 2 ? 60 : 90;
-            if (EqualsIgnoreCase(defId, "bld_lumbercamp")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "bld_quarry")) return level == 1 ? 40 : level == 2 ? 80 : 120;
-            if (EqualsIgnoreCase(defId, "bld_ironhut")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            if (JobDefIdUtil.EqualsCanonical(defId, "bld_farmhouse")) return level == 1 ? 30 : level == 2 ? 60 : 90;
+            if (JobDefIdUtil.EqualsCanonical(defId, "bld_lumbercamp")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (JobDefIdUtil.EqualsCanonical(defId, "bld_quarry")) return level == 1 ? 40 : level == 2 ? 80 : 120;
+            if (JobDefIdUtil.EqualsCanonical(defId, "bld_ironhut")) return level == 1 ? 30 : level == 2 ? 60 : 90;
             return 0;
         }
 

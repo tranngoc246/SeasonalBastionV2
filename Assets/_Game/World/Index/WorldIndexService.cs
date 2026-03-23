@@ -172,20 +172,20 @@ namespace SeasonalBastion
             }
 
             // VS#1 fallback by known ids (keeps game playable even if defs are minimal).
-            isHQ = string.Equals(defId, "bld_hq_t1", StringComparison.OrdinalIgnoreCase);
-            isWarehouse = string.Equals(defId, "bld_warehouse_t1", StringComparison.OrdinalIgnoreCase);
+            isHQ = JobDefIdUtil.EqualsCanonical(defId, "bld_hq");
+            isWarehouse = JobDefIdUtil.EqualsCanonical(defId, "bld_warehouse");
 
             // Producers in v0.1 (Buildings.json): Farm, Lumber, Quarry, IronHut, Forge
             isProducer =
-                   string.Equals(defId, "bld_farmhouse_t1", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(defId, "bld_lumbercamp_t1", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(defId, "bld_quarry_t1", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(defId, "bld_ironhut_t1", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(defId, "bld_forge_t1", StringComparison.OrdinalIgnoreCase);
+                   JobDefIdUtil.EqualsCanonical(defId, "bld_farmhouse")
+                || JobDefIdUtil.EqualsCanonical(defId, "bld_lumbercamp")
+                || JobDefIdUtil.EqualsCanonical(defId, "bld_quarry")
+                || JobDefIdUtil.EqualsCanonical(defId, "bld_ironhut")
+                || JobDefIdUtil.EqualsCanonical(defId, "bld_forge");
 
-            IsHouse = string.Equals(defId, "bld_house_t1", StringComparison.OrdinalIgnoreCase);
-            isForge = string.Equals(defId, "bld_forge_t1", StringComparison.OrdinalIgnoreCase);
-            isArmory = string.Equals(defId, "bld_armory_t1", StringComparison.OrdinalIgnoreCase);
+            IsHouse = JobDefIdUtil.EqualsCanonical(defId, "bld_house");
+            isForge = JobDefIdUtil.EqualsCanonical(defId, "bld_forge");
+            isArmory = JobDefIdUtil.EqualsCanonical(defId, "bld_armory");
             isTower = false;
         }
 

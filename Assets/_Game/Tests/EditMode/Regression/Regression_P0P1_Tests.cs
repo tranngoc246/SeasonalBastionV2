@@ -257,6 +257,17 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(yield, Is.EqualTo(expYield));
         }
 
+        [TestCase("bld_farmhouse", "bld_farmhouse")]
+        [TestCase("bld_farmhouse_t1", "bld_farmhouse")]
+        [TestCase("bld_lumbercamp_t2", "bld_lumbercamp")]
+        [TestCase("bld_quarry_t3", "bld_quarry")]
+        [TestCase(" bld_hq_t1 ", "bld_hq")]
+        public void JobDefIdUtil_NormalizeBuildingDefId_StripsTierSuffix(string raw, string expected)
+        {
+            var actual = JobDefIdUtil.NormalizeBuildingDefId(raw);
+            Assert.That(actual, Is.EqualTo(expected));
+        }
+
         // -------------------------
         // P0.3 RunOutcome reset must be called on StartNewRun
         // (EditMode unit: we verify GameLoop.StartNewRun triggers ResetOutcome)

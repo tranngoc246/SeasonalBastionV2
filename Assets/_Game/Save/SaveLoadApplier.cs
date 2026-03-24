@@ -1,6 +1,8 @@
 using SeasonalBastion.Contracts;
+using SeasonalBastion.RunStart;
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace SeasonalBastion
 {
@@ -191,11 +193,15 @@ namespace SeasonalBastion
                     bos.RebuildActivePlaceOrdersFromSitesAfterLoad();
                 }
 
+                // Rebuild runtime metadata derived from StartMapConfig (lanes/spawn gates/buildable rect).
+                TryRebuildRunStartRuntimeCaches(s);
+
                 // Notify views/systems that roads changed during load-apply.
                 s.EventBus?.Publish(new RoadsDirtyEvent());
 
                 // 7) Rebuild index
                 s.WorldIndex?.RebuildAll();
+                PublishResourceRefreshEvents(s);
 
                 // 8) Restore clock snapshot (needs RunClockService.LoadSnapshot)
                 if (s.RunClock is RunClockService rc)
@@ -228,6 +234,45 @@ namespace SeasonalBastion
                 error = e.Message;
                 return false;
             }
+        }
+
+        private static void TryRebuildRunStartRuntimeCaches(GameServices s)
+        {
+            try
+            {
+                var ta = Resources.Load<TextAsset>("RunStart/StartMapConfig_RunStart_64x64_v0.1");
+                var cfgText = ta != null ? ta.text : null;
+                if (string.IsNullOrWhiteSpace(cfgText)) return;
+
+                if (!RunStartInputParser.TryParseConfig(cfgText, out var cfg, out _)) return;
+                if (!RunStartConfigValidator.ValidateConfig(s, cfg, out _)) return;
+
+                RunStartRuntimeCacheBuilder.ApplyRuntimeMetadata(s, cfg);
+                RunStartHqResolver.BuildLanes(s, cfg);
+            }
+            catch { }
+        }
+
+        private static void PublishResourceRefreshEvents(GameServices s)
+        {
+            try
+            {
+                if (s?.EventBus == null || s?.WorldState?.Buildings == null) return;
+
+                foreach (var bid in s.WorldState.Buildings.Ids)
+                {
+                    if (!s.WorldState.Buildings.Exists(bid)) continue;
+                    var b = s.WorldState.Buildings.Get(bid);
+                    if (!b.IsConstructed) continue;
+
+                    if (b.Wood > 0) s.EventBus.Publish(new ResourceDeliveredEvent(ResourceType.Wood, 0, bid));
+                    if (b.Food > 0) s.EventBus.Publish(new ResourceDeliveredEvent(ResourceType.Food, 0, bid));
+                    if (b.Stone > 0) s.EventBus.Publish(new ResourceDeliveredEvent(ResourceType.Stone, 0, bid));
+                    if (b.Iron > 0) s.EventBus.Publish(new ResourceDeliveredEvent(ResourceType.Iron, 0, bid));
+                    if (b.Ammo > 0) s.EventBus.Publish(new ResourceDeliveredEvent(ResourceType.Ammo, 0, bid));
+                }
+            }
+            catch { }
         }
 
         private static long Pack(int x, int y, string defId)

@@ -87,7 +87,8 @@
   - `Docs/GDD/40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE5_v1.0_VN.md`
 - Bổ sung `Docs/GDD/40_Implementation/SEASONAL_BASTION_WAVE1_CODE_MAP_v1.0_VN.md` để map từng task Wave 1 sang các file code hiện tại cần đụng tới.
 - Thêm `Docs/GDD/README.md` giải thích cấu trúc thư mục, thứ tự đọc, và quy ước cập nhật.
-- Di chuyển toàn bộ bộ GDD working set ra khỏi `Assets/` sang `Docs/GDD` để tránh `.meta` noise và tách tài liệu khỏi Unity asset tree.
+- Di chuyển toàn bộ bộ GDD working set ra khỏi `Assets/` sang `docs/GDD` để tránh `.meta` noise và tách tài liệu khỏi Unity asset tree.
+- Xóa sạch các file `.meta` còn sót trong `docs/GDD` sau khi di chuyển, để bộ docs trở về đúng vai trò markdown/docs thuần ngoài Unity asset tree.
 
 ### Ghi chú
 - Baseline manual/smoke hiện đã khá chắc cho vòng stabilization đầu tiên.

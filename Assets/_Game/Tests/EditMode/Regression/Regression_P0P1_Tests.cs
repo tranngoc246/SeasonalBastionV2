@@ -142,13 +142,49 @@ namespace SeasonalBastion.Tests.EditMode
 
         private sealed class FakeStorageService : IStorageService
         {
+            private readonly Dictionary<(int building, ResourceType type), int> _amounts = new();
+            private readonly Dictionary<(int building, ResourceType type), int> _caps = new();
+            private readonly HashSet<(int building, ResourceType type)> _blocked = new();
+
+            public void SetCap(BuildingId building, ResourceType type, int cap) => _caps[(building.Value, type)] = cap;
+            public void SetAmount(BuildingId building, ResourceType type, int amount) => _amounts[(building.Value, type)] = Math.Max(0, amount);
+            public void SetCanStore(BuildingId building, ResourceType type, bool canStore)
+            {
+                var key = (building.Value, type);
+                if (canStore) _blocked.Remove(key);
+                else _blocked.Add(key);
+            }
+
             public StorageSnapshot GetStorage(BuildingId building) => default;
-            public bool CanStore(BuildingId building, ResourceType type) => true;
-            public int GetAmount(BuildingId building, ResourceType type) => 0;
-            public int GetCap(BuildingId building, ResourceType type) => 999;
-            public int Add(BuildingId building, ResourceType type, int amount) => amount < 0 ? 0 : amount;
-            public int Remove(BuildingId building, ResourceType type, int amount) => amount < 0 ? 0 : amount;
-            public int GetTotal(ResourceType type) => 0;
+            public bool CanStore(BuildingId building, ResourceType type) => !_blocked.Contains((building.Value, type)) && GetCap(building, type) > 0;
+            public int GetAmount(BuildingId building, ResourceType type) => _amounts.TryGetValue((building.Value, type), out var v) ? v : 0;
+            public int GetCap(BuildingId building, ResourceType type) => _caps.TryGetValue((building.Value, type), out var v) ? v : 999;
+            public int Add(BuildingId building, ResourceType type, int amount)
+            {
+                if (amount <= 0) return 0;
+                if (!CanStore(building, type)) return 0;
+                int cur = GetAmount(building, type);
+                int cap = GetCap(building, type);
+                int free = Math.Max(0, cap - cur);
+                int add = Math.Min(free, amount);
+                _amounts[(building.Value, type)] = cur + add;
+                return add;
+            }
+            public int Remove(BuildingId building, ResourceType type, int amount)
+            {
+                if (amount <= 0) return 0;
+                int cur = GetAmount(building, type);
+                int rem = Math.Min(cur, amount);
+                _amounts[(building.Value, type)] = cur - rem;
+                return rem;
+            }
+            public int GetTotal(ResourceType type)
+            {
+                int total = 0;
+                foreach (var kv in _amounts)
+                    if (kv.Key.type == type) total += kv.Value;
+                return total;
+            }
         }
 
         // -------------------------
@@ -573,6 +609,58 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void BuildOrderCancellationService_PlaceCancel_RefundsDeliveredResources_ToNearestValidStorage()
+        {
+            var bus = new TestEventBus();
+            var grid = new GridMap(20, 20);
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_test", SizeX = 1, SizeY = 1, MaxHp = 10 });
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 1, SizeY = 1, MaxHp = 100, IsHQ = true, IsWarehouse = true });
+            data.Add(new BuildingDef { DefId = "bld_warehouse_t1", SizeX = 1, SizeY = 1, MaxHp = 100, IsWarehouse = true });
+            var noti = new NotificationService(bus);
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.JobBoard = new JobBoard();
+            var storage = new FakeStorageService();
+            services.StorageService = storage;
+            services.WorldIndex = new WorldIndexService(world, data);
+
+            var nearId = world.Buildings.Create(new BuildingState { DefId = "bld_hq_t1", Anchor = new CellPos(6, 5), IsConstructed = true, HP = 100, MaxHP = 100 });
+            var near = world.Buildings.Get(nearId); near.Id = nearId; world.Buildings.Set(nearId, near);
+            grid.SetBuilding(new CellPos(6, 5), nearId);
+
+            var farId = world.Buildings.Create(new BuildingState { DefId = "bld_warehouse_t1", Anchor = new CellPos(15, 15), IsConstructed = true, HP = 100, MaxHP = 100 });
+            var far = world.Buildings.Get(farId); far.Id = farId; world.Buildings.Set(farId, far);
+            grid.SetBuilding(new CellPos(15, 15), farId);
+
+            services.WorldIndex.RebuildAll();
+            storage.SetCap(nearId, ResourceType.Wood, 100);
+            storage.SetCap(farId, ResourceType.Wood, 100);
+
+            var target = world.Buildings.Create(new BuildingState { DefId = "bld_test", Anchor = new CellPos(5, 5), IsConstructed = false, HP = 10, MaxHP = 10 });
+            var b = world.Buildings.Get(target); b.Id = target; world.Buildings.Set(target, b);
+
+            var siteId = world.Sites.Create(new BuildSiteState
+            {
+                BuildingDefId = "bld_test",
+                Anchor = new CellPos(5, 5),
+                IsActive = true,
+                WorkSecondsTotal = 1f,
+                DeliveredSoFar = new List<CostDef> { new CostDef { Resource = ResourceType.Wood, Amount = 7 } }
+            });
+            var s = world.Sites.Get(siteId); s.Id = siteId; world.Sites.Set(siteId, s);
+            grid.SetSite(new CellPos(5, 5), siteId);
+
+            var cancellation = new BuildOrderCancellationService(services, true, new Dictionary<int, CellPos>(), new Dictionary<int, JobId>(), _ => { });
+            var order = new BuildOrder { OrderId = 100, Kind = BuildOrderKind.PlaceNew, BuildingDefId = "bld_test", TargetBuilding = target, Site = siteId, Completed = false };
+
+            cancellation.Cancel(ref order);
+
+            Assert.That(storage.GetAmount(nearId, ResourceType.Wood), Is.EqualTo(7), "Nearest valid storage should receive refunded delivered resources.");
+            Assert.That(storage.GetAmount(farId, ResourceType.Wood), Is.EqualTo(0), "Farther storage should not receive refund when nearer valid storage has capacity.");
+        }
+
+        [Test]
         public void BuildOrderTickProcessor_CompletesPlaceOrder_WhenSiteReadyAndWorkDone()
         {
             var bus = new TestEventBus();
@@ -820,6 +908,49 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(created2, Is.EqualTo(1), "Rebuild should deterministically recreate the same single active order, not accumulate duplicates.");
             Assert.That(activeCount2, Is.EqualTo(1));
             Assert.That(orderCount2, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void RunStartValidator_CollectRuntimeIssues_FlagsGateNotConnected()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(12, 12);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var hqId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(2, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var hq = world.Buildings.Get(hqId); hq.Id = hqId; world.Buildings.Set(hqId, hq);
+            grid.SetBuilding(new CellPos(2, 2), hqId);
+            grid.SetBuilding(new CellPos(3, 2), hqId);
+            grid.SetBuilding(new CellPos(2, 3), hqId);
+            grid.SetBuilding(new CellPos(3, 3), hqId);
+
+            // Main road component connected to HQ.
+            grid.SetRoad(new CellPos(3, 4), true);
+            grid.SetRoad(new CellPos(3, 5), true);
+            grid.SetRoad(new CellPos(3, 6), true);
+
+            // Isolated gate road component.
+            grid.SetRoad(new CellPos(10, 10), true);
+            services.RunStartRuntime.SpawnGates.Add(new SeasonalBastion.RunStart.SpawnGate(1, new CellPos(10, 10), Dir4.W));
+
+            var issues = new List<SeasonalBastion.RunStart.RunStartValidationIssue>();
+            SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
+
+            Assert.That(issues.Exists(x => x.Code == "GATE_NOT_CONNECTED"), Is.True);
         }
 
         [Test]

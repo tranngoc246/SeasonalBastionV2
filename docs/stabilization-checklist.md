@@ -181,19 +181,19 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
 
 ### 8. Kiểm tra save/load giữa run
 
-- [ ] Save/load với active build site
-- [ ] Save/load với active `BuildWork`
-- [ ] Save/load với active `RepairWork`
-- [ ] Save/load với queued haul jobs
-- [ ] Save/load với NPC đang giữ `CurrentJob`
-- [ ] Save/load sau khi auto-road được tạo
+- [x] Save/load với active build site
+- [x] Save/load với active `BuildWork`
+- [x] Save/load với active `RepairWork`
+- [x] Save/load với queued haul jobs
+- [x] Save/load với NPC đang giữ `CurrentJob`
+- [x] Save/load sau khi auto-road được tạo
 
 ### 9. Kiểm tra tính nhất quán sau reload
 
 - [x] `BuildOrderService.RebuildActivePlaceOrdersFromSitesAfterLoad()` không duplicate order
 - [ ] Tracked job maps không giữ orphan IDs
 - [ ] `JobScheduler` không reassign stale jobs sau load
-- [ ] `WorldIndex` và storage state vẫn nhất quán sau reload
+- [x] `WorldIndex` và storage state vẫn nhất quán sau reload
 
 ---
 
@@ -278,6 +278,6 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
 
 ### Trước feature lớn tiếp theo
 
-- [ ] Rà soát save/load
+- [x] Rà soát save/load
 - [ ] Dọn dead-code / stale-comment
 - [ ] Khóa một stable baseline commit đã biết tốt

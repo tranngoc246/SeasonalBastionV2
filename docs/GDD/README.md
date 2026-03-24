@@ -1,4 +1,4 @@
-# Assets/GDD
+# Docs/GDD
 
 Thư mục này giữ **working set GDD hiện tại** của Seasonal Bastion.
 

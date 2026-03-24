@@ -70,24 +70,24 @@
 - `docs/stabilization-checklist.md` đã được cập nhật lại theo trạng thái pass mới nhất.
 
 ### GDD / planning / backlog
-- Hợp nhất và viết lại bộ GDD working set hiện tại thành cấu trúc gọn, thực dụng và dễ dùng hơn:
-  - `00_Master/SEASONAL_BASTION_GDD_COMPLETE_v1.0_VN.md`
-  - `10_Specs/SEASONAL_BASTION_UI_SPEC_v1.0_VN.md`
-  - `10_Specs/SEASONAL_BASTION_UX_ONBOARDING_SPEC_v1.0_VN.md`
-  - `10_Specs/SEASONAL_BASTION_CONTENT_SCOPE_SPEC_v1.0_VN.md`
-  - `20_Roadmap/SEASONAL_BASTION_VERTICAL_SLICE_ROADMAP_v1.0_VN.md`
-  - `30_Backlog/SEASONAL_BASTION_BACKLOG_M1_VERTICAL_SLICE_v1.0_VN.md`
-  - `30_Backlog/SEASONAL_BASTION_BACKLOG_M2_YEAR1_COMPLETE_v1.0_VN.md`
-  - `30_Backlog/SEASONAL_BASTION_BACKLOG_M3_BASE_RUN_COMPLETE_v1.0_VN.md`
+- Hợp nhất và viết lại bộ GDD working set hiện tại thành cấu trúc gọn, thực dụng và dễ dùng hơn trong `Docs/GDD`:
+  - `Docs/GDD/00_Master/SEASONAL_BASTION_GDD_COMPLETE_v1.0_VN.md`
+  - `Docs/GDD/10_Specs/SEASONAL_BASTION_UI_SPEC_v1.0_VN.md`
+  - `Docs/GDD/10_Specs/SEASONAL_BASTION_UX_ONBOARDING_SPEC_v1.0_VN.md`
+  - `Docs/GDD/10_Specs/SEASONAL_BASTION_CONTENT_SCOPE_SPEC_v1.0_VN.md`
+  - `Docs/GDD/20_Roadmap/SEASONAL_BASTION_VERTICAL_SLICE_ROADMAP_v1.0_VN.md`
+  - `Docs/GDD/30_Backlog/SEASONAL_BASTION_BACKLOG_M1_VERTICAL_SLICE_v1.0_VN.md`
+  - `Docs/GDD/30_Backlog/SEASONAL_BASTION_BACKLOG_M2_YEAR1_COMPLETE_v1.0_VN.md`
+  - `Docs/GDD/30_Backlog/SEASONAL_BASTION_BACKLOG_M3_BASE_RUN_COMPLETE_v1.0_VN.md`
 - Viết trọn bộ implementation checklist cho toàn bộ M1:
-  - `40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE1_v1.0_VN.md`
-  - `40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE2_v1.0_VN.md`
-  - `40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE3_v1.0_VN.md`
-  - `40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE4_v1.0_VN.md`
-  - `40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE5_v1.0_VN.md`
-- Bổ sung `40_Implementation/SEASONAL_BASTION_WAVE1_CODE_MAP_v1.0_VN.md` để map từng task Wave 1 sang các file code hiện tại cần đụng tới.
-- Thêm `Assets/GDD/README.md` giải thích cấu trúc thư mục, thứ tự đọc, và quy ước cập nhật.
-- Dọn `Assets/GDD` về đúng working set đang dùng và sắp xếp lại thành các thư mục con theo vai trò: `00_Master`, `10_Specs`, `20_Roadmap`, `30_Backlog`, `40_Implementation`.
+  - `Docs/GDD/40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE1_v1.0_VN.md`
+  - `Docs/GDD/40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE2_v1.0_VN.md`
+  - `Docs/GDD/40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE3_v1.0_VN.md`
+  - `Docs/GDD/40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE4_v1.0_VN.md`
+  - `Docs/GDD/40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE5_v1.0_VN.md`
+- Bổ sung `Docs/GDD/40_Implementation/SEASONAL_BASTION_WAVE1_CODE_MAP_v1.0_VN.md` để map từng task Wave 1 sang các file code hiện tại cần đụng tới.
+- Thêm `Docs/GDD/README.md` giải thích cấu trúc thư mục, thứ tự đọc, và quy ước cập nhật.
+- Di chuyển toàn bộ bộ GDD working set ra khỏi `Assets/` sang `Docs/GDD` để tránh `.meta` noise và tách tài liệu khỏi Unity asset tree.
 
 ### Ghi chú
 - Baseline manual/smoke hiện đã khá chắc cho vòng stabilization đầu tiên.

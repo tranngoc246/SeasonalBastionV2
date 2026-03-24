@@ -81,7 +81,7 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 - [x] `BuildOrderCancellationService`: cancel repair xóa tracked repair job
 - [x] `BuildJobPlanner`: stale tracked jobs được prune
 - [ ] `BuildJobPlanner`: work job được recreate sau terminal state
-- [ ] `BuildOrderTickProcessor`: path complete upgrade xử lý đúng
+- [x] `BuildOrderTickProcessor`: path complete upgrade xử lý đúng
 - [ ] `BuildOrderCreationService`: case thiếu tài nguyên được cover
 - [ ] `BuildOrderCreationService`: case upgrade bị khóa được cover
 - [ ] `BuildOrderCreationService`: case placement/footprint không hợp lệ được cover
@@ -89,14 +89,13 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 #### RunStart / SaveLoad runtime
 - [~] `SaveLoadApplier`: rebuild runtime cache (lane/spawn-gate) sau load — đã có regression test, nhưng hiện đang `Ignore` trong EditMode fixture rút gọn khi không đủ production defs/config để validate StartMapConfig thật
 - [x] `RunStartValidator`: `GATE_NOT_CONNECTED`
+- [x] `RunStartValidator`: `GATE_NOT_ROAD`
 - [x] `RunStartWorldBuilder`: invalid building def fail fast
 - [ ] `RunStartPlacementHelper`: relocation tìm được anchor hợp lệ gần đó
 - [ ] `RunStartPlacementHelper`: relocation tôn trọng `BuildableRect`
 - [ ] `RunStartStorageInitializer`: HQ hợp lệ nhận đúng lượng starting storage mong đợi
 - [ ] `RunStartValidator`: `NPC_WORKPLACE_UNBUILT`
 - [ ] `RunStartValidator`: `NPC_SPAWN_OOB`
-- [ ] `RunStartValidator`: `GATE_NOT_CONNECTED`
-- [ ] `RunStartValidator`: `GATE_NOT_ROAD`
 - [ ] `RunStartHqResolver`: deterministic HQ selection khi có nhiều candidate
 
 ### 3. Cleanup trước feature lớn tiếp theo

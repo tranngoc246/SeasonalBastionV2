@@ -78,8 +78,8 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 - [x] `BuildOrderCancellationService`: không xóa nhầm road cũ khi cancel nếu không có recorded auto-road
 - [x] `BuildOrderService`: rebuild-after-load khôi phục đúng 1 active order cho 1 active site, không cộng dồn duplicate qua nhiều lần rebuild
 - [x] `BuildOrderCancellationService`: refund delivered resources về storage hợp lệ gần nhất
-- [ ] `BuildOrderCancellationService`: cancel repair xóa tracked repair job
-- [ ] `BuildJobPlanner`: stale tracked jobs được prune
+- [x] `BuildOrderCancellationService`: cancel repair xóa tracked repair job
+- [x] `BuildJobPlanner`: stale tracked jobs được prune
 - [ ] `BuildJobPlanner`: work job được recreate sau terminal state
 - [ ] `BuildOrderTickProcessor`: path complete upgrade xử lý đúng
 - [ ] `BuildOrderCreationService`: case thiếu tài nguyên được cover
@@ -89,7 +89,7 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 #### RunStart / SaveLoad runtime
 - [~] `SaveLoadApplier`: rebuild runtime cache (lane/spawn-gate) sau load — đã có regression test, nhưng hiện đang `Ignore` trong EditMode fixture rút gọn khi không đủ production defs/config để validate StartMapConfig thật
 - [x] `RunStartValidator`: `GATE_NOT_CONNECTED`
-- [ ] `RunStartWorldBuilder`: invalid building def fail fast
+- [x] `RunStartWorldBuilder`: invalid building def fail fast
 - [ ] `RunStartPlacementHelper`: relocation tìm được anchor hợp lệ gần đó
 - [ ] `RunStartPlacementHelper`: relocation tôn trọng `BuildableRect`
 - [ ] `RunStartStorageInitializer`: HQ hợp lệ nhận đúng lượng starting storage mong đợi

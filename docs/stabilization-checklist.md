@@ -80,7 +80,7 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 - [x] `BuildOrderCancellationService`: refund delivered resources về storage hợp lệ gần nhất
 - [x] `BuildOrderCancellationService`: cancel repair xóa tracked repair job
 - [x] `BuildJobPlanner`: stale tracked jobs được prune
-- [ ] `BuildJobPlanner`: work job được recreate sau terminal state
+- [x] `BuildJobPlanner`: work job được recreate sau terminal state
 - [x] `BuildOrderTickProcessor`: path complete upgrade xử lý đúng
 - [ ] `BuildOrderCreationService`: case thiếu tài nguyên được cover
 - [ ] `BuildOrderCreationService`: case upgrade bị khóa được cover
@@ -95,7 +95,7 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 - [ ] `RunStartPlacementHelper`: relocation tôn trọng `BuildableRect`
 - [ ] `RunStartStorageInitializer`: HQ hợp lệ nhận đúng lượng starting storage mong đợi
 - [ ] `RunStartValidator`: `NPC_WORKPLACE_UNBUILT`
-- [ ] `RunStartValidator`: `NPC_SPAWN_OOB`
+- [x] `RunStartValidator`: `NPC_SPAWN_OOB`
 - [ ] `RunStartHqResolver`: deterministic HQ selection khi có nhiều candidate
 
 ### 3. Cleanup trước feature lớn tiếp theo
@@ -109,8 +109,8 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 
 ## Thứ tự khuyến nghị từ đây
 
-1. `RunStart` invalid-config coverage
-2. Build regression tests vòng 2
-3. RunStart regression tests vòng 2
-4. Jobs regression tests vòng 2
-5. Cleanup + khóa stable baseline
+1. `BuildOrderCreationService`: thiếu tài nguyên / upgrade bị khóa / placement không hợp lệ
+2. `RunStartPlacementHelper`: relocation gần anchor và tôn trọng `BuildableRect`
+3. `RunStartValidator`: `NPC_WORKPLACE_UNBUILT`
+4. `RunStartStorageInitializer`: HQ nhận đúng starting storage mong đợi
+5. Jobs regression tests vòng 2

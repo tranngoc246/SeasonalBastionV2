@@ -541,6 +541,38 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void BuildOrderCancellationService_PlaceCancel_DoesNotRemovePreexistingRoad_WhenNoRecordedAutoRoadExists()
+        {
+            var bus = new TestEventBus();
+            var grid = new GridMap(12, 12);
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_test", SizeX = 1, SizeY = 1, MaxHp = 10 });
+            var noti = new NotificationService(bus);
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.JobBoard = new JobBoard();
+
+            var target = world.Buildings.Create(new BuildingState { DefId = "bld_test", Anchor = new CellPos(2, 2), IsConstructed = false, HP = 10, MaxHP = 10 });
+            var b = world.Buildings.Get(target); b.Id = target; world.Buildings.Set(target, b);
+
+            var siteId = world.Sites.Create(new BuildSiteState { BuildingDefId = "bld_test", Anchor = new CellPos(2, 2), IsActive = true, WorkSecondsTotal = 1f, Rotation = Dir4.N });
+            var s = world.Sites.Get(siteId); s.Id = siteId; world.Sites.Set(siteId, s);
+            grid.SetSite(new CellPos(2, 2), siteId);
+
+            // Preexisting road at the same driveway cell a placement would have used.
+            grid.SetRoad(new CellPos(2, 3), true);
+
+            var cancellation = new BuildOrderCancellationService(services, true, new Dictionary<int, CellPos>(), new Dictionary<int, JobId>(), _ => { });
+            var order = new BuildOrder { OrderId = 99, Kind = BuildOrderKind.PlaceNew, BuildingDefId = "bld_test", TargetBuilding = target, Site = siteId, Completed = false };
+
+            cancellation.Cancel(ref order);
+
+            Assert.That(grid.IsRoad(new CellPos(2, 3)), Is.True, "Preexisting road must remain when no auto-road record exists for the order.");
+            Assert.That(world.Sites.Exists(siteId), Is.False);
+            Assert.That(world.Buildings.Exists(target), Is.False);
+        }
+
+        [Test]
         public void BuildOrderTickProcessor_CompletesPlaceOrder_WhenSiteReadyAndWorkDone()
         {
             var bus = new TestEventBus();
@@ -688,6 +720,97 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void SaveLoadApplier_RebuildsRunStartRuntimeCaches_AfterLoad()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(64, 64);
+            var data = new TestDataRegistry();
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Spring.ToString(),
+                dayIndex = 1,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 0f,
+                world = new WorldDTO(),
+                build = new BuildDTO(),
+                combat = new CombatDTO(),
+            };
+
+            bool ok = SaveLoadApplier.TryApply(services, dto, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(services.RunStartRuntime, Is.Not.Null);
+            Assert.That(services.RunStartRuntime.Lanes, Is.Not.Null);
+            Assert.That(services.RunStartRuntime.Lanes.Count, Is.GreaterThan(0), "Lane runtime cache should be rebuilt after load.");
+            Assert.That(services.RunStartRuntime.SpawnGates.Count, Is.GreaterThan(0), "Spawn gates cache should be rebuilt after load.");
+        }
+
+        [Test]
+        public void BuildOrderService_RebuildAfterLoad_RestoresExactlyOneActiveOrder_ForSingleActiveSite()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_test", SizeX = 1, SizeY = 1, MaxHp = 10 });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+
+            var placeholderId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_test",
+                Anchor = new CellPos(4, 4),
+                Rotation = Dir4.N,
+                IsConstructed = false,
+                HP = 10,
+                MaxHP = 10
+            });
+            var placeholder = world.Buildings.Get(placeholderId);
+            placeholder.Id = placeholderId;
+            world.Buildings.Set(placeholderId, placeholder);
+
+            var siteId = world.Sites.Create(new BuildSiteState
+            {
+                BuildingDefId = "bld_test",
+                Anchor = new CellPos(4, 4),
+                Rotation = Dir4.N,
+                IsActive = true,
+                WorkSecondsDone = 0.25f,
+                WorkSecondsTotal = 2f,
+                TargetBuilding = placeholderId,
+                Kind = 0
+            });
+            var site = world.Sites.Get(siteId);
+            site.Id = siteId;
+            world.Sites.Set(siteId, site);
+            grid.SetSite(new CellPos(4, 4), siteId);
+
+            var bos = new BuildOrderService(services);
+            services.BuildOrderService = bos;
+
+            int created1 = bos.RebuildActivePlaceOrdersFromSitesAfterLoad();
+            int activeCount1 = GetPrivateListCount<int>(bos, "_active");
+            int orderCount1 = GetPrivateDictionaryCount<int, BuildOrder>(bos, "_orders");
+
+            int created2 = bos.RebuildActivePlaceOrdersFromSitesAfterLoad();
+            int activeCount2 = GetPrivateListCount<int>(bos, "_active");
+            int orderCount2 = GetPrivateDictionaryCount<int, BuildOrder>(bos, "_orders");
+
+            Assert.That(created1, Is.EqualTo(1));
+            Assert.That(activeCount1, Is.EqualTo(1));
+            Assert.That(orderCount1, Is.EqualTo(1));
+            Assert.That(created2, Is.EqualTo(1), "Rebuild should deterministically recreate the same single active order, not accumulate duplicates.");
+            Assert.That(activeCount2, Is.EqualTo(1));
+            Assert.That(orderCount2, Is.EqualTo(1));
+        }
+
+        [Test]
         public void RunStartValidator_CollectRuntimeIssues_FlagsMissingHq()
         {
             var bus = new TestEventBus();
@@ -702,6 +825,20 @@ namespace SeasonalBastion.Tests.EditMode
             SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
 
             Assert.That(issues.Exists(x => x.Code == "HQ_MISSING"), Is.True);
+        }
+
+        private static int GetPrivateListCount<T>(object instance, string fieldName)
+        {
+            var f = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            var list = f?.GetValue(instance) as List<T>;
+            return list?.Count ?? -1;
+        }
+
+        private static int GetPrivateDictionaryCount<TKey, TValue>(object instance, string fieldName)
+        {
+            var f = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            var dict = f?.GetValue(instance) as Dictionary<TKey, TValue>;
+            return dict?.Count ?? -1;
         }
     }
 }

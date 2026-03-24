@@ -56,13 +56,13 @@ Before adding major features, ensure the repo is:
 
 ### 3. Build smoke test
 
-- [ ] Place order creates site + placeholder correctly
-- [ ] Cancel place order clears site and placeholder
-- [ ] Cancel place order rolls back auto-road if applicable
-- [ ] Cancel place order refunds delivered resources if applicable
-- [ ] Upgrade order still completes correctly
-- [ ] Repair order creates and clears repair job correctly
-- [ ] `BuildWork` is not duplicated for the same site
+- [x] Place order creates site + placeholder correctly
+- [x] Cancel place order clears site and placeholder
+- [x] Cancel place order rolls back auto-road if applicable
+- [x] Cancel place order refunds delivered resources if applicable
+- [x] Upgrade order still completes correctly
+- [x] Repair order creates and clears repair job correctly
+- [x] `BuildWork` is not duplicated for the same site
 - [ ] Rebuild-after-load still restores active orders correctly
 
 ### 4. RunStart smoke test
@@ -212,7 +212,7 @@ Before adding major features, ensure the repo is:
 - [x] Compile clean
 - [x] Run EditMode tests
 - [x] Smoke test Jobs
-- [ ] Smoke test Build
+- [x] Smoke test Build
 - [ ] Smoke test RunStart
 
 ### Next

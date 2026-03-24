@@ -1307,7 +1307,10 @@ namespace SeasonalBastion.DebugTools
             }
 
             if (SaveLoadApplier.TryApply(_gs, dto, out var err))
+            {
+                TryResumeCombatAfterLoad();
                 _gs.NotificationService?.Push("dbg_load_apply_ok", "Save/Load", "Load+Apply: OK", NotificationSeverity.Info, default, 0.25f, true);
+            }
             else
                 _gs.NotificationService?.Push("dbg_load_apply_fail", "Save/Load", "Load+Apply FAIL: " + err, NotificationSeverity.Error, default, 0.5f, false);
         }
@@ -1335,7 +1338,10 @@ namespace SeasonalBastion.DebugTools
             }
 
             if (SaveLoadApplier.TryApply(_gs, dto, out var err))
+            {
+                TryResumeCombatAfterLoad();
                 _gs.NotificationService?.Push("dbg_saveload_ok", "Save/Load", "Quick Save+Load: OK", NotificationSeverity.Info, default, 0.25f, true);
+            }
             else
                 _gs.NotificationService?.Push("dbg_saveload_apply_fail", "Save/Load", "Quick Save+Load FAIL: " + err, NotificationSeverity.Error, default, 0.5f, false);
         }
@@ -1350,6 +1356,18 @@ namespace SeasonalBastion.DebugTools
 
             _gs.SaveService.DeleteRunSave();
             _gs.NotificationService?.Push("dbg_delete_save_ok", "Save/Load", "Deleted run save.", NotificationSeverity.Info, default, 0.2f, true);
+        }
+
+        private void TryResumeCombatAfterLoad()
+        {
+            if (_gs?.CombatService is not CombatService combat) return;
+            if (_gs.WorldState?.Enemies == null) return;
+
+            int enemyCount = _gs.WorldState.Enemies.Count;
+            bool isDefendPhase = _gs.RunClock != null && _gs.RunClock.CurrentPhase == Phase.Defend;
+
+            if (enemyCount > 0 || isDefendPhase)
+                combat.OnDefendPhaseStarted();
         }
 
         private void Quick_RunSaveLoadMatrix()

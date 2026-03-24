@@ -473,6 +473,20 @@ namespace SeasonalBastion.DebugTools
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
+            GUILayout.Label("Save / Load Quick");
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Save Run", GUILayout.Width(110))) Quick_SaveRun();
+            if (GUILayout.Button("Load + Apply", GUILayout.Width(110))) Quick_LoadApply();
+            if (GUILayout.Button("Quick Save+Load", GUILayout.Width(130))) Quick_SaveLoadRoundTrip();
+            if (GUILayout.Button("Delete Save", GUILayout.Width(110))) Quick_DeleteSave();
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Run SaveLoad Matrix", GUILayout.Width(180))) Quick_RunSaveLoadMatrix();
+            if (GUILayout.Button("Internal CI SaveLoad", GUILayout.Width(180))) Quick_RunInternalSaveLoadCi();
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
             GUILayout.Label("NPC Quick Spawn");
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Spawn Worker x1", GUILayout.Width(140))) Quick_SpawnNpc("Worker", 1);
@@ -1262,6 +1276,96 @@ namespace SeasonalBastion.DebugTools
             }
 
             _npcTool.DebugSpawn(string.IsNullOrWhiteSpace(defId) ? "Worker" : defId, Mathf.Max(1, count));
+        }
+
+        private void Quick_SaveRun()
+        {
+            if (_gs?.SaveService == null)
+            {
+                _gs?.NotificationService?.Push("dbg_save_missing", "Debug", "SaveService missing.", NotificationSeverity.Warning, default, 0.25f, true);
+                return;
+            }
+
+            var r = _gs.SaveService.SaveRun(_gs.WorldState, _gs.RunClock);
+            var sev = r.Code == SaveResultCode.Ok ? NotificationSeverity.Info : NotificationSeverity.Warning;
+            _gs.NotificationService?.Push("dbg_save_run", "Save/Load", $"Save: {r.Code} | {r.Message}", sev, default, 0.25f, false);
+        }
+
+        private void Quick_LoadApply()
+        {
+            if (_gs?.SaveService == null)
+            {
+                _gs?.NotificationService?.Push("dbg_load_missing", "Debug", "SaveService missing.", NotificationSeverity.Warning, default, 0.25f, true);
+                return;
+            }
+
+            var r = _gs.SaveService.LoadRun(out var dto);
+            if (r.Code != SaveResultCode.Ok || dto == null)
+            {
+                _gs.NotificationService?.Push("dbg_load_run", "Save/Load", $"Load: {r.Code} | {r.Message}", NotificationSeverity.Warning, default, 0.3f, false);
+                return;
+            }
+
+            if (SaveLoadApplier.TryApply(_gs, dto, out var err))
+                _gs.NotificationService?.Push("dbg_load_apply_ok", "Save/Load", "Load+Apply: OK", NotificationSeverity.Info, default, 0.25f, true);
+            else
+                _gs.NotificationService?.Push("dbg_load_apply_fail", "Save/Load", "Load+Apply FAIL: " + err, NotificationSeverity.Error, default, 0.5f, false);
+        }
+
+        private void Quick_SaveLoadRoundTrip()
+        {
+            if (_gs?.SaveService == null)
+            {
+                _gs?.NotificationService?.Push("dbg_saveload_missing", "Debug", "SaveService missing.", NotificationSeverity.Warning, default, 0.25f, true);
+                return;
+            }
+
+            var sr = _gs.SaveService.SaveRun(_gs.WorldState, _gs.RunClock);
+            if (sr.Code != SaveResultCode.Ok)
+            {
+                _gs.NotificationService?.Push("dbg_saveload_save_fail", "Save/Load", $"Save failed: {sr.Code} | {sr.Message}", NotificationSeverity.Warning, default, 0.3f, false);
+                return;
+            }
+
+            var lr = _gs.SaveService.LoadRun(out var dto);
+            if (lr.Code != SaveResultCode.Ok || dto == null)
+            {
+                _gs.NotificationService?.Push("dbg_saveload_load_fail", "Save/Load", $"Load failed: {lr.Code} | {lr.Message}", NotificationSeverity.Warning, default, 0.3f, false);
+                return;
+            }
+
+            if (SaveLoadApplier.TryApply(_gs, dto, out var err))
+                _gs.NotificationService?.Push("dbg_saveload_ok", "Save/Load", "Quick Save+Load: OK", NotificationSeverity.Info, default, 0.25f, true);
+            else
+                _gs.NotificationService?.Push("dbg_saveload_apply_fail", "Save/Load", "Quick Save+Load FAIL: " + err, NotificationSeverity.Error, default, 0.5f, false);
+        }
+
+        private void Quick_DeleteSave()
+        {
+            if (_gs?.SaveService == null)
+            {
+                _gs?.NotificationService?.Push("dbg_delete_save_missing", "Debug", "SaveService missing.", NotificationSeverity.Warning, default, 0.25f, true);
+                return;
+            }
+
+            _gs.SaveService.DeleteRunSave();
+            _gs.NotificationService?.Push("dbg_delete_save_ok", "Save/Load", "Deleted run save.", NotificationSeverity.Info, default, 0.2f, true);
+        }
+
+        private void Quick_RunSaveLoadMatrix()
+        {
+            if (_gs == null) return;
+            bool ok = QaSaveLoadScenario8.Run(_gs, out var summary);
+            _gs.NotificationService?.Push("dbg_saveload_matrix", "Save/Load", summary, ok ? NotificationSeverity.Info : NotificationSeverity.Warning, default, 0.5f, false);
+        }
+
+        private void Quick_RunInternalSaveLoadCi()
+        {
+            if (_gs == null) return;
+            var rep = QaInternalCiRunner.RunB(_gs, writeReport: true);
+            string body = (rep.passed ? "PASS: " : "FAIL: ") + rep.summary;
+            if (!string.IsNullOrEmpty(rep.reportPath)) body += " | Report: " + rep.reportPath;
+            _gs.NotificationService?.Push("dbg_saveload_ci", "Save/Load", body, rep.passed ? NotificationSeverity.Info : NotificationSeverity.Warning, default, 0.5f, false);
         }
 
         private void Quick_UnlockAll()

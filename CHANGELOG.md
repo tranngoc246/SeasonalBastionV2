@@ -47,10 +47,11 @@
 
 ### Ghi chú
 - Hiện tại baseline manual/smoke đã khá ổn cho vòng stabilization đầu tiên.
+- Đã khóa một mốc baseline ổn định cho batch stabilization ngày 2026-03-24.
 - Những việc còn lại chủ yếu là:
   - invalid-config coverage cho RunStart
   - regression tests vòng 2
-  - cleanup + khóa stable baseline
+  - review boundary service / cleanup sâu hơn nếu tiếp tục refactor
 
 ## 2026-03-23
 

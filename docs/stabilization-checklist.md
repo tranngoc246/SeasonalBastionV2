@@ -101,10 +101,10 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 
 ### 3. Cleanup trước feature lớn tiếp theo
 
-- [ ] Dọn dead-code / stale-comment
+- [x] Dọn dead-code / stale-comment nhẹ cho batch stabilization hiện tại
 - [ ] Review lại boundary giữa Jobs / Build / RunStart services sau refactor
-- [ ] Khóa một stable baseline commit đã biết tốt
-- [ ] Ghi changelog ngắn cho batch stabilization này
+- [x] Khóa một stable baseline commit đã biết tốt
+- [x] Ghi changelog ngắn cho batch stabilization này
 
 ---
 

@@ -964,17 +964,15 @@ namespace SeasonalBastion.Tests.EditMode
             services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
             services.WorldIndex = new WorldIndexService(world, data);
 
-            var cfgJson = """
-            {
-              "schemaVersion": 1,
-              "coordSystem": { "origin": "bottom-left", "indexing": "xy", "notes": "test" },
-              "map": { "width": 16, "height": 16, "buildableRect": { "xMin": 0, "yMin": 0, "xMax": 15, "yMax": 15 } },
-              "lockedInvariants": ["HQ_REQUIRED"],
-              "initialBuildings": [
-                { "defId": "bld_missing_def_t1", "anchor": { "x": 4, "y": 4 }, "rotation": "N" }
+            var cfgJson = @"{
+              ""schemaVersion"": 1,
+              ""coordSystem"": { ""origin"": ""bottom-left"", ""indexing"": ""xy"", ""notes"": ""test"" },
+              ""map"": { ""width"": 16, ""height"": 16, ""buildableRect"": { ""xMin"": 0, ""yMin"": 0, ""xMax"": 15, ""yMax"": 15 } },
+              ""lockedInvariants"": [""HQ_REQUIRED""],
+              ""initialBuildings"": [
+                { ""defId"": ""bld_missing_def_t1"", ""anchor"": { ""x"": 4, ""y"": 4 }, ""rotation"": ""N"" }
               ]
-            }
-            """;
+            }";
 
             bool parsed = SeasonalBastion.RunStart.RunStartInputParser.TryParseConfig(cfgJson, out var cfg, out var parseError);
             Assert.That(parsed, Is.True, parseError);

@@ -45,13 +45,32 @@
   - cập nhật trạng thái pass thực tế
   - rút gọn lại theo các mục còn actionable
 
+### Regression / baseline cập nhật thêm
+- Bổ sung regression coverage cho Build:
+  - không xóa nhầm road cũ khi cancel build nếu không có recorded auto-road
+  - rebuild-after-load không duplicate active order
+  - refund delivered resources về storage gần nhất hợp lệ
+  - cancel repair xóa tracked repair job
+  - stale tracked `BuildWork` được prune
+  - `BuildWork` được recreate sau terminal state
+  - complete path của upgrade order được xử lý đúng
+- Bổ sung regression coverage cho RunStart / SaveLoad runtime:
+  - `GATE_NOT_CONNECTED`
+  - `GATE_NOT_ROAD`
+  - `NPC_SPAWN_OOB`
+  - invalid building def fail fast trong `RunStartWorldBuilder`
+- Regression cho rebuild runtime cache sau load đã được thêm, nhưng hiện vẫn `Ignore` có chủ đích trong EditMode fixture rút gọn khi thiếu production config/defs đầy đủ.
+- Đã chốt batch regression hiện tại và cập nhật lại `docs/stabilization-checklist.md` theo trạng thái pass mới nhất.
+
 ### Ghi chú
 - Hiện tại baseline manual/smoke đã khá ổn cho vòng stabilization đầu tiên.
 - Đã khóa một mốc baseline ổn định cho batch stabilization ngày 2026-03-24.
 - Những việc còn lại chủ yếu là:
-  - invalid-config coverage cho RunStart
-  - regression tests vòng 2
-  - review boundary service / cleanup sâu hơn nếu tiếp tục refactor
+  - `BuildOrderCreationService` (thiếu tài nguyên / upgrade bị khóa / placement không hợp lệ)
+  - `RunStartPlacementHelper` (relocation + `BuildableRect`)
+  - `RunStartValidator`: `NPC_WORKPLACE_UNBUILT`
+  - `RunStartStorageInitializer`
+  - Jobs regression tests vòng 2
 
 ## 2026-03-23
 

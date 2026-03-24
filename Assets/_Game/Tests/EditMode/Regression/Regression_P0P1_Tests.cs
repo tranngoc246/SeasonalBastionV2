@@ -743,7 +743,7 @@ namespace SeasonalBastion.Tests.EditMode
                 combat = new CombatDTO(),
             };
 
-            bool ok = SaveLoadApplier.TryApply(services, dto, out var error);
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
 
             Assert.That(ok, Is.True, error);
             Assert.That(services.RunStartRuntime, Is.Not.Null);

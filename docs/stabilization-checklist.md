@@ -1,4 +1,4 @@
-# Checklist ổn định hóa
+# Stabilization Checklist
 
 _Kế hoạch ổn định hóa sau refactor cho Jobs, Build và RunStart._
 
@@ -67,7 +67,7 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
 
 ### 4. Smoke test RunStart
 
-- [ ] `StartNewRun` chạy thành công với config hợp lệ
+- [x] `StartNewRun` chạy thành công với config hợp lệ
   - Bước test:
     1. Khởi động một run mới bằng map/config chuẩn đang dùng hằng ngày
     2. Chờ world apply hoàn tất
@@ -75,7 +75,7 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
   - Pass nếu: vào run thành công, không có exception đỏ, không bị kẹt ở trạng thái nửa chừng
   - Fail nếu: không vào được run, văng lỗi, hoặc world lên thiếu thành phần chính
 
-- [ ] Có HQ thật sau khi world apply
+- [x] Có HQ thật sau khi world apply
   - Bước test:
     1. Sau khi StartNewRun, chọn công trình trung tâm
     2. Kiểm tra building đó tồn tại như một building hợp lệ trong world
@@ -83,7 +83,7 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
   - Pass nếu: HQ tồn tại thật, đã constructed, có thể inspect bình thường
   - Fail nếu: không có HQ, HQ chỉ là placeholder, hoặc có nhiều HQ bất thường ngoài config mong đợi
 
-- [ ] Starting storage chỉ được seed vào HQ
+- [x] Starting storage chỉ được seed vào HQ
   - Bước test:
     1. Start run mới hoàn toàn
     2. Mở inspect HQ và các storage/building liên quan ngay đầu run
@@ -91,7 +91,7 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
   - Pass nếu: tài nguyên khởi đầu chỉ nằm ở HQ
   - Fail nếu: warehouse/building khác cũng được seed tài nguyên ban đầu, hoặc HQ bị thiếu seed
 
-- [ ] NPC không spawn vào ô bị chặn
+- [x] NPC không spawn vào ô bị chặn
   - Bước test:
     1. Start run mới
     2. Kiểm tra vị trí spawn ban đầu của tất cả NPC
@@ -99,7 +99,7 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
   - Pass nếu: NPC đứng ở ô hợp lệ, không đè lên building/site/cell blocked, không kẹt ngay khi spawn
   - Fail nếu: NPC spawn chồng vật thể, đứng trong ô blocked, hoặc bị kẹt ngay từ đầu
 
-- [ ] Workplace assignment của NPC là hợp lệ
+- [x] Workplace assignment của NPC là hợp lệ
   - Bước test:
     1. Start run mới
     2. Inspect một lượt các NPC hoặc dùng debug hiện workplace
@@ -107,7 +107,7 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
   - Pass nếu: workplace tồn tại, đúng loại building mong đợi, không trỏ vào building chưa hợp lệ
   - Fail nếu: workplace missing, trỏ sai building, hoặc assignment không khớp cấu hình run
 
-- [ ] Spawn gate kết nối vào road graph
+- [x] Spawn gate kết nối vào road graph
   - Bước test:
     1. Start run mới
     2. Xác định từng spawn gate trên map
@@ -115,7 +115,7 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
   - Pass nếu: gate nối được vào road graph và không bị cô lập
   - Fail nếu: gate đứng tách rời, không có đường hợp lệ để enemy/pathing dùng
 
-- [ ] Lane runtime được build đúng
+- [x] Lane runtime được build đúng
   - Bước test:
     1. Start run mới
     2. Chạy đến lúc có spawn hoặc dùng debug spawn theo lane nếu tiện
@@ -123,7 +123,7 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
   - Pass nếu: lane tồn tại đúng, spawn/pathing theo lane hoạt động, không đi lạc khỏi flow chính
   - Fail nếu: lane thiếu, spawn sai lane, hoặc runtime lane bị null/sai tuyến
 
-- [ ] Config startup lỗi phải fail rõ ràng thay vì tạo runtime nửa hợp lệ
+- [ ] Config startup lỗi phải fail rõ ràng thay vì tạo runtime nửa hợp lệ _(tạm bỏ qua / chưa test được)_
   - Bước test:
     1. Chuẩn bị một config/map cố ý lỗi nhẹ (ví dụ workplace thiếu, spawn ngoài map, gate không nối road)
     2. Chạy StartNewRun với config đó
@@ -268,7 +268,7 @@ Trước khi thêm feature lớn, cần đảm bảo repo:
 - [x] Chạy EditMode tests
 - [x] Smoke test Jobs
 - [x] Smoke test Build
-- [ ] Smoke test RunStart
+- [x] Smoke test RunStart
 
 ### Tiếp theo
 

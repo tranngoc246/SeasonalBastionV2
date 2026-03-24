@@ -609,6 +609,43 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void BuildJobPlanner_EnsureBuildJobsForSite_PrunesStaleTrackedWorkJob_AndCreatesReplacement()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            services.JobBoard = new JobBoard();
+
+            var deliver = new Dictionary<int, List<JobId>>();
+            var work = new Dictionary<int, JobId>();
+            var planner = new BuildJobPlanner(services, deliver, work);
+
+            var staleJob = new Job
+            {
+                Archetype = JobArchetype.BuildWork,
+                Status = JobStatus.Completed,
+                Workplace = new BuildingId(1),
+                Site = new SiteId(7),
+                TargetCell = new CellPos(4, 4)
+            };
+            var staleId = services.JobBoard.Enqueue(staleJob);
+            work[7] = staleId;
+
+            var siteId = new SiteId(7);
+            var site = new BuildSiteState { Anchor = new CellPos(4, 4) };
+            var workplace = new BuildingId(9);
+
+            planner.EnsureBuildJobsForSite(siteId, site, workplace);
+
+            Assert.That(work.ContainsKey(7), Is.True);
+            Assert.That(work[7], Is.Not.EqualTo(staleId), "Planner should replace stale tracked job with a new active job id.");
+            Assert.That(services.JobBoard.TryGet(work[7], out var repl), Is.True);
+            Assert.That(repl.Status, Is.EqualTo(JobStatus.Created));
+            Assert.That(repl.Workplace.Value, Is.EqualTo(workplace.Value));
+        }
+
+        [Test]
         public void BuildOrderCancellationService_PlaceCancel_RefundsDeliveredResources_ToNearestValidStorage()
         {
             var bus = new TestEventBus();
@@ -658,6 +695,34 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(storage.GetAmount(nearId, ResourceType.Wood), Is.EqualTo(7), "Nearest valid storage should receive refunded delivered resources.");
             Assert.That(storage.GetAmount(farId, ResourceType.Wood), Is.EqualTo(0), "Farther storage should not receive refund when nearer valid storage has capacity.");
+        }
+
+        [Test]
+        public void BuildOrderCancellationService_CancelRepair_CancelsTrackedRepairJob_AndRemovesTracking()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            services.JobBoard = new JobBoard();
+
+            var trackedRepair = new Dictionary<int, JobId>();
+            var repairJob = new Job
+            {
+                Archetype = JobArchetype.RepairWork,
+                Status = JobStatus.Created,
+                Workplace = new BuildingId(3),
+                TargetCell = new CellPos(4, 4)
+            };
+            var repairJobId = services.JobBoard.Enqueue(repairJob);
+            trackedRepair[77] = repairJobId;
+
+            var cancellation = new BuildOrderCancellationService(services, true, new Dictionary<int, CellPos>(), trackedRepair, _ => { });
+            cancellation.CancelRepairJob(77);
+
+            Assert.That(trackedRepair.ContainsKey(77), Is.False, "Tracked repair job entry should be removed after cancel.");
+            Assert.That(services.JobBoard.TryGet(repairJobId, out var after), Is.True);
+            Assert.That(after.Status, Is.EqualTo(JobStatus.Cancelled));
         }
 
         [Test]

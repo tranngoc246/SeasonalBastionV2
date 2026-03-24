@@ -646,6 +646,44 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void BuildJobPlanner_EnsureBuildJobsForSite_RecreatesWorkJob_AfterTerminalState()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            services.JobBoard = new JobBoard();
+
+            var deliver = new Dictionary<int, List<JobId>>();
+            var work = new Dictionary<int, JobId>();
+            var planner = new BuildJobPlanner(services, deliver, work);
+
+            var firstJob = new Job
+            {
+                Archetype = JobArchetype.BuildWork,
+                Status = JobStatus.Completed,
+                Workplace = new BuildingId(2),
+                Site = new SiteId(8),
+                TargetCell = new CellPos(5, 5)
+            };
+            var firstId = services.JobBoard.Enqueue(firstJob);
+            work[8] = firstId;
+
+            var siteId = new SiteId(8);
+            var site = new BuildSiteState { Anchor = new CellPos(5, 5) };
+            var workplace = new BuildingId(11);
+
+            planner.EnsureBuildJobsForSite(siteId, site, workplace);
+            var recreatedId = work[8];
+
+            Assert.That(recreatedId, Is.Not.EqualTo(firstId));
+            Assert.That(services.JobBoard.TryGet(recreatedId, out var recreated), Is.True);
+            Assert.That(recreated.Status, Is.EqualTo(JobStatus.Created));
+            Assert.That(recreated.Archetype, Is.EqualTo(JobArchetype.BuildWork));
+            Assert.That(recreated.Workplace.Value, Is.EqualTo(workplace.Value));
+        }
+
+        [Test]
         public void BuildOrderCancellationService_PlaceCancel_RefundsDeliveredResources_ToNearestValidStorage()
         {
             var bus = new TestEventBus();
@@ -921,6 +959,50 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(issues.Exists(x => x.Code == "NPC_SPAWN_BLOCKED"), Is.True);
             Assert.That(issues.Exists(x => x.Code == "NPC_WORKPLACE_MISSING"), Is.True);
+        }
+
+        [Test]
+        public void RunStartValidator_CollectRuntimeIssues_FlagsNpcSpawnOutOfBounds()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(8, 8);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            grid.SetRoad(new CellPos(3, 4), true);
+
+            var hqId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(2, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var hq = world.Buildings.Get(hqId); hq.Id = hqId; world.Buildings.Set(hqId, hq);
+            grid.SetBuilding(new CellPos(2, 2), hqId);
+            grid.SetBuilding(new CellPos(3, 2), hqId);
+            grid.SetBuilding(new CellPos(2, 3), hqId);
+            grid.SetBuilding(new CellPos(3, 3), hqId);
+
+            var npcId = world.Npcs.Create(new NpcState
+            {
+                DefId = "npc_test",
+                Cell = new CellPos(99, 99),
+                Workplace = default,
+                IsIdle = true
+            });
+            var npc = world.Npcs.Get(npcId); npc.Id = npcId; world.Npcs.Set(npcId, npc);
+
+            var issues = new List<SeasonalBastion.RunStart.RunStartValidationIssue>();
+            SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
+
+            Assert.That(issues.Exists(x => x.Code == "NPC_SPAWN_OOB"), Is.True);
         }
 
         [Test]

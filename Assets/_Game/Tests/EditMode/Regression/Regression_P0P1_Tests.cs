@@ -954,6 +954,40 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void RunStartWorldBuilder_ApplyWorld_FailsFast_WhenBuildingDefIsMissing()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            services.WorldIndex = new WorldIndexService(world, data);
+
+            var cfgJson = """
+            {
+              "schemaVersion": 1,
+              "coordSystem": { "origin": "bottom-left", "indexing": "xy", "notes": "test" },
+              "map": { "width": 16, "height": 16, "buildableRect": { "xMin": 0, "yMin": 0, "xMax": 15, "yMax": 15 } },
+              "lockedInvariants": ["HQ_REQUIRED"],
+              "initialBuildings": [
+                { "defId": "bld_missing_def_t1", "anchor": { "x": 4, "y": 4 }, "rotation": "N" }
+              ]
+            }
+            """;
+
+            bool parsed = SeasonalBastion.RunStart.RunStartInputParser.TryParseConfig(cfgJson, out var cfg, out var parseError);
+            Assert.That(parsed, Is.True, parseError);
+
+            var ctx = new SeasonalBastion.RunStart.RunStartBuildContext();
+            bool ok = SeasonalBastion.RunStart.RunStartWorldBuilder.ApplyWorld(services, cfg, ctx, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain("BuildingDef not found"));
+            Assert.That(world.Buildings.Count, Is.EqualTo(0), "World builder should fail before creating any building state for missing defs.");
+        }
+
+        [Test]
         public void RunStartValidator_CollectRuntimeIssues_FlagsMissingHq()
         {
             var bus = new TestEventBus();

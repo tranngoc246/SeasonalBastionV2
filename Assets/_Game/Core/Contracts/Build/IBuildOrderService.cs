@@ -10,6 +10,8 @@ namespace SeasonalBastion.Contracts
 
         bool TryGet(int orderId, out BuildOrder order);
         void Cancel(int orderId);
+        bool CancelBySite(SiteId siteId);
+        bool CancelByBuilding(BuildingId buildingId);
 
         void ClearAll();
 

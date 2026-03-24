@@ -21,6 +21,7 @@ namespace SeasonalBastion.UI.Presenters
         private Button _btnUpgrade;
         private Button _btnRepair;
         private Button _btnAssignNpc;
+        private Button _btnCancelConstruction;
 
         protected override void OnBind()
         {
@@ -48,6 +49,7 @@ namespace SeasonalBastion.UI.Presenters
             _btnUpgrade = Root.Q<Button>("BtnInspectUpgrade");
             _btnRepair = Root.Q<Button>("BtnInspectRepair");
             _btnAssignNpc = Root.Q<Button>("BtnInspectAssignNpc");
+            _btnCancelConstruction = Root.Q<Button>("BtnInspectCancelConstruction");
 
             if (_btnClear != null) _btnClear.clicked += OnClear;
             if (_btnClose != null) _btnClose.clicked += OnClear;
@@ -55,6 +57,7 @@ namespace SeasonalBastion.UI.Presenters
             if (_btnUpgrade != null) _btnUpgrade.clicked += OnUpgrade;
             if (_btnRepair != null) _btnRepair.clicked += OnRepair;
             if (_btnAssignNpc != null) _btnAssignNpc.clicked += OnAssignNpc;
+            if (_btnCancelConstruction != null) _btnCancelConstruction.clicked += OnCancelConstruction;
 
             if (Ctx?.Store != null)
                 Ctx.Store.SelectionChanged += OnSelectionChanged;
@@ -68,6 +71,7 @@ namespace SeasonalBastion.UI.Presenters
             if (_btnUpgrade != null) _btnUpgrade.clicked -= OnUpgrade;
             if (_btnRepair != null) _btnRepair.clicked -= OnRepair;
             if (_btnAssignNpc != null) _btnAssignNpc.clicked -= OnAssignNpc;
+            if (_btnCancelConstruction != null) _btnCancelConstruction.clicked -= OnCancelConstruction;
 
             if (Ctx?.Store != null)
                 Ctx.Store.SelectionChanged -= OnSelectionChanged;
@@ -96,6 +100,7 @@ namespace SeasonalBastion.UI.Presenters
                 SetEnabled(_btnUpgrade, false);
                 SetEnabled(_btnRepair, false);
                 SetEnabled(_btnAssignNpc, false);
+                SetEnabled(_btnCancelConstruction, false);
                 return;
             }
 
@@ -113,6 +118,7 @@ namespace SeasonalBastion.UI.Presenters
                 SetEnabled(_btnUpgrade, false);
                 SetEnabled(_btnRepair, false);
                 SetEnabled(_btnAssignNpc, false);
+                SetEnabled(_btnCancelConstruction, false);
                 return;
             }
 
@@ -155,8 +161,11 @@ namespace SeasonalBastion.UI.Presenters
             bool canAssign = bs.IsConstructed && def != null && max > 0;
             SetEnabled(_btnAssignNpc, canAssign);
 
+            bool canCancelConstruction = !bs.IsConstructed && HasActiveConstructionOrder(s, bid);
+            SetEnabled(_btnCancelConstruction, canCancelConstruction);
+
             string hint = "";
-            if (!bs.IsConstructed) hint = "Under construction.";
+            if (!bs.IsConstructed) hint = canCancelConstruction ? "Under construction. You can cancel this construction." : "Under construction.";
             else if (isUpgrading) hint = $"Upgrading -> {upSite.BuildingDefId}";
             else if (!canUpgrade && !string.IsNullOrEmpty(edgeHint)) hint = edgeHint;
             else if (!canAssign && def != null && max <= 0) hint = "Building này không nhận worker.";
@@ -188,6 +197,38 @@ namespace SeasonalBastion.UI.Presenters
         private void OnAssignNpc()
         {
             Ctx?.Modals?.Push(UiKeys.Modal_AssignNpc);
+        }
+
+        private void OnCancelConstruction()
+        {
+            var s = _s;
+            int id = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
+            if (id < 0 || s?.BuildOrderService == null) return;
+
+            bool ok = s.BuildOrderService.CancelByBuilding(new BuildingId(id));
+            if (ok)
+            {
+                s.NotificationService?.Push(
+                    key: $"UiCancelConstruction_{id}",
+                    title: "Construction",
+                    body: $"Cancelled construction for building #{id}",
+                    severity: NotificationSeverity.Info,
+                    payload: new NotificationPayload(new BuildingId(id), default, "cancel"),
+                    cooldownSeconds: 0.15f,
+                    dedupeByKey: true);
+                Refresh();
+                return;
+            }
+
+            s.NotificationService?.Push(
+                key: $"UiCancelConstructionMissing_{id}",
+                title: "Construction",
+                body: "No active construction order found.",
+                severity: NotificationSeverity.Warning,
+                payload: new NotificationPayload(new BuildingId(id), default, "cancel"),
+                cooldownSeconds: 0.25f,
+                dedupeByKey: true);
+            Refresh();
         }
 
         private static void Set(Label l, string t) { if (l != null) l.text = t ?? ""; }
@@ -242,6 +283,22 @@ namespace SeasonalBastion.UI.Presenters
                 site = st;
                 return true;
             }
+            return false;
+        }
+
+        private static bool HasActiveConstructionOrder(GameServices s, BuildingId bid)
+        {
+            if (s?.WorldState?.Sites == null) return false;
+
+            foreach (var sid in s.WorldState.Sites.Ids)
+            {
+                if (!s.WorldState.Sites.Exists(sid)) continue;
+                var st = s.WorldState.Sites.Get(sid);
+                if (!st.IsActive) continue;
+                if (st.TargetBuilding.Value != bid.Value) continue;
+                return true;
+            }
+
             return false;
         }
 

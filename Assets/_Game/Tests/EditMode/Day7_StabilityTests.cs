@@ -133,6 +133,8 @@ namespace SeasonalBastion.Tests.EditMode
             public bool TryGet(int orderId, out BuildOrder order) => _orders.TryGetValue(orderId, out order);
             public IReadOnlyList<int> GetActiveOrderIds() => Array.Empty<int>();
             public void Cancel(int orderId) { }
+            public bool CancelBySite(SiteId siteId) => false;
+            public bool CancelByBuilding(BuildingId buildingId) => false;
 
             public int CreateUpgradeOrder(BuildingId building)
             {

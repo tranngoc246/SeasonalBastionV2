@@ -96,17 +96,7 @@ namespace SeasonalBastion
         private void TryRollbackAutoRoad(int orderId, in BuildOrder o)
         {
             if (_s.GridMap == null) return;
-
-            CellPos c;
-            if (!_autoRoadByOrder.TryGetValue(orderId, out c))
-            {
-                if (!_s.WorldState.Sites.Exists(o.Site)) return;
-                if (!_s.DataRegistry.TryGetBuilding(o.BuildingDefId, out var def) || def == null) return;
-
-                var st = _s.WorldState.Sites.Get(o.Site);
-                c = ComputeEntryCell(st.Anchor, Math.Max(1, def.SizeX), Math.Max(1, def.SizeY), st.Rotation);
-            }
-
+            if (!_autoRoadByOrder.TryGetValue(orderId, out var c)) return;
             if (!_s.GridMap.IsInside(c)) return;
 
             var occ = _s.GridMap.Get(c);
@@ -118,21 +108,6 @@ namespace SeasonalBastion
                 _s.GridMap.SetRoad(c, false);
                 _s.EventBus?.Publish(new RoadsDirtyEvent());
             }
-        }
-
-        private static CellPos ComputeEntryCell(CellPos anchor, int w, int h, Dir4 rot)
-        {
-            int cx = (w - 1) / 2;
-            int cy = (h - 1) / 2;
-
-            return rot switch
-            {
-                Dir4.N => new CellPos(anchor.X + cx, anchor.Y + h),
-                Dir4.S => new CellPos(anchor.X + cx, anchor.Y - 1),
-                Dir4.E => new CellPos(anchor.X + w, anchor.Y + cy),
-                Dir4.W => new CellPos(anchor.X - 1, anchor.Y + cy),
-                _ => new CellPos(anchor.X + cx, anchor.Y + h),
-            };
         }
 
         private void RefundDeliveredToNearestStorage(in BuildSiteState st)

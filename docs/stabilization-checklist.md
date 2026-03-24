@@ -55,62 +55,47 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 
 ---
 
-## Pending thực tế
+## Regression / stabilization đã khóa thêm
 
-### 1. Chưa test / tạm bỏ qua
+### Jobs
+- [x] `JobAssignmentService`: role filter hoạt động đúng
+- [x] `JobAssignmentService`: không assign khi workplace roles không hợp lệ
+- [x] `JobExecutionService`: missing job dọn state NPC đúng
+- [x] `JobExecutionService`: terminal job dọn state NPC đúng
+- [x] `JobStateCleanupService`: nhả claim đúng
+- [x] `JobEnqueueService`: harvest enqueue tôn trọng slot caps / số NPC workplace
+- [x] `JobEnqueueService`: không enqueue harvest khi local cap đã đầy
 
-- [ ] `RunStart`: config startup lỗi phải fail rõ ràng thay vì tạo runtime nửa hợp lệ
-- [ ] `Build`: rebuild-after-load được verify riêng như một smoke case độc lập
-- [ ] Reload consistency sâu hơn cho tracked jobs / stale assignment
-
-### 2. Regression tests vòng 2
-
-#### Jobs
-- [ ] `JobAssignmentService`: role filter hoạt động đúng
-- [ ] `JobAssignmentService`: không assign khi workplace roles không hợp lệ
-- [ ] `JobExecutionService`: missing job dọn state NPC đúng
-- [ ] `JobExecutionService`: terminal job dọn state NPC đúng
-- [ ] `JobStateCleanupService`: nhả claim đúng
-- [ ] `JobEnqueueService`: harvest enqueue tôn trọng slot caps / số NPC workplace
-- [ ] `JobEnqueueService`: không enqueue harvest khi local cap đã đầy
-
-#### Build
+### Build
 - [x] `BuildOrderCancellationService`: không xóa nhầm road cũ khi cancel nếu không có recorded auto-road
 - [x] `BuildOrderService`: rebuild-after-load khôi phục đúng 1 active order cho 1 active site, không cộng dồn duplicate qua nhiều lần rebuild
+- [x] `BuildOrderService`: rebuild-after-load được verify riêng như một smoke case độc lập
 - [x] `BuildOrderCancellationService`: refund delivered resources về storage hợp lệ gần nhất
 - [x] `BuildOrderCancellationService`: cancel repair xóa tracked repair job
 - [x] `BuildJobPlanner`: stale tracked jobs được prune
 - [x] `BuildJobPlanner`: work job được recreate sau terminal state
 - [x] `BuildOrderTickProcessor`: path complete upgrade xử lý đúng
-- [ ] `BuildOrderCreationService`: case thiếu tài nguyên được cover
-- [ ] `BuildOrderCreationService`: case upgrade bị khóa được cover
-- [ ] `BuildOrderCreationService`: case placement/footprint không hợp lệ được cover
+- [x] `BuildOrderCreationService`: case thiếu tài nguyên được cover
+- [x] `BuildOrderCreationService`: case upgrade bị khóa được cover
+- [x] `BuildOrderCreationService`: case placement/footprint không hợp lệ được cover
 
-#### RunStart / SaveLoad runtime
+### RunStart / SaveLoad runtime
+- [x] `RunStart`: config startup lỗi fail rõ ràng trước khi tạo partial world/runtime state
 - [~] `SaveLoadApplier`: rebuild runtime cache (lane/spawn-gate) sau load — đã có regression test, nhưng hiện đang `Ignore` trong EditMode fixture rút gọn khi không đủ production defs/config để validate StartMapConfig thật
+- [x] `SaveLoadApplier`: stale assignment `Npc.CurrentJob` được clear và NPC reset về idle sau load
 - [x] `RunStartValidator`: `GATE_NOT_CONNECTED`
 - [x] `RunStartValidator`: `GATE_NOT_ROAD`
 - [x] `RunStartWorldBuilder`: invalid building def fail fast
-- [ ] `RunStartPlacementHelper`: relocation tìm được anchor hợp lệ gần đó
-- [ ] `RunStartPlacementHelper`: relocation tôn trọng `BuildableRect`
-- [ ] `RunStartStorageInitializer`: HQ hợp lệ nhận đúng lượng starting storage mong đợi
-- [ ] `RunStartValidator`: `NPC_WORKPLACE_UNBUILT`
+- [x] `RunStartPlacementHelper`: relocation tìm được anchor hợp lệ gần đó
+- [x] `RunStartPlacementHelper`: relocation tôn trọng `BuildableRect`
+- [x] `RunStartStorageInitializer`: HQ hợp lệ nhận đúng lượng starting storage mong đợi
+- [x] `RunStartValidator`: `NPC_WORKPLACE_UNBUILT`
 - [x] `RunStartValidator`: `NPC_SPAWN_OOB`
-- [ ] `RunStartHqResolver`: deterministic HQ selection khi có nhiều candidate
+- [x] `RunStartHqResolver`: deterministic HQ selection khi có nhiều candidate
 
-### 3. Cleanup trước feature lớn tiếp theo
+## Còn actionable nếu muốn làm tiếp
 
-- [x] Dọn dead-code / stale-comment nhẹ cho batch stabilization hiện tại
 - [ ] Review lại boundary giữa Jobs / Build / RunStart services sau refactor
-- [x] Khóa một stable baseline commit đã biết tốt
-- [x] Ghi changelog ngắn cho batch stabilization này
+- [ ] Mở rộng thêm regression save/load cho tracked runtime state khác nếu thấy cần
+- [ ] Polish thêm smoke coverage nếu có case manual nào còn thấy rủi ro
 
----
-
-## Thứ tự khuyến nghị từ đây
-
-1. `BuildOrderCreationService`: thiếu tài nguyên / upgrade bị khóa / placement không hợp lệ
-2. `RunStartPlacementHelper`: relocation gần anchor và tôn trọng `BuildableRect`
-3. `RunStartValidator`: `NPC_WORKPLACE_UNBUILT`
-4. `RunStartStorageInitializer`: HQ nhận đúng starting storage mong đợi
-5. Jobs regression tests vòng 2

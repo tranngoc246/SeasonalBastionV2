@@ -44,14 +44,36 @@ namespace SeasonalBastion.Tests.EditMode
 
         private sealed class TestDataRegistry : IDataRegistry
         {
-            public bool TryGetBuildableNode(string id, out BuildableNodeDef node) { node = null; return false; }
-            public IReadOnlyList<UpgradeEdgeDef> GetUpgradeEdgesFrom(string fromNodeId) => Array.Empty<UpgradeEdgeDef>();
-            public bool TryGetUpgradeEdge(string edgeId, out UpgradeEdgeDef edge) { edge = null; return false; }
-            public bool IsPlaceableBuildable(string nodeId) => true;
-
             private readonly Dictionary<string, BuildingDef> _b = new(StringComparer.Ordinal);
+            private readonly Dictionary<string, BuildableNodeDef> _nodes = new(StringComparer.Ordinal);
+            private readonly Dictionary<string, UpgradeEdgeDef> _edgesById = new(StringComparer.Ordinal);
+            private readonly Dictionary<string, List<UpgradeEdgeDef>> _edgesFrom = new(StringComparer.Ordinal);
 
             public void Add(BuildingDef def) => _b[def.DefId] = def;
+
+            public void AddNode(BuildableNodeDef node)
+            {
+                if (node == null || string.IsNullOrWhiteSpace(node.Id)) return;
+                _nodes[node.Id] = node;
+            }
+
+            public void AddUpgradeEdge(UpgradeEdgeDef edge)
+            {
+                if (edge == null || string.IsNullOrWhiteSpace(edge.Id)) return;
+                _edgesById[edge.Id] = edge;
+                if (!_edgesFrom.TryGetValue(edge.From ?? string.Empty, out var list))
+                {
+                    list = new List<UpgradeEdgeDef>();
+                    _edgesFrom[edge.From ?? string.Empty] = list;
+                }
+                list.Add(edge);
+            }
+
+            public bool TryGetBuildableNode(string id, out BuildableNodeDef node) => _nodes.TryGetValue(id, out node);
+            public IReadOnlyList<UpgradeEdgeDef> GetUpgradeEdgesFrom(string fromNodeId)
+                => _edgesFrom.TryGetValue(fromNodeId ?? string.Empty, out var list) ? list : Array.Empty<UpgradeEdgeDef>();
+            public bool TryGetUpgradeEdge(string edgeId, out UpgradeEdgeDef edge) => _edgesById.TryGetValue(edgeId, out edge);
+            public bool IsPlaceableBuildable(string nodeId) => true;
 
             public BuildingDef GetBuilding(string id)
             {
@@ -184,6 +206,73 @@ namespace SeasonalBastion.Tests.EditMode
                 foreach (var kv in _amounts)
                     if (kv.Key.type == type) total += kv.Value;
                 return total;
+            }
+        }
+
+        private sealed class FakePlacementService : IPlacementService
+        {
+            public PlacementResult NextResult = new PlacementResult(true, PlacementFailReason.None, default);
+            public int ValidateCalls { get; private set; }
+
+            public PlacementResult ValidateBuilding(string buildingDefId, CellPos anchor, Dir4 rotation)
+            {
+                ValidateCalls++;
+                return NextResult;
+            }
+
+            public BuildingId CommitBuilding(string buildingDefId, CellPos anchor, Dir4 rotation) => default;
+            public bool CanPlaceRoad(CellPos c) => false;
+            public void PlaceRoad(CellPos c) { }
+            public bool CanRemoveRoad(CellPos c) => false;
+            public void RemoveRoad(CellPos c) { }
+        }
+
+        private sealed class FakeUnlockService : IUnlockService
+        {
+            private readonly HashSet<string> _unlocked = new(StringComparer.Ordinal);
+
+            public void Unlock(string id)
+            {
+                if (!string.IsNullOrWhiteSpace(id)) _unlocked.Add(id);
+            }
+
+            public bool IsUnlocked(string defId) => !string.IsNullOrWhiteSpace(defId) && _unlocked.Contains(defId);
+        }
+
+        private sealed class DelegatingPlacementService : IPlacementService
+        {
+            private readonly Func<string, CellPos, Dir4, PlacementResult> _validate;
+
+            public DelegatingPlacementService(Func<string, CellPos, Dir4, PlacementResult> validate)
+            {
+                _validate = validate;
+            }
+
+            public PlacementResult ValidateBuilding(string buildingDefId, CellPos anchor, Dir4 rotation)
+                => _validate != null ? _validate(buildingDefId, anchor, rotation) : new PlacementResult(true, PlacementFailReason.None, anchor);
+
+            public BuildingId CommitBuilding(string buildingDefId, CellPos anchor, Dir4 rotation) => default;
+            public bool CanPlaceRoad(CellPos c) => false;
+            public void PlaceRoad(CellPos c) { }
+            public bool CanRemoveRoad(CellPos c) => false;
+            public void RemoveRoad(CellPos c) { }
+        }
+
+        private sealed class FakeJobExecutor : IJobExecutor
+        {
+            private readonly Func<NpcId, NpcState, Job, float, JobStatus?> _statusSelector;
+
+            public FakeJobExecutor(Func<NpcId, NpcState, Job, float, JobStatus?> statusSelector)
+            {
+                _statusSelector = statusSelector;
+            }
+
+            public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
+            {
+                var next = _statusSelector?.Invoke(npc, npcState, job, dt);
+                if (next.HasValue)
+                    job.Status = next.Value;
+                return true;
             }
         }
 
@@ -411,6 +500,141 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void BuildOrderService_CreatePlaceOrder_ReturnsZero_WhenResourcesAreInsufficient()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef
+            {
+                DefId = "bld_costly",
+                SizeX = 1,
+                SizeY = 1,
+                BaseLevel = 1,
+                MaxHp = 10,
+                BuildCostsL1 = new[] { new CostDef { Resource = ResourceType.Wood, Amount = 5 } }
+            });
+
+            var world = new WorldState();
+            var grid = new GridMap(12, 12);
+            var placement = new FakePlacementService();
+            var storage = new FakeStorageService();
+            storage.SetAmount(new BuildingId(1), ResourceType.Wood, 3);
+
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid, placement: placement);
+            services.StorageService = storage;
+
+            var bos = new BuildOrderService(services);
+            services.BuildOrderService = bos;
+
+            int orderId = bos.CreatePlaceOrder("bld_costly", new CellPos(4, 4), Dir4.N);
+
+            Assert.That(orderId, Is.EqualTo(0));
+            Assert.That(world.Buildings.Count, Is.EqualTo(0), "Should not create placeholder building when resources are insufficient.");
+            Assert.That(world.Sites.Count, Is.EqualTo(0), "Should not create build site when resources are insufficient.");
+
+            var inbox = noti.GetInbox();
+            Assert.That(inbox.Count, Is.EqualTo(1));
+            Assert.That(inbox[0].Title, Is.EqualTo("Not enough resources"));
+            Assert.That(inbox[0].Body, Does.Contain("Need 5 Wood"));
+            Assert.That(inbox[0].Body, Does.Contain("have 3"));
+        }
+
+        [Test]
+        public void BuildOrderService_CreatePlaceOrder_ReturnsZero_WhenPlacementIsInvalid()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef
+            {
+                DefId = "bld_test_invalid_place",
+                SizeX = 1,
+                SizeY = 1,
+                BaseLevel = 1,
+                MaxHp = 10
+            });
+
+            var world = new WorldState();
+            var grid = new GridMap(12, 12);
+            var placement = new FakePlacementService
+            {
+                NextResult = new PlacementResult(false, PlacementFailReason.NoRoadConnection, new CellPos(5, 6))
+            };
+
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid, placement: placement);
+            var bos = new BuildOrderService(services);
+            services.BuildOrderService = bos;
+
+            int orderId = bos.CreatePlaceOrder("bld_test_invalid_place", new CellPos(5, 5), Dir4.N);
+
+            Assert.That(orderId, Is.EqualTo(0));
+            Assert.That(placement.ValidateCalls, Is.EqualTo(1));
+            Assert.That(world.Buildings.Count, Is.EqualTo(0));
+            Assert.That(world.Sites.Count, Is.EqualTo(0));
+
+            var inbox = noti.GetInbox();
+            Assert.That(inbox.Count, Is.EqualTo(1));
+            Assert.That(inbox[0].Title, Is.EqualTo("Can't place"));
+            Assert.That(inbox[0].Body, Is.EqualTo("No road connection."));
+        }
+
+        [Test]
+        public void BuildOrderService_CreateUpgradeOrder_ReturnsZero_WhenUpgradeIsLocked()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true });
+            data.Add(new BuildingDef { DefId = "bld_hq_t2", SizeX = 2, SizeY = 2, BaseLevel = 2, MaxHp = 150, IsHQ = true });
+            data.AddNode(new BuildableNodeDef { Id = "bld_hq_t2", Level = 2, Placeable = false });
+            data.AddUpgradeEdge(new UpgradeEdgeDef
+            {
+                Id = "hq_t1_to_t2",
+                From = "bld_hq_t1",
+                To = "bld_hq_t2",
+                WorkChunks = 2,
+                RequiresUnlocked = "unlock_hq_t2"
+            });
+
+            var world = new WorldState();
+            var buildingId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(2, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+
+            var unlocks = new FakeUnlockService();
+            unlocks.Unlock("bld_hq_t1");
+
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(12, 12));
+            services.UnlockService = unlocks;
+
+            var bos = new BuildOrderService(services);
+            services.BuildOrderService = bos;
+
+            int orderId = bos.CreateUpgradeOrder(buildingId);
+
+            Assert.That(orderId, Is.EqualTo(0));
+            Assert.That(world.Sites.Count, Is.EqualTo(0), "Locked upgrade should not create upgrade site.");
+            Assert.That(GetPrivateListCount<int>(bos, "_active"), Is.EqualTo(0));
+            Assert.That(GetPrivateDictionaryCount<int, BuildOrder>(bos, "_orders"), Is.EqualTo(0));
+
+            var inbox = noti.GetInbox();
+            Assert.That(inbox.Count, Is.EqualTo(1));
+            Assert.That(inbox[0].Title, Is.EqualTo("Locked"));
+            Assert.That(inbox[0].Body, Does.Contain("unlock_hq_t2"));
+        }
+
+        [Test]
         public void JobBoard_ArmoryFilteredPeek_PrioritizesResupplyTower()
         {
             var board = new JobBoard();
@@ -504,6 +728,299 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(haulMap.Count, Is.EqualTo(1));
             Assert.That(board.CountActiveJobs(JobArchetype.HaulBasic), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void JobAssignmentService_TryAssign_AssignsOnlyAllowedRoleFilteredJob()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_builderhut", WorkRoles = WorkRoleFlags.Build });
+
+            var world = new WorldState();
+            var board = new JobBoard();
+            var workplacePolicy = new JobWorkplacePolicy(data);
+            var notificationPolicy = new JobNotificationPolicy(noti);
+            var assign = new JobAssignmentService(world, board, workplacePolicy, notificationPolicy);
+
+            var workplaceId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_builderhut_t1",
+                Anchor = new CellPos(6, 6),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 50,
+                MaxHP = 50
+            });
+            var workplace = world.Buildings.Get(workplaceId); workplace.Id = workplaceId; world.Buildings.Set(workplaceId, workplace);
+
+            var npcId = world.Npcs.Create(new NpcState
+            {
+                DefId = "npc_test",
+                Cell = new CellPos(6, 5),
+                Workplace = workplaceId,
+                IsIdle = true
+            });
+            var npc = world.Npcs.Get(npcId); npc.Id = npcId; world.Npcs.Set(npcId, npc);
+
+            board.Enqueue(new Job { Workplace = workplaceId, Archetype = JobArchetype.HaulBasic, Status = JobStatus.Created, ResourceType = ResourceType.Wood });
+            var allowedJobId = board.Enqueue(new Job { Workplace = workplaceId, Archetype = JobArchetype.BuildWork, Status = JobStatus.Created, TargetCell = new CellPos(6, 6) });
+
+            bool ok = assign.TryAssign(npcId, ref npc, _ => true);
+
+            Assert.That(ok, Is.True);
+            Assert.That(npc.CurrentJob.Value, Is.EqualTo(allowedJobId.Value));
+            Assert.That(npc.IsIdle, Is.False);
+            Assert.That(board.TryGet(allowedJobId, out var claimed), Is.True);
+            Assert.That(claimed.Status, Is.EqualTo(JobStatus.InProgress));
+            Assert.That(claimed.ClaimedBy.Value, Is.EqualTo(npcId.Value));
+        }
+
+        [Test]
+        public void JobAssignmentService_TryAssign_ReturnsFalse_WhenWorkplaceRolesAreInvalid()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_decoration", WorkRoles = WorkRoleFlags.None });
+
+            var world = new WorldState();
+            var board = new JobBoard();
+            var workplacePolicy = new JobWorkplacePolicy(data);
+            var notificationPolicy = new JobNotificationPolicy(noti);
+            var assign = new JobAssignmentService(world, board, workplacePolicy, notificationPolicy);
+
+            var workplaceId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_decoration_t1",
+                Anchor = new CellPos(3, 3),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 10,
+                MaxHP = 10
+            });
+            var workplace = world.Buildings.Get(workplaceId); workplace.Id = workplaceId; world.Buildings.Set(workplaceId, workplace);
+
+            var npcId = world.Npcs.Create(new NpcState
+            {
+                DefId = "npc_test",
+                Cell = new CellPos(3, 2),
+                Workplace = workplaceId,
+                IsIdle = true
+            });
+            var npc = world.Npcs.Get(npcId); npc.Id = npcId; world.Npcs.Set(npcId, npc);
+
+            board.Enqueue(new Job { Workplace = workplaceId, Archetype = JobArchetype.HaulBasic, Status = JobStatus.Created, ResourceType = ResourceType.Wood });
+
+            bool ok = assign.TryAssign(npcId, ref npc, _ => true);
+
+            Assert.That(ok, Is.False);
+            Assert.That(npc.CurrentJob.Value, Is.EqualTo(0));
+            Assert.That(npc.IsIdle, Is.True);
+
+            var inbox = noti.GetInbox();
+            Assert.That(inbox.Count, Is.EqualTo(1));
+            Assert.That(inbox[0].Title, Is.EqualTo("NPC không có việc để làm"));
+        }
+
+        [Test]
+        public void JobStateCleanupService_CleanupNpcJob_ClearsCurrentJob_SetsIdle_AndReleasesClaims()
+        {
+            var claims = new ClaimService();
+            var cleanup = new JobStateCleanupService(claims);
+            var npcId = new NpcId(7);
+            var claimA = new ClaimKey(ClaimKind.StorageSource, 101, (int)ResourceType.Wood);
+            var claimB = new ClaimKey(ClaimKind.BuildSite, 202, 0);
+
+            claims.TryAcquire(claimA, npcId);
+            claims.TryAcquire(claimB, npcId);
+
+            var npc = new NpcState
+            {
+                CurrentJob = new JobId(55),
+                IsIdle = false
+            };
+
+            cleanup.CleanupNpcJob(npcId, ref npc);
+
+            Assert.That(npc.CurrentJob.Value, Is.EqualTo(0));
+            Assert.That(npc.IsIdle, Is.True);
+            Assert.That(claims.IsOwnedBy(claimA, npcId), Is.False);
+            Assert.That(claims.IsOwnedBy(claimB, npcId), Is.False);
+            Assert.That(claims.ActiveClaimsCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void JobExecutionService_TickCurrentJobs_CleansUpNpcState_WhenCurrentJobIsMissing()
+        {
+            var world = new WorldState();
+            var board = new JobBoard();
+            var claims = new ClaimService();
+            var cleanup = new JobStateCleanupService(claims);
+            var services = MakeServices(new TestEventBus(), new TestDataRegistry(), new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            var registry = new JobExecutorRegistry(services);
+            var exec = new JobExecutionService(world, board, registry, cleanup);
+
+            var npcId = world.Npcs.Create(new NpcState
+            {
+                DefId = "npc_test",
+                Cell = new CellPos(2, 2),
+                CurrentJob = new JobId(999),
+                IsIdle = false
+            });
+            var npc = world.Npcs.Get(npcId); npc.Id = npcId; world.Npcs.Set(npcId, npc);
+
+            var claim = new ClaimKey(ClaimKind.StorageSource, 77, (int)ResourceType.Wood);
+            claims.TryAcquire(claim, npcId);
+
+            exec.TickCurrentJobs(new List<NpcId> { npcId }, 0.1f);
+
+            var after = world.Npcs.Get(npcId);
+            Assert.That(after.CurrentJob.Value, Is.EqualTo(0));
+            Assert.That(after.IsIdle, Is.True);
+            Assert.That(claims.IsOwnedBy(claim, npcId), Is.False);
+        }
+
+        [Test]
+        public void JobExecutionService_TickCurrentJobs_CleansUpNpcState_WhenExecutorLeavesTerminalJob()
+        {
+            var world = new WorldState();
+            var board = new JobBoard();
+            var claims = new ClaimService();
+            var cleanup = new JobStateCleanupService(claims);
+            var services = MakeServices(new TestEventBus(), new TestDataRegistry(), new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            var registry = new JobExecutorRegistry(services);
+            var mapField = typeof(JobExecutorRegistry).GetField("_map", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(mapField, Is.Not.Null);
+            var map = mapField.GetValue(registry) as Dictionary<JobArchetype, IJobExecutor>;
+            Assert.That(map, Is.Not.Null);
+            map[JobArchetype.Harvest] = new FakeJobExecutor((nid, ns, job, dt) => JobStatus.Completed);
+
+            var exec = new JobExecutionService(world, board, registry, cleanup);
+
+            var npcId = world.Npcs.Create(new NpcState
+            {
+                DefId = "npc_test",
+                Cell = new CellPos(2, 2),
+                IsIdle = false
+            });
+            var npc = world.Npcs.Get(npcId); npc.Id = npcId; world.Npcs.Set(npcId, npc);
+
+            var jobId = board.Enqueue(new Job
+            {
+                Workplace = new BuildingId(1),
+                Archetype = JobArchetype.Harvest,
+                Status = JobStatus.InProgress,
+                ClaimedBy = npcId,
+                ResourceType = ResourceType.Wood,
+                TargetCell = new CellPos(3, 3)
+            });
+
+            npc.CurrentJob = jobId;
+            world.Npcs.Set(npcId, npc);
+
+            var claim = new ClaimKey(ClaimKind.ProducerNode, 88, 0);
+            claims.TryAcquire(claim, npcId);
+
+            exec.TickCurrentJobs(new List<NpcId> { npcId }, 0.1f);
+
+            var afterNpc = world.Npcs.Get(npcId);
+            Assert.That(afterNpc.CurrentJob.Value, Is.EqualTo(0));
+            Assert.That(afterNpc.IsIdle, Is.True);
+            Assert.That(claims.IsOwnedBy(claim, npcId), Is.False);
+            Assert.That(board.TryGet(jobId, out var afterJob), Is.True);
+            Assert.That(afterJob.Status, Is.EqualTo(JobStatus.Completed));
+        }
+
+        [Test]
+        public void JobEnqueueService_Harvest_RespectsWorkplaceNpcCountSlotCap()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_lumbercamp", WorkRoles = WorkRoleFlags.Harvest });
+
+            var world = new WorldState();
+            world.Zones.Add(new ZoneState
+            {
+                Id = 1,
+                Resource = ResourceType.Wood,
+                Cells = new List<CellPos> { new CellPos(11, 10) }
+            });
+
+            var board = new JobBoard();
+            var cleanup = new JobStateCleanupService(new ClaimService());
+            var workplacePolicy = new JobWorkplacePolicy(data);
+            var resourcePolicy = new ResourceLogisticsPolicy();
+            var enqueue = new JobEnqueueService(world, board, workplacePolicy, resourcePolicy, cleanup);
+
+            var producerId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_lumbercamp_t1",
+                Anchor = new CellPos(10, 10),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                Wood = 5,
+                HP = 20,
+                MaxHP = 20
+            });
+            var producer = world.Buildings.Get(producerId); producer.Id = producerId; world.Buildings.Set(producerId, producer);
+
+            var buildingIds = new List<BuildingId> { producerId };
+            var workplacesWithNpc = new HashSet<int> { producerId.Value };
+            var workplaceNpcCount = new Dictionary<int, int> { [producerId.Value] = 3 };
+            var harvestMap = new Dictionary<int, JobId>();
+
+            enqueue.EnqueueHarvestJobsIfNeeded(buildingIds, workplacesWithNpc, workplaceNpcCount, harvestMap);
+
+            Assert.That(harvestMap.Count, Is.EqualTo(2), "Harvest slots should be capped to 2 even when workplace has 3 NPCs.");
+            Assert.That(board.CountActiveJobs(JobArchetype.Harvest), Is.EqualTo(2));
+        }
+
+        [Test]
+        public void JobEnqueueService_Harvest_DoesNotEnqueue_WhenLocalCapIsAlreadyFull()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_lumbercamp", WorkRoles = WorkRoleFlags.Harvest });
+
+            var world = new WorldState();
+            world.Zones.Add(new ZoneState
+            {
+                Id = 1,
+                Resource = ResourceType.Wood,
+                Cells = new List<CellPos> { new CellPos(7, 6) }
+            });
+
+            var board = new JobBoard();
+            var cleanup = new JobStateCleanupService(new ClaimService());
+            var workplacePolicy = new JobWorkplacePolicy(data);
+            var resourcePolicy = new ResourceLogisticsPolicy();
+            var enqueue = new JobEnqueueService(world, board, workplacePolicy, resourcePolicy, cleanup);
+
+            var producerId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_lumbercamp_t1",
+                Anchor = new CellPos(6, 6),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                Wood = 40,
+                HP = 20,
+                MaxHP = 20
+            });
+            var producer = world.Buildings.Get(producerId); producer.Id = producerId; world.Buildings.Set(producerId, producer);
+
+            var buildingIds = new List<BuildingId> { producerId };
+            var workplacesWithNpc = new HashSet<int> { producerId.Value };
+            var workplaceNpcCount = new Dictionary<int, int> { [producerId.Value] = 2 };
+            var harvestMap = new Dictionary<int, JobId>();
+
+            enqueue.EnqueueHarvestJobsIfNeeded(buildingIds, workplacesWithNpc, workplaceNpcCount, harvestMap);
+
+            Assert.That(harvestMap.Count, Is.EqualTo(0));
+            Assert.That(board.CountActiveJobs(JobArchetype.Harvest), Is.EqualTo(0));
         }
 
         [Test]
@@ -882,6 +1399,99 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void RunStartStorageInitializer_AppliesExpectedStartingStorage_ToConstructedHqOnly()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(20, 20);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+            data.Add(new BuildingDef { DefId = "bld_builderhut_t1", SizeX = 2, SizeY = 2, MaxHp = 80, WorkRoles = WorkRoleFlags.Build });
+
+            var storage = new FakeStorageService();
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.StorageService = storage;
+
+            var hqId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(2, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var hq = world.Buildings.Get(hqId); hq.Id = hqId; world.Buildings.Set(hqId, hq);
+
+            var otherId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_builderhut_t1",
+                Anchor = new CellPos(8, 8),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 80,
+                MaxHP = 80
+            });
+            var other = world.Buildings.Get(otherId); other.Id = otherId; world.Buildings.Set(otherId, other);
+
+            bool ok = SeasonalBastion.RunStart.RunStartStorageInitializer.ApplyStartingStorage(services, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(storage.GetAmount(hqId, ResourceType.Wood), Is.EqualTo(30));
+            Assert.That(storage.GetAmount(hqId, ResourceType.Stone), Is.EqualTo(20));
+            Assert.That(storage.GetAmount(hqId, ResourceType.Food), Is.EqualTo(10));
+            Assert.That(storage.GetAmount(hqId, ResourceType.Iron), Is.EqualTo(0));
+            Assert.That(storage.GetAmount(hqId, ResourceType.Ammo), Is.EqualTo(0));
+            Assert.That(storage.GetAmount(otherId, ResourceType.Wood), Is.EqualTo(0), "Starting storage should seed only HQ.");
+            Assert.That(storage.GetAmount(otherId, ResourceType.Stone), Is.EqualTo(0));
+            Assert.That(storage.GetAmount(otherId, ResourceType.Food), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void RunStartHqResolver_TryResolveHQTargetCell_PicksDeterministicLowestId_WhenMultipleHqCandidatesExist()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(24, 24);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+            data.Add(new BuildingDef { DefId = "bld_hq_t2", SizeX = 2, SizeY = 2, MaxHp = 120, IsHQ = true });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+
+            var firstHqId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t2",
+                Anchor = new CellPos(4, 6),
+                Rotation = Dir4.N,
+                Level = 2,
+                IsConstructed = true,
+                HP = 120,
+                MaxHP = 120
+            });
+            var firstHq = world.Buildings.Get(firstHqId); firstHq.Id = firstHqId; world.Buildings.Set(firstHqId, firstHq);
+
+            var secondHqId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(14, 10),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var secondHq = world.Buildings.Get(secondHqId); secondHq.Id = secondHqId; world.Buildings.Set(secondHqId, secondHq);
+
+            bool ok = SeasonalBastion.RunStart.RunStartHqResolver.TryResolveHQTargetCell(services, out var target);
+
+            Assert.That(ok, Is.True);
+            Assert.That(firstHqId.Value, Is.LessThan(secondHqId.Value));
+            Assert.That(target, Is.EqualTo(new CellPos(4, 6)), "Resolver should deterministically use the constructed HQ with the lowest BuildingId.");
+        }
+
+        [Test]
         public void RunStartHqResolver_TryResolveHQTargetCell_AcceptsCanonicalTieredFallback()
         {
             var bus = new TestEventBus();
@@ -909,6 +1519,131 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(ok, Is.True);
             Assert.That(target.X, Is.EqualTo(4));
             Assert.That(target.Y, Is.EqualTo(6));
+        }
+
+        [Test]
+        public void RunStartPlacementHelper_TryPickValidAnchor_RelocatesToNearestValidCandidate()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            var blocked = new HashSet<(int x, int y)>
+            {
+                (8, 8),
+                (8, 7),
+                (7, 8)
+            };
+            IPlacementService placement = new DelegatingPlacementService((buildingDefId, anchor, rotation) =>
+            {
+                return blocked.Contains((anchor.X, anchor.Y))
+                    ? new PlacementResult(false, PlacementFailReason.Overlap, anchor)
+                    : new PlacementResult(true, PlacementFailReason.None, anchor);
+            });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid, placement: placement);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            bool ok = SeasonalBastion.RunStart.RunStartPlacementHelper.TryPickValidAnchor(
+                services,
+                "bld_test",
+                new CellPos(8, 8),
+                1,
+                1,
+                Dir4.N,
+                out var finalAnchor);
+
+            Assert.That(ok, Is.True);
+            Assert.That(finalAnchor, Is.EqualTo(new CellPos(9, 8)), "Relocation should pick the nearest valid diamond-ring candidate.");
+        }
+
+        [Test]
+        public void RunStartPlacementHelper_TryPickValidAnchor_DoesNotRelocateOutsideBuildableRect()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            var placement = new DelegatingPlacementService((buildingDefId, anchor, rotation) =>
+            {
+                return anchor.X == 5 && anchor.Y == 4
+                    ? new PlacementResult(false, PlacementFailReason.Overlap, anchor)
+                    : new PlacementResult(true, PlacementFailReason.None, anchor);
+            });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid, placement: placement);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime
+            {
+                BuildableRect = new SeasonalBastion.RunStart.IntRect(4, 4, 5, 5)
+            };
+
+            bool ok = SeasonalBastion.RunStart.RunStartPlacementHelper.TryPickValidAnchor(
+                services,
+                "bld_test",
+                new CellPos(5, 4),
+                1,
+                1,
+                Dir4.N,
+                out var finalAnchor);
+
+            Assert.That(ok, Is.True);
+            Assert.That(finalAnchor, Is.EqualTo(new CellPos(4, 4)), "Helper should skip out-of-rect candidates and pick the first valid in-rect candidate.");
+        }
+
+        [Test]
+        public void RunStartValidator_CollectRuntimeIssues_FlagsUnbuiltNpcWorkplace()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(12, 12);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+            data.Add(new BuildingDef { DefId = "bld_builderhut_t1", SizeX = 2, SizeY = 2, MaxHp = 80, WorkRoles = WorkRoleFlags.Build });
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var hqId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(2, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var hq = world.Buildings.Get(hqId); hq.Id = hqId; world.Buildings.Set(hqId, hq);
+            grid.SetBuilding(new CellPos(2, 2), hqId);
+            grid.SetBuilding(new CellPos(3, 2), hqId);
+            grid.SetBuilding(new CellPos(2, 3), hqId);
+            grid.SetBuilding(new CellPos(3, 3), hqId);
+            grid.SetRoad(new CellPos(3, 4), true);
+
+            var hutId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_builderhut_t1",
+                Anchor = new CellPos(6, 6),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = false,
+                HP = 80,
+                MaxHP = 80
+            });
+            var hut = world.Buildings.Get(hutId); hut.Id = hutId; world.Buildings.Set(hutId, hut);
+
+            var npcId = world.Npcs.Create(new NpcState
+            {
+                DefId = "npc_test",
+                Cell = new CellPos(4, 4),
+                Workplace = hutId,
+                IsIdle = true
+            });
+            var npc = world.Npcs.Get(npcId); npc.Id = npcId; world.Npcs.Set(npcId, npc);
+
+            var issues = new List<SeasonalBastion.RunStart.RunStartValidationIssue>();
+            SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
+
+            Assert.That(issues.Exists(x => x.Code == "NPC_WORKPLACE_UNBUILT"), Is.True);
+            Assert.That(issues.Exists(x => x.Code == "NPC_WORKPLACE_MISSING"), Is.False);
         }
 
         [Test]
@@ -1003,6 +1738,71 @@ namespace SeasonalBastion.Tests.EditMode
             SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
 
             Assert.That(issues.Exists(x => x.Code == "NPC_SPAWN_OOB"), Is.True);
+        }
+
+        [Test]
+        public void SaveLoadApplier_ClearsStaleNpcCurrentJob_AndResetsIdleState_AfterLoad()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_warehouse", SizeX = 2, SizeY = 2, MaxHp = 20, IsWarehouse = true, WorkRoles = WorkRoleFlags.HaulBasic });
+            data.Add(new BuildingDef { DefId = "bld_warehouse_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 20, IsWarehouse = true, WorkRoles = WorkRoleFlags.HaulBasic });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var workplaceId = new BuildingId(3);
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Spring.ToString(),
+                dayIndex = 1,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 0f,
+                world = new WorldDTO
+                {
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = workplaceId,
+                            DefId = "bld_warehouse_t1",
+                            Anchor = new CellPos(4, 4),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 20,
+                            MaxHP = 20
+                        }
+                    },
+                    Npcs = new List<NpcState>
+                    {
+                        new NpcState
+                        {
+                            Id = new NpcId(7),
+                            DefId = "npc_test",
+                            Cell = new CellPos(5, 5),
+                            Workplace = workplaceId,
+                            CurrentJob = new JobId(999),
+                            IsIdle = false
+                        }
+                    },
+                    Roads = new List<CellPosI32>()
+                },
+                build = new BuildDTO(),
+                combat = new CombatDTO(),
+            };
+
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(world.Npcs.Exists(new NpcId(7)), Is.True);
+            var npc = world.Npcs.Get(new NpcId(7));
+            Assert.That(npc.CurrentJob.Value, Is.EqualTo(0), "Load-apply should clear stale CurrentJob references from save data.");
+            Assert.That(npc.IsIdle, Is.True, "Load-apply should reset NPCs to idle so runtime re-assignment can rebuild consistently.");
         }
 
         [Test]
@@ -1109,6 +1909,72 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void BuildOrderService_RebuildAfterLoad_Smoke_RestoresPlaceOrderProgress_AndPlaceholderBinding()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef
+            {
+                DefId = "bld_smoke_reload",
+                SizeX = 1,
+                SizeY = 1,
+                BaseLevel = 1,
+                MaxHp = 12,
+                BuildCostsL1 = new[] { new CostDef { Resource = ResourceType.Wood, Amount = 4 } },
+                BuildChunksL1 = 2
+            });
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+
+            var placeholderId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_smoke_reload",
+                Anchor = new CellPos(7, 7),
+                Rotation = Dir4.E,
+                Level = 1,
+                IsConstructed = false,
+                HP = 12,
+                MaxHP = 12
+            });
+            var placeholder = world.Buildings.Get(placeholderId); placeholder.Id = placeholderId; world.Buildings.Set(placeholderId, placeholder);
+            grid.SetBuilding(new CellPos(7, 7), placeholderId);
+
+            var siteId = world.Sites.Create(new BuildSiteState
+            {
+                BuildingDefId = "bld_smoke_reload",
+                TargetLevel = 1,
+                Anchor = new CellPos(7, 7),
+                Rotation = Dir4.E,
+                IsActive = true,
+                WorkSecondsDone = 1.5f,
+                WorkSecondsTotal = 6f,
+                TargetBuilding = placeholderId,
+                Kind = 0,
+                RemainingCosts = new List<CostDef> { new CostDef { Resource = ResourceType.Wood, Amount = 2 } },
+                DeliveredSoFar = new List<CostDef> { new CostDef { Resource = ResourceType.Wood, Amount = 2 } }
+            });
+            var site = world.Sites.Get(siteId); site.Id = siteId; world.Sites.Set(siteId, site);
+            grid.SetSite(new CellPos(7, 7), siteId);
+
+            var bos = new BuildOrderService(services);
+            services.BuildOrderService = bos;
+
+            int created = bos.RebuildActivePlaceOrdersFromSitesAfterLoad();
+
+            Assert.That(created, Is.EqualTo(1));
+            Assert.That(bos.TryGet(1, out var order), Is.True);
+            Assert.That(order.Kind, Is.EqualTo(BuildOrderKind.PlaceNew));
+            Assert.That(order.Site.Value, Is.EqualTo(siteId.Value));
+            Assert.That(order.TargetBuilding.Value, Is.EqualTo(placeholderId.Value));
+            Assert.That(order.BuildingDefId, Is.EqualTo("bld_smoke_reload"));
+            Assert.That(order.WorkSecondsDone, Is.EqualTo(1.5f));
+            Assert.That(order.WorkSecondsRequired, Is.EqualTo(6f));
+            Assert.That(order.Completed, Is.False);
+        }
+
+        [Test]
         public void RunStartValidator_CollectRuntimeIssues_FlagsGateNotConnected()
         {
             var bus = new TestEventBus();
@@ -1188,6 +2054,41 @@ namespace SeasonalBastion.Tests.EditMode
             SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
 
             Assert.That(issues.Exists(x => x.Code == "GATE_NOT_ROAD"), Is.True);
+        }
+
+        [Test]
+        public void RunStartFacade_TryApply_FailsFastOnInvalidHeader_WithoutCreatingPartialWorldState()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.StorageService = new FakeStorageService();
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var cfgJson = @"{
+              ""schemaVersion"": 1,
+              ""coordSystem"": { ""origin"": ""top-left"", ""indexing"": ""0-based"", ""notes"": ""invalid header"" },
+              ""map"": { ""width"": 16, ""height"": 16, ""buildableRect"": { ""xMin"": 0, ""yMin"": 0, ""xMax"": 15, ""yMax"": 15 } },
+              ""lockedInvariants"": [""HQ_REQUIRED""] ,
+              ""roads"": [ { ""x"": 3, ""y"": 4 } ],
+              ""initialBuildings"": [
+                { ""defId"": ""bld_hq_t1"", ""anchor"": { ""x"": 3, ""y"": 3 }, ""rotation"": ""N"" }
+              ]
+            }";
+
+            bool ok = SeasonalBastion.RunStart.RunStartFacade.TryApply(services, cfgJson, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain("coordSystem.origin"));
+            Assert.That(world.Buildings.Count, Is.EqualTo(0), "Invalid header should fail before creating any building state.");
+            Assert.That(world.Npcs.Count, Is.EqualTo(0), "Invalid header should fail before spawning any NPC.");
+            Assert.That(grid.IsRoad(new CellPos(3, 4)), Is.False, "Invalid header should fail before applying roads/world mutations.");
+            Assert.That(services.RunStartRuntime.Lanes.Count, Is.EqualTo(0));
+            Assert.That(services.RunStartRuntime.SpawnGates.Count, Is.EqualTo(0));
         }
 
         [Test]

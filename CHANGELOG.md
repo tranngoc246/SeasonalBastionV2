@@ -46,31 +46,33 @@
   - rút gọn lại theo các mục còn actionable
 
 ### Regression / baseline cập nhật thêm
-- Bổ sung regression coverage cho Build:
-  - không xóa nhầm road cũ khi cancel build nếu không có recorded auto-road
+- Jobs:
+  - `JobAssignmentService`: role filter đúng, workplace roles invalid thì không assign và notify đúng
+  - `JobExecutionService`: current job missing/terminal sẽ dọn state NPC đúng sau tick
+  - `JobStateCleanupService`: cleanup NPC job sẽ clear current job, set idle, và release claims
+  - `JobEnqueueService`: harvest respect slot cap theo số NPC workplace và không enqueue khi local cap đã đầy
+- Build:
+  - `BuildOrderCreationService`: fail sớm đúng cho thiếu tài nguyên / placement invalid / upgrade bị khóa
+  - `BuildOrderCancellationService`: không xóa nhầm road cũ, refund đúng storage, cancel repair xóa tracked repair job
+  - `BuildJobPlanner`: stale tracked `BuildWork` được prune và `BuildWork` được recreate sau terminal state
+  - `BuildOrderTickProcessor`: complete path của upgrade order xử lý đúng
   - rebuild-after-load không duplicate active order
-  - refund delivered resources về storage gần nhất hợp lệ
-  - cancel repair xóa tracked repair job
-  - stale tracked `BuildWork` được prune
-  - `BuildWork` được recreate sau terminal state
-  - complete path của upgrade order được xử lý đúng
-- Bổ sung regression coverage cho RunStart / SaveLoad runtime:
-  - `GATE_NOT_CONNECTED`
-  - `GATE_NOT_ROAD`
-  - `NPC_SPAWN_OOB`
-  - invalid building def fail fast trong `RunStartWorldBuilder`
-- Regression cho rebuild runtime cache sau load đã được thêm, nhưng hiện vẫn `Ignore` có chủ đích trong EditMode fixture rút gọn khi thiếu production config/defs đầy đủ.
-- Đã chốt batch regression hiện tại và cập nhật lại `docs/stabilization-checklist.md` theo trạng thái pass mới nhất.
+  - smoke case độc lập verify rebuild-after-load khôi phục đúng progress + placeholder binding của place order
+- RunStart / SaveLoad runtime:
+  - `RunStartValidator`: `GATE_NOT_CONNECTED`, `GATE_NOT_ROAD`, `NPC_SPAWN_OOB`, `NPC_WORKPLACE_UNBUILT`
+  - `RunStartPlacementHelper`: relocation đúng và vẫn tôn trọng `BuildableRect`
+  - `RunStartStorageInitializer`: seed đúng starting storage vào HQ constructed duy nhất
+  - `RunStartHqResolver`: chọn HQ target deterministically khi có nhiều candidate
+  - `RunStartFacade`: config header invalid fail trước khi tạo partial world/runtime state
+  - `RunStartWorldBuilder`: invalid building def fail fast
+  - `SaveLoadApplier`: stale `Npc.CurrentJob` từ save bị clear và NPC được reset về idle để runtime assignment rebuild sạch
+  - rebuild runtime cache sau load đã có regression test, nhưng hiện vẫn `Ignore` có chủ đích trong EditMode fixture rút gọn khi thiếu production defs/config đầy đủ
+- `docs/stabilization-checklist.md` đã được cập nhật lại theo trạng thái pass mới nhất.
 
 ### Ghi chú
-- Hiện tại baseline manual/smoke đã khá ổn cho vòng stabilization đầu tiên.
+- Baseline manual/smoke hiện đã khá chắc cho vòng stabilization đầu tiên.
 - Đã khóa một mốc baseline ổn định cho batch stabilization ngày 2026-03-24.
-- Những việc còn lại chủ yếu là:
-  - `BuildOrderCreationService` (thiếu tài nguyên / upgrade bị khóa / placement không hợp lệ)
-  - `RunStartPlacementHelper` (relocation + `BuildableRect`)
-  - `RunStartValidator`: `NPC_WORKPLACE_UNBUILT`
-  - `RunStartStorageInitializer`
-  - Jobs regression tests vòng 2
+- Việc còn lại chủ yếu là cleanup/refactor nhẹ và chỉ mở rộng regression khi thật sự cần.
 
 ## 2026-03-23
 

@@ -75,6 +75,8 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 - [ ] `JobEnqueueService`: không enqueue harvest khi local cap đã đầy
 
 #### Build
+- [x] `BuildOrderCancellationService`: không xóa nhầm road cũ khi cancel nếu không có recorded auto-road
+- [x] `BuildOrderService`: rebuild-after-load khôi phục đúng 1 active order cho 1 active site, không cộng dồn duplicate qua nhiều lần rebuild
 - [ ] `BuildOrderCancellationService`: refund delivered resources về storage hợp lệ gần nhất
 - [ ] `BuildOrderCancellationService`: cancel repair xóa tracked repair job
 - [ ] `BuildJobPlanner`: stale tracked jobs được prune
@@ -84,7 +86,8 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 - [ ] `BuildOrderCreationService`: case upgrade bị khóa được cover
 - [ ] `BuildOrderCreationService`: case placement/footprint không hợp lệ được cover
 
-#### RunStart
+#### RunStart / SaveLoad runtime
+- [~] `SaveLoadApplier`: rebuild runtime cache (lane/spawn-gate) sau load — đã có regression test, nhưng hiện đang `Ignore` trong EditMode fixture rút gọn khi không đủ production defs/config để validate StartMapConfig thật
 - [ ] `RunStartWorldBuilder`: invalid building def fail fast
 - [ ] `RunStartPlacementHelper`: relocation tìm được anchor hợp lệ gần đó
 - [ ] `RunStartPlacementHelper`: relocation tôn trọng `BuildableRect`

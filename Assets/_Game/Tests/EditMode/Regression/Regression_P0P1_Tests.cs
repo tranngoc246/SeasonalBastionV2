@@ -777,6 +777,57 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void BuildOrderTickProcessor_CompletesUpgradeOrder_WhenSiteReadyAndWorkDone()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var services = MakeServices(bus, new TestDataRegistry(), new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+
+            var orders = new Dictionary<int, BuildOrder>();
+            var active = new List<int>();
+            var siteId = world.Sites.Create(new BuildSiteState
+            {
+                Id = default,
+                BuildingDefId = "bld_upgrade_test",
+                Anchor = new CellPos(6, 6),
+                IsActive = true,
+                WorkSecondsDone = 3f,
+                WorkSecondsTotal = 3f,
+                RemainingCosts = new List<CostDef>()
+            });
+            var st = world.Sites.Get(siteId); st.Id = siteId; world.Sites.Set(siteId, st);
+
+            orders[2] = new BuildOrder { OrderId = 2, Kind = BuildOrderKind.Upgrade, Site = siteId, BuildingDefId = "bld_upgrade_test", TargetBuilding = new BuildingId(44), Completed = false };
+            active.Add(2);
+
+            int ensureCalled = 0;
+            int cancelCalled = 0;
+            int completeUpgradeCalled = 0;
+            int completedEvent = 0;
+
+            var tick = new BuildOrderTickProcessor(
+                services,
+                orders,
+                active,
+                () => new BuildingId(5),
+                (sid, site, workplace) => ensureCalled++,
+                sid => cancelCalled++,
+                (int id, ref BuildOrder order, BuildingId workplace) => { },
+                (ref BuildOrder order) => { },
+                (ref BuildOrder order) => { order.Completed = true; completeUpgradeCalled++; },
+                id => completedEvent++);
+
+            tick.Tick(0.1f);
+
+            Assert.That(ensureCalled, Is.EqualTo(1));
+            Assert.That(cancelCalled, Is.EqualTo(1));
+            Assert.That(completeUpgradeCalled, Is.EqualTo(1));
+            Assert.That(completedEvent, Is.EqualTo(1));
+            Assert.That(active.Count, Is.EqualTo(0));
+            Assert.That(orders[2].Completed, Is.True);
+        }
+
+        [Test]
         public void RunStartStorageInitializer_Fails_WhenNoConstructedHqExists()
         {
             var bus = new TestEventBus();
@@ -1016,6 +1067,45 @@ namespace SeasonalBastion.Tests.EditMode
             SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
 
             Assert.That(issues.Exists(x => x.Code == "GATE_NOT_CONNECTED"), Is.True);
+        }
+
+        [Test]
+        public void RunStartValidator_CollectRuntimeIssues_FlagsGateNotRoad()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(12, 12);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var hqId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(2, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var hq = world.Buildings.Get(hqId); hq.Id = hqId; world.Buildings.Set(hqId, hq);
+            grid.SetBuilding(new CellPos(2, 2), hqId);
+            grid.SetBuilding(new CellPos(3, 2), hqId);
+            grid.SetBuilding(new CellPos(2, 3), hqId);
+            grid.SetBuilding(new CellPos(3, 3), hqId);
+            grid.SetRoad(new CellPos(3, 4), true);
+            grid.SetRoad(new CellPos(3, 5), true);
+
+            // Gate exists in runtime but its cell is not a road on the map.
+            services.RunStartRuntime.SpawnGates.Add(new SeasonalBastion.RunStart.SpawnGate(2, new CellPos(9, 9), Dir4.W));
+
+            var issues = new List<SeasonalBastion.RunStart.RunStartValidationIssue>();
+            SeasonalBastion.RunStart.RunStartValidator.CollectRuntimeIssues(services, issues);
+
+            Assert.That(issues.Exists(x => x.Code == "GATE_NOT_ROAD"), Is.True);
         }
 
         [Test]

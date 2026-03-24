@@ -191,6 +191,9 @@ namespace SeasonalBastion
                     bos.RebuildActivePlaceOrdersFromSitesAfterLoad();
                 }
 
+                // Notify views/systems that roads changed during load-apply.
+                s.EventBus?.Publish(new RoadsDirtyEvent());
+
                 // 7) Rebuild index
                 s.WorldIndex?.RebuildAll();
 

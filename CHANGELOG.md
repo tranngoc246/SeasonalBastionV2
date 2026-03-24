@@ -89,6 +89,7 @@
 - Thêm `Docs/GDD/README.md` giải thích cấu trúc thư mục, thứ tự đọc, và quy ước cập nhật.
 - Di chuyển toàn bộ bộ GDD working set ra khỏi `Assets/` sang `docs/GDD` để tránh `.meta` noise và tách tài liệu khỏi Unity asset tree.
 - Xóa sạch các file `.meta` còn sót trong `docs/GDD` sau khi di chuyển, để bộ docs trở về đúng vai trò markdown/docs thuần ngoài Unity asset tree.
+- Thêm `docs/architecture/module-boundaries-overview.md` để ghi lại sơ đồ kiến trúc tổng thể, runtime flow, và boundary giữa các module/domain chính trước khi bắt đầu implementation Wave 1.
 
 ### Ghi chú
 - Baseline manual/smoke hiện đã khá chắc cho vòng stabilization đầu tiên.

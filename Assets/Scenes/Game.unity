@@ -496,6 +496,8 @@ MonoBehaviour:
   _quickLaneId: 0
   _quickSpawnCount: 1
   _quickGiveAmtStr: 200
+  _quickDamageAmtStr: 50
+  _quickAmmoDrainAmtStr: 30
   _selfPollHotkeysWhenNoRouter: 1
 --- !u!1 &360055332
 GameObject:
@@ -590,11 +592,22 @@ MonoBehaviour:
   _tileOk: {fileID: 11400000, guid: 3ac09a6b4f737824294a9c19d0a2f682, type: 2}
   _tileBad: {fileID: 11400000, guid: 86e4d792a6e19f34089c03bec478024f, type: 2}
   _tileDriveway: {fileID: 11400000, guid: 1357b84d5e6d1334c938681f03f0e0e3, type: 2}
+  _tileEntryValid: {fileID: 11400000, guid: 3ac09a6b4f737824294a9c19d0a2f682, type: 2}
+  _tileEntryInvalid: {fileID: 11400000, guid: 86e4d792a6e19f34089c03bec478024f, type: 2}
+  _tileFrontNorth: {fileID: 0}
+  _tileFrontEast: {fileID: 0}
+  _tileFrontSouth: {fileID: 0}
+  _tileFrontWest: {fileID: 0}
   _useGhostSprite: 1
   _ghostSprite: {fileID: 21300000, guid: 7d47744ce3c84e647b1477d100e494df, type: 3}
   _ghostAlpha: 0.3
   _ghostFill: 0.92
   _ghostSortingLayer: Entities
+  _useFrontArrowSprite: 1
+  _frontArrowSprite: {fileID: 0}
+  _frontArrowWidthCells: 0.35
+  _frontArrowLengthCells: 0.85
+  _frontArrowSortingLayer: Entities
   _paintRoadWhileHolding: 1
 --- !u!4 &435619733
 Transform:

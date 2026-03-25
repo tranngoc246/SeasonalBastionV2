@@ -57,6 +57,7 @@ namespace SeasonalBastion
             services.ProducerLoopService = null;
 
             // Build
+            services.BuildWorkplaceResolver = new BuildOrderWorkplaceResolver(services);
             services.BuildOrderService = new BuildOrderService(services);
 
             // bind build orders into placement (so CommitBuilding routes to construction)

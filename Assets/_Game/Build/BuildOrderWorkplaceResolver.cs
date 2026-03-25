@@ -4,7 +4,7 @@ using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
-    internal sealed class BuildOrderWorkplaceResolver
+    public sealed class BuildOrderWorkplaceResolver : IBuildWorkplaceResolver
     {
         private readonly GameServices _s;
         private readonly List<BuildingId> _buildingIdsBuf = new(128);
@@ -16,6 +16,13 @@ namespace SeasonalBastion
 
         public BuildingId ResolveBuildWorkplace()
         {
+            if (_s?.Balance != null)
+            {
+                var balanced = _s.Balance.ResolveBuilderWorkplace();
+                if (balanced.Value != 0)
+                    return balanced;
+            }
+
             if (_s?.WorldState?.Buildings == null || _s.DataRegistry == null)
                 return default;
 

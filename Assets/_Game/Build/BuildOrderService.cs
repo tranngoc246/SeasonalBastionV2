@@ -19,7 +19,6 @@ namespace SeasonalBastion
         private readonly Dictionary<int, JobId> _repairJobByOrder = new();
         private readonly Dictionary<int, CellPos> _autoRoadByOrder = new();
 
-        private readonly BuildOrderWorkplaceResolver _workplaceResolver;
         private readonly BuildOrderReloadService _reloadService;
         private readonly BuildOrderCompletionService _completionService;
         private readonly BuildOrderCreationService _creationService;
@@ -34,7 +33,6 @@ namespace SeasonalBastion
         public BuildOrderService(GameServices s)
         {
             _s = s;
-            _workplaceResolver = new BuildOrderWorkplaceResolver(s);
             _eventBridge = new BuildOrderEventBridge(s, _autoRoadByOrder);
             _jobPlanner = new BuildJobPlanner(s, _deliverJobsBySite, _workJobBySite);
             _costTracker = new BuildOrderCostTracker();
@@ -218,7 +216,15 @@ namespace SeasonalBastion
         }
 
         private BuildingId ResolveBuildWorkplace()
-            => _workplaceResolver.ResolveBuildWorkplace();
+        {
+            if (_s.BuildWorkplaceResolver != null)
+                return _s.BuildWorkplaceResolver.ResolveBuildWorkplace();
+
+            if (_s.Balance != null)
+                return _s.Balance.ResolveBuilderWorkplace();
+
+            return default;
+        }
 
         private void EnsureBuildJobsForSite(SiteId siteId, BuildSiteState site, BuildingId workplace)
             => _jobPlanner.EnsureBuildJobsForSite(siteId, site, workplace);

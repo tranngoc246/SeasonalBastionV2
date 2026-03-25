@@ -48,7 +48,7 @@ namespace SeasonalBastion
         {
             if (dt <= 0f) return;
 
-            var workplace = _s.Balance != null ? _s.Balance.ResolveBuilderWorkplace() : _resolveBuildWorkplace();
+            var workplace = _resolveBuildWorkplace != null ? _resolveBuildWorkplace() : default;
 
             for (int i = 0; i < _active.Count; i++)
             {

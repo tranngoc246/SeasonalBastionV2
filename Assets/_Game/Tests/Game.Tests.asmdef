@@ -10,7 +10,8 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Game.Jobs",
-        "Game.Save"
+        "Game.Save",
+        "Game.Combat"
     ],
     "includePlatforms": [
         "Editor"

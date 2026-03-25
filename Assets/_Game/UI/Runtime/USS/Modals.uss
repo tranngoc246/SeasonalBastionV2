@@ -38,6 +38,7 @@
 .modal-title { -unity-font-style: bold; font-size: 16px; margin-bottom: 10px; }
 .field-label { color: rgb(200,200,200); margin-top: 10px; margin-bottom: 4px; }
 .hint { color: rgb(190,190,190); margin-top: 10px; }
+.assign-summary { margin-top: 4px; color: rgb(210,210,210); }
 
 .modal-actions { flex-direction: row; justify-content: flex-end; margin-top: 12px; }
 .modal-actions Button { height: 34px; margin-left: 10px; min-width: 90px; }

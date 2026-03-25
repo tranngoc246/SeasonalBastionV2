@@ -78,6 +78,24 @@
   - clean reset giữa repeated New Runs
   - continue restore-state
 
+### Wave 2 / workforce assignment loop player-facing
+- Gom rule workforce dùng chung vào `WorkforceAssignmentRules` để thống nhất:
+  - worker cap theo building/level
+  - đếm worker assigned theo workplace
+  - validate target có nhận worker hay đã full slot
+- Nâng `AssignNpcModalPresenter` để flow assignment dễ đọc và usable hơn:
+  - thêm summary `Unassigned` / `Assigned here`
+  - sort danh sách NPC theo thứ tự **assigned here trước**, rồi **unassigned**, rồi **assigned elsewhere** để NPC vừa assign hiện ngay trên cùng
+  - hiện status rõ hơn cho từng NPC (`Unassigned`, `Assigned here`, `Assigned elsewhere`)
+  - action button đổi rõ ý nghĩa hơn: `Assign here` / `Move here` / `Unassign`
+  - assign từ UI giờ bị chặn đúng nếu building chưa xây xong, không nhận worker, hoặc đã full slot
+  - khi workplace full, modal hiện hint rõ và button row đổi sang `Full` thay vì disable im lặng
+- `InspectPanelPresenter` chuyển sang dùng chung workforce rules để số worker/slot trong inspect và modal không lệch nhau.
+- Sửa `TutorialHintsService` để hint player-facing trỏ đúng flow mới: chọn workplace rồi bấm `ASSIGN NPC`, không còn nhắc debug NPC tool.
+- Bổ sung regression cho workforce:
+  - NPC `unassigned` không bị assign job qua `JobAssignmentService`
+  - slot cap respect đúng, nhưng NPC đang ở đúng workplace vẫn không bị tự chặn bởi check full slot khi refresh/move logic
+
 ### Boundary cleanup / docs
 - Hoàn tất 3 phase cleanup boundary `Build / Jobs / RunStart`:
   - `IBuildWorkplaceResolver`

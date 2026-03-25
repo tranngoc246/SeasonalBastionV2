@@ -140,10 +140,10 @@ namespace SeasonalBastion.UI.Presenters
 
         private void RenderActions(GameServices s, BuildingId bid, BuildingState bs)
         {
-            int assigned = CountAssignedToBuilding(s, bid);
-            int lvl = NormalizeLevel(bs.Level);
+            int assigned = WorkforceAssignmentRules.CountAssignedToBuilding(s.WorldState, bid);
+            int lvl = WorkforceAssignmentRules.NormalizeLevel(bs.Level);
             var def = SafeGetBuildingDef(s, bs.DefId);
-            int max = GetMaxAssignedFor(def, lvl);
+            int max = WorkforceAssignmentRules.GetMaxAssignedFor(def, lvl);
 
             if (_workers != null)
                 _workers.text = max > 0 ? $"Workers: {assigned}/{max}" : $"Workers: {assigned}/-";
@@ -329,38 +329,6 @@ namespace SeasonalBastion.UI.Presenters
             }
 
             return true;
-        }
-
-        private static int CountAssignedToBuilding(GameServices s, BuildingId buildingId)
-        {
-            if (s?.WorldState?.Npcs == null) return 0;
-            int assigned = 0;
-            foreach (var nid in s.WorldState.Npcs.Ids)
-            {
-                if (!s.WorldState.Npcs.Exists(nid)) continue;
-                var ns = s.WorldState.Npcs.Get(nid);
-                if (ns.Workplace.Value == buildingId.Value) assigned++;
-            }
-            return assigned;
-        }
-
-        private static int GetMaxAssignedFor(BuildingDef def, int level)
-        {
-            if (def == null) return 0;
-            if (def.WorkRoles == WorkRoleFlags.None) return 0;
-            if (def.IsHouse || def.IsTower) return 0;
-
-            if (level < 1) level = 1;
-            else if (level > 3) level = 3;
-
-            if (def.IsHQ) return level switch { 1 => 2, 2 => 3, 3 => 4, _ => 2 };
-            if (def.IsWarehouse) return level switch { 1 => 1, 2 => 2, 3 => 3, _ => 1 };
-
-            if ((def.WorkRoles & WorkRoleFlags.Harvest) != 0) return level switch { 1 => 1, 2 => 2, 3 => 3, _ => 1 };
-            if (def.IsForge || (def.WorkRoles & WorkRoleFlags.Craft) != 0) return level switch { 1 => 1, 2 => 2, 3 => 2, _ => 1 };
-            if (def.IsArmory || (def.WorkRoles & WorkRoleFlags.Armory) != 0) return level switch { 1 => 1, 2 => 2, 3 => 2, _ => 1 };
-
-            return 1;
         }
 
         private void OnSelectionChanged(int _) => Refresh();

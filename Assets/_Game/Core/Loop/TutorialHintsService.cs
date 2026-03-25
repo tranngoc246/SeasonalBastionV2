@@ -152,7 +152,7 @@ namespace SeasonalBastion
             PushHint(
                 key: "hint.npc.unassigned",
                 title: "Hint",
-                body: $"Bạn đang có {unassigned} NPC chưa được assign. Dùng tool NPC để assign vào Workplace (HQ/Farm/Lumber/Armory).",
+                body: $"Bạn đang có {unassigned} NPC chưa được assign. Chọn workplace rồi bấm ASSIGN NPC để đưa họ vào HQ/Farm/Lumber/Armory.",
                 cooldown: 60f);
 
             HintNpcUnassignedCount++;

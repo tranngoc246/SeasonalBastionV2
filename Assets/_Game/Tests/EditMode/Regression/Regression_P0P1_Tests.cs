@@ -853,6 +853,83 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void JobAssignmentService_TryAssign_ReturnsFalse_ForUnassignedNpc()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_farmhouse", WorkRoles = WorkRoleFlags.Harvest });
+
+            var world = new WorldState();
+            var board = new JobBoard();
+            var workplacePolicy = new JobWorkplacePolicy(data);
+            var notificationPolicy = new JobNotificationPolicy(noti);
+            var assign = new JobAssignmentService(world, board, workplacePolicy, notificationPolicy);
+
+            var workplaceId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_farmhouse_t1",
+                Anchor = new CellPos(4, 4),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 20,
+                MaxHP = 20
+            });
+            var workplace = world.Buildings.Get(workplaceId); workplace.Id = workplaceId; world.Buildings.Set(workplaceId, workplace);
+
+            var npcId = world.Npcs.Create(new NpcState
+            {
+                DefId = "npc_test",
+                Cell = new CellPos(4, 3),
+                Workplace = default,
+                IsIdle = true
+            });
+            var npc = world.Npcs.Get(npcId); npc.Id = npcId; world.Npcs.Set(npcId, npc);
+
+            board.Enqueue(new Job { Workplace = workplaceId, Archetype = JobArchetype.Harvest, Status = JobStatus.Created });
+
+            bool ok = assign.TryAssign(npcId, ref npc, _ => true);
+
+            Assert.That(ok, Is.False);
+            Assert.That(npc.CurrentJob.Value, Is.EqualTo(0));
+            Assert.That(npc.IsIdle, Is.True);
+        }
+
+        [Test]
+        public void WorkforceAssignmentRules_CanAssignToTarget_RespectsSlotCap_AndExcludeNpc()
+        {
+            var world = new WorldState();
+            var workplaceId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_farmhouse_t1",
+                Anchor = new CellPos(10, 10),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 20,
+                MaxHP = 20
+            });
+            var workplace = world.Buildings.Get(workplaceId); workplace.Id = workplaceId; world.Buildings.Set(workplaceId, workplace);
+
+            var def = new BuildingDef { DefId = "bld_farmhouse", WorkRoles = WorkRoleFlags.Harvest };
+
+            var npcA = world.Npcs.Create(new NpcState { DefId = "npc_a", Workplace = workplaceId, IsIdle = true });
+            var a = world.Npcs.Get(npcA); a.Id = npcA; world.Npcs.Set(npcA, a);
+
+            var npcB = world.Npcs.Create(new NpcState { DefId = "npc_b", Workplace = default, IsIdle = true });
+            var b = world.Npcs.Get(npcB); b.Id = npcB; world.Npcs.Set(npcB, b);
+
+            bool canAssignOther = WorkforceAssignmentRules.CanAssignToTarget(world, workplace, def, workplaceId, npcB, out var reasonOther);
+            bool canKeepCurrent = WorkforceAssignmentRules.CanAssignToTarget(world, workplace, def, workplaceId, npcA, out var reasonCurrent);
+
+            Assert.That(WorkforceAssignmentRules.GetMaxAssignedFor(def, workplace.Level), Is.EqualTo(1));
+            Assert.That(canAssignOther, Is.False);
+            Assert.That(reasonOther, Is.EqualTo("Đã đủ worker (1/1)."));
+            Assert.That(canKeepCurrent, Is.True);
+        }
+
+        [Test]
         public void JobStateCleanupService_CleanupNpcJob_ClearsCurrentJob_SetsIdle_AndReleasesClaims()
         {
             var claims = new ClaimService();

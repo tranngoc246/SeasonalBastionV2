@@ -1958,6 +1958,73 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void SaveLoadApplier_DefendWithoutAliveEnemies_AfterLoad_RestartsWaveSpawning()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(64, 64);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+
+            var clock = new FakeRunClock();
+            var services = MakeServices(bus, data, new NotificationService(bus), clock, new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            services.WaveCalendarResolver = new FakeWaveCalendarResolver(
+                new WaveDef
+                {
+                    DefId = "wave_test_restart_after_load",
+                    Year = 1,
+                    Season = Season.Autumn,
+                    Day = 1,
+                    Entries = new[] { new WaveEntryDef { EnemyId = "enemy_test", Count = 1 } }
+                });
+
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Autumn.ToString(),
+                dayIndex = 1,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 5f,
+                world = new WorldDTO
+                {
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = new BuildingId(1),
+                            DefId = "bld_hq_t1",
+                            Anchor = new CellPos(31, 31),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 100,
+                            MaxHP = 100,
+                        }
+                    }
+                },
+                build = new BuildDTO(),
+                combat = new CombatDTO { IsDefendActive = true, CurrentWaveIndex = 0 },
+            };
+
+            var combat = new SeasonalBastion.CombatService(services);
+            services.CombatService = combat;
+
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(combat.IsActive, Is.True, "Combat should become active after loading a defend snapshot.");
+            Assert.That(world.Enemies.Count, Is.EqualTo(0), "This regression starts from a defend snapshot without restored live enemies.");
+
+            for (int i = 0; i < 4; i++)
+                combat.Tick(0.5f);
+
+            Assert.That(world.Enemies.Count, Is.GreaterThan(0), "When no enemies are restored from save, defend load should resume wave spawning immediately.");
+        }
+
+        [Test]
         public void BuildOrderService_RebuildAfterLoad_RestoresExactlyOneActiveOrder_ForSingleActiveSite()
         {
             var bus = new TestEventBus();

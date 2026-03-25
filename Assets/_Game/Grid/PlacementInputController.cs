@@ -39,6 +39,12 @@ namespace SeasonalBastion
         [SerializeField] private TileBase _tileOk;
         [SerializeField] private TileBase _tileBad;
         [SerializeField] private TileBase _tileDriveway;
+        [SerializeField] private TileBase _tileEntryValid;
+        [SerializeField] private TileBase _tileEntryInvalid;
+        [SerializeField] private TileBase _tileFrontNorth;
+        [SerializeField] private TileBase _tileFrontEast;
+        [SerializeField] private TileBase _tileFrontSouth;
+        [SerializeField] private TileBase _tileFrontWest;
 
         [Header("Ghost sprite (optional)")]
         [SerializeField] private bool _useGhostSprite = true;
@@ -46,6 +52,13 @@ namespace SeasonalBastion
         [SerializeField, Range(0.1f, 0.8f)] private float _ghostAlpha = 0.30f;
         [SerializeField, Range(0.5f, 1f)] private float _ghostFill = 0.92f; // footprint fill
         [SerializeField] private string _ghostSortingLayer = "Entities";
+
+        [Header("Front marker sprite (optional)")]
+        [SerializeField] private bool _useFrontArrowSprite = true;
+        [SerializeField] private Sprite _frontArrowSprite;
+        [SerializeField, Range(0.2f, 1.2f)] private float _frontArrowWidthCells = 0.35f;
+        [SerializeField, Range(0.2f, 1.2f)] private float _frontArrowLengthCells = 0.85f;
+        [SerializeField] private string _frontArrowSortingLayer = "Entities";
 
         [Header("Road paint")]
         [SerializeField] private bool _paintRoadWhileHolding = true;
@@ -70,23 +83,29 @@ namespace SeasonalBastion
         public bool IsWorldActionActive => IsInPlacementMode || _tool != UiToolMode.None;
 
         private CellPos _lastPaint = new CellPos(int.MinValue, int.MinValue);
+        private PlacementFailReason _lastPlacementFailReason = PlacementFailReason.None;
+        private CellPos _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
 
         // preview caching
         private readonly List<Vector3Int> _prevCells = new(64);
         private bool _hasPrevDriveway;
         private Vector3Int _prevDriveway;
+        private bool _hasPrevFrontTile;
+        private Vector3Int _prevFrontTile;
         private string _prevDef;
         private Dir4 _prevRot;
         private UiToolMode _prevTool;
         private CellPos _prevCell;
 
-        // ghost sr
+        // ghost / front marker sprite renderers
         private SpriteRenderer _ghostSr;
+        private SpriteRenderer _frontArrowSr;
 
         private void Awake()
         {
             _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
             EnsureGhost();
+            EnsureFrontArrow();
         }
 
         private void OnEnable()
@@ -99,6 +118,7 @@ namespace SeasonalBastion
             Unsubscribe();
             ClearPreview();
             SetGhostVisible(false);
+            SetFrontArrowVisible(false);
         }
 
         private void Update()
@@ -129,6 +149,7 @@ namespace SeasonalBastion
             {
                 ClearPreview();
                 SetGhostVisible(false);
+                SetFrontArrowVisible(false);
                 return;
             }
 
@@ -136,6 +157,7 @@ namespace SeasonalBastion
             {
                 ClearPreview();
                 SetGhostVisible(false);
+                SetFrontArrowVisible(false);
                 return;
             }
 
@@ -143,6 +165,7 @@ namespace SeasonalBastion
             {
                 ClearPreview();
                 SetGhostVisible(false);
+                SetFrontArrowVisible(false);
                 return;
             }
 
@@ -151,6 +174,7 @@ namespace SeasonalBastion
             {
                 ClearPreview();
                 SetGhostVisible(false);
+                SetFrontArrowVisible(false);
                 return;
             }
 
@@ -232,8 +256,11 @@ namespace SeasonalBastion
             _tool = UiToolMode.None;
             _placeDefId = null;
             _rot = Dir4.N;
+            _lastPlacementFailReason = PlacementFailReason.None;
+            _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
             ClearPreview();
             SetGhostVisible(false);
+            SetFrontArrowVisible(false);
         }
 
         // ---------------- Preview ----------------
@@ -274,6 +301,8 @@ namespace SeasonalBastion
                 var vr = _placement.ValidateBuilding(_placeDefId, cell, _rot);
                 var tileFoot = vr.Ok ? _tileOk : _tileBad;
 
+                MaybePushPlacementPreviewHint(vr, cell);
+
                 // footprint tiles (anchor is bottom-left in PlacementService)
                 for (int dy = 0; dy < h; dy++)
                 {
@@ -292,12 +321,20 @@ namespace SeasonalBastion
                 }
 
                 // driveway / entry (SuggestedRoadCell)
-                if (_tileDriveway != null && _gridMap != null && _gridMap.IsInside(vr.SuggestedRoadCell))
+                if (_gridMap != null && _gridMap.IsInside(vr.SuggestedRoadCell))
                 {
                     _prevDriveway = new Vector3Int(vr.SuggestedRoadCell.X, vr.SuggestedRoadCell.Y, 0);
-                    _previewTilemap.SetTile(_prevDriveway, _tileDriveway);
-                    _hasPrevDriveway = true;
+                    var drivewayTile = vr.Ok
+                        ? (_tileEntryValid != null ? _tileEntryValid : _tileDriveway)
+                        : (_tileEntryInvalid != null ? _tileEntryInvalid : (_tileBad != null ? _tileBad : _tileDriveway));
+                    if (drivewayTile != null)
+                    {
+                        _previewTilemap.SetTile(_prevDriveway, drivewayTile);
+                        _hasPrevDriveway = true;
+                    }
                 }
+
+                UpdateFrontMarker(cell, w, h, _rot, vr.Ok);
 
                 // ghost sprite (optional)
                 UpdateGhost(cell, w, h, vr.Ok);
@@ -316,6 +353,7 @@ namespace SeasonalBastion
                     _prevCells.Add(v);
                 }
                 SetGhostVisible(false);
+                SetFrontArrowVisible(false);
                 return;
             }
 
@@ -331,26 +369,37 @@ namespace SeasonalBastion
                     _prevCells.Add(v);
                 }
                 SetGhostVisible(false);
+                SetFrontArrowVisible(false);
                 return;
             }
 
             // No tool
             SetGhostVisible(false);
+            SetFrontArrowVisible(false);
         }
 
         private void ClearPreview()
         {
-            if (_previewTilemap == null) return;
-
-            for (int i = 0; i < _prevCells.Count; i++)
-                _previewTilemap.SetTile(_prevCells[i], null);
-            _prevCells.Clear();
-
-            if (_hasPrevDriveway)
+            if (_previewTilemap != null)
             {
-                _previewTilemap.SetTile(_prevDriveway, null);
-                _hasPrevDriveway = false;
+                for (int i = 0; i < _prevCells.Count; i++)
+                    _previewTilemap.SetTile(_prevCells[i], null);
+                _prevCells.Clear();
+
+                if (_hasPrevDriveway)
+                {
+                    _previewTilemap.SetTile(_prevDriveway, null);
+                    _hasPrevDriveway = false;
+                }
+
+                if (_hasPrevFrontTile)
+                {
+                    _previewTilemap.SetTile(_prevFrontTile, null);
+                    _hasPrevFrontTile = false;
+                }
             }
+
+            SetFrontArrowVisible(false);
         }
 
         private void EnsureGhost()
@@ -365,6 +414,20 @@ namespace SeasonalBastion
             _ghostSr.sortingOrder = 9999; // will be overridden by y-sort
             _ghostSr.sprite = _ghostSprite;
             _ghostSr.enabled = false;
+        }
+
+        private void EnsureFrontArrow()
+        {
+            if (!_useFrontArrowSprite) return;
+
+            var go = new GameObject("PlacementFrontMarker");
+            go.transform.SetParent(transform, false);
+
+            _frontArrowSr = go.AddComponent<SpriteRenderer>();
+            _frontArrowSr.sortingLayerName = _frontArrowSortingLayer;
+            _frontArrowSr.sortingOrder = 10000;
+            _frontArrowSr.sprite = _frontArrowSprite != null ? _frontArrowSprite : _ghostSprite;
+            _frontArrowSr.enabled = false;
         }
 
         private void UpdateGhost(CellPos anchor, int sizeX, int sizeY, bool ok)
@@ -388,19 +451,60 @@ namespace SeasonalBastion
             _ghostSr.sortingOrder = -Mathf.RoundToInt(pos.y * 100f);
 
             // color
-            var c = ok ? new Color(0.2f, 1f, 0.2f, _ghostAlpha) : new Color(1f, 0.2f, 0.2f, _ghostAlpha);
+            var c = ok
+                ? new Color(0.20f, 1.00f, 0.35f, Mathf.Max(_ghostAlpha, 0.42f))
+                : new Color(1.00f, 0.16f, 0.16f, Mathf.Max(_ghostAlpha + 0.15f, 0.60f));
             _ghostSr.color = c;
 
-            // scale to footprint
-            ApplyScaleToFootprint(_ghostSr, sizeX, sizeY, _ghostFill);
+            // scale to footprint; invalid uses slightly smaller fill to avoid reading as a normal highlight block
+            ApplyScaleToFootprint(_ghostSr, sizeX, sizeY, ok ? _ghostFill : Mathf.Clamp01(_ghostFill - 0.08f));
 
             _ghostSr.enabled = true;
+        }
+
+        private void UpdateFrontMarker(CellPos anchor, int sizeX, int sizeY, Dir4 rot, bool ok)
+        {
+            if (TryDrawFrontMarkerTile(anchor, sizeX, sizeY, rot))
+            {
+                SetFrontArrowVisible(false);
+                return;
+            }
+
+            if (!_useFrontArrowSprite || _frontArrowSr == null)
+            {
+                SetFrontArrowVisible(false);
+                return;
+            }
+
+            if (_frontArrowSr.sprite == null)
+                _frontArrowSr.sprite = _frontArrowSprite != null ? _frontArrowSprite : _ghostSprite;
+            if (_frontArrowSr.sprite == null)
+            {
+                SetFrontArrowVisible(false);
+                return;
+            }
+
+            Vector3 pos = GetFrontMarkerWorld(anchor, sizeX, sizeY, rot);
+            _frontArrowSr.transform.position = pos;
+            _frontArrowSr.sortingOrder = -Mathf.RoundToInt(pos.y * 100f) + 1;
+            _frontArrowSr.transform.rotation = Quaternion.Euler(0f, 0f, GetRotationDegrees(rot));
+            _frontArrowSr.color = ok
+                ? new Color(1.00f, 0.90f, 0.15f, 0.95f)
+                : new Color(1.00f, 0.35f, 0.15f, 1.00f);
+            ApplyScaleToCellSize(_frontArrowSr, _frontArrowWidthCells, _frontArrowLengthCells);
+            _frontArrowSr.enabled = true;
         }
 
         private void SetGhostVisible(bool visible)
         {
             if (_ghostSr == null) return;
             _ghostSr.enabled = visible;
+        }
+
+        private void SetFrontArrowVisible(bool visible)
+        {
+            if (_frontArrowSr == null) return;
+            _frontArrowSr.enabled = visible;
         }
 
         private Vector3 FootprintCenterWorld(CellPos anchor, int sizeX, int sizeY)
@@ -414,6 +518,26 @@ namespace SeasonalBastion
             float oy = (sizeY * 0.5f - 0.5f) * cellSize.y;
 
             return anchorCenter + new Vector3(ox, oy, 0f);
+        }
+
+        private Vector3 GetFrontMarkerWorld(CellPos anchor, int sizeX, int sizeY, Dir4 rot)
+        {
+            Vector3 center = FootprintCenterWorld(anchor, sizeX, sizeY);
+            Vector3 cellSize = _grid != null ? _grid.cellSize : Vector3.one;
+
+            float halfW = Mathf.Max(0.5f, sizeX * 0.5f) * cellSize.x;
+            float halfH = Mathf.Max(0.5f, sizeY * 0.5f) * cellSize.y;
+            float insetX = cellSize.x * 0.32f;
+            float insetY = cellSize.y * 0.32f;
+
+            return rot switch
+            {
+                Dir4.N => center + new Vector3(0f, halfH - insetY, 0f),
+                Dir4.S => center + new Vector3(0f, -halfH + insetY, 0f),
+                Dir4.E => center + new Vector3(halfW - insetX, 0f, 0f),
+                Dir4.W => center + new Vector3(-halfW + insetX, 0f, 0f),
+                _ => center + new Vector3(0f, halfH - insetY, 0f),
+            };
         }
 
         private Vector3 CellToWorldCenter(CellPos c)
@@ -442,6 +566,76 @@ namespace SeasonalBastion
             sr.transform.localScale = new Vector3(targetW / nativeW, targetH / nativeH, 1f);
         }
 
+        private void ApplyScaleToCellSize(SpriteRenderer sr, float widthCells, float heightCells)
+        {
+            if (sr == null || sr.sprite == null) return;
+
+            Vector3 cellSize = _grid != null ? _grid.cellSize : Vector3.one;
+            float targetW = Mathf.Max(0.01f, widthCells * cellSize.x);
+            float targetH = Mathf.Max(0.01f, heightCells * cellSize.y);
+
+            Vector3 native = sr.sprite.bounds.size;
+            float nativeW = Mathf.Max(0.0001f, native.x);
+            float nativeH = Mathf.Max(0.0001f, native.y);
+
+            sr.transform.localScale = new Vector3(targetW / nativeW, targetH / nativeH, 1f);
+        }
+
+        private bool TryDrawFrontMarkerTile(CellPos anchor, int sizeX, int sizeY, Dir4 rot)
+        {
+            if (_previewTilemap == null) return false;
+
+            var frontTile = GetFrontTile(rot);
+            if (frontTile == null) return false;
+
+            CellPos frontCell = GetFrontMarkerCell(anchor, sizeX, sizeY, rot);
+            if (_gridMap != null && !_gridMap.IsInside(frontCell)) return false;
+
+            _prevFrontTile = new Vector3Int(frontCell.X, frontCell.Y, 0);
+            _previewTilemap.SetTile(_prevFrontTile, frontTile);
+            _hasPrevFrontTile = true;
+            return true;
+        }
+
+        private TileBase GetFrontTile(Dir4 rot)
+        {
+            return rot switch
+            {
+                Dir4.N => _tileFrontNorth,
+                Dir4.E => _tileFrontEast,
+                Dir4.S => _tileFrontSouth,
+                Dir4.W => _tileFrontWest,
+                _ => _tileFrontNorth,
+            };
+        }
+
+        private CellPos GetFrontMarkerCell(CellPos anchor, int sizeX, int sizeY, Dir4 rot)
+        {
+            int centerX = anchor.X + Mathf.Max(0, (sizeX - 1) / 2);
+            int centerY = anchor.Y + Mathf.Max(0, (sizeY - 1) / 2);
+
+            return rot switch
+            {
+                Dir4.N => new CellPos(centerX, anchor.Y + sizeY - 1),
+                Dir4.S => new CellPos(centerX, anchor.Y),
+                Dir4.E => new CellPos(anchor.X + sizeX - 1, centerY),
+                Dir4.W => new CellPos(anchor.X, centerY),
+                _ => new CellPos(centerX, anchor.Y + sizeY - 1),
+            };
+        }
+
+        private static float GetRotationDegrees(Dir4 rot)
+        {
+            return rot switch
+            {
+                Dir4.N => 0f,
+                Dir4.E => -90f,
+                Dir4.S => 180f,
+                Dir4.W => 90f,
+                _ => 0f,
+            };
+        }
+
         // ---------------- Placement actions ----------------
 
         private void TryPlaceRoad(CellPos cell)
@@ -451,6 +645,46 @@ namespace SeasonalBastion
             else
                 _noti?.Push("road.fail", "Road", "Cannot place road here (must connect to existing road).",
                     NotificationSeverity.Warning, new NotificationPayload(default, default, ""), 0.15f, true);
+        }
+
+        private void MaybePushPlacementPreviewHint(PlacementResult vr, CellPos cell)
+        {
+            if (_noti == null) return;
+
+            if (vr.Ok)
+            {
+                _lastPlacementFailReason = PlacementFailReason.None;
+                _lastPlacementFailCell = cell;
+                return;
+            }
+
+            if (vr.FailReason == _lastPlacementFailReason && cell.X == _lastPlacementFailCell.X && cell.Y == _lastPlacementFailCell.Y)
+                return;
+
+            _lastPlacementFailReason = vr.FailReason;
+            _lastPlacementFailCell = cell;
+
+            _noti.Push(
+                key: $"place.preview.{vr.FailReason}",
+                title: "Placement",
+                body: GetPlacementPreviewMessage(vr.FailReason),
+                severity: NotificationSeverity.Warning,
+                payload: new NotificationPayload(default, default, _placeDefId ?? ""),
+                cooldownSeconds: 0.2f,
+                dedupeByKey: true);
+        }
+
+        private static string GetPlacementPreviewMessage(PlacementFailReason reason)
+        {
+            return reason switch
+            {
+                PlacementFailReason.NoRoadConnection => "Invalid placement: missing road/entry connection.",
+                PlacementFailReason.Overlap => "Invalid placement: overlaps road or building.",
+                PlacementFailReason.BlockedBySite => "Invalid placement: blocked by construction site.",
+                PlacementFailReason.OutOfBounds => "Invalid placement: out of bounds.",
+                PlacementFailReason.InvalidRotation => "Invalid placement: rotation not allowed here.",
+                _ => "Invalid placement."
+            };
         }
 
         // ---------------- Bind & Events ----------------
@@ -494,9 +728,12 @@ namespace SeasonalBastion
             _placeDefId = ev.DefId;
             _tool = UiToolMode.None;
             _rot = Dir4.N;
+            _lastPlacementFailReason = PlacementFailReason.None;
+            _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
 
             ClearPreview();
             SetGhostVisible(false);
+            SetFrontArrowVisible(false);
         }
 
         private void OnToolModeRequested(UiToolModeRequestedEvent ev)
@@ -505,9 +742,12 @@ namespace SeasonalBastion
             _tool = (_tool == ev.Mode) ? UiToolMode.None : ev.Mode;
             _placeDefId = null;
             _rot = Dir4.N;
+            _lastPlacementFailReason = PlacementFailReason.None;
+            _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
 
             ClearPreview();
             SetGhostVisible(false);
+            SetFrontArrowVisible(false);
         }
 
         // ---------------- Input helpers ----------------

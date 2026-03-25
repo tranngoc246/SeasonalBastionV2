@@ -2,16 +2,16 @@ using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
-    internal sealed class JobWorkplacePolicy
+    public sealed class JobWorkplacePolicy : IJobWorkplacePolicy
     {
         private readonly IDataRegistry _data;
 
-        internal JobWorkplacePolicy(IDataRegistry data)
+        public JobWorkplacePolicy(IDataRegistry data)
         {
             _data = data;
         }
 
-        internal WorkRoleFlags GetAllowedRoles(string defId)
+        public WorkRoleFlags GetAllowedRoles(string defId)
         {
             if (_data == null || string.IsNullOrEmpty(defId)) return WorkRoleFlags.None;
 
@@ -25,13 +25,13 @@ namespace SeasonalBastion
             return WorkRoleFlags.None;
         }
 
-        internal bool HasRole(string defId, WorkRoleFlags required)
+        public bool HasRole(string defId, WorkRoleFlags required)
         {
             var roles = GetAllowedRoles(defId);
             return (roles & required) != 0;
         }
 
-        internal bool IsJobAllowed(WorkRoleFlags allowed, JobArchetype archetype)
+        public bool IsJobAllowed(WorkRoleFlags allowed, JobArchetype archetype)
         {
             return archetype switch
             {

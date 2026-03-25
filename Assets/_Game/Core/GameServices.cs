@@ -45,6 +45,7 @@ namespace SeasonalBastion
         public IBuildOrderService BuildOrderService;
         public IBuildWorkplaceResolver BuildWorkplaceResolver;
         public IBuildJobOrchestrator BuildJobOrchestrator;
+        public IJobWorkplacePolicy JobWorkplacePolicy;
         public IAmmoService AmmoService;
         public ICombatService CombatService;
         public IWaveCalendarResolver WaveCalendarResolver;

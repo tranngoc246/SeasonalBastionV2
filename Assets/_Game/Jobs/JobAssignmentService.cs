@@ -6,13 +6,13 @@ namespace SeasonalBastion
     {
         private readonly IWorldState _w;
         private readonly IJobBoard _board;
-        private readonly JobWorkplacePolicy _workplacePolicy;
+        private readonly IJobWorkplacePolicy _workplacePolicy;
         private readonly JobNotificationPolicy _notificationPolicy;
 
         internal JobAssignmentService(
             IWorldState w,
             IJobBoard board,
-            JobWorkplacePolicy workplacePolicy,
+            IJobWorkplacePolicy workplacePolicy,
             JobNotificationPolicy notificationPolicy)
         {
             _w = w;

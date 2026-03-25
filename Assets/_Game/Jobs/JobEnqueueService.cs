@@ -8,14 +8,14 @@ namespace SeasonalBastion
     {
         private readonly IWorldState _w;
         private readonly IJobBoard _board;
-        private readonly JobWorkplacePolicy _workplacePolicy;
+        private readonly IJobWorkplacePolicy _workplacePolicy;
         private readonly ResourceLogisticsPolicy _resourcePolicy;
         private readonly JobStateCleanupService _cleanupService;
 
         internal JobEnqueueService(
             IWorldState w,
             IJobBoard board,
-            JobWorkplacePolicy workplacePolicy,
+            IJobWorkplacePolicy workplacePolicy,
             ResourceLogisticsPolicy resourcePolicy,
             JobStateCleanupService cleanupService)
         {

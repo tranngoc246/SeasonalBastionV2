@@ -38,13 +38,14 @@ namespace SeasonalBastion
             JobExecutorRegistry exec,
             IEventBus bus,
             IDataRegistry data,
-            INotificationService noti)
+            INotificationService noti,
+            IJobWorkplacePolicy workplacePolicy = null)
         {
             _w = w;
             _board = board;
             _claims = claims;
 
-            var workplacePolicy = new JobWorkplacePolicy(data);
+            workplacePolicy ??= new JobWorkplacePolicy(data);
             var resourcePolicy = new ResourceLogisticsPolicy();
             var notificationPolicy = new JobNotificationPolicy(noti);
 

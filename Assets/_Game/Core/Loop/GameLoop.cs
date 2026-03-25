@@ -29,8 +29,13 @@ namespace SeasonalBastion
             catch { }
 
             // Deterministic initial run clock state
-            _s.RunClock.ForceSeasonDay(Season.Spring, dayIndex: 1);
-            _s.RunClock.SetTimeScale(1f);
+            if (_s.RunClock is RunClockService rc)
+                rc.Start(seed);
+            else
+            {
+                _s.RunClock.ForceSeasonDay(Season.Spring, dayIndex: 1);
+                _s.RunClock.SetTimeScale(1f);
+            }
 
             // Apply StartMapConfig (if provided). If missing, keep empty world but deterministic.
             if (!string.IsNullOrEmpty(startMapConfigJsonOrMarkdown))
@@ -71,6 +76,9 @@ namespace SeasonalBastion
             // grid occupancy
             try { _s.GridMap.ClearAll(); } catch { }
 
+            // run-start runtime caches
+            try { ResetRunStartRuntime(_s.RunStartRuntime); } catch { }
+
             // world stores (runtime concrete stores)
             try { (_s.WorldState?.Buildings as IEntityStore<BuildingId, BuildingState>)?.ClearAll(); } catch { }
             try { (_s.WorldState?.Sites as IEntityStore<SiteId, BuildSiteState>)?.ClearAll(); } catch { }
@@ -80,6 +88,19 @@ namespace SeasonalBastion
         }
 
         public void Tick(float dt) => TickOrder.TickAll(_s, dt);
+
+        private static void ResetRunStartRuntime(RunStartRuntime rt)
+        {
+            if (rt == null) return;
+
+            rt.MapWidth = 0;
+            rt.MapHeight = 0;
+            rt.BuildableRect = default;
+            rt.SpawnGates.Clear();
+            rt.Zones.Clear();
+            rt.Lanes.Clear();
+            rt.LockedInvariants.Clear();
+        }
 
         public void Dispose()
         {

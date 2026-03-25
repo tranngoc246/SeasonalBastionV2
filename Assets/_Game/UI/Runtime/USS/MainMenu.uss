@@ -1,0 +1,67 @@
+.menu-root {
+  position: absolute;
+  left: 0; right: 0; top: 0; bottom: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-backdrop {
+  position: absolute;
+  left: 0; right: 0; top: 0; bottom: 0;
+  background-color: rgba(18, 31, 52, 0.96);
+}
+
+.menu-card {
+  width: 420px;
+  max-width: 92%;
+  padding: 28px;
+  border-radius: 18px;
+  background-color: rgba(0,0,0,0.48);
+  border-top-width: 1px;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+  border-left-width: 1px;
+  border-top-color: rgba(255,255,255,0.10);
+  border-right-color: rgba(255,255,255,0.10);
+  border-bottom-color: rgba(255,255,255,0.10);
+  border-left-color: rgba(255,255,255,0.10);
+  align-items: stretch;
+}
+
+.menu-title {
+  color: rgb(245,245,245);
+  -unity-font-style: bold;
+  font-size: 26px;
+  unity-text-align: middle-center;
+}
+
+.menu-subtitle {
+  color: rgb(194,203,219);
+  font-size: 13px;
+  margin-top: 8px;
+  margin-bottom: 20px;
+  unity-text-align: middle-center;
+}
+
+.menu-actions {
+  flex-direction: column;
+}
+
+.menu-btn {
+  height: 42px;
+  margin-top: 10px;
+  color: rgb(245,245,245);
+  background-color: rgba(255,255,255,0.10);
+  border-radius: 10px;
+}
+
+.menu-btn-primary {
+  background-color: rgba(64,140,255,0.60);
+}
+
+.menu-hint {
+  color: rgb(194,203,219);
+  font-size: 12px;
+  margin-top: 18px;
+  unity-text-align: middle-center;
+}

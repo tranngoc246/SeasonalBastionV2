@@ -1,0 +1,20 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/MainMenu.uss" />
+
+    <ui:VisualElement name="MainMenuRoot" class="menu-root">
+        <ui:VisualElement class="menu-backdrop" picking-mode="Ignore" />
+
+        <ui:VisualElement class="menu-card" picking-mode="Position">
+            <ui:Label name="LblTitle" text="SEASONAL BASTION" class="menu-title" />
+            <ui:Label name="LblSubtitle" text="Vertical Slice Test Menu" class="menu-subtitle" />
+
+            <ui:VisualElement class="menu-actions">
+                <ui:Button name="BtnNewRun" text="New Run" class="menu-btn menu-btn-primary" />
+                <ui:Button name="BtnContinue" text="Continue" class="menu-btn" />
+                <ui:Button name="BtnQuit" text="Quit" class="menu-btn" />
+            </ui:VisualElement>
+
+            <ui:Label name="LblSaveHint" text="Checking save..." class="menu-hint" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

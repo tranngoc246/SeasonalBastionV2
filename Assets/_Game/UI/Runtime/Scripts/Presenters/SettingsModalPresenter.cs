@@ -84,15 +84,51 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnSave()
         {
-            // In this project AppSettings persists immediately, but keep button as feedback
-            _s?.NotificationService?.Push(
-                key: "ui.settings.saved",
-                title: "Settings",
-                body: "Saved",
-                severity: NotificationSeverity.Info,
-                payload: new NotificationPayload(default, default, ""),
-                cooldownSeconds: 0.5f,
-                dedupeByKey: true);
+            var boot = FindBootstrap();
+            if (boot == null)
+            {
+                _s?.NotificationService?.Push(
+                    key: "ui.settings.save.missing_bootstrap",
+                    title: "Save",
+                    body: "GameBootstrap missing",
+                    severity: NotificationSeverity.Warning,
+                    payload: new NotificationPayload(default, default, ""),
+                    cooldownSeconds: 1f,
+                    dedupeByKey: true);
+                return;
+            }
+
+            if (boot.TrySaveNow(out var error))
+            {
+                _s?.NotificationService?.Push(
+                    key: "ui.settings.saved",
+                    title: "Save",
+                    body: "Run saved",
+                    severity: NotificationSeverity.Info,
+                    payload: new NotificationPayload(default, default, ""),
+                    cooldownSeconds: 0.5f,
+                    dedupeByKey: true);
+            }
+            else
+            {
+                _s?.NotificationService?.Push(
+                    key: "ui.settings.save.failed",
+                    title: "Save",
+                    body: string.IsNullOrWhiteSpace(error) ? "Save failed" : error,
+                    severity: NotificationSeverity.Error,
+                    payload: new NotificationPayload(default, default, ""),
+                    cooldownSeconds: 0.5f,
+                    dedupeByKey: true);
+            }
+        }
+
+        private static GameBootstrap FindBootstrap()
+        {
+#if UNITY_2023_1_OR_NEWER
+            return UnityEngine.Object.FindAnyObjectByType<GameBootstrap>();
+#else
+            return UnityEngine.Object.FindObjectOfType<GameBootstrap>();
+#endif
         }
 
         private void OnMenu()

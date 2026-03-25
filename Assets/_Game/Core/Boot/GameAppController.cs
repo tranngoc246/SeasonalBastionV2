@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -76,6 +77,13 @@ namespace SeasonalBastion
 
         public void RequestContinue()
         {
+            if (!HasRunSaveFile())
+            {
+                Debug.LogWarning("[App] Continue requested but no run_save.json exists.");
+                _pending = PendingAction.None;
+                return;
+            }
+
             _pending = PendingAction.Continue;
             _pendingSeed = 0;
             _pendingWipeSave = false;
@@ -112,11 +120,7 @@ namespace SeasonalBastion
                 case PendingAction.Continue:
                     {
                         if (!boot.TryContinueLatest(out err))
-                        {
-                            Debug.LogWarning("[App] Continue failed: " + err + " -> fallback NewGame.");
-                            int seed = MakeSeed();
-                            boot.TryStartNewRun(seed, startMapConfigOverride: null, wipeExistingSave: false, out _);
-                        }
+                            Debug.LogWarning("[App] Continue failed: " + err);
                         break;
                     }
             }
@@ -124,6 +128,18 @@ namespace SeasonalBastion
             _pending = PendingAction.None;
             _pendingSeed = 0;
             _pendingWipeSave = false;
+        }
+
+        private static bool HasRunSaveFile()
+        {
+            try
+            {
+                return File.Exists(Path.Combine(Application.persistentDataPath, "run_save.json"));
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static int MakeSeed()

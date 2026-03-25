@@ -60,7 +60,7 @@ namespace SeasonalBastion
             if (_lblSaveHint != null)
                 _lblSaveHint.text = hasSave
                     ? "Continue is available. A run_save.json was found."
-                    : "No run save found yet. Start a New Run first.";
+                    : "No run save found yet. Continue is disabled until you save a run.";
 
             Debug.Log($"[MainMenu] Bound UI. hasSave={hasSave}, newRunBtn={_btnNewRun != null}, continueBtn={_btnContinue != null}, quitBtn={_btnQuit != null}");
         }

@@ -1,5 +1,82 @@
 # CHANGELOG
 
+## 2026-03-25
+
+### Tóm tắt
+Đợt cập nhật này chuyển từ stabilization sang **hoàn thiện backbone cho M1 / Wave 1**, tập trung vào các flow người chơi đầu tiên: **New Run / Save / Continue**, cùng với baseline start package, HUD clock và Main Menu tối thiểu để smoke test ngay trong game.
+
+### Wave 1 / Main Menu / New Run
+- Thêm **Main Menu tối thiểu** trong scene `MainMenu` với các nút:
+  - `New Run`
+  - `Continue`
+  - `Quit`
+- Nối `New Run` vào flow thật qua `GameAppController` / `GameBootstrap` để có thể vào gameplay state hợp lệ từ menu.
+- Bổ sung patch reset cho `GameLoop.StartNewRun()`:
+  - reset clock theo đường start thật của `RunClockService`
+  - clear `RunStartRuntime` caches trước khi dựng run mới
+  - giúp New Run lặp lại sạch hơn giữa nhiều lần start liên tiếp.
+- Thêm regression khóa behavior **New Run lần 2 không leak state từ lần 1**.
+
+### HUD / Clock / Debug support
+- Sửa `HudPresenter` để bind chắc hơn với run clock state thật:
+  - `Year`
+  - `Season`
+  - `Day`
+  - `Phase`
+- Bổ sung refresh từ service để tránh stale label khi rollover year/season.
+- Thêm quick action debug **`Winter D4 Near End`** để test tự nhiên rollover sang năm mới nhanh hơn.
+
+### Start map / Start package baseline
+- Giữ và khóa baseline `StartMapConfig_RunStart_64x64_v0.1` cho Wave 1.
+- Harden `RunStartNpcSpawner`:
+  - nếu `spawnCell` config không hợp lệ / bị block / out-of-bounds nhẹ
+  - runtime sẽ relocate NPC sang cell hợp lệ gần đó thay vì spawn cứng tại vị trí xấu.
+- Thêm regression baseline cho Wave 1 start package, xác nhận:
+  - gates / lanes đúng
+  - HQ / houses / farmhouse / lumber camp / arrow tower có mặt
+  - tower start full ammo
+  - HQ storage seed đúng
+  - NPC workplace mapping đúng
+  - NPC không spawn vào building/site blocked cell.
+
+### Save / Continue / Settings Save
+- Sửa flow `Continue` để hành xử **explicit** hơn:
+  - không có `run_save.json` thì không load scene game
+  - `Continue` fail thì không fallback âm thầm sang `NewGame`
+- Sửa nút **Save** trong Settings modal để gọi save game thật qua `GameBootstrap.TrySaveNow(...)` thay vì chỉ hiện toast giả.
+- Thêm regression khóa behavior `Continue`:
+  - restore đúng state từ save
+  - không inject lại baseline RunStart
+  - giữ đúng clock/timescale/roads/storage/workplace từ save
+  - vẫn clear transient runtime state của NPC an toàn.
+
+### Regression / coverage cập nhật thêm
+- Save/load runtime cache rebuild sau load đã được unskip bằng fixture hợp lệ hơn (có HQ thật trong loaded world state).
+- Combat after load đã có regression cho 2 nhánh quan trọng:
+  - defend + còn enemy restore → không double-spawn
+  - defend + không còn enemy restore → restart spawn đúng
+- Wave 1 hiện đã có regression đáng tin cho:
+  - start package baseline
+  - clean reset giữa repeated New Runs
+  - continue restore-state
+
+### Boundary cleanup / docs
+- Hoàn tất 3 phase cleanup boundary `Build / Jobs / RunStart`:
+  - `IBuildWorkplaceResolver`
+  - `IBuildJobOrchestrator`
+  - `IJobWorkplacePolicy`
+- Cập nhật `docs/architecture/module-boundaries-overview.md` để ghi lại boundary cleanup sau stabilization.
+- Cập nhật `docs/GDD/40_Implementation/SEASONAL_BASTION_IMPLEMENTATION_CHECKLIST_M1_WAVE1_v1.0_VN.md` theo trạng thái thực tế:
+  - phần nào đã done
+  - phần nào done-ish nhưng còn polish
+  - smoke test nào đã pass thật trong repo.
+- `Assets/_Game/Tests/Game.Tests.asmdef` được mở rộng references để test assembly chạy được với cụm regression mới (gồm cả combat/economy).
+
+### Ghi chú
+- Trạng thái hiện tại của Wave 1: **usable vertical-slice backbone**.
+- Các flow player-facing đầu tiên (`New Run / Save / Continue`) đều đã có đường chạy thật và có regression quan trọng khóa behavior.
+- Các việc còn lại chủ yếu là polish UX/UI hoặc chuyển sang gameplay tasks cho wave tiếp theo.
+
 ## 2026-03-24
 
 ### Tóm tắt

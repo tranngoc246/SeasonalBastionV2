@@ -1952,6 +1952,98 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void SaveLoadApplier_ContinuePath_RestoresSavedClockAndDoesNotInjectRunStartBaseline()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(64, 64);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 5, SizeY = 5, MaxHp = 300, IsHQ = true, WorkRoles = WorkRoleFlags.Build | WorkRoleFlags.HaulBasic, CapWood = new StorageCapsByLevel { L1 = 200 }, CapFood = new StorageCapsByLevel { L1 = 200 }, CapStone = new StorageCapsByLevel { L1 = 200 }, CapIron = new StorageCapsByLevel { L1 = 200 }, CapAmmo = new StorageCapsByLevel { L1 = 200 } });
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsHouse = true });
+
+            var clock = new FakeRunClock();
+            var services = MakeServices(bus, data, new NotificationService(bus), clock, new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = new StorageService(world, data, bus);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            services.JobBoard = new JobBoard();
+            services.ClaimService = new ClaimService();
+            services.BuildOrderService = new FakeBuildOrderService();
+
+            var savedHqId = new BuildingId(7);
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Winter.ToString(),
+                dayIndex = 4,
+                timeScale = 2f,
+                yearIndex = 3,
+                dayTimer = 17.5f,
+                world = new WorldDTO
+                {
+                    Roads = new List<CellPosI32> { new CellPosI32(12, 12), new CellPosI32(13, 12) },
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = savedHqId,
+                            DefId = "bld_hq_t1",
+                            Anchor = new CellPos(20, 20),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 300,
+                            MaxHP = 300,
+                            Wood = 9,
+                            Food = 4,
+                            Stone = 2,
+                            Iron = 1,
+                            Ammo = 0,
+                        }
+                    },
+                    Npcs = new List<NpcState>
+                    {
+                        new NpcState
+                        {
+                            Id = new NpcId(5),
+                            DefId = "npc_test",
+                            Cell = new CellPos(22, 22),
+                            Workplace = savedHqId,
+                            CurrentJob = new JobId(123),
+                            IsIdle = false
+                        }
+                    },
+                    Towers = new List<TowerState>(),
+                    Enemies = new List<EnemyState>()
+                },
+                build = new BuildDTO(),
+                combat = new CombatDTO()
+            };
+
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(world.Buildings.Count, Is.EqualTo(1), "Continue/load should restore only saved buildings, not inject Wave 1 start package buildings.");
+            Assert.That(world.Npcs.Count, Is.EqualTo(1), "Continue/load should restore only saved NPCs, not inject start package NPCs.");
+            Assert.That(world.Towers.Count, Is.EqualTo(0), "Continue/load should not inject start package towers when save has none.");
+            Assert.That(clock.CurrentSeason, Is.EqualTo(Season.Winter), "Continue/load should preserve saved season.");
+            Assert.That(clock.DayIndex, Is.EqualTo(4), "Continue/load should preserve saved day.");
+            Assert.That(clock.TimeScale, Is.EqualTo(2f), "Continue/load should preserve saved timescale instead of app default speed.");
+            Assert.That(world.Buildings.Exists(savedHqId), Is.True, "Saved HQ should be restored by continue path.");
+            Assert.That(services.StorageService.GetAmount(savedHqId, ResourceType.Wood), Is.EqualTo(9), "Continue/load should preserve saved HQ storage values instead of start-package seeding.");
+            Assert.That(services.StorageService.GetAmount(savedHqId, ResourceType.Food), Is.EqualTo(4));
+            Assert.That(services.StorageService.GetAmount(savedHqId, ResourceType.Stone), Is.EqualTo(2));
+            Assert.That(services.StorageService.GetAmount(savedHqId, ResourceType.Iron), Is.EqualTo(1));
+            Assert.That(grid.IsRoad(new CellPos(12, 12)), Is.True, "Continue/load should restore saved roads.");
+            Assert.That(grid.IsRoad(new CellPos(13, 12)), Is.True, "Continue/load should restore saved roads.");
+
+            var restoredNpc = world.Npcs.Get(new NpcId(5));
+            Assert.That(restoredNpc.Workplace.Value, Is.EqualTo(savedHqId.Value));
+            Assert.That(restoredNpc.CurrentJob.Value, Is.EqualTo(0), "Continue/load should clear stale runtime job references when restoring NPCs.");
+            Assert.That(restoredNpc.IsIdle, Is.True, "Continue/load should reset NPCs to idle for runtime reassignment.");
+        }
+
+        [Test]
         public void SaveLoadApplier_ClearsStaleNpcCurrentJob_AndResetsIdleState_AfterLoad()
         {
             var bus = new TestEventBus();

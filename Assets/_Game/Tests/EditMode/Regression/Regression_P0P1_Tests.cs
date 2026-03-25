@@ -162,6 +162,18 @@ namespace SeasonalBastion.Tests.EditMode
             public event Action<RunOutcome> OnRunEnded;
         }
 
+        private sealed class FakeWaveCalendarResolver : IWaveCalendarResolver
+        {
+            private readonly IReadOnlyList<WaveDef> _waves;
+
+            public FakeWaveCalendarResolver(params WaveDef[] waves)
+            {
+                _waves = waves ?? Array.Empty<WaveDef>();
+            }
+
+            public IReadOnlyList<WaveDef> Resolve(int year, Season season, int day) => _waves;
+        }
+
         private sealed class FakeStorageService : IStorageService
         {
             private readonly Dictionary<(int building, ResourceType type), int> _amounts = new();
@@ -1857,6 +1869,92 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(services.RunStartRuntime.Lanes, Is.Not.Null);
             Assert.That(services.RunStartRuntime.SpawnGates.Count, Is.GreaterThan(0), "Spawn gates cache should be rebuilt after load.");
             Assert.That(services.RunStartRuntime.Lanes.Count, Is.GreaterThan(0), "Lane runtime cache should be rebuilt after load when an HQ exists in loaded world state.");
+        }
+
+        [Test]
+        public void SaveLoadApplier_DefendWithAliveEnemies_AfterLoad_DoesNotDoubleSpawnUntilCleared()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(64, 64);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+
+            var clock = new FakeRunClock();
+            var services = MakeServices(bus, data, new NotificationService(bus), clock, new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            services.WaveCalendarResolver = new FakeWaveCalendarResolver(
+                new WaveDef
+                {
+                    DefId = "wave_test_after_load",
+                    Year = 1,
+                    Season = Season.Autumn,
+                    Day = 1,
+                    Entries = new[] { new WaveEntryDef { EnemyId = "enemy_test", Count = 1 } }
+                });
+
+            var combat = new SeasonalBastion.CombatService(services);
+            services.CombatService = combat;
+
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Autumn.ToString(),
+                dayIndex = 1,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 5f,
+                world = new WorldDTO
+                {
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = new BuildingId(1),
+                            DefId = "bld_hq_t1",
+                            Anchor = new CellPos(31, 31),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 100,
+                            MaxHP = 100,
+                        }
+                    },
+                    Enemies = new List<EnemyState>
+                    {
+                        new EnemyState
+                        {
+                            Id = new EnemyId(9),
+                            DefId = "enemy_saved",
+                            Cell = new CellPos(32, 63),
+                            Hp = 10,
+                            Lane = 0,
+                            MoveProgress01 = 0f,
+                        }
+                    }
+                },
+                build = new BuildDTO(),
+                combat = new CombatDTO { IsDefendActive = true, CurrentWaveIndex = 0 },
+            };
+
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(combat.IsActive, Is.True, "Combat should stay active after loading a defend snapshot.");
+            Assert.That(world.Enemies.Count, Is.EqualTo(1), "Saved live enemies should be restored before any wave resume logic runs.");
+
+            for (int i = 0; i < 8; i++)
+                combat.Tick(0.5f);
+
+            Assert.That(world.Enemies.Count, Is.EqualTo(1), "Combat should defer new wave spawn while restored enemies are still alive after load.");
+
+            world.Enemies.ClearAll();
+
+            for (int i = 0; i < 4; i++)
+                combat.Tick(0.5f);
+
+            Assert.That(world.Enemies.Count, Is.GreaterThan(0), "Once restored enemies are cleared, deferred defend wave should start spawning again.");
         }
 
         [Test]

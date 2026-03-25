@@ -1753,6 +1753,93 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void RunStartFacade_TryApply_BuildsExpectedWave1StartPackageBaseline()
+        {
+            var cfg = UnityEngine.Resources.Load<UnityEngine.TextAsset>("RunStart/StartMapConfig_RunStart_64x64_v0.1");
+            if (cfg == null)
+                Assert.Ignore("RunStart config resource is not available in EditMode test runtime; skip Wave 1 start package baseline assertion.");
+
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(64, 64);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 5, SizeY = 5, MaxHp = 300, IsHQ = true, WorkRoles = WorkRoleFlags.Build | WorkRoleFlags.HaulBasic, CapWood = new StorageCapsByLevel { L1 = 200 }, CapFood = new StorageCapsByLevel { L1 = 200 }, CapStone = new StorageCapsByLevel { L1 = 200 }, CapIron = new StorageCapsByLevel { L1 = 200 }, CapAmmo = new StorageCapsByLevel { L1 = 200 } });
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsHouse = true });
+            data.Add(new BuildingDef { DefId = "bld_farmhouse_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsProducer = true, WorkRoles = WorkRoleFlags.Harvest, CapFood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_lumbercamp_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsProducer = true, WorkRoles = WorkRoleFlags.Harvest, CapWood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_tower_arrow_t1", SizeX = 3, SizeY = 3, MaxHp = 180, IsTower = true });
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = new StorageService(world, data, bus);
+            services.RunStartRuntime = new RunStart.RunStartRuntime();
+
+            bool ok = SeasonalBastion.RunStart.RunStartFacade.TryApply(services, cfg.text, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(services.RunStartRuntime.SpawnGates.Count, Is.EqualTo(3), "Wave 1 baseline should expose 3 spawn gates.");
+            Assert.That(services.RunStartRuntime.Lanes.Count, Is.EqualTo(3), "Wave 1 baseline should resolve 3 lane runtime rows.");
+            Assert.That(world.Npcs.Count, Is.EqualTo(3), "Wave 1 start package should spawn exactly 3 initial NPCs.");
+            Assert.That(world.Towers.Count, Is.EqualTo(1), "Wave 1 baseline should create exactly 1 initial arrow tower.");
+
+            BuildingId hqId = default;
+            BuildingId farmhouseId = default;
+            BuildingId lumbercampId = default;
+            int hqCount = 0;
+            int houseCount = 0;
+
+            foreach (var bid in world.Buildings.Ids)
+            {
+                if (!world.Buildings.Exists(bid)) continue;
+                var bs = world.Buildings.Get(bid);
+                if (bs.DefId == "bld_hq_t1") { hqId = bid; hqCount++; }
+                if (bs.DefId == "bld_house_t1") houseCount++;
+                if (bs.DefId == "bld_farmhouse_t1") farmhouseId = bid;
+                if (bs.DefId == "bld_lumbercamp_t1") lumbercampId = bid;
+            }
+
+            Assert.That(hqCount, Is.EqualTo(1), "Wave 1 baseline should have exactly one HQ.");
+            Assert.That(houseCount, Is.EqualTo(2), "Wave 1 baseline should have exactly two houses.");
+            Assert.That(hqId.Value, Is.Not.EqualTo(0));
+            Assert.That(farmhouseId.Value, Is.Not.EqualTo(0));
+            Assert.That(lumbercampId.Value, Is.Not.EqualTo(0));
+
+            Assert.That(services.StorageService.GetAmount(hqId, ResourceType.Wood), Is.EqualTo(30));
+            Assert.That(services.StorageService.GetAmount(hqId, ResourceType.Stone), Is.EqualTo(20));
+            Assert.That(services.StorageService.GetAmount(hqId, ResourceType.Food), Is.EqualTo(10));
+            Assert.That(services.StorageService.GetAmount(hqId, ResourceType.Iron), Is.EqualTo(0));
+            Assert.That(services.StorageService.GetAmount(hqId, ResourceType.Ammo), Is.EqualTo(0));
+
+            var towerId = default(TowerId);
+            foreach (var tid in world.Towers.Ids)
+            {
+                towerId = tid;
+                break;
+            }
+            Assert.That(towerId.Value, Is.Not.EqualTo(0));
+            var tower = world.Towers.Get(towerId);
+            Assert.That(tower.Ammo, Is.EqualTo(tower.AmmoCap), "Initial arrow tower should start with full ammo as declared by config override.");
+
+            int npcAtHq = 0, npcAtFarm = 0, npcAtLumber = 0;
+            foreach (var nid in world.Npcs.Ids)
+            {
+                var npc = world.Npcs.Get(nid);
+                Assert.That(grid.IsInside(npc.Cell), Is.True, $"NPC {nid.Value} should spawn inside map bounds.");
+                var occ = grid.Get(npc.Cell).Kind;
+                Assert.That(occ, Is.Not.EqualTo(CellOccupancyKind.Building), $"NPC {nid.Value} should not spawn into a building footprint.");
+                Assert.That(occ, Is.Not.EqualTo(CellOccupancyKind.Site), $"NPC {nid.Value} should not spawn into a site footprint.");
+
+                if (npc.Workplace.Value == hqId.Value) npcAtHq++;
+                if (npc.Workplace.Value == farmhouseId.Value) npcAtFarm++;
+                if (npc.Workplace.Value == lumbercampId.Value) npcAtLumber++;
+            }
+
+            Assert.That(npcAtHq, Is.EqualTo(1), "Wave 1 baseline should seed one NPC to HQ.");
+            Assert.That(npcAtFarm, Is.EqualTo(1), "Wave 1 baseline should seed one NPC to farmhouse.");
+            Assert.That(npcAtLumber, Is.EqualTo(1), "Wave 1 baseline should seed one NPC to lumbercamp.");
+        }
+
+        [Test]
         public void SaveLoadApplier_ClearsStaleNpcCurrentJob_AndResetsIdleState_AfterLoad()
         {
             var bus = new TestEventBus();

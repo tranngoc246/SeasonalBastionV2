@@ -3,7 +3,7 @@ using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
-    internal sealed class BuildJobPlanner
+    public sealed class BuildJobPlanner : IBuildJobOrchestrator
     {
         private readonly GameServices _s;
         private readonly Dictionary<int, List<JobId>> _deliverJobsBySite;

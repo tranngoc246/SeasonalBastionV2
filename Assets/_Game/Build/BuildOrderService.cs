@@ -24,7 +24,7 @@ namespace SeasonalBastion
         private readonly BuildOrderCreationService _creationService;
         private readonly BuildOrderTickProcessor _tickProcessor;
         private readonly BuildOrderEventBridge _eventBridge;
-        private readonly BuildJobPlanner _jobPlanner;
+        private readonly IBuildJobOrchestrator _buildJobOrchestrator;
         private readonly BuildOrderCancellationService _cancellationService;
         private readonly BuildOrderCostTracker _costTracker;
 
@@ -34,7 +34,9 @@ namespace SeasonalBastion
         {
             _s = s;
             _eventBridge = new BuildOrderEventBridge(s, _autoRoadByOrder);
-            _jobPlanner = new BuildJobPlanner(s, _deliverJobsBySite, _workJobBySite);
+            _buildJobOrchestrator = s.BuildJobOrchestrator ?? new BuildJobPlanner(s, _deliverJobsBySite, _workJobBySite);
+            if (_s.BuildJobOrchestrator == null)
+                _s.BuildJobOrchestrator = _buildJobOrchestrator;
             _costTracker = new BuildOrderCostTracker();
             _cancellationService = new BuildOrderCancellationService(
                 s,
@@ -227,10 +229,10 @@ namespace SeasonalBastion
         }
 
         private void EnsureBuildJobsForSite(SiteId siteId, BuildSiteState site, BuildingId workplace)
-            => _jobPlanner.EnsureBuildJobsForSite(siteId, site, workplace);
+            => _buildJobOrchestrator.EnsureBuildJobsForSite(siteId, site, workplace);
 
         private void CancelTrackedJobsForSite(SiteId siteId)
-            => _jobPlanner.CancelTrackedJobsForSite(siteId);
+            => _buildJobOrchestrator.CancelTrackedJobsForSite(siteId);
 
         private void TickRepairOrder(int orderId, ref BuildOrder o, BuildingId workplace)
         {

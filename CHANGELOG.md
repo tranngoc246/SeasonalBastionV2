@@ -91,6 +91,17 @@
 - Xóa sạch các file `.meta` còn sót trong `docs/GDD` sau khi di chuyển, để bộ docs trở về đúng vai trò markdown/docs thuần ngoài Unity asset tree.
 - Thêm `docs/architecture/module-boundaries-overview.md` để ghi lại sơ đồ kiến trúc tổng thể, runtime flow, và boundary giữa các module/domain chính trước khi bắt đầu implementation Wave 1.
 
+### Boundary cleanup sau stabilization
+- Đã khóa regression cho cụm `SaveLoadApplier` / `CombatService.ResetAfterLoad(...)` ở 2 nhánh quan trọng:
+  - defend + còn enemy restore từ save → không double-spawn wave mới ngay
+  - defend + không còn enemy restore → wave restart bình thường sau load
+- Gỡ `Ignore` có chủ đích ở regression rebuild runtime cache sau load bằng cách dựng test fixture đúng điều kiện tối thiểu (có HQ hợp lệ trong loaded world state).
+- Làm sạch boundary `Build / Jobs / RunStart` theo 3 phase nhỏ, không đổi gameplay behavior:
+  - `IBuildWorkplaceResolver` để Build không tự hard-wire workplace selection
+  - `IBuildJobOrchestrator` để `BuildOrderService` không phụ thuộc trực tiếp vào concrete planner
+  - `IJobWorkplacePolicy` để Build resolver và Jobs dùng chung source of truth cho workplace-role policy
+- `GameServicesFactory` / `GameServices` đã được cập nhật để inject các dependency boundary mới thay vì để Build new nội bộ các policy/planner quan trọng.
+
 ### Ghi chú
 - Baseline manual/smoke hiện đã khá chắc cho vòng stabilization đầu tiên.
 - Đã khóa một mốc baseline ổn định cho batch stabilization ngày 2026-03-24.

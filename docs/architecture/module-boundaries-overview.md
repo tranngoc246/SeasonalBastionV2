@@ -248,6 +248,10 @@ GameBootstrap
 - placement validation result
 - resource costs cần cho build
 
+**Contract/policy hiện dùng để giữ boundary sạch hơn**
+- `IBuildWorkplaceResolver` → Build hỏi workplace phù hợp qua service thay vì tự hard-wire selection policy trong order service
+- `IBuildJobOrchestrator` → Build diễn đạt nhu cầu build jobs qua interface, không bám trực tiếp vào concrete planner ở call site chính
+
 **Không nên làm**
 - tự làm thay toàn bộ job scheduling
 - tự quản worker assignment như một thế giới riêng
@@ -286,6 +290,10 @@ GameBootstrap
 - workplace role
 - job state machine
 - claim ownership
+
+**Contract/policy hiện dùng để giữ boundary sạch hơn**
+- `IJobWorkplacePolicy` → shared source of truth cho workplace-role mapping giữa Jobs và Build-side resolver
+- `IBuildJobOrchestrator` là boundary để Build yêu cầu job orchestration mà không kéo concrete `BuildJobPlanner` vào mọi nơi
 
 **Không nên làm**
 - giữ “source of truth” riêng cho world/economy/build
@@ -441,6 +449,13 @@ GameBootstrap
 - `Debug` có thể thành nợ
 - `Jobs/Economy/Build/Combat` phải giữ ranh giới
 - UI không được nhúng gameplay logic sâu
+- không để `BuildOrderService` hoặc debug flow kéo ngược concrete policy/planner vào call site sau khi đã tách interface
+
+### Cập nhật sau batch cleanup 2026-03-25
+- `BuildOrderService` đã chuyển sang dùng `IBuildWorkplaceResolver` và `IBuildJobOrchestrator` qua `GameServices`
+- `BuildOrderWorkplaceResolver` và `JobScheduler` đã dùng chung `IJobWorkplacePolicy` để tránh lệch rule workplace-role giữa Build và Jobs
+- mục tiêu của batch này là cleanup boundary, **không đổi gameplay semantics**
+- đây là nền để vào M1/Wave 1 mà không làm Build/Jobs dính nhau hơn khi mở rộng feature
 
 ### Kết luận một câu
 **Kiến trúc project hiện tại đủ tốt để bắt đầu implementation theo M1; việc quan trọng nhất từ đây không phải thêm module, mà là giữ boundary sạch khi mở rộng gameplay.**

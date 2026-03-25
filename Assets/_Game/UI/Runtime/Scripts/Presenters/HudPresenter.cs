@@ -90,6 +90,8 @@ namespace SeasonalBastion.UI.Presenters
             if (_s?.EventBus != null)
             {
                 _s.EventBus.Subscribe<DayStartedEvent>(OnDayStarted);
+                _s.EventBus.Subscribe<SeasonDayChangedEvent>(OnSeasonDayChanged);
+                _s.EventBus.Subscribe<YearChangedEvent>(OnYearChanged);
                 _s.EventBus.Subscribe<PhaseChangedEvent>(OnPhaseChanged);
                 _s.EventBus.Subscribe<TimeScaleChangedEvent>(OnTimeScaleChanged);
 
@@ -125,6 +127,8 @@ namespace SeasonalBastion.UI.Presenters
             if (_s?.EventBus != null)
             {
                 _s.EventBus.Unsubscribe<DayStartedEvent>(OnDayStarted);
+                _s.EventBus.Unsubscribe<SeasonDayChangedEvent>(OnSeasonDayChanged);
+                _s.EventBus.Unsubscribe<YearChangedEvent>(OnYearChanged);
                 _s.EventBus.Unsubscribe<PhaseChangedEvent>(OnPhaseChanged);
                 _s.EventBus.Unsubscribe<TimeScaleChangedEvent>(OnTimeScaleChanged);
 
@@ -156,10 +160,15 @@ namespace SeasonalBastion.UI.Presenters
             _season = c.CurrentSeason;
             _dayIndex = c.DayIndex;
             _phase = c.CurrentPhase;
+
+            if (c is RunClockService rc)
+                _yearIndex = rc.YearIndex;
         }
 
         private void RefreshClockLabels()
         {
+            PullClockFromService();
+
             if (_lblTime != null)
                 _lblTime.text = $"Year {_yearIndex} • {_season} D{_dayIndex}";
 
@@ -328,9 +337,24 @@ namespace SeasonalBastion.UI.Presenters
             RefreshClockLabels();
         }
 
+        private void OnSeasonDayChanged(SeasonDayChangedEvent ev)
+        {
+            _season = ev.Season;
+            _dayIndex = ev.DayIndex;
+            PullClockFromService();
+            RefreshClockLabels();
+        }
+
+        private void OnYearChanged(YearChangedEvent ev)
+        {
+            _yearIndex = ev.ToYear;
+            RefreshClockLabels();
+        }
+
         private void OnPhaseChanged(PhaseChangedEvent ev)
         {
             _phase = ev.To;
+            PullClockFromService();
             RefreshClockLabels();
         }
 

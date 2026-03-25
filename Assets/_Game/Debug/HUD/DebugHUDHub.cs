@@ -384,6 +384,7 @@ namespace SeasonalBastion.DebugTools
                 if (GUILayout.Button("Prev Day", GUILayout.Width(90))) Quick_AdvanceDay(-1);
                 if (GUILayout.Button("Next Day", GUILayout.Width(90))) Quick_AdvanceDay(1);
                 if (GUILayout.Button("Next Season", GUILayout.Width(110))) Quick_AdvanceSeason();
+                if (GUILayout.Button("Winter D4 Near End", GUILayout.Width(150))) Quick_JumpWinterD4NearEnd();
                 GUILayout.EndHorizontal();
             }
 
@@ -1262,6 +1263,29 @@ namespace SeasonalBastion.DebugTools
 
             clock.ForceSeasonDay(next, 1);
             _gs.NotificationService?.Push("dbg_adv_season", "Debug", $"Jumped to {next} D1.", NotificationSeverity.Info, default, 0.15f, true);
+        }
+
+        private void Quick_JumpWinterD4NearEnd()
+        {
+            if (!(_gs?.RunClock is RunClockService clock))
+                return;
+
+            float nearEnd = Mathf.Max(0f, clock.DayLengthSeconds - 0.2f);
+            clock.LoadSnapshot(
+                yearIndex: Mathf.Max(1, clock.YearIndex),
+                seasonText: Season.Winter.ToString(),
+                dayIndex: 4,
+                dayTimerSeconds: nearEnd,
+                timeScale: Mathf.Max(1f, clock.TimeScale));
+
+            _gs.NotificationService?.Push(
+                "dbg_jump_winter_d4_near_end",
+                "Debug",
+                $"Jumped to Y{clock.YearIndex} Winter D4 near end. Let clock tick to rollover naturally.",
+                NotificationSeverity.Info,
+                default,
+                0.15f,
+                true);
         }
 
         private void Quick_SpawnNpc(string defId, int count)

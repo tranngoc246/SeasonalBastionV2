@@ -251,6 +251,20 @@ namespace SeasonalBastion.Tests.EditMode
             public bool IsUnlocked(string defId) => !string.IsNullOrWhiteSpace(defId) && _unlocked.Contains(defId);
         }
 
+        private sealed class FakeBuildOrderService : IBuildOrderService
+        {
+            public event Action<int> OnOrderCompleted;
+            public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation) => 0;
+            public int CreateUpgradeOrder(BuildingId building) => 0;
+            public int CreateRepairOrder(BuildingId building) => 0;
+            public bool TryGet(int orderId, out BuildOrder order) { order = default; return false; }
+            public void Cancel(int orderId) { }
+            public bool CancelBySite(SiteId siteId) => false;
+            public bool CancelByBuilding(BuildingId buildingId) => false;
+            public void ClearAll() { }
+            public void Tick(float dt) { }
+        }
+
         private sealed class DelegatingPlacementService : IPlacementService
         {
             private readonly Func<string, CellPos, Dir4, PlacementResult> _validate;
@@ -1837,6 +1851,104 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(npcAtHq, Is.EqualTo(1), "Wave 1 baseline should seed one NPC to HQ.");
             Assert.That(npcAtFarm, Is.EqualTo(1), "Wave 1 baseline should seed one NPC to farmhouse.");
             Assert.That(npcAtLumber, Is.EqualTo(1), "Wave 1 baseline should seed one NPC to lumbercamp.");
+        }
+
+        [Test]
+        public void GameLoop_StartNewRun_Twice_ResetsWorldGridAndRunStartRuntimeWithoutLeakingState()
+        {
+            var cfg = UnityEngine.Resources.Load<UnityEngine.TextAsset>("RunStart/StartMapConfig_RunStart_64x64_v0.1");
+            if (cfg == null)
+                Assert.Ignore("RunStart config resource is not available in EditMode test runtime; skip New Run reset regression.");
+
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(64, 64);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 5, SizeY = 5, MaxHp = 300, IsHQ = true, WorkRoles = WorkRoleFlags.Build | WorkRoleFlags.HaulBasic, CapWood = new StorageCapsByLevel { L1 = 200 }, CapFood = new StorageCapsByLevel { L1 = 200 }, CapStone = new StorageCapsByLevel { L1 = 200 }, CapIron = new StorageCapsByLevel { L1 = 200 }, CapAmmo = new StorageCapsByLevel { L1 = 200 } });
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsHouse = true });
+            data.Add(new BuildingDef { DefId = "bld_farmhouse_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsProducer = true, WorkRoles = WorkRoleFlags.Harvest, CapFood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_lumbercamp_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsProducer = true, WorkRoles = WorkRoleFlags.Harvest, CapWood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_tower_arrow_t1", SizeX = 3, SizeY = 3, MaxHp = 180, IsTower = true });
+
+            var clock = new FakeRunClock();
+            var outcome = new FakeRunOutcomeService();
+            var notification = new NotificationService(bus);
+            var placement = new PlacementService(grid, world, data, index: null, bus);
+            var services = MakeServices(bus, data, notification, clock, outcome, world: world, grid: grid, placement: placement);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = new StorageService(world, data, bus);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            services.JobBoard = new JobBoard();
+            services.ClaimService = new ClaimService();
+            services.BuildOrderService = new FakeBuildOrderService();
+
+            var loop = new GameLoop(services);
+            loop.StartNewRun(seed: 111, startMapConfigJsonOrMarkdown: cfg.text);
+
+            Assert.That(world.Buildings.Count, Is.EqualTo(6), "Baseline run should create 6 initial buildings including the arrow tower building.");
+            Assert.That(world.Npcs.Count, Is.EqualTo(3), "Baseline run should create 3 NPCs.");
+            Assert.That(world.Towers.Count, Is.EqualTo(1), "Baseline run should create 1 tower.");
+            Assert.That(services.RunStartRuntime.SpawnGates.Count, Is.EqualTo(3));
+            Assert.That(services.RunStartRuntime.Lanes.Count, Is.EqualTo(3));
+
+            var rogueBuildingId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_house_t1",
+                Anchor = new CellPos(5, 5),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 50,
+                MaxHP = 50
+            });
+            var rogueBuilding = world.Buildings.Get(rogueBuildingId); rogueBuilding.Id = rogueBuildingId; world.Buildings.Set(rogueBuildingId, rogueBuilding);
+            grid.SetBuilding(new CellPos(5, 5), rogueBuildingId);
+
+            var rogueNpcId = world.Npcs.Create(new NpcState { DefId = "npc_test", Cell = new CellPos(6, 6), Workplace = default, IsIdle = false });
+            var rogueNpc = world.Npcs.Get(rogueNpcId); rogueNpc.Id = rogueNpcId; world.Npcs.Set(rogueNpcId, rogueNpc);
+
+            var rogueEnemyId = world.Enemies.Create(new EnemyState { DefId = "enemy_test", Cell = new CellPos(7, 7), Hp = 10, Lane = 9 });
+            var rogueEnemy = world.Enemies.Get(rogueEnemyId); rogueEnemy.Id = rogueEnemyId; world.Enemies.Set(rogueEnemyId, rogueEnemy);
+
+            var rogueTowerId = world.Towers.Create(new TowerState { Cell = new CellPos(8, 8), Hp = 10, HpMax = 10, Ammo = 0, AmmoCap = 10 });
+            var rogueTower = world.Towers.Get(rogueTowerId); rogueTower.Id = rogueTowerId; world.Towers.Set(rogueTowerId, rogueTower);
+
+            var rogueSiteId = world.Sites.Create(new BuildSiteState { BuildingDefId = "bld_house_t1", Anchor = new CellPos(9, 9), Rotation = Dir4.N, IsActive = true, Kind = 0 });
+            var rogueSite = world.Sites.Get(rogueSiteId); rogueSite.Id = rogueSiteId; world.Sites.Set(rogueSiteId, rogueSite);
+            grid.SetSite(new CellPos(9, 9), rogueSiteId);
+            grid.SetRoad(new CellPos(10, 10), true);
+
+            services.RunStartRuntime.SpawnGates.Add(new SeasonalBastion.RunStart.SpawnGate(99, new CellPos(10, 10), Dir4.N));
+            services.RunStartRuntime.Lanes[99] = new SeasonalBastion.RunStart.LaneRuntime(99, new CellPos(10, 10), Dir4.N, new CellPos(30, 30));
+            services.RunStartRuntime.Zones["rogue_zone"] = new SeasonalBastion.RunStart.ZoneRect("rogue_zone", "Test", "", new SeasonalBastion.RunStart.IntRect(1, 1, 2, 2), 4);
+            services.RunStartRuntime.LockedInvariants.Add("rogue invariant");
+
+            clock.ForceSeasonDay(Season.Winter, 4);
+            clock.SetTimeScale(3f);
+            outcome.Defeat();
+
+            loop.StartNewRun(seed: 222, startMapConfigJsonOrMarkdown: cfg.text);
+
+            Assert.That(world.Buildings.Count, Is.EqualTo(6), "Second New Run should rebuild baseline buildings without leaking rogue building state.");
+            Assert.That(world.Npcs.Count, Is.EqualTo(3), "Second New Run should rebuild baseline NPCs without duplicates.");
+            Assert.That(world.Towers.Count, Is.EqualTo(1), "Second New Run should rebuild baseline tower state without duplicates.");
+            Assert.That(world.Sites.Count, Is.EqualTo(0), "Second New Run should clear stale sites.");
+            Assert.That(world.Enemies.Count, Is.EqualTo(0), "Second New Run should clear stale enemies.");
+            Assert.That(world.Buildings.Exists(rogueBuildingId), Is.False, "Rogue building injected after first run should not survive second New Run.");
+            Assert.That(world.Npcs.Exists(rogueNpcId), Is.False, "Rogue NPC injected after first run should not survive second New Run.");
+            Assert.That(world.Enemies.Exists(rogueEnemyId), Is.False, "Rogue enemy injected after first run should not survive second New Run.");
+            Assert.That(world.Towers.Exists(rogueTowerId), Is.False, "Rogue tower injected after first run should not survive second New Run.");
+            Assert.That(world.Sites.Exists(rogueSiteId), Is.False, "Rogue site injected after first run should not survive second New Run.");
+            Assert.That(grid.Get(new CellPos(10, 10)).Kind, Is.EqualTo(CellOccupancyKind.Empty), "Roads not in baseline config should be cleared on second New Run.");
+            Assert.That(services.RunStartRuntime.SpawnGates.Count, Is.EqualTo(3), "RunStartRuntime spawn gates should be rebuilt from baseline, not accumulated.");
+            Assert.That(services.RunStartRuntime.Lanes.Count, Is.EqualTo(3), "RunStartRuntime lanes should be rebuilt from baseline, not accumulated.");
+            Assert.That(services.RunStartRuntime.Zones.ContainsKey("rogue_zone"), Is.False, "Transient zones injected between runs should be cleared before rebuild.");
+            Assert.That(services.RunStartRuntime.LockedInvariants.Contains("rogue invariant"), Is.False, "Transient locked invariants injected between runs should be cleared before rebuild.");
+            Assert.That(clock.CurrentSeason, Is.EqualTo(Season.Spring), "Second New Run should reset season to Spring.");
+            Assert.That(clock.DayIndex, Is.EqualTo(1), "Second New Run should reset day index to 1.");
+            Assert.That(clock.TimeScale, Is.EqualTo(1f), "Second New Run should reset clock speed to default build speed.");
+            Assert.That(outcome.Outcome, Is.EqualTo(RunOutcome.Ongoing), "Second New Run should reset run outcome.");
+            Assert.That(outcome.ResetCalled, Is.EqualTo(2), "Run outcome should be reset once per New Run call.");
         }
 
         [Test]

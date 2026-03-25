@@ -3,7 +3,25 @@
 ## 2026-03-25
 
 ### Tóm tắt
-Đợt cập nhật này chuyển từ stabilization sang **hoàn thiện backbone cho M1 / Wave 1**, tập trung vào các flow người chơi đầu tiên: **New Run / Save / Continue**, cùng với baseline start package, HUD clock và Main Menu tối thiểu để smoke test ngay trong game.
+Đợt cập nhật này chuyển từ stabilization sang **hoàn thiện backbone cho M1 / Wave 1**, tập trung vào các flow người chơi đầu tiên: **New Run / Save / Continue**, cùng với baseline start package, HUD clock và Main Menu tối thiểu để smoke test ngay trong game. Sau đó repo được nối tiếp sang **M1 / Wave 2 - M1-B2**, chốt placement feedback rõ ràng hơn cho build preview.
+
+### M1 / Wave 2 / M1-B2 Placement feedback
+- Nâng `PlacementInputController` để placement preview đọc rõ hơn ở runtime:
+  - giữ footprint overlay theo `ValidateBuilding(...)`
+  - tách visual **entry marker** cho valid/invalid thay vì chỉ dùng chung driveway/invalid tile
+  - thêm **front / entry direction marker** theo `Dir4` để người chơi đọc được mặt trước của building
+- Bổ sung support Inspector/config cho placement preview:
+  - `TileEntryValid`
+  - `TileEntryInvalid`
+  - `TileFrontNorth/East/South/West`
+  - `FrontArrowSprite` fallback khi chưa author tile front riêng
+- Làm rõ invalid state hơn ở ghost preview:
+  - màu invalid đậm hơn
+  - alpha mạnh hơn
+  - footprint fill nhỏ hơn nhẹ để bớt bị đọc như world highlight thường
+- Xiết cleanup preview khi thoát mode / cancel / pointer bị UI chặn / đổi sang road tool để tránh marker rác còn sót.
+- Trong quá trình test đã xác nhận một bẫy config dễ gặp: nếu `Tile Front *` bị gán nhầm sang `Tile_Prev_BAD` thì placement hợp lệ vẫn có thể hiện một ô đỏ gần driveway; đây là lỗi config asset chứ không phải logic placement invalid.
+- M1-B2 hiện đã ổn ở mức player-facing: nhìn ra được **valid vs invalid**, **footprint**, **entry point**, và **front direction** trong build preview.
 
 ### Wave 1 / Main Menu / New Run
 - Thêm **Main Menu tối thiểu** trong scene `MainMenu` với các nút:

@@ -259,9 +259,19 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnBuildClicked()
         {
+            var panels = Ctx?.Panels;
+            if (panels == null) return;
+
+            if (panels.IsOpen(UiKeys.Panel_Build))
+            {
+                panels.HideCurrent();
+                PublishToolMode(UiToolMode.None);
+                return;
+            }
+
             // Khi mở build panel, cancel tool mode để tránh ghost/road mode còn chạy
             PublishToolMode(UiToolMode.None);
-            Ctx?.Panels?.Show(UiKeys.Panel_Build);
+            panels.Show(UiKeys.Panel_Build);
         }
 
         private void OnSettingsClicked()

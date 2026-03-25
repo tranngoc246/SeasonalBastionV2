@@ -16,6 +16,7 @@ namespace SeasonalBastion.UI.Presenters
         // Left
         private ScrollView _scroll;
         private VisualElement _grid;
+        private Label _buildHint;
 
         private Button _tabAll, _tabStorage, _tabFarm, _tabTower, _tabOther;
         private BuildTab _tab = BuildTab.All;
@@ -43,6 +44,7 @@ namespace SeasonalBastion.UI.Presenters
 
             _scroll = Root.Q<ScrollView>("BuildList");
             _grid = Root.Q<VisualElement>("BuildGridContainer");
+            _buildHint = Root.Q<Label>("LblBuildHint");
 
             _tabAll = Root.Q<Button>("BtnTabAll");
             _tabStorage = Root.Q<Button>("BtnTabStorage");
@@ -167,8 +169,18 @@ namespace SeasonalBastion.UI.Presenters
 
             _ids.Sort(StringComparer.OrdinalIgnoreCase);
 
+            if ((_selectedDefId == null || !_ids.Contains(_selectedDefId)) && _ids.Count > 0)
+                _selectedDefId = _ids[0];
+
             for (int i = 0; i < _ids.Count; i++)
                 _grid.Add(MakeGridItem(_ids[i]));
+
+            if (_buildHint != null)
+            {
+                _buildHint.text = _ids.Count > 0
+                    ? "Chọn công trình rồi bấm BUILD để vào placement mode."
+                    : "Chưa có building nào khả dụng để build ở thời điểm này.";
+            }
         }
 
         private BuildTab GetCategory(BuildingDef def)
@@ -349,8 +361,8 @@ namespace SeasonalBastion.UI.Presenters
             // 3) Feedback
             _s?.NotificationService?.Push(
                 key: "ui.build.begin",
-                title: "Build",
-                body: $"Placement: {_selectedDefId} (click on map to place)",
+                title: "Build mode",
+                body: $"Placing {_selectedDefId}. Click map to place, Q/E to rotate, ESC to cancel.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(default, default, _selectedDefId),
                 cooldownSeconds: 0.5f,

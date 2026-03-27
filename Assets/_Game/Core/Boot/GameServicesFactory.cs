@@ -38,6 +38,7 @@ namespace SeasonalBastion
 
             // Day14: simple mover (cell-by-cell)
             services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance);
+            services.EventBus.Subscribe<RoadsDirtyEvent>(_ => services.AgentMover?.NotifyRoadsDirty());
 
             services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus);
             ((PlacementService)services.PlacementService).BindRunStart(services.RunStartRuntime);

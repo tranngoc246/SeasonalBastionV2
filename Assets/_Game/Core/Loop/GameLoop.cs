@@ -75,6 +75,7 @@ namespace SeasonalBastion
 
             // grid occupancy
             try { _s.GridMap.ClearAll(); } catch { }
+            try { _s.AgentMover?.ClearAll(); } catch { }
 
             // run-start runtime caches
             try { ResetRunStartRuntime(_s.RunStartRuntime); } catch { }

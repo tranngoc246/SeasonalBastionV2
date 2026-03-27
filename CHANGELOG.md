@@ -52,6 +52,35 @@
   - hoàn thiện nhánh **Defeat** trước
   - sau đó mới polish/hoàn thiện nhánh **Victory**
 
+### Endgame flow implementation cập nhật
+- Đã triển khai groundwork cho outcome/reason:
+  - thêm `RunEndReason`
+  - mở rộng `RunEndedEvent` để mang `Outcome + Reason`
+  - mở rộng `IRunOutcomeService` với `Reason`
+  - cập nhật `RunOutcomeService` để reset/publish reason đúng
+- Đã freeze simulation sau khi run kết thúc:
+  - `TickOrder` không tick `RunClock` và simulation systems khi outcome không còn `Ongoing`
+  - `CombatService` tự dừng khi run ended để tránh wave/combat tiếp tục chạy ngầm
+- Đã thêm nhánh UI cho endgame:
+  - thêm `Modal_RunEnded`
+  - thêm `RunEndedModal` trong `ModalsRoot.uxml`
+  - thêm style endgame trong `Modals.uss`
+  - tạo `RunEndedModalPresenter`
+  - register presenter trong `UiSystem`
+  - wire `Retry` / `Main Menu`
+  - hỗ trợ modal non-dismissible qua `dismissOnScrim: false`
+- Rule thắng đã được đổi từ `survive hết Winter Year 2` sang:
+  - **clear toàn bộ enemy của final wave Year 2**
+- Đã thêm cờ data-driven `IsFinalWave` vào `WaveDef` và loader tương ứng.
+- `Waves.json` hiện đánh dấu wave cuối phù hợp để fallback Year 2 cũng nhận diện được final wave.
+- Đã sửa bug quan trọng với Year 2 scaled waves:
+  - `WaveEndedEvent` giờ mang metadata runtime của wave (`Year/Season/Day/IsBoss/IsFinalWave`)
+  - `RunOutcomeService` không còn lookup lại `DataRegistry` để xác định victory
+  - nhờ đó final wave Year 2 dạng scaled/fallback cũng trigger win đúng
+- Đã xác nhận runtime behavior hiện tại:
+  - clear final wave Year 2 -> win game đúng
+  - chạy sang Year 3 mà không clear final wave sẽ không tự win
+
 ## 2026-03-25
 
 ### Tóm tắt

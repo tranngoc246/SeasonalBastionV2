@@ -46,28 +46,26 @@ Sau pass này, build phải đạt được:
 ## 3. Rule cần chốt trước khi code
 
 ### Win / Lose rule
-- [ ] Xác nhận rule **Lose** chính thức: `HQ HP <= 0`
-- [ ] Xác nhận rule **Win** chính thức cho build hiện tại:
-  - [ ] `Survive hết Winter Year 2` (khớp GDD hiện tại)
-  - [ ] hoặc rule tạm khác nếu team chủ động đổi scope
-- [ ] Xác nhận priority nếu race condition xảy ra:
-  - [ ] **Lose > Win**
+- [x] Xác nhận rule **Lose** chính thức: `HQ HP <= 0`
+- [x] Xác nhận rule **Win** chính thức cho build hiện tại:
+  - [x] clear toàn bộ enemy của **final wave Year 2**
+- [x] Xác nhận priority nếu race condition xảy ra:
+  - [x] **Lose > Win**
 
 ### Retry / Save policy
-- [ ] Xác nhận `Retry` tương đương `New Run` sạch
-- [ ] Xác nhận retry dùng:
-  - [ ] seed mới
-  - [ ] seed cũ
+- [x] Xác nhận `Retry` tương đương `New Run` sạch
+- [x] Xác nhận retry dùng:
+  - [x] seed mặc định qua `RequestNewGame(...)`
 - [ ] Xác nhận save policy sau endgame:
   - [ ] disable save
   - [ ] hoặc cho save end-state
 
 ### Khuyến nghị hiện tại
 - Giữ `Lose = HQ HP <= 0`
-- Giữ `Win = survive hết Winter Year 2`
+- Giữ `Win = clear final wave Year 2`
 - `Lose > Win`
 - `Retry = New Run sạch`
-- `Save sau endgame = disable`
+- `Save sau endgame = chưa chốt`
 
 ---
 
@@ -85,20 +83,21 @@ Làm `RunEndedEvent` đủ data để UI và flow layer dùng được.
 - Chưa có `Reason`
 
 ## Cần làm
-- [ ] Thêm enum `RunEndReason`
-- [ ] Mở rộng `RunEndedEvent` với `Outcome + Reason`
-- [ ] Giữ code dễ đọc, tránh nhét text UI trực tiếp vào event
+- [x] Thêm enum `RunEndReason`
+- [x] Mở rộng `RunEndedEvent` với `Outcome + Reason`
+- [x] Giữ code dễ đọc, tránh nhét text UI trực tiếp vào event
+- [x] Mở rộng `WaveEndedEvent` để mang metadata runtime của wave (`Year/Season/Day/IsBoss/IsFinalWave`)
 
 ## Gợi ý data model
-- [ ] `None`
-- [ ] `HqDestroyed`
-- [ ] `SurvivedWinterYear1`
-- [ ] `SurvivedWinterYear2`
-- [ ] `FinalWaveCleared`
+- [x] `None`
+- [x] `HqDestroyed`
+- [x] `SurvivedWinterYear1`
+- [x] `SurvivedWinterYear2`
+- [x] `FinalWaveCleared`
 
 ## Verify
-- [ ] Event publish được reason đúng cho cả Victory và Defeat
-- [ ] Các call site compile lại sạch
+- [x] Event publish được reason đúng cho cả Victory và Defeat
+- [x] Các call site compile lại sạch
 
 ---
 
@@ -112,12 +111,12 @@ Expose đủ trạng thái để presenter / flow logic đọc được endgame 
 - Chưa có `Reason`
 
 ## Cần làm
-- [ ] Thêm property `RunEndReason Reason { get; }`
-- [ ] Giữ interface đơn giản, không ôm logic UI
+- [x] Thêm property `RunEndReason Reason { get; }`
+- [x] Giữ interface đơn giản, không ôm logic UI
 
 ## Verify
-- [ ] UI layer có thể đọc both `Outcome` và `Reason`
-- [ ] Các implementation/fake service trong test được update đầy đủ
+- [x] UI layer có thể đọc both `Outcome` và `Reason`
+- [x] Các implementation/fake service trong test được update đầy đủ
 
 ---
 
@@ -133,25 +132,26 @@ Chuẩn hóa outcome service hiện có, thêm reason, đảm bảo one-shot end
 - Chưa có `Reason`
 
 ## Cần làm
-- [ ] Thêm state `Reason`
-- [ ] `ResetOutcome()` phải reset cả `Reason`
-- [ ] Khi `Defeat()` -> set reason `HqDestroyed`
-- [ ] Khi `Victory()` -> set reason phù hợp với rule hiện tại
-- [ ] Publish `RunEndedEvent(Outcome, Reason)`
-- [ ] Giữ one-shot trigger: end rồi thì không set lại outcome lần 2
-- [ ] Giữ rule ưu tiên `Lose > Win`
+- [x] Thêm state `Reason`
+- [x] `ResetOutcome()` phải reset cả `Reason`
+- [x] Khi `Defeat()` -> set reason `HqDestroyed`
+- [x] Khi `Victory()` -> set reason phù hợp với rule hiện tại (`FinalWaveCleared`)
+- [x] Publish `RunEndedEvent(Outcome, Reason)`
+- [x] Giữ one-shot trigger: end rồi thì không set lại outcome lần 2
+- [x] Giữ rule ưu tiên `Lose > Win`
+- [x] Đổi trigger Victory sang `WaveEndedEvent` của final wave Year 2
 
 ## Nếu cần refactor nhẹ
-- [ ] Tách helper nội bộ:
-  - [ ] `DefeatInternal(reason)`
-  - [ ] `VictoryInternal(reason)`
+- [x] Tách helper nội bộ:
+  - [x] `DefeatInternal(reason)`
+  - [x] `VictoryInternal(reason)`
   - [ ] `AbortInternal(reason)` nếu cần
 
 ## Verify
-- [ ] HQ chết -> `Outcome=Defeat`, `Reason=HqDestroyed`
-- [ ] End Winter Year 2 -> `Outcome=Victory`, `Reason` đúng
-- [ ] Không double-trigger
-- [ ] New Run reset được outcome + reason
+- [x] HQ chết -> `Outcome=Defeat`, `Reason=HqDestroyed`
+- [x] Final wave Year 2 cleared -> `Outcome=Victory`, `Reason=FinalWaveCleared`
+- [x] Không double-trigger
+- [x] New Run reset được outcome + reason
 
 ---
 
@@ -164,17 +164,17 @@ Khi run ended, simulation chính phải dừng.
 - `TickAll(...)` vẫn tick toàn bộ systems dù run đã ended
 
 ## Cần làm
-- [ ] Đọc `RunOutcomeService.Outcome` sớm trong tick loop
-- [ ] Nếu `Outcome != Ongoing` thì **không tick simulation systems nữa**
-- [ ] Chốt rõ những gì vẫn được tick:
-  - [ ] notification/UI tick nếu cần
-  - [ ] không tick run clock
-  - [ ] không tick build/jobs/resource/ammo/combat nữa
+- [x] Đọc `RunOutcomeService.Outcome` sớm trong tick loop
+- [x] Nếu `Outcome != Ongoing` thì **không tick simulation systems nữa**
+- [x] Chốt rõ những gì vẫn được tick:
+  - [x] notification/UI tick nếu cần
+  - [x] không tick run clock
+  - [x] không tick build/jobs/resource/ammo/combat nữa
 
 ## Verify
-- [ ] Sau endgame, day/season không trôi tiếp
-- [ ] Không spawn wave/enemy mới
-- [ ] World state không tiếp tục drift
+- [x] Sau endgame, day/season không trôi tiếp
+- [x] Không spawn wave/enemy mới
+- [x] World state không tiếp tục drift
 
 ---
 
@@ -188,15 +188,15 @@ Combat phải tự dừng khi run ended.
 - Combat vẫn có thể tiếp tục xử lý wave / enemy / tower
 
 ## Cần làm
-- [ ] Ở đầu `Tick(float dt)`, return sớm nếu `Outcome != Ongoing`
-- [ ] Khi ended, `IsActive = false`
-- [ ] Không cho restart wave theo day latch sau endgame
+- [x] Ở đầu `Tick(float dt)`, return sớm nếu `Outcome != Ongoing`
+- [x] Khi ended, `IsActive = false`
+- [x] Không cho restart wave theo day latch sau endgame
 - [ ] Không push notification combat thừa sau endgame nếu không cần
 
 ## Verify
-- [ ] Run end rồi thì wave không tiếp tục spawn
-- [ ] Enemy/tower không còn mutate combat outcome tiếp
-- [ ] Không có defend day restart sau endgame
+- [x] Run end rồi thì wave không tiếp tục spawn
+- [x] Enemy/tower không còn mutate combat outcome tiếp
+- [x] Không có defend day restart sau endgame
 
 ---
 
@@ -206,7 +206,7 @@ Combat phải tự dừng khi run ended.
 Thêm key cho modal endgame.
 
 ## Cần làm
-- [ ] Thêm `Modal_RunEnded`
+- [x] Thêm `Modal_RunEnded`
 
 ## Khuyến nghị
 - Dùng **một modal chung** cho cả Victory/Defeat
@@ -227,18 +227,18 @@ Thêm UI modal cho endgame vào modal host hiện tại.
 - Chưa có endgame modal
 
 ## Cần làm
-- [ ] Thêm `RunEndedModal`
-- [ ] Thêm các field tối thiểu:
-  - [ ] `LblRunEndedTitle`
-  - [ ] `LblRunEndedBody`
-  - [ ] `BtnRetry`
-  - [ ] `BtnRunEndedMenu`
-- [ ] `display:none` mặc định
-- [ ] Đảm bảo modal vẫn block world input
+- [x] Thêm `RunEndedModal`
+- [x] Thêm các field tối thiểu:
+  - [x] `LblRunEndedTitle`
+  - [x] `LblRunEndedBody`
+  - [x] `BtnRetry`
+  - [x] `BtnRunEndedMenu`
+- [x] `display:none` mặc định
+- [x] Đảm bảo modal vẫn block world input
 
 ## Verify
-- [ ] Modal xuất hiện được trong stack hiện tại
-- [ ] Không bị modal khác che sai
+- [x] Modal xuất hiện được trong stack hiện tại
+- [x] Không bị modal khác che sai
 
 ---
 
@@ -248,15 +248,15 @@ Thêm UI modal cho endgame vào modal host hiện tại.
 Style endgame modal đủ rõ và nổi bật hơn modal thường.
 
 ## Cần làm
-- [ ] Thêm style cho body/title nếu cần
-- [ ] Đảm bảo spacing dễ đọc
-- [ ] Đảm bảo endgame modal nhìn đủ “kết thúc run”
+- [x] Thêm style cho body/title nếu cần
+- [x] Đảm bảo spacing dễ đọc
+- [x] Đảm bảo endgame modal nhìn đủ “kết thúc run”
 - [ ] Nếu muốn, thêm class riêng cho victory/defeat visual emphasis
 
 ## Verify
-- [ ] Title/body/buttons đọc rõ
-- [ ] Scrim + modal focus ổn
-- [ ] Không bị style hiện có làm nhìn như settings modal thường
+- [x] Title/body/buttons đọc rõ
+- [x] Scrim + modal focus ổn
+- [x] Không bị style hiện có làm nhìn như settings modal thường
 
 ---
 
@@ -266,31 +266,31 @@ Style endgame modal đủ rõ và nổi bật hơn modal thường.
 Presenter chịu trách nhiệm mở modal endgame và wire button actions.
 
 ## Trách nhiệm
-- [ ] Bind label/button refs của endgame modal
-- [ ] Subscribe `RunEndedEvent` hoặc `IRunOutcomeService.OnRunEnded`
-- [ ] Map `Outcome/Reason` -> title/body text
-- [ ] Mở modal `RunEnded`
-- [ ] Wire `Retry`
-- [ ] Wire `Main Menu`
+- [x] Bind label/button refs của endgame modal
+- [x] Subscribe `RunEndedEvent` hoặc `IRunOutcomeService.OnRunEnded`
+- [x] Map `Outcome/Reason` -> title/body text
+- [x] Mở modal `RunEnded`
+- [x] Wire `Retry`
+- [x] Wire `Main Menu`
 
 ## Hành vi mong muốn
-- [ ] Khi run ended:
-  - [ ] close các modal tạm thời khác nếu cần
-  - [ ] show endgame modal
+- [x] Khi run ended:
+  - [x] close các modal tạm thời khác nếu cần
+  - [x] show endgame modal
   - [ ] không để người chơi tiếp tục thao tác gameplay
-- [ ] `Retry`:
-  - [ ] gọi flow New Run sạch qua `GameAppController`
-- [ ] `Main Menu`:
-  - [ ] gọi `GameAppController.Instance.GoToMainMenu()`
+- [x] `Retry`:
+  - [x] gọi flow New Run sạch qua `GameAppController`
+- [x] `Main Menu`:
+  - [x] gọi `GameAppController.Instance.GoToMainMenu()`
 
 ## Chú ý
-- [ ] Không nên cho endgame modal bị đóng bằng click scrim như modal thường
-- [ ] Nếu cần, xử lý riêng non-dismissible behavior
+- [x] Không nên cho endgame modal bị đóng bằng click scrim như modal thường
+- [x] Nếu cần, xử lý riêng non-dismissible behavior
 
 ## Verify
-- [ ] Defeat -> modal hiện đúng text
-- [ ] Victory -> modal hiện đúng text
-- [ ] Retry/Menu hoạt động đúng
+- [x] Defeat -> modal hiện đúng text
+- [x] Victory -> modal hiện đúng text
+- [x] Retry/Menu hoạt động đúng
 
 ---
 
@@ -304,14 +304,14 @@ Register presenter mới vào UI stack hiện tại.
 - Cần tìm đúng file bootstrap UI để gắn `RunEndedModalPresenter`
 
 ## Cần làm
-- [ ] Tìm chỗ register modal presenters hiện tại
-- [ ] Tạo / bind `RunEndedModalPresenter`
-- [ ] Register với key `UiKeys.Modal_RunEnded`
-- [ ] Map đúng root `RunEndedModal` trong `ModalsRoot.uxml`
+- [x] Tìm chỗ register modal presenters hiện tại
+- [x] Tạo / bind `RunEndedModalPresenter`
+- [x] Register với key `UiKeys.Modal_RunEnded`
+- [x] Map đúng root `RunEndedModal` trong `ModalsRoot.uxml`
 
 ## Verify
-- [ ] Modal endgame mở được thật khi event bắn ra
-- [ ] Không cần hack/manual lookup ngoài vòng đời UI hiện tại
+- [x] Modal endgame mở được thật khi event bắn ra
+- [x] Không cần hack/manual lookup ngoài vòng đời UI hiện tại
 
 ---
 
@@ -327,13 +327,13 @@ Dùng lại scene flow hiện có cho `Retry` / `Main Menu`.
   - `RequestContinue()`
 
 ## Cần làm
-- [ ] Xác nhận presenter endgame dùng lại `RequestNewGame(...)`
+- [x] Xác nhận presenter endgame dùng lại `RequestNewGame(...)`
 - [ ] Nếu cần tiện hơn, thêm helper `RequestRetry()`
-- [ ] Chốt retry seed policy
+- [x] Chốt retry seed policy
 
 ## Verify
-- [ ] Retry không đi qua đường vòng kỳ quặc
-- [ ] Main Menu flow ổn định
+- [x] Retry không đi qua đường vòng kỳ quặc
+- [x] Main Menu flow ổn định
 
 ---
 
@@ -347,13 +347,13 @@ Dùng lại scene flow hiện có cho `Retry` / `Main Menu`.
 - Có `TryStartNewRun(...)`
 
 ## Cần làm
-- [ ] Rà lại endgame retry có đi vào đúng flow này không
-- [ ] Nếu cần, đảm bảo wipe save policy đúng khi retry
+- [x] Rà lại endgame retry có đi vào đúng flow này không
+- [x] Nếu cần, đảm bảo wipe save policy đúng khi retry
 - [ ] Nếu save bị disable sau endgame thì không cần sửa nhiều file này
 
 ## Verify
-- [ ] Retry tạo run mới sạch
-- [ ] Không giữ state combat/job/UI cũ
+- [x] Retry tạo run mới sạch
+- [x] Không giữ state combat/job/UI cũ
 
 ---
 
@@ -453,14 +453,14 @@ Không để endgame modal bị đóng nhầm bởi scrim.
 - Hợp với settings/confirm modal, nhưng không hợp với endgame modal
 
 ## Cần làm
-- [ ] Chốt cách support modal non-dismissible
-- [ ] Nếu sửa controller:
-  - [ ] thêm cơ chế modal metadata / dismissOnScrim flag
+- [x] Chốt cách support modal non-dismissible
+- [x] Nếu sửa controller:
+  - [x] thêm cơ chế modal metadata / dismissOnScrim flag
 - [ ] Nếu không sửa controller, phải có workaround sạch cho endgame modal
 
 ## Verify
-- [ ] Endgame modal không bị click ra ngoài để đóng
-- [ ] Modal thường khác vẫn hoạt động như cũ
+- [x] Endgame modal không bị click ra ngoài để đóng
+- [x] Modal thường khác vẫn hoạt động như cũ
 
 ---
 

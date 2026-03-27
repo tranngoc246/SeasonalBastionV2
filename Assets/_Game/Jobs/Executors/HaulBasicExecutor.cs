@@ -274,8 +274,8 @@ namespace SeasonalBastion
                 }
             }
 
-            int bestDistWh = int.MaxValue, bestIdWh = int.MaxValue;
-            int bestDistHq = int.MaxValue, bestIdHq = int.MaxValue;
+            int bestCostWh = int.MaxValue, bestDistWh = int.MaxValue, bestIdWh = int.MaxValue;
+            int bestCostHq = int.MaxValue, bestDistHq = int.MaxValue, bestIdHq = int.MaxValue;
             BuildingId bestWh = default, bestHq = default;
 
             for (int i = 0; i < whs.Count; i++)
@@ -291,20 +291,21 @@ namespace SeasonalBastion
                 if (free <= 0) continue;
 
                 int d = Manhattan(refPos, bs.Anchor);
+                int cost = TryEstimateTravelCost(refPos, bs.Anchor, out var c) ? c : d;
                 int idv = bid.Value;
 
                 if (IsWarehouseOnly(bs.DefId))
                 {
-                    if (d < bestDistWh || (d == bestDistWh && idv < bestIdWh))
+                    if (cost < bestCostWh || (cost == bestCostWh && d < bestDistWh) || (cost == bestCostWh && d == bestDistWh && idv < bestIdWh))
                     {
-                        bestDistWh = d; bestIdWh = idv; bestWh = bid;
+                        bestCostWh = cost; bestDistWh = d; bestIdWh = idv; bestWh = bid;
                     }
                 }
                 else if (IsHQOnly(bs.DefId))
                 {
-                    if (d < bestDistHq || (d == bestDistHq && idv < bestIdHq))
+                    if (cost < bestCostHq || (cost == bestCostHq && d < bestDistHq) || (cost == bestCostHq && d == bestDistHq && idv < bestIdHq))
                     {
-                        bestDistHq = d; bestIdHq = idv; bestHq = bid;
+                        bestCostHq = cost; bestDistHq = d; bestIdHq = idv; bestHq = bid;
                     }
                 }
             }
@@ -324,6 +325,7 @@ namespace SeasonalBastion
             if (producers == null || producers.Count == 0) return false;
 
             int bestFill = int.MinValue;   // fill per-mille (0..1000)
+            int bestCost = int.MaxValue;
             int bestDist = int.MaxValue;
             int bestId = int.MaxValue;
 
@@ -345,14 +347,17 @@ namespace SeasonalBastion
                 int fill = (cap > 0) ? (amt * 1000 / cap) : 0; // per-mille
 
                 int d = Manhattan(from, bs.Anchor);
+                int cost = TryEstimateTravelCost(from, bs.Anchor, out var c) ? c : d;
                 int idv = bid.Value;
 
-                // Priority: higher fill -> shorter distance -> smaller id
+                // Priority: higher fill -> lower travel cost -> shorter manhattan -> smaller id
                 if (fill > bestFill
-                    || (fill == bestFill && d < bestDist)
-                    || (fill == bestFill && d == bestDist && idv < bestId))
+                    || (fill == bestFill && cost < bestCost)
+                    || (fill == bestFill && cost == bestCost && d < bestDist)
+                    || (fill == bestFill && cost == bestCost && d == bestDist && idv < bestId))
                 {
                     bestFill = fill;
+                    bestCost = cost;
                     bestDist = d;
                     bestId = idv;
                     best = bid;
@@ -374,6 +379,14 @@ namespace SeasonalBastion
 
             _carry.Remove(jobId);
             _phase.Remove(jobId);
+        }
+
+        private bool TryEstimateTravelCost(CellPos from, CellPos to, out int cost)
+        {
+            cost = 0;
+            if (_s?.GridMap == null) return false;
+            var pf = new NpcPathfinder(_s.GridMap);
+            return pf.TryEstimateCost(from, to, out cost);
         }
 
         private static int Manhattan(CellPos a, CellPos b)

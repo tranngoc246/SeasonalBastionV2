@@ -6,7 +6,7 @@ namespace SeasonalBastion
 {
     /// <summary>
     /// Day 10 (PART27):
-    /// - TryPickSource / TryPickDest: nearest by Manhattan, tie-break by BuildingId.Value (ascending)
+    /// - TryPickSource / TryPickDest: pick best candidate by travel cost when possible, fallback to Manhattan, tie-break by BuildingId.Value (ascending)
     /// - Transfer: atomic (no negative, cap respected)
     /// Notes:
     /// - Uses WorldIndex lists (deterministic sorted by id)【WorldIndexService】
@@ -17,9 +17,15 @@ namespace SeasonalBastion
         private readonly IWorldState _w;
         private readonly IWorldIndex _index;
         private readonly IStorageService _storage;
+        private readonly NpcPathfinder _pathfinder;
 
-        public ResourceFlowService(IWorldState w, IWorldIndex index, IStorageService storage)
-        { _w = w; _index = index; _storage = storage; }
+        public ResourceFlowService(IWorldState w, IWorldIndex index, IStorageService storage, IGridMap grid = null)
+        {
+            _w = w;
+            _index = index;
+            _storage = storage;
+            _pathfinder = grid != null ? new NpcPathfinder(grid) : null;
+        }
 
         public bool TryPickSource(CellPos from, ResourceType type, int minAmount, out StoragePick pick)
         {
@@ -30,6 +36,7 @@ namespace SeasonalBastion
 
             var candidates = GetSourceCandidates(type);
 
+            int bestCost = int.MaxValue;
             int bestDist = int.MaxValue;
             int bestId = int.MaxValue;
             BuildingId best = default;
@@ -48,10 +55,14 @@ namespace SeasonalBastion
                 if (amt < need) continue;
 
                 int d = Manhattan(from, bst.Anchor);
+                int cost = TryEstimateTravelCost(from, bst.Anchor, out var c) ? c : d;
                 int idv = bid.Value;
 
-                if (d < bestDist || (d == bestDist && idv < bestId))
+                if (cost < bestCost
+                    || (cost == bestCost && d < bestDist)
+                    || (cost == bestCost && d == bestDist && idv < bestId))
                 {
+                    bestCost = cost;
                     bestDist = d;
                     bestId = idv;
                     best = bid;
@@ -59,7 +70,7 @@ namespace SeasonalBastion
             }
 
             if (best.Value == 0) return false;
-            pick = new StoragePick(best, bestDist);
+            pick = new StoragePick(best, bestCost);
             return true;
         }
 
@@ -71,6 +82,7 @@ namespace SeasonalBastion
 
             var candidates = GetDestCandidates(type);
 
+            int bestCost = int.MaxValue;
             int bestDist = int.MaxValue;
             int bestId = int.MaxValue;
             BuildingId best = default;
@@ -93,10 +105,14 @@ namespace SeasonalBastion
                 if (space < needSpace) continue;
 
                 int d = Manhattan(from, bst.Anchor);
+                int cost = TryEstimateTravelCost(from, bst.Anchor, out var c) ? c : d;
                 int idv = bid.Value;
 
-                if (d < bestDist || (d == bestDist && idv < bestId))
+                if (cost < bestCost
+                    || (cost == bestCost && d < bestDist)
+                    || (cost == bestCost && d == bestDist && idv < bestId))
                 {
+                    bestCost = cost;
                     bestDist = d;
                     bestId = idv;
                     best = bid;
@@ -104,7 +120,7 @@ namespace SeasonalBastion
             }
 
             if (best.Value == 0) return false;
-            pick = new StoragePick(best, bestDist);
+            pick = new StoragePick(best, bestCost);
             return true;
         }
 
@@ -156,6 +172,13 @@ namespace SeasonalBastion
 
             // basic destination v0.1: Warehouses (HQ included)
             return _index.Warehouses;
+        }
+
+        private bool TryEstimateTravelCost(CellPos from, CellPos to, out int cost)
+        {
+            cost = 0;
+            if (_pathfinder == null) return false;
+            return _pathfinder.TryEstimateCost(from, to, out cost);
         }
 
         private static int Manhattan(CellPos a, CellPos b)

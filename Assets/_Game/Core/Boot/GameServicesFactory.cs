@@ -45,7 +45,7 @@ namespace SeasonalBastion
 
             // Economy
             services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);
-            services.ResourceFlowService = new ResourceFlowService(services.WorldState, services.WorldIndex, services.StorageService);
+            services.ResourceFlowService = new ResourceFlowService(services.WorldState, services.WorldIndex, services.StorageService, services.GridMap);
             
             // Jobs
             services.ClaimService = new ClaimService();

@@ -264,6 +264,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 **Files:**
 - `Assets/_Game/Core/NpcPathfinder.cs`
 
+**Status:** DONE
+
 **Work:**
 - Thêm `TryEstimateCost(from, target, out cost)`
 - Có thể dùng chung A* hoặc pathfinding rút gọn
@@ -277,6 +279,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 **Files:**
 - `Assets/_Game/Economy/ResourceFlowService.cs`
 
+**Status:** DONE
+
 **Work:**
 - Thay Manhattan selection bằng travel-cost-aware selection
 - Nếu estimate fail:
@@ -285,6 +289,7 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 
 **Acceptance:**
 - Nguồn/đích được chọn hợp lý hơn theo network road thực tế
+- Đã có test coverage cho path-cost pick + Manhattan fallback
 
 ---
 
@@ -294,11 +299,14 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 - `Assets/_Game/Jobs/Executors/HaulBasicExecutor.cs`
 - các helper chọn source/dest tương tự nếu có
 
+**Status:** DONE (initial pass)
+
 **Work:**
 - Đổi các helper chọn source/destination từ Manhattan sang path cost estimate
 
 **Acceptance:**
 - NPC logistics bớt chọn candidate Manhattan-near nhưng path-xấu
+- `HaulBasicExecutor` và `BuildWorkExecutor` đã được cập nhật ở pass đầu
 
 ---
 

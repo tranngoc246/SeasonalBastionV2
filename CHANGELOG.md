@@ -126,9 +126,17 @@
   - stop-cell overlap được chặn ở target cuối
 - Đã thêm/cập nhật tài liệu roadmap/task breakdown:
   - `docs/task-breakdown-npc-road-aware-movement.md`
-- Bước tiếp theo được khuyến nghị sau khi chốt pass movement nền:
-  1. update docs/changelog theo trạng thái thực tế
-  2. phase sau mới nâng `ResourceFlowService` / source-destination selection sang path-cost-aware để quyết định logistics phản ánh tốt hơn đường đi thực tế
+- Đã tiếp tục pass logistics sau khi movement nền ổn định:
+  - `ResourceFlowService` giờ ưu tiên chọn source/destination theo **path cost** khi có grid/pathfinder, fallback về Manhattan khi không estimate được
+  - `HaulBasicExecutor` đã đổi các picker local quan trọng sang ưu tiên **travel cost** thay vì chỉ Manhattan
+  - `BuildWorkExecutor` đã đổi storage-source selection sang ưu tiên **travel cost** thay vì chỉ Manhattan
+  - đã thêm test coverage cho `ResourceFlowService` để khóa các case:
+    - destination path-cost tốt hơn nhưng Manhattan xa hơn vẫn được chọn đúng
+    - fallback Manhattan vẫn hoạt động khi không có path estimate
+- Bước tiếp theo được khuyến nghị sau pass này:
+  1. nếu cần, mở rộng regression coverage sang executor-local picker behavior
+  2. smoke test thêm các case logistics lớn trong runtime (haul/build sourcing giữa nhiều kho/producer)
+  3. sau đó mới cân nhắc các polish sâu hơn như adjacent fallback stop cell hoặc tối ưu cache path-cost query
 
 ## 2026-03-25
 

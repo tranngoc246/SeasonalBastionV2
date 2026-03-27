@@ -396,6 +396,7 @@ namespace SeasonalBastion
             var whs = _s.WorldIndex.Warehouses;
             if (whs == null || whs.Count == 0) return false;
 
+            int bestCost = int.MaxValue;
             int bestDist = int.MaxValue;
             int bestId = int.MaxValue;
 
@@ -410,10 +411,12 @@ namespace SeasonalBastion
                 if (_s.StorageService.GetAmount(bid, rt) < minRequired) continue;
 
                 int d = Manhattan(from, bs.Anchor);
+                int cost = TryEstimateTravelCost(from, bs.Anchor, out var c) ? c : d;
                 int idv = bid.Value;
 
-                if (d < bestDist || (d == bestDist && idv < bestId))
+                if (cost < bestCost || (cost == bestCost && d < bestDist) || (cost == bestCost && d == bestDist && idv < bestId))
                 {
+                    bestCost = cost;
                     bestDist = d;
                     bestId = idv;
                     best = bid;
@@ -489,6 +492,14 @@ namespace SeasonalBastion
                 if (site.RemainingCosts.Count == 0)
                     site.RemainingCosts = null;
             }
+        }
+
+        private bool TryEstimateTravelCost(CellPos from, CellPos to, out int cost)
+        {
+            cost = 0;
+            if (_s?.GridMap == null) return false;
+            var pf = new NpcPathfinder(_s.GridMap);
+            return pf.TryEstimateCost(from, to, out cost);
         }
 
         private static int Manhattan(CellPos a, CellPos b)

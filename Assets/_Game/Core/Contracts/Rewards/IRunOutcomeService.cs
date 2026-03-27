@@ -5,6 +5,7 @@ namespace SeasonalBastion.Contracts
     public interface IRunOutcomeService
     {
         RunOutcome Outcome { get; }
+        RunEndReason Reason { get; }
         void ResetOutcome();
         void Defeat();
         void Victory();

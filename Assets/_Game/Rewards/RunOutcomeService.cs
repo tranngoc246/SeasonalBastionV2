@@ -16,6 +16,7 @@ namespace SeasonalBastion
         private readonly IDataRegistry _data;
 
         public RunOutcome Outcome { get; private set; } = RunOutcome.Ongoing;
+        public RunEndReason Reason { get; private set; } = RunEndReason.None;
 
         public event Action<RunOutcome> OnRunEnded;
 
@@ -36,6 +37,7 @@ namespace SeasonalBastion
         public void ResetOutcome()
         {
             Outcome = RunOutcome.Ongoing;
+            Reason = RunEndReason.None;
         }
 
         private void EnsureSubscribed()
@@ -59,7 +61,7 @@ namespace SeasonalBastion
 
                 if (b.HP <= 0)
                 {
-                    Defeat();
+                    DefeatInternal(RunEndReason.HqDestroyed);
                     return;
                 }
             }
@@ -73,7 +75,7 @@ namespace SeasonalBastion
             // (Mini demo có thể rút gọn ở milestone sau.)
             if (e.YearIndex == 2 && e.Season == Season.Winter && e.DayIndex >= 4)
             {
-                Victory();
+                VictoryInternal(RunEndReason.SurvivedWinterYear2);
             }
         }
 
@@ -95,27 +97,34 @@ namespace SeasonalBastion
             }
         }
 
-        public void Defeat()
-        {
-            if (Outcome != RunOutcome.Ongoing) return;
-            Outcome = RunOutcome.Defeat;
-            _bus?.Publish(new RunEndedEvent(Outcome));
-            OnRunEnded?.Invoke(Outcome);
-        }
+        public void Defeat() => DefeatInternal(RunEndReason.HqDestroyed);
 
-        public void Victory()
-        {
-            if (Outcome != RunOutcome.Ongoing) return;
-            Outcome = RunOutcome.Victory;
-            _bus?.Publish(new RunEndedEvent(Outcome));
-            OnRunEnded?.Invoke(Outcome);
-        }
+        public void Victory() => VictoryInternal(RunEndReason.SurvivedWinterYear2);
 
         public void Abort()
         {
             if (Outcome != RunOutcome.Ongoing) return;
             Outcome = RunOutcome.Abort;
-            _bus?.Publish(new RunEndedEvent(Outcome));
+            Reason = RunEndReason.Aborted;
+            _bus?.Publish(new RunEndedEvent(Outcome, Reason));
+            OnRunEnded?.Invoke(Outcome);
+        }
+
+        private void DefeatInternal(RunEndReason reason)
+        {
+            if (Outcome != RunOutcome.Ongoing) return;
+            Outcome = RunOutcome.Defeat;
+            Reason = reason;
+            _bus?.Publish(new RunEndedEvent(Outcome, Reason));
+            OnRunEnded?.Invoke(Outcome);
+        }
+
+        private void VictoryInternal(RunEndReason reason)
+        {
+            if (Outcome != RunOutcome.Ongoing) return;
+            Outcome = RunOutcome.Victory;
+            Reason = reason;
+            _bus?.Publish(new RunEndedEvent(Outcome, Reason));
             OnRunEnded?.Invoke(Outcome);
         }
     }

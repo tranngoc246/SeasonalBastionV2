@@ -131,6 +131,7 @@ namespace SeasonalBastion.Tests.EditMode
         private sealed class FakeRunOutcomeService : IRunOutcomeService
         {
             public RunOutcome Outcome { get; private set; } = RunOutcome.Ongoing;
+            public RunEndReason Reason { get; private set; } = RunEndReason.None;
 
             public int ResetCalled { get; private set; } = 0;
 
@@ -139,23 +140,27 @@ namespace SeasonalBastion.Tests.EditMode
             {
                 ResetCalled++;
                 Outcome = RunOutcome.Ongoing;
+                Reason = RunEndReason.None;
             }
 
             public void Defeat()
             {
                 Outcome = RunOutcome.Defeat;
+                Reason = RunEndReason.HqDestroyed;
                 OnRunEnded?.Invoke(Outcome);
             }
 
             public void Victory()
             {
                 Outcome = RunOutcome.Victory;
+                Reason = RunEndReason.SurvivedWinterYear2;
                 OnRunEnded?.Invoke(Outcome);
             }
 
             public void Abort()
             {
                 Outcome = RunOutcome.Abort;
+                Reason = RunEndReason.Aborted;
                 OnRunEnded?.Invoke(Outcome);
             }
 
@@ -453,6 +458,65 @@ namespace SeasonalBastion.Tests.EditMode
 
             // Assert
             Assert.That(outcome.ResetCalled, Is.EqualTo(1), "ResetOutcome should be called exactly once on StartNewRun");
+        }
+
+        [Test]
+        public void RunOutcomeService_Defeat_SetsReasonAndPublishesRunEndedEvent()
+        {
+            var bus = new TestEventBus();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", IsHQ = true, SizeX = 1, SizeY = 1 });
+
+            var world = new WorldState();
+            world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(1, 1),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 0,
+                MaxHP = 10
+            });
+
+            var sut = new RunOutcomeService(bus, world, data);
+
+            RunEndedEvent? seen = null;
+            bus.Subscribe<RunEndedEvent>(e => seen = e);
+
+            sut.Tick(0.016f);
+
+            Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Defeat));
+            Assert.That(sut.Reason, Is.EqualTo(RunEndReason.HqDestroyed));
+            Assert.That(seen.HasValue, Is.True, "RunEndedEvent should be published on defeat.");
+            Assert.That(seen.Value.Outcome, Is.EqualTo(RunOutcome.Defeat));
+            Assert.That(seen.Value.Reason, Is.EqualTo(RunEndReason.HqDestroyed));
+        }
+
+        [Test]
+        public void RunOutcomeService_Victory_SetsReasonAndResetOutcome_ClearsIt()
+        {
+            var bus = new TestEventBus();
+            var data = new TestDataRegistry();
+            var world = new WorldState();
+            var sut = new RunOutcomeService(bus, world, data);
+
+            RunEndedEvent? seen = null;
+            bus.Subscribe<RunEndedEvent>(e => seen = e);
+
+            bus.Publish(new DayEndedEvent(Season.Winter, 4, 2));
+
+            Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Victory));
+            Assert.That(sut.Reason, Is.EqualTo(RunEndReason.SurvivedWinterYear2));
+            Assert.That(seen.HasValue, Is.True, "RunEndedEvent should be published on victory.");
+            Assert.That(seen.Value.Outcome, Is.EqualTo(RunOutcome.Victory));
+            Assert.That(seen.Value.Reason, Is.EqualTo(RunEndReason.SurvivedWinterYear2));
+
+            sut.ResetOutcome();
+
+            Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Ongoing));
+            Assert.That(sut.Reason, Is.EqualTo(RunEndReason.None));
         }
 
         // -------------------------

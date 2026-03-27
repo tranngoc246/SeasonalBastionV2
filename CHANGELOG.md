@@ -1,5 +1,57 @@
 # CHANGELOG
 
+## 2026-03-27
+
+### Tóm tắt
+Đợt cập nhật này chưa thay đổi gameplay runtime trực tiếp, mà tập trung vào việc **rà soát trạng thái hiện tại của endgame flow** và chốt một bộ tài liệu implementation đủ cụ thể để bắt tay vào làm mà không bị mơ hồ phạm vi. Kết quả của pass này là đã xác định rõ phần nào của backend thắng/thua đã có sẵn, phần nào còn thiếu ở freeze simulation / UI / Retry flow, và bổ sung checklist triển khai bám sát đúng codebase hiện tại.
+
+### Review hiện trạng endgame flow
+- Rà soát code hiện tại quanh các cụm:
+  - `RunOutcomeService`
+  - `RunEndedEvent`
+  - `TickOrder`
+  - `CombatService`
+  - `GameAppController`
+  - UI modal/presenter hiện có
+- Xác nhận backend outcome cơ bản đã tồn tại:
+  - `Defeat` khi HQ HP về 0
+  - `Victory` theo rule hiện đang hard-code ở `RunOutcomeService`
+  - publish `RunEndedEvent`
+- Xác nhận các phần còn thiếu mang tính player-facing / flow control:
+  - chưa có modal/panel `Victory` / `Defeat`
+  - chưa có wiring từ `RunEndedEvent` sang UI
+  - tick loop hiện chưa dừng simulation sau khi run end
+  - combat chưa có guard rõ để tự dừng khi outcome không còn `Ongoing`
+  - các action gameplay như inspect/assign/build/save chưa được rà soát đầy đủ để khóa sau endgame
+
+### Docs / implementation planning
+- Viết spec và task breakdown chi tiết cho endgame flow để thống nhất hướng làm trước khi code.
+- Bóc checklist implementation **file-by-file** bám theo codebase hiện tại, thay vì checklist mức ý tưởng.
+- Thêm file docs mới:
+  - `docs/implementation-checklist-endgame-flow.md`
+- Checklist mới cover đầy đủ các nhóm việc:
+  - mở rộng `RunEndedEvent` / `IRunOutcomeService`
+  - chuẩn hóa `RunOutcomeService`
+  - freeze simulation ở `TickOrder`
+  - chặn combat tiếp tục chạy sau endgame
+  - thêm `RunEnded` modal + presenter
+  - wire `Retry` / `Main Menu`
+  - khóa các action gameplay còn mutate state sau endgame
+  - thêm regression + smoke test checklist
+
+### Kết luận / bước tiếp theo đã chốt
+- Endgame flow hiện tại là một cụm **đã có nửa backend nhưng chưa hoàn thiện player-facing flow**.
+- Hướng triển khai được chốt theo thứ tự ít rủi ro:
+  1. chuẩn hóa outcome/reason ở core
+  2. freeze simulation khi run ended
+  3. thêm UI modal `RunEnded`
+  4. wire `Retry` / `Main Menu`
+  5. khóa các action gameplay quan trọng sau endgame
+  6. thêm regression và smoke test
+- Khuyến nghị thực dụng cho pass implementation đầu tiên:
+  - hoàn thiện nhánh **Defeat** trước
+  - sau đó mới polish/hoàn thiện nhánh **Victory**
+
 ## 2026-03-25
 
 ### Tóm tắt

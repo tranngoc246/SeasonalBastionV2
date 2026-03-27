@@ -52,7 +52,12 @@ namespace SeasonalBastion.Contracts
     public readonly struct RunEndedEvent
     {
         public readonly RunOutcome Outcome;
-        public RunEndedEvent(RunOutcome o){Outcome=o;}
+        public readonly RunEndReason Reason;
+        public RunEndedEvent(RunOutcome outcome, RunEndReason reason)
+        {
+            Outcome = outcome;
+            Reason = reason;
+        }
     }
 
     public readonly struct RewardPickedEvent

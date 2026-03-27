@@ -48,6 +48,15 @@ namespace SeasonalBastion.UI.Presenters
             if (_title != null) _title.text = "ASSIGN NPC";
 
             var s = _s;
+            if (IsRunEnded())
+            {
+                Set(_target, "Target: -");
+                Set(_workers, "Workers: -");
+                Set(_summary, "Summary: -");
+                Set(_hint, "Run has ended.");
+                if (_list != null) _list.Clear();
+                return;
+            }
             int sel = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
 
             if (s?.WorldState?.Buildings == null || s.WorldState.Npcs == null)
@@ -218,6 +227,7 @@ namespace SeasonalBastion.UI.Presenters
 
         private void AssignNpc(NpcId npc, BuildingId workplace)
         {
+            if (IsRunEnded()) return;
             var s = _s;
             if (s?.WorldState?.Npcs == null || s.WorldState.Buildings == null) return;
             if (!s.WorldState.Npcs.Exists(npc) || !s.WorldState.Buildings.Exists(workplace)) return;
@@ -266,6 +276,7 @@ namespace SeasonalBastion.UI.Presenters
 
         private void UnassignNpc(NpcId npc)
         {
+            if (IsRunEnded()) return;
             var s = _s;
             if (s?.WorldState?.Npcs == null) return;
             if (!s.WorldState.Npcs.Exists(npc)) return;
@@ -324,6 +335,11 @@ namespace SeasonalBastion.UI.Presenters
             if (s?.DataRegistry == null || string.IsNullOrEmpty(defId)) return null;
             try { return s.DataRegistry.GetBuilding(defId); }
             catch { return null; }
+        }
+
+        private bool IsRunEnded()
+        {
+            return _s?.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing;
         }
     }
 }

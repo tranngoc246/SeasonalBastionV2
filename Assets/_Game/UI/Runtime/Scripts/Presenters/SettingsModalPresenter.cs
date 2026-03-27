@@ -75,6 +75,10 @@ namespace SeasonalBastion.UI.Presenters
         {
             if (_volume != null) _volume.value = AppSettings.MasterVolume;
             if (_defaultSpeed != null) _defaultSpeed.value = AppSettings.DefaultSpeed;
+
+            bool runEnded = IsRunEnded();
+            if (_btnSave != null) _btnSave.SetEnabled(!runEnded);
+            if (_hint != null) _hint.text = runEnded ? "Save disabled after run ended." : "Click outside to close";
         }
 
         private void OnResume()
@@ -84,6 +88,7 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnSave()
         {
+            if (IsRunEnded()) return;
             var boot = FindBootstrap();
             if (boot == null)
             {
@@ -162,6 +167,11 @@ namespace SeasonalBastion.UI.Presenters
             var clock = _s?.RunClock;
             if (clock != null && clock.CurrentPhase == Phase.Build && clock.TimeScale > 0.01f)
                 clock.SetTimeScale(AppSettings.DefaultSpeed);
+        }
+
+        private bool IsRunEnded()
+        {
+            return _s?.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing;
         }
     }
 }

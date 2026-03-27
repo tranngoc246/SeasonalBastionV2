@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 using UnityEngine.UIElements;
@@ -242,6 +242,7 @@ namespace SeasonalBastion.UI.Presenters
         private void RenderDetail()
         {
             var s = _s;
+            bool runEnded = IsRunEnded();
 
             if (string.IsNullOrEmpty(_selectedDefId) || s?.DataRegistry == null)
             {
@@ -269,6 +270,13 @@ namespace SeasonalBastion.UI.Presenters
             SetText(_detailIconText, GetIconLetter(def.DefId));
             SetText(_detailName, def.DefId);
             SetText(_detailSub, $"{def.SizeX}x{def.SizeY}  Lv{def.BaseLevel}  HP {def.MaxHp}");
+
+            if (runEnded)
+            {
+                ShowHint("Run has ended.");
+                SetBuildEnabled(false);
+                return;
+            }
 
             BuildCosts(def);
         }
@@ -348,6 +356,7 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnBuildConfirm()
         {
+            if (IsRunEnded()) return;
             if (string.IsNullOrEmpty(_selectedDefId)) return;
 
             // 1) Ẩn build panel
@@ -371,5 +380,10 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnResourceChanged(ResourceDeliveredEvent _) => RenderDetail();
         private void OnResourceChanged(ResourceSpentEvent _) => RenderDetail();
+
+        private bool IsRunEnded()
+        {
+            return _s?.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing;
+        }
     }
 }

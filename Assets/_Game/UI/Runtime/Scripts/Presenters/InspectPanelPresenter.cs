@@ -140,6 +140,7 @@ namespace SeasonalBastion.UI.Presenters
 
         private void RenderActions(GameServices s, BuildingId bid, BuildingState bs)
         {
+            bool runEnded = IsRunEnded();
             int assigned = WorkforceAssignmentRules.CountAssignedToBuilding(s.WorldState, bid);
             int lvl = WorkforceAssignmentRules.NormalizeLevel(bs.Level);
             var def = SafeGetBuildingDef(s, bs.DefId);
@@ -152,20 +153,21 @@ namespace SeasonalBastion.UI.Presenters
 
             string edgeHint = "";
 
-            bool canUpgrade = bs.IsConstructed && !isUpgrading && HasUpgradeEdgeAvailable(s, bs.DefId, out edgeHint);
+            bool canUpgrade = !runEnded && bs.IsConstructed && !isUpgrading && HasUpgradeEdgeAvailable(s, bs.DefId, out edgeHint);
             SetEnabled(_btnUpgrade, canUpgrade);
 
-            bool canRepair = bs.IsConstructed && bs.MaxHP > 0 && bs.HP < bs.MaxHP;
+            bool canRepair = !runEnded && bs.IsConstructed && bs.MaxHP > 0 && bs.HP < bs.MaxHP;
             SetEnabled(_btnRepair, canRepair);
 
-            bool canAssign = bs.IsConstructed && def != null && max > 0;
+            bool canAssign = !runEnded && bs.IsConstructed && def != null && max > 0;
             SetEnabled(_btnAssignNpc, canAssign);
 
-            bool canCancelConstruction = !bs.IsConstructed && HasActiveConstructionOrder(s, bid);
+            bool canCancelConstruction = !runEnded && !bs.IsConstructed && HasActiveConstructionOrder(s, bid);
             SetEnabled(_btnCancelConstruction, canCancelConstruction);
 
             string hint = "";
-            if (!bs.IsConstructed) hint = canCancelConstruction ? "Under construction. You can cancel this construction." : "Under construction.";
+            if (runEnded) hint = "Run has ended.";
+            else if (!bs.IsConstructed) hint = canCancelConstruction ? "Under construction. You can cancel this construction." : "Under construction.";
             else if (isUpgrading) hint = $"Upgrading -> {upSite.BuildingDefId}";
             else if (!canUpgrade && !string.IsNullOrEmpty(edgeHint)) hint = edgeHint;
             else if (!canAssign && def != null && max <= 0) hint = "Building này không nhận worker.";
@@ -176,6 +178,7 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnUpgrade()
         {
+            if (IsRunEnded()) return;
             var s = _s;
             int id = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
             if (id < 0 || s?.BuildOrderService == null) return;
@@ -186,6 +189,7 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnRepair()
         {
+            if (IsRunEnded()) return;
             var s = _s;
             int id = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
             if (id < 0 || s?.BuildOrderService == null) return;
@@ -196,11 +200,13 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnAssignNpc()
         {
+            if (IsRunEnded()) return;
             Ctx?.Modals?.Push(UiKeys.Modal_AssignNpc);
         }
 
         private void OnCancelConstruction()
         {
+            if (IsRunEnded()) return;
             var s = _s;
             int id = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
             if (id < 0 || s?.BuildOrderService == null) return;
@@ -252,6 +258,11 @@ namespace SeasonalBastion.UI.Presenters
         {
             if (b == null) return;
             b.SetEnabled(on);
+        }
+
+        private bool IsRunEnded()
+        {
+            return _s?.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing;
         }
 
         private static int NormalizeLevel(int level)

@@ -80,6 +80,12 @@
 - Đã xác nhận runtime behavior hiện tại:
   - clear final wave Year 2 -> win game đúng
   - chạy sang Year 3 mà không clear final wave sẽ không tự win
+- Đã khóa các action gameplay mutate state quan trọng sau endgame:
+  - `InspectPanelPresenter` không còn cho upgrade / repair / assign NPC / cancel construction khi run đã kết thúc
+  - `AssignNpcModalPresenter` không còn cho assign / unassign NPC sau endgame
+  - `SettingsModalPresenter` disable `Save` sau endgame
+  - `BuildPanelPresenter` không còn cho vào build flow sau endgame
+- Kết quả: endgame flow hiện kín hơn ở mặt UI, giảm tình trạng run đã kết thúc nhưng người chơi vẫn mutate world state qua các presenter chính
 
 ## 2026-03-25
 

@@ -11,6 +11,9 @@ namespace SeasonalBastion
     ///   - Road: preferred (lower cost)
     ///   - Empty ground: fallback
     ///   - Building/Site/OOB: blocked
+    /// - Stop reservation:
+    ///   - Moving NPCs do not block each other.
+    ///   - Final target stop cell is unique; if occupied by another NPC, wait/retry.
     /// </summary>
     public sealed class GridAgentMoverLite
     {
@@ -34,6 +37,8 @@ namespace SeasonalBastion
 
         private readonly Dictionary<int, float> _accum = new();
         private readonly Dictionary<int, RouteState> _routes = new();
+        private readonly Dictionary<int, int> _reservedStopOwnerByPackedCell = new();
+        private readonly Dictionary<int, CellPos> _reservedStopByNpc = new();
         private int _roadsVersion;
 
         public GridAgentMoverLite(IGridMap grid, IDataRegistry data, BalanceService bal)
@@ -51,13 +56,17 @@ namespace SeasonalBastion
         public bool StepToward(ref NpcState st, CellPos target, float dt)
         {
             var cur = st.Cell;
+            int key = st.Id.Value;
+
             if (cur.X == target.X && cur.Y == target.Y)
-                return true;
+            {
+                return TryAcquireOrConfirmStopCell(key, target);
+            }
 
             if (_grid == null || !_grid.IsInside(cur) || !_grid.IsInside(target))
                 return false;
 
-            int key = st.Id.Value;
+            ReleaseStopIfNpcMovedAway(key, cur);
 
             if (!_accum.TryGetValue(key, out var a)) a = 0f;
 
@@ -104,6 +113,17 @@ namespace SeasonalBastion
                 if (!EnsureValidRoute(route, st.Cell, target))
                     return false;
 
+                bool isFinalStep = route.Path != null
+                    && route.PathIndex >= 0
+                    && route.PathIndex == route.Path.Count - 1;
+
+                if (isFinalStep)
+                {
+                    var finalCell = route.Path[route.PathIndex];
+                    if (!TryAcquireOrConfirmStopCell(key, finalCell))
+                        return false;
+                }
+
                 if (!StepOnePathCell(ref st, route))
                 {
                     route.NoProgressTicks++;
@@ -112,6 +132,17 @@ namespace SeasonalBastion
                         InvalidateRoute(route, target);
                         if (!EnsureValidRoute(route, st.Cell, target))
                             return false;
+
+                        bool isFinalRetryStep = route.Path != null
+                            && route.PathIndex >= 0
+                            && route.PathIndex == route.Path.Count - 1;
+
+                        if (isFinalRetryStep)
+                        {
+                            var finalRetryCell = route.Path[route.PathIndex];
+                            if (!TryAcquireOrConfirmStopCell(key, finalRetryCell))
+                                return false;
+                        }
 
                         if (!StepOnePathCell(ref st, route))
                             return false;
@@ -128,10 +159,10 @@ namespace SeasonalBastion
                 }
 
                 if (st.Cell.X == target.X && st.Cell.Y == target.Y)
-                    return true;
+                    return TryAcquireOrConfirmStopCell(key, target);
             }
 
-            return st.Cell.X == target.X && st.Cell.Y == target.Y;
+            return st.Cell.X == target.X && st.Cell.Y == target.Y && TryAcquireOrConfirmStopCell(key, target);
         }
 
         public void NotifyRoadsDirty()
@@ -143,6 +174,8 @@ namespace SeasonalBastion
         {
             _accum.Clear();
             _routes.Clear();
+            _reservedStopByNpc.Clear();
+            _reservedStopOwnerByPackedCell.Clear();
             _roadsVersion = 0;
         }
 
@@ -232,6 +265,53 @@ namespace SeasonalBastion
             st.Cell = next;
             route.PathIndex++;
             return true;
+        }
+
+        private bool TryAcquireOrConfirmStopCell(int npcId, CellPos cell)
+        {
+            int packed = PackCell(cell);
+
+            if (_reservedStopByNpc.TryGetValue(npcId, out var existing))
+            {
+                if (existing.X == cell.X && existing.Y == cell.Y)
+                {
+                    return _reservedStopOwnerByPackedCell.TryGetValue(packed, out var owner) && owner == npcId;
+                }
+
+                ReleaseStopCell(npcId);
+            }
+
+            if (_reservedStopOwnerByPackedCell.TryGetValue(packed, out var heldBy) && heldBy != npcId)
+                return false;
+
+            _reservedStopOwnerByPackedCell[packed] = npcId;
+            _reservedStopByNpc[npcId] = cell;
+            return true;
+        }
+
+        private void ReleaseStopIfNpcMovedAway(int npcId, CellPos currentCell)
+        {
+            if (_reservedStopByNpc.TryGetValue(npcId, out var reserved))
+            {
+                if (reserved.X != currentCell.X || reserved.Y != currentCell.Y)
+                    ReleaseStopCell(npcId);
+            }
+        }
+
+        private void ReleaseStopCell(int npcId)
+        {
+            if (_reservedStopByNpc.TryGetValue(npcId, out var cell))
+            {
+                int packed = PackCell(cell);
+                if (_reservedStopOwnerByPackedCell.TryGetValue(packed, out var owner) && owner == npcId)
+                    _reservedStopOwnerByPackedCell.Remove(packed);
+                _reservedStopByNpc.Remove(npcId);
+            }
+        }
+
+        private int PackCell(CellPos c)
+        {
+            return c.Y * _grid.Width + c.X;
         }
 
         private static void InvalidateRoute(RouteState route, CellPos target)

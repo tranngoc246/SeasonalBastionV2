@@ -156,5 +156,57 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(arrived, Is.True);
             Assert.That(npc.Cell, Is.EqualTo(target));
         }
+
+        [Test]
+        public void StepToward_StopReservation_SecondNpcWaitsWhileFirstHoldsTarget()
+        {
+            var grid = new GridMap(5, 3);
+            var mover = MakeMover(grid);
+            var target = new CellPos(2, 1);
+
+            var npcA = MakeNpc(10, 1, 1);
+            var npcB = MakeNpc(11, 3, 1);
+
+            bool aArrived = mover.StepToward(ref npcA, target, 1f);
+            Assert.That(aArrived, Is.True);
+            Assert.That(npcA.Cell, Is.EqualTo(target));
+
+            bool bArrived = mover.StepToward(ref npcB, target, 1f);
+            Assert.That(bArrived, Is.False, "Second NPC should wait while target stop cell is reserved by first NPC.");
+            Assert.That(npcB.Cell, Is.EqualTo(new CellPos(3, 1)), "Second NPC should not step into reserved target cell.");
+        }
+
+        [Test]
+        public void StepToward_StopReservation_ReleasesWhenFirstNpcMovesAway_SoSecondNpcCanArrive()
+        {
+            var grid = new GridMap(6, 3);
+            var mover = MakeMover(grid);
+            var sharedTarget = new CellPos(2, 1);
+
+            var npcA = MakeNpc(20, 1, 1);
+            var npcB = MakeNpc(21, 4, 1);
+
+            bool aArrived = mover.StepToward(ref npcA, sharedTarget, 1f);
+            Assert.That(aArrived, Is.True);
+            Assert.That(npcA.Cell, Is.EqualTo(sharedTarget));
+
+            bool bArrivedEarly = mover.StepToward(ref npcB, sharedTarget, 2f);
+            Assert.That(bArrivedEarly, Is.False);
+            Assert.That(npcB.Cell, Is.EqualTo(new CellPos(3, 1)), "Second NPC should stop before entering reserved target cell.");
+
+            bool aMovedAway = mover.StepToward(ref npcA, new CellPos(0, 1), 2f);
+            Assert.That(npcA.Cell, Is.EqualTo(new CellPos(0, 1)));
+            Assert.That(aMovedAway, Is.True);
+
+            bool bArrived = false;
+            for (int i = 0; i < 4; i++)
+            {
+                bArrived = mover.StepToward(ref npcB, sharedTarget, 1f);
+                if (bArrived) break;
+            }
+
+            Assert.That(bArrived, Is.True, "Second NPC should acquire released stop cell and arrive.");
+            Assert.That(npcB.Cell, Is.EqualTo(sharedTarget));
+        }
     }
 }

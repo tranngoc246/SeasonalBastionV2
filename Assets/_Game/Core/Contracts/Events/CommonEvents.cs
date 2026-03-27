@@ -46,7 +46,21 @@ namespace SeasonalBastion.Contracts
     public readonly struct WaveEndedEvent
     {
         public readonly string WaveId;
-        public WaveEndedEvent(string id){WaveId=id;}
+        public readonly int Year;
+        public readonly Season Season;
+        public readonly int Day;
+        public readonly bool IsBoss;
+        public readonly bool IsFinalWave;
+
+        public WaveEndedEvent(string waveId, int year, Season season, int day, bool isBoss, bool isFinalWave)
+        {
+            WaveId = waveId;
+            Year = year;
+            Season = season;
+            Day = day;
+            IsBoss = isBoss;
+            IsFinalWave = isFinalWave;
+        }
     }
 
     public readonly struct RunEndedEvent

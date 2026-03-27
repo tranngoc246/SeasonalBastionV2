@@ -17,7 +17,7 @@ namespace SeasonalBastion
         private readonly GameServices _s;
 
         public event Action<string> WaveStarted;
-        public event Action<string> WaveEnded;
+        public event Action<WaveDef> WaveEnded;
 
         // Tuning (v0.1)
         private const float SpawnIntervalSec = 0.35f;
@@ -292,8 +292,8 @@ namespace SeasonalBastion
         {
             if (_active == null) return;
 
-            var endedId = _active.DefId;
-            WaveEnded?.Invoke(endedId);
+            var endedWave = _active;
+            WaveEnded?.Invoke(endedWave);
 
             _active = null;
             _spawnDone = false;

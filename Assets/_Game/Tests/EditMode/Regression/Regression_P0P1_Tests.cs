@@ -505,25 +505,13 @@ namespace SeasonalBastion.Tests.EditMode
         {
             var bus = new TestEventBus();
             var data = new TestDataRegistry();
-            data.AddWave(new WaveDef
-            {
-                DefId = "Y2_SCALED_Y1_Winter_W4",
-                WaveIndex = 8,
-                Year = 2,
-                Season = Season.Winter,
-                Day = 4,
-                IsBoss = true,
-                IsFinalWave = true,
-                Entries = Array.Empty<WaveEntryDef>()
-            });
-
             var world = new WorldState();
             var sut = new RunOutcomeService(bus, world, data);
 
             RunEndedEvent? seen = null;
             bus.Subscribe<RunEndedEvent>(e => seen = e);
 
-            bus.Publish(new WaveEndedEvent("Y2_SCALED_Y1_Winter_W4"));
+            bus.Publish(new WaveEndedEvent("Y2_SCALED_Y1_Winter_W4", 2, Season.Winter, 4, true, true));
 
             Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Victory));
             Assert.That(sut.Reason, Is.EqualTo(RunEndReason.FinalWaveCleared));

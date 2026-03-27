@@ -199,20 +199,22 @@ namespace SeasonalBastion
             _s.EventBus?.Publish(new WaveStartedEvent(waveId));
         }
 
-        private void HandleWaveEnded(string waveId)
+        private void HandleWaveEnded(WaveDef wave)
         {
+            if (wave == null) return;
+
             _s.NotificationService?.Push(
-                key: $"WaveEnd_{waveId}",
+                key: $"WaveEnd_{wave.DefId}",
                 title: "Wave kết thúc",
-                body: waveId,
+                body: wave.DefId,
                 severity: NotificationSeverity.Info,
                 payload: default,
                 cooldownSeconds: 0.25f,
                 dedupeByKey: true
             );
 
-            OnWaveEnded?.Invoke(waveId);
-            _s.EventBus?.Publish(new WaveEndedEvent(waveId));
+            OnWaveEnded?.Invoke(wave.DefId);
+            _s.EventBus?.Publish(new WaveEndedEvent(wave.DefId, wave.Year, wave.Season, wave.Day, wave.IsBoss, wave.IsFinalWave));
         }
 
         // Day33: called by SaveLoadApplier after clock snapshot restored.

@@ -70,21 +70,10 @@ namespace SeasonalBastion
         private void OnWaveEnded(WaveEndedEvent e)
         {
             if (Outcome != RunOutcome.Ongoing) return;
-            if (_data == null || string.IsNullOrWhiteSpace(e.WaveId)) return;
+            if (e.Year != 2) return;
+            if (!e.IsFinalWave) return;
 
-            try
-            {
-                var wave = _data.GetWave(e.WaveId);
-                if (wave == null) return;
-                if (wave.Year != 2) return;
-                if (!wave.IsFinalWave) return;
-
-                VictoryInternal(RunEndReason.FinalWaveCleared);
-            }
-            catch
-            {
-                // ignore missing/unknown wave ids
-            }
+            VictoryInternal(RunEndReason.FinalWaveCleared);
         }
 
         private bool IsHQ(string defId)

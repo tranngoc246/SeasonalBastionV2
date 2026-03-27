@@ -96,6 +96,34 @@
   - `Retry` / `Main Menu` flow chạy ổn
   - action lock sau endgame hoạt động đúng theo pass hiện tại
 
+### NPC movement roadmap (road-aware pathing)
+- Đã rà soát hiện trạng movement/runtime hiện tại để chuẩn bị cho pass nâng cấp NPC movement:
+  - `GridAgentMoverLite` hiện vẫn là mover Manhattan đơn giản, đi X rồi Y và **ignore obstacles**
+  - road hiện chỉ ảnh hưởng **speed multiplier**, chưa ảnh hưởng route selection
+  - nhiều job executors (`Harvest`, `Haul`, `BuildWork`, `ResupplyTower`) đã có khái niệm `TargetCell` / `entry` / `approach cell`, nên có thể tận dụng lại mà không cần rewrite toàn bộ gameplay flow
+  - `ResourceFlowService` hiện vẫn chọn source/destination theo **Manhattan distance**, chưa phản ánh đường đi thực tế qua road network
+- Yêu cầu gameplay đã được chốt cho pass movement mới:
+  - NPC phải **ưu tiên đi trên road** giữa các điểm
+  - phải **tránh building/site/out-of-bounds**
+  - được phép đi qua ground khi cần, tạo flow **ground → road → ground** tự nhiên khi source/target không nối full road
+  - NPC có thể overlap logic khi đang di chuyển, nhưng **không được chồng ô khi dừng/interact**
+- Hướng kỹ thuật được chốt:
+  - dùng **weighted A*** trên grid 4 hướng (`N/E/S/W`)
+  - `Road` là traversable terrain ưu tiên, `Empty` là traversable fallback, `Building/Site` là hard blocked
+  - cost mặc định để prototype:
+    - `Road = 10`
+    - `Ground = 30`
+  - path cache theo từng NPC, repath khi target đổi / road graph dirty / next step invalid / NPC lệch path
+  - stop occupancy tách riêng khỏi transit movement: moving NPC không hard-block nhau, nhưng stop cell phải unique
+- Đã thêm tài liệu roadmap/task breakdown để bám theo khi implement:
+  - `docs/task-breakdown-npc-road-aware-movement.md`
+- Thứ tự triển khai đề xuất:
+  1. tạo `NpcPathfinder` + unit tests
+  2. rewrite `GridAgentMoverLite` sang path-based road-aware movement
+  3. hook invalidation theo `RoadsDirtyEvent`
+  4. thêm stop reservation để tránh chồng ô khi dừng
+  5. phase sau mới nâng `ResourceFlowService` / source-destination selection sang path-cost-aware
+
 ## 2026-03-25
 
 ### Tóm tắt

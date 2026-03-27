@@ -58,6 +58,7 @@ namespace SeasonalBastion
                     Season = ParseSeason(wj.season, ctx: $"Wave '{id}' season"),
                     Day = Mathf.Max(1, wj.day),
                     IsBoss = wj.isBoss,
+                    IsFinalWave = wj.isFinalWave,
                     Entries = entries
                 };
 

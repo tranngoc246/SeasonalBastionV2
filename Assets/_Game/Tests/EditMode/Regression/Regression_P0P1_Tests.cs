@@ -45,11 +45,13 @@ namespace SeasonalBastion.Tests.EditMode
         private sealed class TestDataRegistry : IDataRegistry
         {
             private readonly Dictionary<string, BuildingDef> _b = new(StringComparer.Ordinal);
+            private readonly Dictionary<string, WaveDef> _waves = new(StringComparer.Ordinal);
             private readonly Dictionary<string, BuildableNodeDef> _nodes = new(StringComparer.Ordinal);
             private readonly Dictionary<string, UpgradeEdgeDef> _edgesById = new(StringComparer.Ordinal);
             private readonly Dictionary<string, List<UpgradeEdgeDef>> _edgesFrom = new(StringComparer.Ordinal);
 
             public void Add(BuildingDef def) => _b[def.DefId] = def;
+            public void AddWave(WaveDef def) => _waves[def.DefId] = def;
 
             public void AddNode(BuildableNodeDef node)
             {
@@ -86,8 +88,12 @@ namespace SeasonalBastion.Tests.EditMode
             // Not used in these tests
             public EnemyDef GetEnemy(string id) => throw new NotSupportedException();
             public bool TryGetEnemy(string id, out EnemyDef def) { def = default; return false; }
-            public WaveDef GetWave(string id) => throw new NotSupportedException();
-            public bool TryGetWave(string id, out WaveDef def) { def = default; return false; }
+            public WaveDef GetWave(string id)
+            {
+                if (_waves.TryGetValue(id, out var def)) return def;
+                throw new NotSupportedException();
+            }
+            public bool TryGetWave(string id, out WaveDef def) => _waves.TryGetValue(id, out def);
             public RewardDef GetReward(string id) => throw new NotSupportedException();
             public bool TryGetReward(string id, out RewardDef def) { def = default; return false; }
             public RecipeDef GetRecipe(string id) => throw new NotSupportedException();
@@ -499,19 +505,31 @@ namespace SeasonalBastion.Tests.EditMode
         {
             var bus = new TestEventBus();
             var data = new TestDataRegistry();
+            data.AddWave(new WaveDef
+            {
+                DefId = "Y2_SCALED_Y1_Winter_W4",
+                WaveIndex = 8,
+                Year = 2,
+                Season = Season.Winter,
+                Day = 4,
+                IsBoss = true,
+                IsFinalWave = true,
+                Entries = Array.Empty<WaveEntryDef>()
+            });
+
             var world = new WorldState();
             var sut = new RunOutcomeService(bus, world, data);
 
             RunEndedEvent? seen = null;
             bus.Subscribe<RunEndedEvent>(e => seen = e);
 
-            bus.Publish(new DayEndedEvent(Season.Winter, 4, 2));
+            bus.Publish(new WaveEndedEvent("Y2_SCALED_Y1_Winter_W4"));
 
             Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Victory));
-            Assert.That(sut.Reason, Is.EqualTo(RunEndReason.SurvivedWinterYear2));
+            Assert.That(sut.Reason, Is.EqualTo(RunEndReason.FinalWaveCleared));
             Assert.That(seen.HasValue, Is.True, "RunEndedEvent should be published on victory.");
             Assert.That(seen.Value.Outcome, Is.EqualTo(RunOutcome.Victory));
-            Assert.That(seen.Value.Reason, Is.EqualTo(RunEndReason.SurvivedWinterYear2));
+            Assert.That(seen.Value.Reason, Is.EqualTo(RunEndReason.FinalWaveCleared));
 
             sut.ResetOutcome();
 

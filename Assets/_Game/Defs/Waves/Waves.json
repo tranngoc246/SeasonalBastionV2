@@ -146,6 +146,7 @@
       "season": "Winter",
       "day": 4,
       "isBoss": true,
+      "isFinalWave": true,
       "entries": [
         {
           "enemyId": "SiegeBrute",

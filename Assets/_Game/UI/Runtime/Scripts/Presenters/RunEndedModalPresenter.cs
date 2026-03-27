@@ -91,7 +91,7 @@ namespace SeasonalBastion.UI.Presenters
             {
                 RunEndReason.SurvivedWinterYear2 => "You survived through the end of Winter, Year 2.",
                 RunEndReason.SurvivedWinterYear1 => "You survived through the end of Winter, Year 1.",
-                RunEndReason.FinalWaveCleared => "You survived the final assault.",
+                RunEndReason.FinalWaveCleared => "You destroyed every enemy in the final wave of Year 2.",
                 _ => "You survived the run."
             };
         }

@@ -86,6 +86,7 @@ namespace SeasonalBastion
                             Season = src.Season,
                             Day = src.Day,
                             IsBoss = src.IsBoss,
+                            IsFinalWave = src.IsFinalWave,
                             Entries = CloneAndScaleEntries(src.Entries, mul)
                         };
 

@@ -191,6 +191,7 @@ namespace SeasonalBastion
             public string season = "Autumn";
             public int day = 1;
             public bool isBoss = false;
+            public bool isFinalWave = false;
             public WaveEntryJson[] entries;
         }
 

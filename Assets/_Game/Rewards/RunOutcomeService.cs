@@ -45,7 +45,7 @@ namespace SeasonalBastion
             if (_subscribed) return;
             _subscribed = true;
 
-            _bus?.Subscribe<DayEndedEvent>(OnDayEnded);
+            _bus?.Subscribe<WaveEndedEvent>(OnWaveEnded);
         }
 
         public void Tick(float dt)
@@ -67,15 +67,23 @@ namespace SeasonalBastion
             }
         }
 
-        private void OnDayEnded(DayEndedEvent e)
+        private void OnWaveEnded(WaveEndedEvent e)
         {
             if (Outcome != RunOutcome.Ongoing) return;
+            if (_data == null || string.IsNullOrWhiteSpace(e.WaveId)) return;
 
-            // Victory = survive hết Winter (day cuối) của Year 2.
-            // (Mini demo có thể rút gọn ở milestone sau.)
-            if (e.YearIndex == 2 && e.Season == Season.Winter && e.DayIndex >= 4)
+            try
             {
-                VictoryInternal(RunEndReason.SurvivedWinterYear2);
+                var wave = _data.GetWave(e.WaveId);
+                if (wave == null) return;
+                if (wave.Year != 2) return;
+                if (!wave.IsFinalWave) return;
+
+                VictoryInternal(RunEndReason.FinalWaveCleared);
+            }
+            catch
+            {
+                // ignore missing/unknown wave ids
             }
         }
 
@@ -99,7 +107,7 @@ namespace SeasonalBastion
 
         public void Defeat() => DefeatInternal(RunEndReason.HqDestroyed);
 
-        public void Victory() => VictoryInternal(RunEndReason.SurvivedWinterYear2);
+        public void Victory() => VictoryInternal(RunEndReason.FinalWaveCleared);
 
         public void Abort()
         {

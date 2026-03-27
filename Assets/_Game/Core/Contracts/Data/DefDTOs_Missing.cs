@@ -109,6 +109,7 @@ namespace SeasonalBastion.Contracts
         public int Day = 1;
 
         public bool IsBoss = false;
+        public bool IsFinalWave = false;
         public WaveEntryDef[] Entries;
     }
 

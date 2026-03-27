@@ -86,6 +86,15 @@
   - `SettingsModalPresenter` disable `Save` sau endgame
   - `BuildPanelPresenter` không còn cho vào build flow sau endgame
 - Kết quả: endgame flow hiện kín hơn ở mặt UI, giảm tình trạng run đã kết thúc nhưng người chơi vẫn mutate world state qua các presenter chính
+- Đã bổ sung regression coverage cho endgame flow:
+  - victory chỉ trigger khi clear **final wave Year 2**
+  - `RunEndedEvent` chỉ publish **một lần** sau khi outcome đã chốt
+  - rule priority **Lose > Win** được khóa bằng test
+  - `TickOrder` không tiếp tục tick các simulation services sau khi run ended
+- Đã verify thủ công trong Editor:
+  - Defeat/Victory modal hoạt động đúng
+  - `Retry` / `Main Menu` flow chạy ổn
+  - action lock sau endgame hoạt động đúng theo pass hiện tại
 
 ## 2026-03-25
 

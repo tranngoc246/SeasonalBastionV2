@@ -265,6 +265,7 @@ namespace SeasonalBastion.Tests.EditMode
         private sealed class FakeBuildOrderService : IBuildOrderService
         {
             public event Action<int> OnOrderCompleted;
+            public int TickCalls { get; private set; }
             public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation) => 0;
             public int CreateUpgradeOrder(BuildingId building) => 0;
             public int CreateRepairOrder(BuildingId building) => 0;
@@ -273,7 +274,62 @@ namespace SeasonalBastion.Tests.EditMode
             public bool CancelBySite(SiteId siteId) => false;
             public bool CancelByBuilding(BuildingId buildingId) => false;
             public void ClearAll() { }
-            public void Tick(float dt) { }
+            public void Tick(float dt) { TickCalls++; }
+        }
+
+        private sealed class FakeCombatService : ICombatService
+        {
+            public int TickCalls { get; private set; }
+            public bool IsActive => false;
+            public event Action<string> OnWaveStarted;
+            public event Action<string> OnWaveEnded;
+            public void OnDefendPhaseStarted() { }
+            public void OnDefendPhaseEnded() { }
+            public void Tick(float dt) => TickCalls++;
+            public void SpawnWave(string waveDefId) { }
+            public void KillAllEnemies() { }
+            public void ForceResolveWave() { }
+        }
+
+        private sealed class FakeResourceFlowService : IResourceFlowService, ITickable
+        {
+            public int TickCalls { get; private set; }
+            public bool TryPickSource(CellPos from, ResourceType type, int minAmount, out StoragePick pick) { pick = default; return false; }
+            public bool TryPickDest(CellPos from, ResourceType type, int minSpace, out StoragePick pick) { pick = default; return false; }
+            public int Transfer(BuildingId src, BuildingId dst, ResourceType type, int amount) => 0;
+            public void Tick(float dt) => TickCalls++;
+        }
+
+        private sealed class FakeAmmoTickService : IAmmoService
+        {
+            public int TickCalls { get; private set; }
+            public int PendingRequests => 0;
+            public void NotifyTowerAmmoChanged(TowerId tower, int current, int max) { }
+            public void EnqueueRequest(AmmoRequest req) { }
+            public bool TryDequeueNext(out AmmoRequest req) { req = default; return false; }
+            public bool TryStartCraft(BuildingId forge) => false;
+            public void Tick(float dt) => TickCalls++;
+        }
+
+        private sealed class FakeJobSchedulerTickService : IJobScheduler
+        {
+            public int TickCalls { get; private set; }
+            public int AssignedThisTick => 0;
+            public void Tick(float dt) => TickCalls++;
+            public bool TryAssign(NpcId npc, out Job assigned) { assigned = default; return false; }
+        }
+
+        private sealed class FakeUnlockTickService : IUnlockService, ITickable
+        {
+            public int TickCalls { get; private set; }
+            public bool IsUnlocked(string defId) => false;
+            public void Tick(float dt) => TickCalls++;
+        }
+
+        private sealed class FakeProducerLoopTickService : ITickable
+        {
+            public int TickCalls { get; private set; }
+            public void Tick(float dt) => TickCalls++;
         }
 
         private sealed class DelegatingPlacementService : IPlacementService
@@ -523,6 +579,120 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Ongoing));
             Assert.That(sut.Reason, Is.EqualTo(RunEndReason.None));
+        }
+
+        [Test]
+        public void RunOutcomeService_Victory_OnlyTriggersForFinalWaveYear2()
+        {
+            var bus = new TestEventBus();
+            var sut = new RunOutcomeService(bus, new WorldState(), new TestDataRegistry());
+
+            bus.Publish(new WaveEndedEvent("wave_y1_final", 1, Season.Winter, 4, true, true));
+            Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Ongoing), "Year 1 final wave must not trigger victory.");
+
+            bus.Publish(new WaveEndedEvent("wave_y2_not_final", 2, Season.Winter, 3, false, false));
+            Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Ongoing), "Non-final Year 2 wave must not trigger victory.");
+
+            bus.Publish(new WaveEndedEvent("wave_y2_final", 2, Season.Winter, 4, true, true));
+            Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Victory));
+            Assert.That(sut.Reason, Is.EqualTo(RunEndReason.FinalWaveCleared));
+        }
+
+        [Test]
+        public void RunOutcomeService_OnlyTriggersRunEndedEventOnce_WhenOutcomeAlreadyEnded()
+        {
+            var bus = new TestEventBus();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", IsHQ = true, SizeX = 1, SizeY = 1 });
+
+            var world = new WorldState();
+            world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(1, 1),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 0,
+                MaxHP = 10
+            });
+
+            var sut = new RunOutcomeService(bus, world, data);
+            int eventCount = 0;
+            bus.Subscribe<RunEndedEvent>(_ => eventCount++);
+
+            sut.Tick(0.016f);
+            sut.Tick(0.016f);
+            bus.Publish(new WaveEndedEvent("wave_y2_final", 2, Season.Winter, 4, true, true));
+
+            Assert.That(eventCount, Is.EqualTo(1), "RunEndedEvent should be published only once.");
+            Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Defeat));
+            Assert.That(sut.Reason, Is.EqualTo(RunEndReason.HqDestroyed));
+        }
+
+        [Test]
+        public void RunOutcomeService_LoseHasPriorityOverWin_WhenHqAlreadyDead()
+        {
+            var bus = new TestEventBus();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", IsHQ = true, SizeX = 1, SizeY = 1 });
+
+            var world = new WorldState();
+            world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(1, 1),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 0,
+                MaxHP = 10
+            });
+
+            var sut = new RunOutcomeService(bus, world, data);
+
+            sut.Tick(0.016f);
+            bus.Publish(new WaveEndedEvent("wave_y2_final", 2, Season.Winter, 4, true, true));
+
+            Assert.That(sut.Outcome, Is.EqualTo(RunOutcome.Defeat));
+            Assert.That(sut.Reason, Is.EqualTo(RunEndReason.HqDestroyed));
+        }
+
+        [Test]
+        public void TickOrder_WhenRunEnded_DoesNotTickSimulationServices()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var build = new FakeBuildOrderService();
+            var combat = new FakeCombatService();
+            var resource = new FakeResourceFlowService();
+            var ammo = new FakeAmmoTickService();
+            var jobs = new FakeJobSchedulerTickService();
+            var producer = new FakeProducerLoopTickService();
+            var unlock = new FakeUnlockTickService();
+            var outcome = new FakeRunOutcomeService();
+            outcome.Defeat();
+
+            var services = MakeServices(bus, new TestDataRegistry(), noti, new FakeRunClock(), outcome);
+            services.BuildOrderService = build;
+            services.CombatService = combat;
+            services.ResourceFlowService = resource;
+            services.AmmoService = ammo;
+            services.JobScheduler = jobs;
+            services.ProducerLoopService = producer;
+            services.UnlockService = unlock;
+
+            TickOrder.TickAll(services, 0.1f);
+
+            Assert.That(build.TickCalls, Is.EqualTo(0));
+            Assert.That(combat.TickCalls, Is.EqualTo(0));
+            Assert.That(resource.TickCalls, Is.EqualTo(0));
+            Assert.That(ammo.TickCalls, Is.EqualTo(0));
+            Assert.That(jobs.TickCalls, Is.EqualTo(0));
+            Assert.That(producer.TickCalls, Is.EqualTo(0));
+            Assert.That(unlock.TickCalls, Is.EqualTo(0));
         }
 
         // -------------------------

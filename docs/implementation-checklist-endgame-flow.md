@@ -470,40 +470,42 @@ Không để endgame modal bị đóng nhầm bởi scrim.
 Khóa behavior cốt lõi của endgame flow.
 
 ## Cần làm
-- [ ] Thêm test: HQ HP <= 0 -> `RunOutcome.Defeat`
-- [ ] Thêm test: Victory milestone -> `RunOutcome.Victory`
-- [ ] Thêm test: `RunEndedEvent` publish đúng reason
-- [ ] Thêm test: outcome chỉ trigger 1 lần
-- [ ] Thêm test: `ResetOutcome()` clear state đúng
-- [ ] Thêm test: ended state chặn simulation tiếp tục mutate (nếu có thể test qua `TickOrder`)
-- [ ] Thêm test: Retry/New Run reset sạch outcome
+- [x] Thêm test: HQ HP <= 0 -> `RunOutcome.Defeat`
+- [x] Thêm test: Victory milestone -> `RunOutcome.Victory`
+- [x] Thêm test: `RunEndedEvent` publish đúng reason
+- [x] Thêm test: outcome chỉ trigger 1 lần
+- [x] Thêm test: `ResetOutcome()` clear state đúng
+- [x] Thêm test: ended state chặn simulation tiếp tục mutate (qua `TickOrder`)
+- [x] Thêm test: Retry/New Run reset sạch outcome
+- [x] Thêm test: victory chỉ trigger cho final wave Year 2
+- [x] Thêm test: rule priority `Lose > Win`
 
 ## Verify
-- [ ] Regression pass ổn định
-- [ ] Không re-break flow ở các iteration sau
+- [x] Regression pass ổn định
+- [x] Không re-break flow ở các iteration sau
 
 ---
 
 ## 5. Checklist integration / wiring
 
 ### Event → UI wiring
-- [ ] `RunOutcomeService` publish đủ event data
-- [ ] UI presenter subscribe đúng source
-- [ ] Presenter mở modal khi event xảy ra
-- [ ] Modal hiện đúng text theo outcome / reason
+- [x] `RunOutcomeService` publish đủ event data
+- [x] UI presenter subscribe đúng source
+- [x] Presenter mở modal khi event xảy ra
+- [x] Modal hiện đúng text theo outcome / reason
 
 ### Retry / Menu wiring
-- [ ] Retry dùng `GameAppController.RequestNewGame(...)`
-- [ ] Main Menu dùng `GameAppController.GoToMainMenu()`
-- [ ] Retry không giữ world state cũ
+- [x] Retry dùng `GameAppController.RequestNewGame(...)`
+- [x] Main Menu dùng `GameAppController.GoToMainMenu()`
+- [x] Retry không giữ world state cũ
 
 ### Freeze / Action lock
-- [ ] Tick loop không tick sim sau endgame
-- [ ] Combat không chạy tiếp sau endgame
-- [ ] Inspect mutate action bị khóa
-- [ ] Assign action bị khóa
-- [ ] Build/place action bị khóa
-- [ ] Save sau endgame được xử lý đúng policy
+- [x] Tick loop không tick sim sau endgame
+- [x] Combat không chạy tiếp sau endgame
+- [x] Inspect mutate action bị khóa
+- [x] Assign action bị khóa
+- [x] Build/place action bị khóa
+- [x] Save sau endgame được xử lý đúng policy
 
 ---
 
@@ -538,28 +540,28 @@ Khóa behavior cốt lõi của endgame flow.
 ## 7. Smoke test checklist thủ công
 
 ### Defeat path
-- [ ] New Run vào game bình thường
-- [ ] Làm HQ chết bằng combat/debug
-- [ ] `Defeat` modal hiện đúng
-- [ ] Simulation không tiếp tục chạy như bình thường
-- [ ] Không build/repair/assign được nữa
-- [ ] Save bị disable nếu policy là disable
+- [x] New Run vào game bình thường
+- [x] Làm HQ chết bằng combat/debug
+- [x] `Defeat` modal hiện đúng
+- [x] Simulation không tiếp tục chạy như bình thường
+- [x] Không build/repair/assign được nữa
+- [x] Save bị disable nếu policy là disable
 
 ### Retry path
-- [ ] Bấm `Retry`
-- [ ] Vào run mới sạch
-- [ ] Không còn enemy/job/resource state từ run cũ
-- [ ] Outcome reset về `Ongoing`
+- [x] Bấm `Retry`
+- [x] Vào run mới sạch
+- [x] Không còn enemy/job/resource state từ run cũ
+- [x] Outcome reset về `Ongoing`
 
 ### Main Menu path
-- [ ] Bấm `Main Menu`
-- [ ] Về scene `MainMenu`
-- [ ] Từ Main Menu vào lại game bình thường
+- [x] Bấm `Main Menu`
+- [x] Về scene `MainMenu`
+- [x] Từ Main Menu vào lại game bình thường
 
 ### Victory path
-- [ ] Trigger đúng mốc victory
-- [ ] `Victory` modal hiện đúng
-- [ ] Retry/Menu đều hoạt động đúng
+- [x] Trigger đúng mốc victory
+- [x] `Victory` modal hiện đúng
+- [x] Retry/Menu đều hoạt động đúng
 
 ---
 
@@ -567,15 +569,15 @@ Khóa behavior cốt lõi của endgame flow.
 
 Pass này chỉ tính DONE khi:
 
-- [ ] HQ chết thì game thua thật
-- [ ] Mốc victory hiện tại trigger thắng thật
-- [ ] Simulation dừng đúng khi run ended
-- [ ] Có endgame modal usable
-- [ ] Retry tạo run mới sạch
-- [ ] Main Menu flow ổn
-- [ ] Các action gameplay chính không còn mutate world sau endgame
-- [ ] Regression test cốt lõi đã được thêm
-- [ ] Smoke test thủ công pass
+- [x] HQ chết thì game thua thật
+- [x] Mốc victory hiện tại trigger thắng thật
+- [x] Simulation dừng đúng khi run ended
+- [x] Có endgame modal usable
+- [x] Retry tạo run mới sạch
+- [x] Main Menu flow ổn
+- [x] Các action gameplay chính không còn mutate world sau endgame
+- [x] Regression test cốt lõi đã được thêm
+- [x] Smoke test thủ công pass
 
 ---
 

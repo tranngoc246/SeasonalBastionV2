@@ -98,8 +98,8 @@
 
 ### NPC movement roadmap (road-aware pathing)
 - Đã rà soát hiện trạng movement/runtime hiện tại để chuẩn bị cho pass nâng cấp NPC movement:
-  - `GridAgentMoverLite` hiện vẫn là mover Manhattan đơn giản, đi X rồi Y và **ignore obstacles**
-  - road hiện chỉ ảnh hưởng **speed multiplier**, chưa ảnh hưởng route selection
+  - `GridAgentMoverLite` trước đây là mover Manhattan đơn giản, đi X rồi Y và **ignore obstacles**
+  - road trước đây chỉ ảnh hưởng **speed multiplier**, chưa ảnh hưởng route selection
   - nhiều job executors (`Harvest`, `Haul`, `BuildWork`, `ResupplyTower`) đã có khái niệm `TargetCell` / `entry` / `approach cell`, nên có thể tận dụng lại mà không cần rewrite toàn bộ gameplay flow
   - `ResourceFlowService` hiện vẫn chọn source/destination theo **Manhattan distance**, chưa phản ánh đường đi thực tế qua road network
 - Yêu cầu gameplay đã được chốt cho pass movement mới:
@@ -107,22 +107,28 @@
   - phải **tránh building/site/out-of-bounds**
   - được phép đi qua ground khi cần, tạo flow **ground → road → ground** tự nhiên khi source/target không nối full road
   - NPC có thể overlap logic khi đang di chuyển, nhưng **không được chồng ô khi dừng/interact**
-- Hướng kỹ thuật được chốt:
-  - dùng **weighted A*** trên grid 4 hướng (`N/E/S/W`)
+- Hướng kỹ thuật đã được implement ở pass hiện tại:
+  - thêm `NpcPathfinder` dùng **weighted A*** trên grid 4 hướng (`N/E/S/W`)
   - `Road` là traversable terrain ưu tiên, `Empty` là traversable fallback, `Building/Site` là hard blocked
-  - cost mặc định để prototype:
+  - cost prototype hiện dùng:
     - `Road = 10`
     - `Ground = 30`
-  - path cache theo từng NPC, repath khi target đổi / road graph dirty / next step invalid / NPC lệch path
-  - stop occupancy tách riêng khỏi transit movement: moving NPC không hard-block nhau, nhưng stop cell phải unique
-- Đã thêm tài liệu roadmap/task breakdown để bám theo khi implement:
+  - `GridAgentMoverLite` đã được rewrite sang path-based road-aware movement
+  - có path cache theo từng NPC, repath khi target đổi / road graph dirty / next step invalid / NPC lệch path
+  - đã hook invalidation theo `RoadsDirtyEvent`
+  - đã thêm stop reservation để stop cell cuối không bị nhiều NPC chồng lên nhau
+- Regression / test coverage đã được thêm cho movement:
+  - `NpcPathfinderTests`
+  - `GridAgentMoverLiteTests`
+- Runtime behavior đã verify trong Editor:
+  - NPC đã đi theo road thay vì Manhattan step cũ
+  - obstacle avoidance cơ bản hoạt động
+  - stop-cell overlap được chặn ở target cuối
+- Đã thêm/cập nhật tài liệu roadmap/task breakdown:
   - `docs/task-breakdown-npc-road-aware-movement.md`
-- Thứ tự triển khai đề xuất:
-  1. tạo `NpcPathfinder` + unit tests
-  2. rewrite `GridAgentMoverLite` sang path-based road-aware movement
-  3. hook invalidation theo `RoadsDirtyEvent`
-  4. thêm stop reservation để tránh chồng ô khi dừng
-  5. phase sau mới nâng `ResourceFlowService` / source-destination selection sang path-cost-aware
+- Bước tiếp theo được khuyến nghị sau khi chốt pass movement nền:
+  1. update docs/changelog theo trạng thái thực tế
+  2. phase sau mới nâng `ResourceFlowService` / source-destination selection sang path-cost-aware để quyết định logistics phản ánh tốt hơn đường đi thực tế
 
 ## 2026-03-25
 

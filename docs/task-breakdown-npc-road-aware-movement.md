@@ -44,6 +44,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 - `Assets/_Game/Core/NpcPathfinder.cs`
 - `Assets/_Game/Tests/EditMode/Movement/NpcPathfinderTests.cs`
 
+**Status:** DONE
+
 **Work:**
 - Tạo class pathfinder dùng weighted A*
 - API đề xuất:
@@ -61,6 +63,7 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 - Path hợp lệ giữa 2 điểm walkable
 - Ưu tiên road khi có lợi
 - Fail đúng khi target unreachable
+- Đã pass Unity tests cơ bản cho pathfinder
 
 ---
 
@@ -87,6 +90,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 **Files:**
 - `Assets/_Game/Core/GridAgentMoverLite.cs`
 
+**Status:** DONE
+
 **Work:**
 - Giữ public API hiện tại:
   - `StepToward(ref NpcState st, CellPos target, float dt)`
@@ -112,6 +117,7 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 - NPC đi theo path thay vì Manhattan X-then-Y
 - Không đi xuyên building/site
 - Partial-road path hoạt động đúng
+- Runtime Editor đã verify NPC đi theo road
 
 ---
 
@@ -119,6 +125,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 **Files:**
 - nơi bootstrap/composition root tạo `GameServices.AgentMover`
 - có thể thêm/sub vào event bus nếu phù hợp
+
+**Status:** DONE
 
 **Work:**
 - Thêm `NotifyRoadsDirty()` vào mover
@@ -153,6 +161,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 - `Assets/_Game/Tests/EditMode/Movement/NpcMoverTests.cs`
   hoặc thêm có chọn lọc vào regression suite hiện có
 
+**Status:** DONE
+
 **Work:**
 - Test target change -> repath
 - Test roads dirty -> repath
@@ -162,6 +172,7 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 
 **Acceptance:**
 - Test pass ổn định
+- `GridAgentMoverLiteTests` đã được thêm và pass trong Unity Test Runner
 
 ---
 
@@ -171,6 +182,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 **Files:**
 - `Assets/_Game/Core/GridAgentMoverLite.cs`
   hoặc tách helper riêng nếu muốn sạch code
+
+**Status:** DONE
 
 **Work:**
 - Thêm reservation maps:
@@ -188,6 +201,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 **Files:**
 - `Assets/_Game/Core/GridAgentMoverLite.cs`
 
+**Status:** DONE
+
 **Work:**
 - Trước khi bước vào target cell cuối, thử acquire stop reservation
 - Nếu target đang bị NPC khác giữ:
@@ -199,6 +214,7 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 
 **Acceptance:**
 - 2 NPC không cùng đứng trên một target stop cell
+- Runtime Editor đã verify stop-cell overlap được chặn ở target cuối
 
 ---
 
@@ -206,6 +222,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 **Files:**
 - `Assets/_Game/Core/GridAgentMoverLite.cs`
 - chỗ cleanup lifecycle nếu cần
+
+**Status:** DONE
 
 **Work:**
 - Release reservation khi:
@@ -226,6 +244,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 - `Assets/_Game/Tests/EditMode/Movement/NpcMoverReservationTests.cs`
   hoặc thêm vào mover tests
 
+**Status:** DONE
+
 **Work:**
 - NPC A acquire target cell
 - NPC B cùng target -> wait
@@ -234,6 +254,7 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 
 **Acceptance:**
 - Test pass ổn định
+- Reservation coverage đã được thêm vào `GridAgentMoverLiteTests`
 
 ---
 

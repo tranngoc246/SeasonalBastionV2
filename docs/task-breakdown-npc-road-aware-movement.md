@@ -307,6 +307,7 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 **Acceptance:**
 - NPC logistics bớt chọn candidate Manhattan-near nhưng path-xấu
 - `HaulBasicExecutor` và `BuildWorkExecutor` đã được cập nhật ở pass đầu
+- Đã có regression coverage cho selection behavior của `HaulBasicExecutor` / `BuildWorkExecutor`
 
 ---
 

@@ -133,9 +133,12 @@
   - đã thêm test coverage cho `ResourceFlowService` để khóa các case:
     - destination path-cost tốt hơn nhưng Manhattan xa hơn vẫn được chọn đúng
     - fallback Manhattan vẫn hoạt động khi không có path estimate
+  - đã bổ sung regression coverage cho executor-local picker behavior:
+    - `HaulBasicExecutor` chọn destination theo path cost thay vì chỉ Manhattan
+    - `BuildWorkExecutor` chọn storage source theo path cost thay vì chỉ Manhattan
 - Bước tiếp theo được khuyến nghị sau pass này:
-  1. nếu cần, mở rộng regression coverage sang executor-local picker behavior
-  2. smoke test thêm các case logistics lớn trong runtime (haul/build sourcing giữa nhiều kho/producer)
+  1. smoke test thêm các case logistics lớn trong runtime (haul/build sourcing giữa nhiều kho/producer)
+  2. nếu cần, mở rộng regression coverage tiếp sang các executor logistics khác
   3. sau đó mới cân nhắc các polish sâu hơn như adjacent fallback stop cell hoặc tối ưu cache path-cost query
 
 ## 2026-03-25

@@ -12,7 +12,8 @@
         "Game.Jobs",
         "Game.Save",
         "Game.Combat",
-        "Game.Economy"
+        "Game.Economy",
+        "Game.Rewards"
     ],
     "includePlatforms": [
         "Editor"

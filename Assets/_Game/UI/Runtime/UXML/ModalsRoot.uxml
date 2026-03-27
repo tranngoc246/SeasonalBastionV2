@@ -46,5 +46,15 @@
             </ui:VisualElement>
         </ui:VisualElement>
 
+        <!-- Run Ended Modal -->
+        <ui:VisualElement name="RunEndedModal" class="modal modal-endgame ui-block-world" picking-mode="Position" style="display:none;">
+            <ui:Label name="LblRunEndedTitle" text="VICTORY" class="modal-title endgame-title" />
+            <ui:Label name="LblRunEndedBody" text="The run has ended." class="hint endgame-body" />
+            <ui:VisualElement class="modal-actions">
+                <ui:Button name="BtnRetry" text="Retry" class="btn-primary" />
+                <ui:Button name="BtnRunEndedMenu" text="Main Menu" class="btn-warn" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
     </ui:VisualElement>
 </ui:UXML>

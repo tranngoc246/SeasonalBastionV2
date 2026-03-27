@@ -36,6 +36,7 @@ namespace SeasonalBastion.UI
         private SettingsModalPresenter _settingsModal;
         private ConfirmModalPresenter _confirmModal;
         private AssignNpcModalPresenter _assignNpcModal;
+        private RunEndedModalPresenter _runEndedModal;
 
         private float _inspectRefreshTimer;
         private bool _initialized;
@@ -119,6 +120,7 @@ namespace SeasonalBastion.UI
             _settingsModal = new SettingsModalPresenter();
             _confirmModal = new ConfirmModalPresenter();
             _assignNpcModal = new AssignNpcModalPresenter();
+            _runEndedModal = new RunEndedModalPresenter();
 
             _hudPresenter.Bind(Ctx, hudRoot);
 
@@ -134,20 +136,24 @@ namespace SeasonalBastion.UI
             var settingsRoot = UiElementUtil.GetOrCreateChild(modalHost, "SettingsModal");
             var confirmRoot = UiElementUtil.GetOrCreateChild(modalHost, "ConfirmModal");
             var assignRoot = UiElementUtil.GetOrCreateChild(modalHost, "AssignNpcModal");
+            var runEndedRoot = UiElementUtil.GetOrCreateChild(modalHost, "RunEndedModal");
 
             _settingsModal.Bind(Ctx, settingsRoot);
             _confirmModal.Bind(Ctx, confirmRoot);
             _assignNpcModal.Bind(Ctx, assignRoot);
+            _runEndedModal.Bind(Ctx, runEndedRoot);
 
             _modalStack.Register(UiKeys.Modal_Settings, _settingsModal, settingsRoot);
             _modalStack.Register(UiKeys.Modal_Confirm, _confirmModal, confirmRoot);
             _modalStack.Register(UiKeys.Modal_AssignNpc, _assignNpcModal, assignRoot);
+            _modalStack.Register(UiKeys.Modal_RunEnded, _runEndedModal, runEndedRoot, dismissOnScrim: false);
 
             UiElementUtil.SetVisible(buildRoot, false);
             UiElementUtil.SetVisible(inspectRoot, false);
             UiElementUtil.SetVisible(settingsRoot, false);
             UiElementUtil.SetVisible(confirmRoot, false);
             UiElementUtil.SetVisible(assignRoot, false);
+            UiElementUtil.SetVisible(runEndedRoot, false);
         }
 
         private void WireBasicFlow()
@@ -192,6 +198,7 @@ namespace SeasonalBastion.UI
             _settingsModal?.Unbind();
             _confirmModal?.Unbind();
             _assignNpcModal?.Unbind();
+            _runEndedModal?.Unbind();
 
             _store?.ClearModals();
         }

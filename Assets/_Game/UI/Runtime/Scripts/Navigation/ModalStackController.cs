@@ -21,6 +21,7 @@ namespace SeasonalBastion.UI.Navigation
         private readonly Dictionary<string, (IUiPresenter presenter, VisualElement root)> _map =
             new(StringComparer.Ordinal);
 
+        private readonly HashSet<string> _nonDismissible = new(StringComparer.Ordinal);
         private readonly List<string> _stack = new(4);
 
         public ModalStackController(UIStateStore store, IUiPauseController pause)
@@ -38,17 +39,23 @@ namespace SeasonalBastion.UI.Navigation
             if (_scrim != null)
             {
                 _scrim.pickingMode = PickingMode.Position;
-                _scrim.RegisterCallback<ClickEvent>(_ => Pop());
+                _scrim.RegisterCallback<ClickEvent>(_ =>
+                {
+                    if (IsTopNonDismissible()) return;
+                    Pop();
+                });
             }
 
             CloseRoot();
         }
 
-        public void Register(string key, IUiPresenter presenter, VisualElement root)
+        public void Register(string key, IUiPresenter presenter, VisualElement root, bool dismissOnScrim = true)
         {
             if (string.IsNullOrEmpty(key) || presenter == null || root == null) return;
 
             _map[key] = (presenter, root);
+            if (dismissOnScrim) _nonDismissible.Remove(key);
+            else _nonDismissible.Add(key);
             root.style.display = DisplayStyle.None;
         }
 
@@ -117,6 +124,13 @@ namespace SeasonalBastion.UI.Navigation
             string key = _stack[_stack.Count - 1];
             if (_map.TryGetValue(key, out var entry))
                 entry.root.style.display = DisplayStyle.None;
+        }
+
+        private bool IsTopNonDismissible()
+        {
+            if (_stack.Count <= 0) return false;
+            string key = _stack[_stack.Count - 1];
+            return _nonDismissible.Contains(key);
         }
 
         private void OpenRoot()

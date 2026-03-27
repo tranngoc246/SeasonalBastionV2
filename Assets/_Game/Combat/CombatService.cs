@@ -95,6 +95,13 @@ namespace SeasonalBastion
 
         public void Tick(float dt)
         {
+            if (_s.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing)
+            {
+                IsActive = false;
+                _deferWaveStartAfterLoad = false;
+                return;
+            }
+
             // Phase latch (defend trigger)
             var phase = _s.RunClock.CurrentPhase;
             if (phase != _latchedPhase)

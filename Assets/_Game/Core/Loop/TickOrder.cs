@@ -10,8 +10,10 @@
             // clamp wall dt to avoid huge hitch
             if (dtUnscaled > 0.25f) dtUnscaled = 0.25f;
 
+            bool endedBeforeTick = s.RunOutcomeService != null && s.RunOutcomeService.Outcome != Contracts.RunOutcome.Ongoing;
+
             // 1) RunClock tick bằng unscaled dt (RunClock tự nhân TimeScale)
-            if (s.RunClock is ITickable clockTick)
+            if (!endedBeforeTick && s.RunClock is ITickable clockTick)
                 clockTick.Tick(dtUnscaled);
 
             // 2) Lấy timescale từ run clock (pause => 0)
@@ -25,6 +27,8 @@
             // UI-ish services tick theo frame
             if (s.NotificationService is ITickable notiTick) notiTick.Tick(simDt);
             if (s.TutorialHints is ITickable hintTick) hintTick.Tick(simDt);
+
+            if (endedBeforeTick) return;
 
             // simulation services
             if (s.BuildOrderService is ITickable buildTick) buildTick.Tick(simDt);

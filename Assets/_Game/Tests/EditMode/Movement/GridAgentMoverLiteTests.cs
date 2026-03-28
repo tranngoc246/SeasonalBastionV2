@@ -134,7 +134,7 @@ namespace SeasonalBastion.Tests.EditMode
             for (int i = 0; i < 12; i++)
             {
                 arrived = mover.StepToward(ref npc, target, 1f);
-                if (!grid.IsRoad(npc.Cell) && npc.Cell != target)
+                if (!grid.IsRoad(npc.Cell) && (npc.Cell.X != target.X || npc.Cell.Y != target.Y))
                     steppedOffRoadAfterRemoval = true;
                 if (arrived) break;
             }

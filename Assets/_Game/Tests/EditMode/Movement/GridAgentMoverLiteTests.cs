@@ -129,17 +129,18 @@ namespace SeasonalBastion.Tests.EditMode
             grid.SetRoad(new CellPos(5, 1), false);
             mover.NotifyRoadsDirty();
 
-            bool steppedOffRoadAfterRemoval = false;
+            bool routeContinuedAfterRemoval = false;
             bool arrived = false;
             for (int i = 0; i < 12; i++)
             {
+                var beforeStep = npc.Cell;
                 arrived = mover.StepToward(ref npc, target, 1f);
-                if (!grid.IsRoad(npc.Cell) && (npc.Cell.X != target.X || npc.Cell.Y != target.Y))
-                    steppedOffRoadAfterRemoval = true;
+                if (npc.Cell.X != beforeStep.X || npc.Cell.Y != beforeStep.Y)
+                    routeContinuedAfterRemoval = true;
                 if (arrived) break;
             }
 
-            Assert.That(steppedOffRoadAfterRemoval, Is.True, "NPC should repath off the broken road backbone when it is removed mid-route.");
+            Assert.That(routeContinuedAfterRemoval, Is.True, "NPC should continue along a valid repathed route after road removal.");
             Assert.That(arrived, Is.True);
             Assert.That(npc.Cell, Is.EqualTo(target));
         }

@@ -140,6 +140,17 @@
   1. smoke test thêm các case logistics lớn trong runtime (haul/build sourcing giữa nhiều kho/producer)
   2. nếu cần, mở rộng regression coverage tiếp sang các executor logistics khác
   3. sau đó mới cân nhắc các polish sâu hơn như adjacent fallback stop cell hoặc tối ưu cache path-cost query
+- Đã tiếp tục tinh chỉnh road-aware movement theo hướng **road-first** để khớp gameplay intent rõ hơn:
+  - weighted preference cũ chưa đủ mạnh, nên NPC đôi lúc vẫn chọn ground shortcut nếu tổng path ngắn hơn
+  - `NpcPathfinder` giờ ưu tiên route có **road backbone** khi tồn tại đường road usable giữa hai phía
+  - ground được giữ vai trò **đoạn tiếp cận đầu/cuối** (`ground -> road -> ground`), thay vì cho phép cắt khỏi road giữa hành trình chỉ vì rẻ hơn
+  - fallback mixed path chỉ còn dùng khi thật sự **không tìm được road route hợp lệ**
+- Đã sửa thêm pass ổn định/hiệu năng cho road-first pathing:
+  - giảm brute-force khi chọn road entry/exit để tránh pathfinding gây giật khi map có nhiều road
+  - cải thiện tie-break để hành vi **A -> B** và **B -> A** đối xứng hơn, giảm hiện tượng một chiều bám road còn chiều ngược lại thì không
+- Kết quả test runtime hiện tại:
+  - behavior road-first đã ổn định hơn và chạy mượt hơn trong test thủ công
+  - pass này hiện đạt mục tiêu gameplay mong muốn ở mức usable, chưa cần refactor sâu thêm ngay
 
 ## 2026-03-25
 

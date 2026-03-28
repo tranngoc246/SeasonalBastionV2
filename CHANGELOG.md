@@ -159,6 +159,20 @@
   - remove road giữa lúc NPC đang đi -> NPC repath và vẫn tới target
   - add road mới giữa lúc NPC đang đi -> NPC repath sang road backbone mới nếu phù hợp
 - Batch road-first hiện đã được khóa tốt hơn ở cả gameplay behavior, runtime smoke và regression coverage
+- Đã rà lại trạng thái codebase quanh population / housing / food upkeep để chốt hướng implement tiếp theo:
+  - hiện tại NPC vẫn được spawn cứng từ `RunStart` config, chưa có population growth runtime thật
+  - `House` đã tồn tại trong defs/index nhưng chưa tham gia vào cơ chế sinh dân
+  - `Food` hiện là resource sản xuất/lưu kho, chưa có cơ chế tiêu hao theo population
+- Đã chốt spec implementation cho hệ **Population Growth + Food Upkeep**:
+  - `PopulationCurrent` = số NPC hiện có trong world
+  - `PopulationCap` = tổng housing cap từ House constructed
+  - House T1/T2/T3 cho cap lần lượt: `+2 / +4 / +6`
+  - mỗi NPC tiêu **5 Food / ngày**
+  - growth theo ngày, chỉ xảy ra khi còn housing slot và có dự trữ food tối thiểu `>= 2 ngày nhu cầu`
+  - NPC mới spawn near HQ ở trạng thái `unassigned`
+  - thiếu food sẽ chặn growth và tăng starvation counter
+- Đã thêm task breakdown file-by-file để implement pass này:
+  - `docs/task-breakdown-population-food-upkeep.md`
 
 ## 2026-03-25
 

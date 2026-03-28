@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -9,7 +8,8 @@ namespace SeasonalBastion
     /// - 4-direction only
     /// - Traversable: Empty, Road
     /// - Blocked: Building, Site, OOB
-    /// - Road is preferred over ground by lower move cost
+    /// - Road-first rule: if a valid road backbone exists, path must use it.
+    /// - Fallback mixed weighted path only when no usable road route exists.
     /// Deterministic by fixed neighbor order and tie-breaks.
     /// </summary>
     public sealed class NpcPathfinder
@@ -34,7 +34,89 @@ namespace SeasonalBastion
 
             if (_grid == null) return false;
             if (!_grid.IsInside(from) || !_grid.IsInside(target)) return false;
-            if (!IsWalkable(from) || !IsWalkable(target)) return false;
+            if (!IsWalkableMixed(from) || !IsWalkableMixed(target)) return false;
+
+            if (from.X == target.X && from.Y == target.Y)
+            {
+                path = new List<CellPos>(0);
+                return true;
+            }
+
+            if (TryFindRoadFirstPath(from, target, out path))
+                return true;
+
+            return TryFindPathCore(from, target, out path, IsWalkableMixed, GetMixedStepCost);
+        }
+
+        public bool TryEstimateCost(CellPos from, CellPos target, out int cost)
+        {
+            cost = 0;
+            if (!TryFindPath(from, target, out var path)) return false;
+
+            for (int i = 0; i < path.Count; i++)
+                cost += GetMixedStepCost(path[i]);
+
+            return true;
+        }
+
+        private bool TryFindRoadFirstPath(CellPos from, CellPos target, out List<CellPos> path)
+        {
+            path = null;
+
+            var roadCells = CollectRoadCells();
+            if (roadCells.Count == 0)
+                return false;
+
+            var startEntries = CollectReachableRoadEntries(from, roadCells);
+            if (startEntries.Count == 0)
+                return false;
+
+            var targetExits = CollectReachableRoadEntries(target, roadCells);
+            if (targetExits.Count == 0)
+                return false;
+
+            PathCandidate best = default;
+            bool found = false;
+
+            for (int i = 0; i < startEntries.Count; i++)
+            {
+                var entry = startEntries[i];
+                for (int j = 0; j < targetExits.Count; j++)
+                {
+                    var exit = targetExits[j];
+                    if (!TryFindPathCore(entry.RoadCell, exit.RoadCell, out var backbone, IsWalkableRoadOnly, GetRoadOnlyStepCost))
+                        continue;
+
+                    int totalCost = entry.Cost + ComputePathCost(backbone) + exit.Cost;
+                    var candidate = new PathCandidate(entry.RoadCell, exit.RoadCell, totalCost, backbone);
+                    if (!found || IsBetterCandidate(candidate, best))
+                    {
+                        best = candidate;
+                        found = true;
+                    }
+                }
+            }
+
+            if (!found)
+                return false;
+
+            if (!TryFindPathCore(from, best.Entry, out var startLeg, IsWalkableMixed, GetMixedStepCost))
+                return false;
+
+            if (!TryFindPathCore(best.Exit, target, out var endLeg, IsWalkableMixed, GetMixedStepCost))
+                return false;
+
+            path = CombineSegments(startLeg, best.Backbone, endLeg);
+            return path != null;
+        }
+
+        private bool TryFindPathCore(CellPos from, CellPos target, out List<CellPos> path, Func<CellPos, bool> isWalkable, Func<CellPos, int> getStepCost)
+        {
+            path = null;
+
+            if (_grid == null) return false;
+            if (!_grid.IsInside(from) || !_grid.IsInside(target)) return false;
+            if (!isWalkable(from) || !isWalkable(target)) return false;
 
             if (from.X == target.X && from.Y == target.Y)
             {
@@ -96,9 +178,9 @@ namespace SeasonalBastion
                     if (closed[ni]) continue;
 
                     var nextCell = new CellPos(nx, ny);
-                    if (!IsWalkable(nextCell)) continue;
+                    if (!isWalkable(nextCell)) continue;
 
-                    int stepCost = GetStepCost(nextCell);
+                    int stepCost = getStepCost(nextCell);
                     if (stepCost <= 0) continue;
 
                     int tentativeG = gScore[current] + stepCost;
@@ -119,23 +201,113 @@ namespace SeasonalBastion
             return false;
         }
 
-        public bool TryEstimateCost(CellPos from, CellPos target, out int cost)
+        private List<RoadEntryCandidate> CollectReachableRoadEntries(CellPos origin, List<CellPos> roadCells)
         {
-            cost = 0;
-            if (!TryFindPath(from, target, out var path)) return false;
-
-            var cur = from;
-            for (int i = 0; i < path.Count; i++)
+            var entries = new List<RoadEntryCandidate>(roadCells.Count);
+            for (int i = 0; i < roadCells.Count; i++)
             {
-                var step = path[i];
-                cost += GetStepCost(step);
-                cur = step;
+                var roadCell = roadCells[i];
+                if (!TryFindPathCore(origin, roadCell, out var leg, IsWalkableMixed, GetMixedStepCost))
+                    continue;
+
+                int cost = ComputePathCost(leg);
+                int groundStepsBeforeRoad = CountGroundStepsBeforeFirstRoad(leg);
+                entries.Add(new RoadEntryCandidate(roadCell, cost, groundStepsBeforeRoad));
             }
 
-            return true;
+            entries.Sort(CompareRoadEntryCandidates);
+            return entries;
         }
 
-        private bool IsWalkable(CellPos c)
+        private List<CellPos> CollectRoadCells()
+        {
+            var roads = new List<CellPos>();
+            for (int y = 0; y < _grid.Height; y++)
+            {
+                for (int x = 0; x < _grid.Width; x++)
+                {
+                    var c = new CellPos(x, y);
+                    if (_grid.IsRoad(c))
+                        roads.Add(c);
+                }
+            }
+            return roads;
+        }
+
+        private static int CompareRoadEntryCandidates(RoadEntryCandidate a, RoadEntryCandidate b)
+        {
+            int cmp = a.GroundStepsBeforeRoad.CompareTo(b.GroundStepsBeforeRoad);
+            if (cmp != 0) return cmp;
+            cmp = a.Cost.CompareTo(b.Cost);
+            if (cmp != 0) return cmp;
+            cmp = a.RoadCell.Y.CompareTo(b.RoadCell.Y);
+            if (cmp != 0) return cmp;
+            return a.RoadCell.X.CompareTo(b.RoadCell.X);
+        }
+
+        private int CountGroundStepsBeforeFirstRoad(List<CellPos> path)
+        {
+            int count = 0;
+            for (int i = 0; i < path.Count; i++)
+            {
+                if (_grid.IsRoad(path[i]))
+                    break;
+                count++;
+            }
+            return count;
+        }
+
+        private bool IsBetterCandidate(PathCandidate a, PathCandidate b)
+        {
+            if (a.TotalCost != b.TotalCost)
+                return a.TotalCost < b.TotalCost;
+
+            if (a.Entry.Y != b.Entry.Y)
+                return a.Entry.Y < b.Entry.Y;
+            if (a.Entry.X != b.Entry.X)
+                return a.Entry.X < b.Entry.X;
+            if (a.Exit.Y != b.Exit.Y)
+                return a.Exit.Y < b.Exit.Y;
+            return a.Exit.X < b.Exit.X;
+        }
+
+        private static List<CellPos> CombineSegments(List<CellPos> first, List<CellPos> second, List<CellPos> third)
+        {
+            if (first == null || second == null || third == null)
+                return null;
+
+            var combined = new List<CellPos>(first.Count + second.Count + third.Count);
+            AppendUnique(combined, first);
+            AppendUnique(combined, second);
+            AppendUnique(combined, third);
+            return combined;
+        }
+
+        private static void AppendUnique(List<CellPos> into, List<CellPos> segment)
+        {
+            for (int i = 0; i < segment.Count; i++)
+            {
+                var cell = segment[i];
+                if (into.Count > 0)
+                {
+                    var last = into[into.Count - 1];
+                    if (last.X == cell.X && last.Y == cell.Y)
+                        continue;
+                }
+
+                into.Add(cell);
+            }
+        }
+
+        private int ComputePathCost(List<CellPos> path)
+        {
+            int cost = 0;
+            for (int i = 0; i < path.Count; i++)
+                cost += GetMixedStepCost(path[i]);
+            return cost;
+        }
+
+        private bool IsWalkableMixed(CellPos c)
         {
             if (!_grid.IsInside(c)) return false;
 
@@ -143,9 +315,19 @@ namespace SeasonalBastion
             return kind == CellOccupancyKind.Empty || kind == CellOccupancyKind.Road;
         }
 
-        private int GetStepCost(CellPos c)
+        private bool IsWalkableRoadOnly(CellPos c)
+        {
+            return _grid.IsInside(c) && _grid.IsRoad(c);
+        }
+
+        private int GetMixedStepCost(CellPos c)
         {
             return _grid.IsRoad(c) ? RoadCost : GroundCost;
+        }
+
+        private int GetRoadOnlyStepCost(CellPos c)
+        {
+            return _grid.IsRoad(c) ? RoadCost : int.MaxValue;
         }
 
         private static int Idx(CellPos c, int w) => c.Y * w + c.X;
@@ -200,6 +382,36 @@ namespace SeasonalBastion
 
             rev.Reverse();
             return rev;
+        }
+
+        private readonly struct RoadEntryCandidate
+        {
+            public readonly CellPos RoadCell;
+            public readonly int Cost;
+            public readonly int GroundStepsBeforeRoad;
+
+            public RoadEntryCandidate(CellPos roadCell, int cost, int groundStepsBeforeRoad)
+            {
+                RoadCell = roadCell;
+                Cost = cost;
+                GroundStepsBeforeRoad = groundStepsBeforeRoad;
+            }
+        }
+
+        private readonly struct PathCandidate
+        {
+            public readonly CellPos Entry;
+            public readonly CellPos Exit;
+            public readonly int TotalCost;
+            public readonly List<CellPos> Backbone;
+
+            public PathCandidate(CellPos entry, CellPos exit, int totalCost, List<CellPos> backbone)
+            {
+                Entry = entry;
+                Exit = exit;
+                TotalCost = totalCost;
+                Backbone = backbone;
+            }
         }
     }
 }

@@ -32,8 +32,58 @@ namespace SeasonalBastion.Tests.EditMode
                 }
             }
 
-            Assert.That(touchesRoad, Is.True, "Expected weighted path to use road corridor.");
+            Assert.That(touchesRoad, Is.True, "Expected path to use road corridor.");
             Assert.That(path[path.Count - 1], Is.EqualTo(new CellPos(6, 1)));
+        }
+
+        [Test]
+        public void TryFindPath_UsesRoadEvenWhenGroundShortcutIsShorter()
+        {
+            var grid = new GridMap(9, 3);
+            for (int x = 0; x < 9; x++)
+                grid.SetRoad(new CellPos(x, 1), true);
+
+            var sut = new NpcPathfinder(grid);
+            bool ok = sut.TryFindPath(new CellPos(0, 0), new CellPos(8, 0), out var path);
+
+            Assert.That(ok, Is.True);
+            Assert.That(path, Is.Not.Null);
+            Assert.That(path.Count, Is.GreaterThan(0));
+
+            bool touchedRoad = false;
+            bool leftRoadAfterEntering = false;
+            for (int i = 0; i < path.Count; i++)
+            {
+                bool isRoad = grid.IsRoad(path[i]);
+                if (isRoad)
+                {
+                    touchedRoad = true;
+                    continue;
+                }
+
+                if (touchedRoad && i < path.Count - 1)
+                    leftRoadAfterEntering = true;
+            }
+
+            Assert.That(touchedRoad, Is.True, "NPC should enter road backbone when one exists.");
+            Assert.That(leftRoadAfterEntering, Is.False, "NPC should not leave road mid-route just to take a ground shortcut.");
+        }
+
+        [Test]
+        public void TryFindPath_FallsBackToGround_WhenNoRoadBackboneExists()
+        {
+            var grid = new GridMap(6, 3);
+            grid.SetRoad(new CellPos(0, 1), true);
+            grid.SetRoad(new CellPos(1, 1), true);
+            grid.SetRoad(new CellPos(4, 1), true);
+            grid.SetRoad(new CellPos(5, 1), true);
+
+            var sut = new NpcPathfinder(grid);
+            bool ok = sut.TryFindPath(new CellPos(0, 0), new CellPos(5, 0), out var path);
+
+            Assert.That(ok, Is.True);
+            Assert.That(path, Is.Not.Null);
+            Assert.That(path[path.Count - 1], Is.EqualTo(new CellPos(5, 0)));
         }
 
         [Test]
@@ -89,17 +139,19 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
-        public void TryEstimateCost_ReturnsWeightedPathCost()
+        public void TryEstimateCost_ReturnsRoadFirstPathCost()
         {
             var grid = new GridMap(4, 3);
+            grid.SetRoad(new CellPos(0, 1), true);
             grid.SetRoad(new CellPos(1, 1), true);
             grid.SetRoad(new CellPos(2, 1), true);
+            grid.SetRoad(new CellPos(3, 1), true);
 
             var sut = new NpcPathfinder(grid);
-            bool ok = sut.TryEstimateCost(new CellPos(0, 1), new CellPos(3, 1), out int cost);
+            bool ok = sut.TryEstimateCost(new CellPos(0, 0), new CellPos(3, 0), out int cost);
 
             Assert.That(ok, Is.True);
-            Assert.That(cost, Is.EqualTo(NpcPathfinder.GroundCost + NpcPathfinder.RoadCost + NpcPathfinder.RoadCost));
+            Assert.That(cost, Is.EqualTo((NpcPathfinder.RoadCost * 4) + NpcPathfinder.GroundCost));
         }
     }
 }

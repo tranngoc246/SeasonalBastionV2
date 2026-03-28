@@ -14,6 +14,13 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 - Path cache + repath khi target/road đổi
 - Giữ nguyên job executor API hiện tại
 
+### Pass 1.5 — Road-first tightening
+- Nếu tồn tại route có road backbone hợp lệ, NPC phải dùng road backbone đó
+- Ground chỉ là đoạn tiếp cận đầu/cuối (`ground -> road -> ground`)
+- Không cho phép rời road giữa backbone chỉ để shortcut
+- Fallback mixed path chỉ dùng khi không có road route usable
+- Giảm brute-force / bất đối xứng khi chọn road entry-exit
+
 ### Pass 2
 - Stop reservation để NPC không đè lên nhau khi dừng/interact
 - Wait/retry khi target stop cell đang bị chiếm
@@ -320,8 +327,8 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 - [ ] NPC đi vòng obstacle thay vì cắt xuyên building/site
 
 ## Dynamic changes
-- [ ] Remove road trong lúc NPC đang đi -> NPC repath
-- [ ] Add road mới -> path mới tận dụng road nếu phù hợp
+- [x] Remove road trong lúc NPC đang đi -> NPC repath
+- [x] Add road mới -> path mới tận dụng road nếu phù hợp
 
 ## Target contention
 - [ ] 2 NPC cùng một entry cell -> không đứng chồng nếu pass 2 đã xong
@@ -354,6 +361,18 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 ## Commit 6
 - `logistics: prefer path-cost-aware source and destination picks`
 
+## Commit 7
+- `movement: enforce road-first NPC pathing`
+
+## Commit 8
+- `movement: reduce road-first pathfinder jitter and asymmetry`
+
+## Commit 9
+- `tests: add regression coverage for road-first pathing`
+
+## Commit 10
+- `tests: add dynamic road change mover coverage`
+
 ---
 
 # Definition of Done
@@ -363,6 +382,7 @@ Nâng cấp NPC movement từ Manhattan step đơn giản sang path-based moveme
 - NPC tránh building/site/OOB
 - NPC ưu tiên road rõ ràng
 - Partial road path hoạt động
+- Nếu có road backbone usable thì NPC bám road backbone thay vì ground shortcut
 - Job executors hiện tại vẫn chạy ổn
 - Regression/unit tests pass
 

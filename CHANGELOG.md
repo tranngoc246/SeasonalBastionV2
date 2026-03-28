@@ -151,6 +151,14 @@
 - Kết quả test runtime hiện tại:
   - behavior road-first đã ổn định hơn và chạy mượt hơn trong test thủ công
   - pass này hiện đạt mục tiêu gameplay mong muốn ở mức usable, chưa cần refactor sâu thêm ngay
+- Đã bổ sung regression coverage cho road-first pathing để khóa các case dễ vỡ:
+  - có road backbone thì path phải dùng backbone đó, kể cả khi ground shortcut ngắn hơn
+  - behavior hai chiều `A -> B` và `B -> A` ổn định hơn khi có road backbone
+  - fallback mixed path vẫn hoạt động khi road backbone không tồn tại
+- Đã bổ sung mover tests cho **dynamic road change**:
+  - remove road giữa lúc NPC đang đi -> NPC repath và vẫn tới target
+  - add road mới giữa lúc NPC đang đi -> NPC repath sang road backbone mới nếu phù hợp
+- Batch road-first hiện đã được khóa tốt hơn ở cả gameplay behavior, runtime smoke và regression coverage
 
 ## 2026-03-25
 

@@ -106,6 +106,74 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void StepToward_RoadRemovedMidRoute_RepathsAndStillArrives()
+        {
+            var grid = new GridMap(8, 3);
+            for (int x = 0; x < 8; x++)
+                grid.SetRoad(new CellPos(x, 1), true);
+
+            var mover = MakeMover(grid);
+            var npc = MakeNpc(22, 0, 0);
+            var target = new CellPos(7, 0);
+
+            bool touchedRoadBeforeRemoval = false;
+            for (int i = 0; i < 4; i++)
+            {
+                mover.StepToward(ref npc, target, 1f);
+                touchedRoadBeforeRemoval |= grid.IsRoad(npc.Cell);
+            }
+
+            Assert.That(touchedRoadBeforeRemoval, Is.True, "NPC should already be using road before road removal.");
+
+            grid.SetRoad(new CellPos(4, 1), false);
+            grid.SetRoad(new CellPos(5, 1), false);
+            mover.NotifyRoadsDirty();
+
+            bool steppedOffRoadAfterRemoval = false;
+            bool arrived = false;
+            for (int i = 0; i < 12; i++)
+            {
+                arrived = mover.StepToward(ref npc, target, 1f);
+                if (!grid.IsRoad(npc.Cell) && npc.Cell != target)
+                    steppedOffRoadAfterRemoval = true;
+                if (arrived) break;
+            }
+
+            Assert.That(steppedOffRoadAfterRemoval, Is.True, "NPC should repath off the broken road backbone when it is removed mid-route.");
+            Assert.That(arrived, Is.True);
+            Assert.That(npc.Cell, Is.EqualTo(target));
+        }
+
+        [Test]
+        public void StepToward_RoadAddedMidRoute_RepathsOntoNewRoadBackbone()
+        {
+            var grid = new GridMap(8, 3);
+            var mover = MakeMover(grid);
+            var npc = MakeNpc(23, 0, 0);
+            var target = new CellPos(7, 0);
+
+            Assert.That(mover.StepToward(ref npc, target, 2f), Is.False);
+            Assert.That(grid.IsRoad(npc.Cell), Is.False, "NPC starts on pure ground before road is added.");
+
+            for (int x = 0; x < 8; x++)
+                grid.SetRoad(new CellPos(x, 1), true);
+            mover.NotifyRoadsDirty();
+
+            bool touchedNewRoad = false;
+            bool arrived = false;
+            for (int i = 0; i < 12; i++)
+            {
+                arrived = mover.StepToward(ref npc, target, 1f);
+                touchedNewRoad |= grid.IsRoad(npc.Cell);
+                if (arrived) break;
+            }
+
+            Assert.That(touchedNewRoad, Is.True, "NPC should repath onto newly added road backbone.");
+            Assert.That(arrived, Is.True);
+            Assert.That(npc.Cell, Is.EqualTo(target));
+        }
+
+        [Test]
         public void StepToward_UsesRoadBackboneInBothDirections_WhenRoadRouteExists()
         {
             var grid = new GridMap(9, 3);

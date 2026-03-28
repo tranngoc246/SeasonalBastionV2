@@ -81,6 +81,7 @@ namespace SeasonalBastion
 
             if (bs.HP >= bs.MaxHP)
             {
+                InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
                 job.Status = JobStatus.Completed;
                 _acc.Remove(jid);
                 _settle.Remove(jid);
@@ -226,6 +227,7 @@ namespace SeasonalBastion
 
             if (bs.HP >= bs.MaxHP)
             {
+                InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
                 job.Status = JobStatus.Completed;
                 _acc.Remove(jid);
                 _settle.Remove(jid);

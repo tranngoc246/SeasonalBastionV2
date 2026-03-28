@@ -53,7 +53,7 @@ namespace SeasonalBastion
             services.JobBoard = new JobBoard();
             services.JobWorkplacePolicy = new JobWorkplacePolicy(services.DataRegistry);
             var executorRegistry = new JobExecutorRegistry(services);
-            services.JobScheduler = new JobScheduler( services.WorldState, services.JobBoard, services.ClaimService, executorRegistry, services.EventBus, services.DataRegistry, services.NotificationService, services.JobWorkplacePolicy);
+            services.JobScheduler = new JobScheduler( services, services.WorldState, services.JobBoard, services.ClaimService, executorRegistry, services.EventBus, services.DataRegistry, services.NotificationService, services.JobWorkplacePolicy);
 
             //services.ProducerLoopService = new ProducerLoopService(services.WorldState, services.DataRegistry, services.StorageService, services.JobBoard, services.NotificationService, services.RunClock);
             // P0: disable ProducerLoopService to avoid duplicate/invalid Harvest jobs (JobScheduler is the single source)

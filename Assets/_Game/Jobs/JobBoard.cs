@@ -53,6 +53,7 @@ namespace SeasonalBastion
             int candidate = 0;
             int bestPri = int.MaxValue;
             bool isArmory = (allowed & WorkRoleFlags.Armory) != 0;
+            bool isBuilder = (allowed & WorkRoleFlags.Build) != 0;
 
             for (int i = 0; i < n; i++)
             {
@@ -68,7 +69,9 @@ namespace SeasonalBastion
                 if (!IsAllowed(allowed, j.Archetype))
                     continue;
 
-                int pri = isArmory ? GetArmoryPriority(j.Archetype) : 0;
+                int pri = isArmory ? GetArmoryPriority(j.Archetype)
+                    : isBuilder ? GetBuilderPriority(j.Archetype)
+                    : 0;
 
                 // Pick best priority; tie-break by earlier queue order (first seen)
                 if (pri < bestPri)
@@ -99,6 +102,18 @@ namespace SeasonalBastion
                 JobArchetype.HaulAmmoToArmory => 1,
                 JobArchetype.HaulToForge => 2,
                 _ => 3
+            };
+        }
+
+        private static int GetBuilderPriority(JobArchetype a)
+        {
+            return a switch
+            {
+                JobArchetype.BuildWork => 0,
+                JobArchetype.BuildDeliver => 1,
+                JobArchetype.RepairWork => 2,
+                JobArchetype.HaulBasic => 3,
+                _ => 4
             };
         }
 

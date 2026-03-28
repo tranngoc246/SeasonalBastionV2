@@ -26,6 +26,9 @@ namespace SeasonalBastion
             ref NpcState ns,
             System.Func<ResourceType, bool> anyHarvestProducerHasAmount)
         {
+            if (InteractionCellExitHelper.HasPendingStepOff(npc))
+                return false;
+
             if (!_w.Buildings.Exists(ns.Workplace)) return false;
 
             var wps = _w.Buildings.Get(ns.Workplace);
@@ -77,5 +80,6 @@ namespace SeasonalBastion
             ns.IsIdle = false;
             return true;
         }
+
     }
 }

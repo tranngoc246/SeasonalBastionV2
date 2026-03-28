@@ -5,17 +5,20 @@ namespace SeasonalBastion
 {
     internal sealed class JobExecutionService
     {
+        private readonly GameServices _s;
         private readonly IWorldState _w;
         private readonly IJobBoard _board;
         private readonly JobExecutorRegistry _exec;
         private readonly JobStateCleanupService _cleanupService;
 
         internal JobExecutionService(
+            GameServices s,
             IWorldState w,
             IJobBoard board,
             JobExecutorRegistry exec,
             JobStateCleanupService cleanupService)
         {
+            _s = s;
             _w = w;
             _board = board;
             _exec = exec;
@@ -32,6 +35,7 @@ namespace SeasonalBastion
                 var ns = _w.Npcs.Get(nid);
                 if (ns.CurrentJob.Value == 0)
                 {
+                    InteractionCellExitHelper.ContinuePendingStepOff(_s, ref ns, dt);
                     _w.Npcs.Set(nid, ns);
                     continue;
                 }
@@ -54,5 +58,6 @@ namespace SeasonalBastion
                 _w.Npcs.Set(nid, ns);
             }
         }
+
     }
 }

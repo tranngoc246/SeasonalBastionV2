@@ -25,6 +25,7 @@ namespace SeasonalBastion
             public int RoadsVersion;
             public CellPos LastCell;
             public int NoProgressTicks;
+            public CellPos? WaitCell;
         }
 
         private readonly IGridMap _grid;
@@ -121,7 +122,11 @@ namespace SeasonalBastion
                 {
                     var finalCell = route.Path[route.PathIndex];
                     if (!TryAcquireOrConfirmStopCell(key, finalCell))
+                    {
+                        if (TryMoveToNearbyWaitCell(ref st, route, target, finalCell))
+                            continue;
                         return false;
+                    }
                 }
 
                 if (!StepOnePathCell(ref st, route))
@@ -141,7 +146,11 @@ namespace SeasonalBastion
                         {
                             var finalRetryCell = route.Path[route.PathIndex];
                             if (!TryAcquireOrConfirmStopCell(key, finalRetryCell))
+                            {
+                                if (TryMoveToNearbyWaitCell(ref st, route, target, finalRetryCell))
+                                    continue;
                                 return false;
+                            }
                         }
 
                         if (!StepOnePathCell(ref st, route))
@@ -203,6 +212,7 @@ namespace SeasonalBastion
                 route.RoadsVersion = _roadsVersion;
                 route.LastCell = from;
                 route.NoProgressTicks = 0;
+                route.WaitCell = null;
             }
 
             return true;
@@ -314,11 +324,83 @@ namespace SeasonalBastion
             return c.Y * _grid.Width + c.X;
         }
 
+        private bool TryMoveToNearbyWaitCell(ref NpcState st, RouteState route, CellPos target, CellPos blockedFinalCell)
+        {
+            var waitCell = FindNearbyWaitCell(st.Cell, target, blockedFinalCell);
+            if (!waitCell.HasValue)
+                return false;
+
+            if (!TryBuildWaitRoute(st.Cell, waitCell.Value, route))
+                return false;
+
+            if (!StepOnePathCell(ref st, route))
+                return false;
+
+            route.NoProgressTicks = 0;
+            route.LastCell = st.Cell;
+            route.WaitCell = waitCell;
+            return true;
+        }
+
+        private bool TryBuildWaitRoute(CellPos from, CellPos waitCell, RouteState route)
+        {
+            if (!_pathfinder.TryFindPath(from, waitCell, out var waitPath))
+                return false;
+
+            route.Target = waitCell;
+            route.Path = waitPath;
+            route.PathIndex = 0;
+            route.RoadsVersion = _roadsVersion;
+            route.LastCell = from;
+            route.NoProgressTicks = 0;
+            route.WaitCell = waitCell;
+            return true;
+        }
+
+        private CellPos? FindNearbyWaitCell(CellPos from, CellPos target, CellPos blockedFinalCell)
+        {
+            CellPos? best = null;
+            int bestScore = int.MaxValue;
+
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if ((dx == 0 && dy == 0) || (dx != 0 && dy != 0))
+                        continue;
+
+                    var c = new CellPos(target.X + dx, target.Y + dy);
+                    if (!_grid.IsInside(c) || _grid.IsBlocked(c))
+                        continue;
+
+                    if (c.X == blockedFinalCell.X && c.Y == blockedFinalCell.Y)
+                        continue;
+
+                    int score = Manhattan(c, from);
+                    if (score < bestScore)
+                    {
+                        bestScore = score;
+                        best = c;
+                    }
+                }
+            }
+
+            return best;
+        }
+
+        private static int Manhattan(CellPos a, CellPos b)
+        {
+            int dx = a.X - b.X; if (dx < 0) dx = -dx;
+            int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
+            return dx + dy;
+        }
+
         private static void InvalidateRoute(RouteState route, CellPos target)
         {
             route.Target = target;
             route.Path = null;
             route.PathIndex = 0;
+            route.WaitCell = null;
         }
     }
 }

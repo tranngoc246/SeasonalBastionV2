@@ -6,6 +6,7 @@ namespace SeasonalBastion
 {
     public sealed class JobScheduler : IJobScheduler, ITickable
     {
+        private readonly GameServices _s;
         private readonly IWorldState _w;
         private readonly IJobBoard _board;
         private readonly IClaimService _claims;
@@ -32,6 +33,7 @@ namespace SeasonalBastion
         private bool _cacheReady;
 
         public JobScheduler(
+            GameServices s,
             IWorldState w,
             IJobBoard board,
             IClaimService claims,
@@ -41,6 +43,7 @@ namespace SeasonalBastion
             INotificationService noti,
             IJobWorkplacePolicy workplacePolicy = null)
         {
+            _s = s;
             _w = w;
             _board = board;
             _claims = claims;
@@ -53,7 +56,7 @@ namespace SeasonalBastion
             _cacheService = new JobSchedulerCache(w);
             _assignmentService = new JobAssignmentService(w, board, workplacePolicy, notificationPolicy);
             _enqueueService = new JobEnqueueService(w, board, workplacePolicy, resourcePolicy, _cleanupService);
-            _executionService = new JobExecutionService(w, board, exec, _cleanupService);
+            _executionService = new JobExecutionService(s, w, board, exec, _cleanupService);
         }
 
         public void Tick(float dt)

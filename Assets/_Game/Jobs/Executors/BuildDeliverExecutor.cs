@@ -76,6 +76,7 @@ namespace SeasonalBastion
             {
                 // Nếu đã pickup nhưng site đã đủ bởi NPC khác -> hoàn trả về kho.
                 TryRefundCarry(jid, npcState.Cell, job.SourceBuilding, rt);
+                InteractionCellExitHelper.TryStepOffSiteEntry(_s, ref npcState, site, dt);
                 job.Status = JobStatus.Completed;
                 Cleanup(jid);
                 return true;
@@ -97,6 +98,7 @@ namespace SeasonalBastion
                 if (want > remaining) want = remaining;
                 if (want <= 0)
                 {
+                    InteractionCellExitHelper.TryStepOffSiteEntry(_s, ref npcState, site, dt);
                     job.Status = JobStatus.Completed;
                     Cleanup(jid);
                     return true;
@@ -237,6 +239,7 @@ namespace SeasonalBastion
                 if (_s.ClaimService != null)
                     _s.ClaimService.Release(siteKey, npc);
 
+                InteractionCellExitHelper.TryStepOffSiteEntry(_s, ref npcState, site, dt);
                 job.Status = JobStatus.Completed;
                 Cleanup(jid);
                 return true;

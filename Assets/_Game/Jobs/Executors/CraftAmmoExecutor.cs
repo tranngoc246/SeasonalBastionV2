@@ -159,6 +159,7 @@ namespace SeasonalBastion
 
             // Deposit
             _s.StorageService.Add(forge, recipeFinish.OutputType, recipeFinish.OutputAmount);
+            InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
 
             job.ResourceType = recipeFinish.OutputType;
             job.Amount = recipeFinish.OutputAmount;

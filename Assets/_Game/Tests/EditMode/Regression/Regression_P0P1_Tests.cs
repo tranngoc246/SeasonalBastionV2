@@ -1146,7 +1146,7 @@ namespace SeasonalBastion.Tests.EditMode
             b.Id = bId;
             world.Buildings.Set(bId, b);
 
-            var scheduler = new JobScheduler(world, board, claims, exec, bus, data, noti);
+            var scheduler = new JobScheduler(services, world, board, claims, exec, bus, data, noti);
 
             var mi = typeof(JobScheduler).GetMethod("AnyHarvestProducerHasAmount", BindingFlags.NonPublic | BindingFlags.Instance);
             Assert.That(mi, Is.Not.Null);
@@ -1407,7 +1407,7 @@ namespace SeasonalBastion.Tests.EditMode
             var cleanup = new JobStateCleanupService(claims);
             var services = MakeServices(new TestEventBus(), new TestDataRegistry(), new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
             var registry = new JobExecutorRegistry(services);
-            var exec = new JobExecutionService(world, board, registry, cleanup);
+            var exec = new JobExecutionService(services, world, board, registry, cleanup);
 
             var npcId = world.Npcs.Create(new NpcState
             {
@@ -1444,7 +1444,7 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(map, Is.Not.Null);
             map[JobArchetype.Harvest] = new FakeJobExecutor((nid, ns, job, dt) => JobStatus.Completed);
 
-            var exec = new JobExecutionService(world, board, registry, cleanup);
+            var exec = new JobExecutionService(services, world, board, registry, cleanup);
 
             var npcId = world.Npcs.Create(new NpcState
             {

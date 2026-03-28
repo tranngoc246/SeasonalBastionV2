@@ -78,6 +78,7 @@ namespace SeasonalBastion
                         dedupeByKey: true);
                 }
 
+                InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
                 job.Status = JobStatus.Cancelled;
                 return true;
             }
@@ -112,6 +113,8 @@ namespace SeasonalBastion
 
                 int carried = job.Amount;
                 int added = _s.StorageService.Add(producer, rt, carried);
+
+                InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
 
                 job.Amount = 0; // reset carry
 

@@ -21,6 +21,8 @@ namespace SeasonalBastion
         {
             _s = s;
             _s?.EventBus?.Subscribe<DayStartedEvent>(OnDayStartedEvent);
+            _s?.EventBus?.Subscribe<BuildingPlacedEvent>(OnBuildingChanged);
+            _s?.EventBus?.Subscribe<BuildingUpgradedEvent>(OnBuildingChanged);
             Reset();
         }
 
@@ -121,6 +123,16 @@ namespace SeasonalBastion
                 return;
 
             OnDayStarted();
+        }
+
+        private void OnBuildingChanged(BuildingPlacedEvent ev)
+        {
+            RebuildDerivedState();
+        }
+
+        private void OnBuildingChanged(BuildingUpgradedEvent ev)
+        {
+            RebuildDerivedState();
         }
 
         private bool CanGrowToday(int availableFoodBeforeConsume)

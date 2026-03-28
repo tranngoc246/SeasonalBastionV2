@@ -317,6 +317,7 @@ namespace SeasonalBastion
 
             if (site.WorkSecondsDone + 1e-4f >= site.WorkSecondsTotal)
             {
+                InteractionCellExitHelper.TryStepOffCell(_s, ref npcState, buildEntry, dt, site.Anchor);
                 job.Status = JobStatus.Completed;
                 Cleanup(jid, npc);
                 return true;

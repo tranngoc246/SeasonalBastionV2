@@ -291,7 +291,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             bool bArrivedEarly = mover.StepToward(ref npcB, sharedTarget, 2f);
             Assert.That(bArrivedEarly, Is.False);
-            Assert.That(npcB.Cell, Is.EqualTo(new CellPos(3, 1)), "Second NPC should stop before entering reserved target cell.");
+            Assert.That(npcB.Cell, Is.Not.EqualTo(sharedTarget), "Second NPC should not enter reserved target cell while first NPC holds it.");
 
             bool aMovedAway = mover.StepToward(ref npcA, new CellPos(0, 1), 2f);
             Assert.That(npcA.Cell, Is.EqualTo(new CellPos(0, 1)));
@@ -306,6 +306,30 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(bArrived, Is.True, "Second NPC should acquire released stop cell and arrive.");
             Assert.That(npcB.Cell, Is.EqualTo(sharedTarget));
+        }
+
+        [Test]
+        public void StepToward_WhenFinalStopCellIsOccupied_MovesToNearbyWaitCellInsteadOfStutteringInPlace()
+        {
+            var grid = new GridMap(7, 3);
+            for (int x = 0; x < 7; x++)
+                grid.SetRoad(new CellPos(x, 1), true);
+
+            var mover = MakeMover(grid);
+            var target = new CellPos(3, 1);
+
+            var npcA = MakeNpc(50, 2, 1);
+            var npcB = MakeNpc(51, 6, 1);
+
+            Assert.That(mover.StepToward(ref npcA, target, 1f), Is.True);
+            Assert.That(npcA.Cell, Is.EqualTo(target));
+
+            var before = npcB.Cell;
+            bool bArrived = mover.StepToward(ref npcB, target, 3f);
+
+            Assert.That(bArrived, Is.False);
+            Assert.That(npcB.Cell, Is.Not.EqualTo(before), "Follower should move to a nearby wait cell instead of pausing on the same cell.");
+            Assert.That(npcB.Cell, Is.Not.EqualTo(target), "Follower must not enter occupied final stop cell.");
         }
     }
 }

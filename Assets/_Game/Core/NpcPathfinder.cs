@@ -60,6 +60,8 @@ namespace SeasonalBastion
             return true;
         }
 
+        private const int MaxRoadCandidatesPerSide = 8;
+
         private bool TryFindRoadFirstPath(CellPos from, CellPos target, out List<CellPos> path)
         {
             path = null;
@@ -68,11 +70,11 @@ namespace SeasonalBastion
             if (roadCells.Count == 0)
                 return false;
 
-            var startEntries = CollectReachableRoadEntries(from, roadCells);
+            var startEntries = CollectReachableRoadEntries(from, roadCells, MaxRoadCandidatesPerSide);
             if (startEntries.Count == 0)
                 return false;
 
-            var targetExits = CollectReachableRoadEntries(target, roadCells);
+            var targetExits = CollectReachableRoadEntries(target, roadCells, MaxRoadCandidatesPerSide);
             if (targetExits.Count == 0)
                 return false;
 
@@ -88,8 +90,10 @@ namespace SeasonalBastion
                     if (!TryFindPathCore(entry.RoadCell, exit.RoadCell, out var backbone, IsWalkableRoadOnly, GetRoadOnlyStepCost))
                         continue;
 
-                    int totalCost = entry.Cost + ComputePathCost(backbone) + exit.Cost;
-                    var candidate = new PathCandidate(entry.RoadCell, exit.RoadCell, totalCost, backbone);
+                    int backboneCost = ComputeRoadOnlyPathCost(backbone);
+                    int totalCost = entry.Cost + backboneCost + exit.Cost;
+                    int totalGroundSteps = entry.GroundStepsBeforeRoad + exit.GroundStepsBeforeRoad;
+                    var candidate = new PathCandidate(entry.RoadCell, exit.RoadCell, totalCost, totalGroundSteps, backbone);
                     if (!found || IsBetterCandidate(candidate, best))
                     {
                         best = candidate;
@@ -202,7 +206,7 @@ namespace SeasonalBastion
             return false;
         }
 
-        private List<RoadEntryCandidate> CollectReachableRoadEntries(CellPos origin, List<CellPos> roadCells)
+        private List<RoadEntryCandidate> CollectReachableRoadEntries(CellPos origin, List<CellPos> roadCells, int maxCount)
         {
             var entries = new List<RoadEntryCandidate>(roadCells.Count);
             for (int i = 0; i < roadCells.Count; i++)
@@ -217,6 +221,8 @@ namespace SeasonalBastion
             }
 
             entries.Sort(CompareRoadEntryCandidates);
+            if (entries.Count > maxCount)
+                entries.RemoveRange(maxCount, entries.Count - maxCount);
             return entries;
         }
 
@@ -260,6 +266,9 @@ namespace SeasonalBastion
 
         private bool IsBetterCandidate(PathCandidate a, PathCandidate b)
         {
+            if (a.TotalGroundSteps != b.TotalGroundSteps)
+                return a.TotalGroundSteps < b.TotalGroundSteps;
+
             if (a.TotalCost != b.TotalCost)
                 return a.TotalCost < b.TotalCost;
 
@@ -305,6 +314,14 @@ namespace SeasonalBastion
             int cost = 0;
             for (int i = 0; i < path.Count; i++)
                 cost += GetMixedStepCost(path[i]);
+            return cost;
+        }
+
+        private int ComputeRoadOnlyPathCost(List<CellPos> path)
+        {
+            int cost = 0;
+            for (int i = 0; i < path.Count; i++)
+                cost += RoadCost;
             return cost;
         }
 
@@ -404,13 +421,15 @@ namespace SeasonalBastion
             public readonly CellPos Entry;
             public readonly CellPos Exit;
             public readonly int TotalCost;
+            public readonly int TotalGroundSteps;
             public readonly List<CellPos> Backbone;
 
-            public PathCandidate(CellPos entry, CellPos exit, int totalCost, List<CellPos> backbone)
+            public PathCandidate(CellPos entry, CellPos exit, int totalCost, int totalGroundSteps, List<CellPos> backbone)
             {
                 Entry = entry;
                 Exit = exit;
                 TotalCost = totalCost;
+                TotalGroundSteps = totalGroundSteps;
                 Backbone = backbone;
             }
         }

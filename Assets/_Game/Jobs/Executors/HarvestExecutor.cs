@@ -114,8 +114,6 @@ namespace SeasonalBastion
                 int carried = job.Amount;
                 int added = _s.StorageService.Add(producer, rt, carried);
 
-                InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
-
                 job.Amount = 0; // reset carry
 
                 job.Status = JobStatus.Completed;

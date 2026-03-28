@@ -16,6 +16,7 @@ namespace SeasonalBastion
         private readonly JobAssignmentService _assignmentService;
         private readonly JobEnqueueService _enqueueService;
         private readonly JobExecutionService _executionService;
+        private readonly NpcIdleRoamService _idleRoamService;
 
         public int AssignedThisTick { get; private set; }
 
@@ -57,6 +58,7 @@ namespace SeasonalBastion
             _assignmentService = new JobAssignmentService(w, board, workplacePolicy, notificationPolicy);
             _enqueueService = new JobEnqueueService(w, board, workplacePolicy, resourcePolicy, _cleanupService);
             _executionService = new JobExecutionService(s, w, board, exec, _cleanupService);
+            _idleRoamService = new NpcIdleRoamService(s, w);
         }
 
         public void Tick(float dt)
@@ -91,6 +93,7 @@ namespace SeasonalBastion
             if (!_cacheReady)
                 _cacheService.BuildSortedNpcIds(_npcIds);
 
+            TickIdleNpcs(dt);
             _executionService.TickCurrentJobs(_npcIds, dt);
 
             _claimCleanupTimer += dt;
@@ -154,6 +157,34 @@ namespace SeasonalBastion
             }
 
             return assignedThisTick;
+        }
+
+        private void TickIdleNpcs(float dt)
+        {
+            for (int i = 0; i < _npcIds.Count; i++)
+            {
+                var nid = _npcIds[i];
+                if (!_w.Npcs.Exists(nid))
+                    continue;
+
+                var ns = _w.Npcs.Get(nid);
+                if (!ns.IsIdle || ns.CurrentJob.Value != 0)
+                {
+                    _idleRoamService.ClearNpc(nid);
+                    _w.Npcs.Set(nid, ns);
+                    continue;
+                }
+
+                if (InteractionCellExitHelper.HasPendingStepOff(nid))
+                {
+                    _idleRoamService.ClearNpc(nid);
+                    _w.Npcs.Set(nid, ns);
+                    continue;
+                }
+
+                _idleRoamService.TickIdleNpc(nid, ref ns, dt);
+                _w.Npcs.Set(nid, ns);
+            }
         }
 
         private bool AnyHarvestProducerHasAmount(ResourceType rt)

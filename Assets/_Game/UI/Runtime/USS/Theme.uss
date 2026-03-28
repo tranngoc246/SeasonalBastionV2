@@ -116,6 +116,12 @@ Button:active { background-color: rgba(255,255,255,0.22); }
   margin-top: 2px;
 }
 
+.lbl-pop-summary {
+  color: rgb(196,220,196);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
 /* RIGHT controls */
 .top-right-controls {
   margin-left: auto;

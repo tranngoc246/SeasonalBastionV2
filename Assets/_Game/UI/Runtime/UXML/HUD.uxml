@@ -38,6 +38,7 @@
             <ui:VisualElement class="top-center-time" picking-mode="Ignore">
                 <ui:Label name="LblTime" text="Year 1 • Spring D1" class="lbl-time-center" />
                 <ui:Label name="LblPhase" text="Build" class="lbl-phase-center" />
+                <ui:Label name="LblPopulationSummary" text="Pop 0/0 • Need 0/day" class="lbl-pop-summary" />
             </ui:VisualElement>
 
             <!-- RIGHT: speed + settings -->

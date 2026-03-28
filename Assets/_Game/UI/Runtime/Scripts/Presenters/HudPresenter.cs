@@ -20,6 +20,7 @@ namespace SeasonalBastion.UI.Presenters
         // HUD elements
         private Label _lblTime;
         private Label _lblPhase;
+        private Label _lblPopulationSummary;
 
         private Label _wood, _food, _stone, _iron, _ammo;
 
@@ -49,6 +50,7 @@ namespace SeasonalBastion.UI.Presenters
 
             _lblTime = Root.Q<Label>("LblTime");
             _lblPhase = Root.Q<Label>("LblPhase");
+            _lblPopulationSummary = Root.Q<Label>("LblPopulationSummary");
 
             _wood = Root.Q<Label>("LblResWood");
             _food = Root.Q<Label>("LblResFood");
@@ -109,6 +111,7 @@ namespace SeasonalBastion.UI.Presenters
             // Initial refresh
             PullClockFromService();
             RefreshResources();
+            RefreshPopulationSummary();
             RefreshNotifications();
             RefreshSpeedHighlight();
         }
@@ -148,6 +151,7 @@ namespace SeasonalBastion.UI.Presenters
         {
             RefreshClockLabels();
             RefreshResources();
+            RefreshPopulationSummary();
             RefreshNotifications();
             RefreshSpeedHighlight();
         }
@@ -196,6 +200,26 @@ namespace SeasonalBastion.UI.Presenters
         {
             if (lbl == null) return;
             lbl.text = v.ToString();
+        }
+
+        private void RefreshPopulationSummary()
+        {
+            if (_lblPopulationSummary == null)
+                return;
+
+            var pop = _s?.PopulationService;
+            if (pop == null)
+            {
+                _lblPopulationSummary.text = "Pop 0/0 • Need 0/day";
+                return;
+            }
+
+            var st = pop.State;
+            string text = $"Pop {st.PopulationCurrent}/{st.PopulationCap} • Need {st.DailyFoodNeed}/day";
+            if (st.StarvedToday || st.StarvationDays > 0)
+                text += $" • Starving ({st.StarvationDays})";
+
+            _lblPopulationSummary.text = text;
         }
 
         private void RefreshSpeedHighlight()
@@ -345,6 +369,7 @@ namespace SeasonalBastion.UI.Presenters
             _dayIndex = ev.DayIndex;
             _phase = ev.Phase;
             RefreshClockLabels();
+            RefreshPopulationSummary();
         }
 
         private void OnSeasonDayChanged(SeasonDayChangedEvent ev)
@@ -373,11 +398,29 @@ namespace SeasonalBastion.UI.Presenters
             RefreshSpeedHighlight();
         }
 
-        private void OnResourceChanged(ResourceDeliveredEvent _) => RefreshResources();
-        private void OnResourceChanged(ResourceSpentEvent _) => RefreshResources();
+        private void OnResourceChanged(ResourceDeliveredEvent _)
+        {
+            RefreshResources();
+            RefreshPopulationSummary();
+        }
 
-        private void OnBuildingChanged(BuildingPlacedEvent _) => RefreshResources();
-        private void OnBuildingUpgraded(BuildingUpgradedEvent _) => RefreshResources();
+        private void OnResourceChanged(ResourceSpentEvent _)
+        {
+            RefreshResources();
+            RefreshPopulationSummary();
+        }
+
+        private void OnBuildingChanged(BuildingPlacedEvent _)
+        {
+            RefreshResources();
+            RefreshPopulationSummary();
+        }
+
+        private void OnBuildingUpgraded(BuildingUpgradedEvent _)
+        {
+            RefreshResources();
+            RefreshPopulationSummary();
+        }
 
         private void OnNotificationsChanged() => RefreshNotifications();
     }

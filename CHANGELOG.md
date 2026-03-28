@@ -173,6 +173,32 @@
   - thiếu food sẽ chặn growth và tăng starvation counter
 - Đã thêm task breakdown file-by-file để implement pass này:
   - `docs/task-breakdown-population-food-upkeep.md`
+- Đã implement xong **Population / Food Upkeep Pass A**:
+  - thêm `PopulationState` + `IPopulationService`
+  - thêm `PopulationService` runtime để tính `PopulationCurrent`, `PopulationCap`, `DailyFoodNeed`
+  - hook xử lý theo `DayStartedEvent` thay vì tick mỗi frame
+  - mỗi NPC hiện tiêu **5 Food / ngày**
+  - nếu food không đủ thì consume phần còn lại, tăng starvation counter và chặn growth hôm đó
+  - nếu còn housing slot + đủ reserve food thì growth tiến 1 ngày và có thể spawn `npc_villager_t1` mới ở gần HQ
+  - NPC mới spawn ở trạng thái `unassigned / idle`
+- Save/load đã được mở rộng cho population state:
+  - persist `GrowthProgressDays`
+  - persist `StarvationDays`
+  - persist `StarvedToday`
+  - sau load có recount lại population current/cap từ world state thật
+- Đã thêm regression coverage riêng cho population service:
+  - tính đúng population current / housing cap
+  - 3 NPC tiêu đúng `15 Food/day`
+  - growth chỉ xảy ra khi đủ cap + đủ reserve food
+  - starvation tăng đúng khi food không đủ
+  - `LoadState()` restore progress/starvation đúng
+- Đã thêm HUD summary tối thiểu để support balance/debug runtime:
+  - hiển thị `Pop X/Y • Need Z/day`
+  - nếu starving thì hiện thêm trạng thái `Starving (N)` trên HUD
+- Kết quả hiện tại:
+  - build chạy ổn, không còn compile/runtime error trong pass này
+  - regression tests cho population service đã pass
+  - tạm thời giữ scope ở mức Pass A + HUD summary, chưa bật starvation penalties sâu (debuff / mất dân)
 
 ## 2026-03-25
 

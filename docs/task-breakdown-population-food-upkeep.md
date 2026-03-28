@@ -48,18 +48,18 @@ Thêm hệ population tối giản nhưng usable cho build hiện tại:
 Tạo DTO / state contract tối thiểu cho population system.
 
 ## Cần làm
-- [ ] Tạo `PopulationState` hoặc struct tương đương
-- [ ] Field đề xuất:
-  - [ ] `int PopulationCurrent`
-  - [ ] `int PopulationCap`
-  - [ ] `float GrowthProgressDays`
-  - [ ] `int StarvationDays`
-  - [ ] `bool StarvedToday`
-- [ ] Có thể thêm snapshot struct cho UI nếu cần
+- [x] Tạo `PopulationState` hoặc struct tương đương
+- [x] Field đề xuất:
+  - [x] `int PopulationCurrent`
+  - [x] `int PopulationCap`
+  - [x] `float GrowthProgressDays`
+  - [x] `int StarvationDays`
+  - [x] `bool StarvedToday`
+- [x] Có thể thêm snapshot struct cho UI nếu cần
 
 ## Verify
-- [ ] Contract compile sạch
-- [ ] Không nhét logic vào DTO
+- [x] Contract compile sạch
+- [x] Không nhét logic vào DTO
 
 ---
 
@@ -69,17 +69,17 @@ Tạo DTO / state contract tối thiểu cho population system.
 Expose state + API tối thiểu cho loop/UI/save-load.
 
 ## Cần làm
-- [ ] Tạo interface `IPopulationService`
-- [ ] API đề xuất:
-  - [ ] `PopulationState State { get; }`
-  - [ ] `void Reset()`
-  - [ ] `void OnDayStarted()`
-  - [ ] `void RebuildDerivedState()`
+- [x] Tạo interface `IPopulationService`
+- [x] API đề xuất:
+  - [x] `PopulationState State { get; }`
+  - [x] `void Reset()`
+  - [x] `void OnDayStarted()`
+  - [x] `void RebuildDerivedState()`
 - [ ] Nếu cần UI/event:
   - [ ] `event Action<PopulationState> Changed`
 
 ## Verify
-- [ ] Service có surface đủ gọn cho core loop + UI
+- [x] Service có surface đủ gọn cho core loop + UI
 
 ---
 
@@ -89,47 +89,47 @@ Expose state + API tối thiểu cho loop/UI/save-load.
 Implement core logic population + food upkeep.
 
 ## Trách nhiệm
-- [ ] Tính `PopulationCurrent` từ `WorldState.Npcs`
-- [ ] Tính `PopulationCap` từ House constructed
-- [ ] Vào mỗi ngày mới:
-  - [ ] tính `DailyFoodNeed = PopulationCurrent * 5`
-  - [ ] kiểm tra total food hiện có
-  - [ ] nếu đủ -> remove food, reset starvation
-  - [ ] nếu thiếu -> remove hết phần còn lại, tăng starvation
-  - [ ] nếu đủ điều kiện growth -> tăng `GrowthProgressDays`
-  - [ ] nếu progress đủ ngưỡng -> spawn 1 NPC mới
-- [ ] Reset state khi New Run / Retry
+- [x] Tính `PopulationCurrent` từ `WorldState.Npcs`
+- [x] Tính `PopulationCap` từ House constructed
+- [x] Vào mỗi ngày mới:
+  - [x] tính `DailyFoodNeed = PopulationCurrent * 5`
+  - [x] kiểm tra total food hiện có
+  - [x] nếu đủ -> remove food, reset starvation
+  - [x] nếu thiếu -> remove hết phần còn lại, tăng starvation
+  - [x] nếu đủ điều kiện growth -> tăng `GrowthProgressDays`
+  - [x] nếu progress đủ ngưỡng -> spawn 1 NPC mới
+- [x] Reset state khi New Run / Retry
 
 ## Rule growth
-- [ ] Chỉ growth nếu:
-  - [ ] `PopulationCurrent < PopulationCap`
-  - [ ] `StarvedToday == false`
-  - [ ] `TotalFood >= DailyFoodNeed * 2`
-  - [ ] run chưa ended
-- [ ] `GrowthDaysPerNpc = 1`
+- [x] Chỉ growth nếu:
+  - [x] `PopulationCurrent < PopulationCap`
+  - [x] `StarvedToday == false`
+  - [x] `TotalFood >= DailyFoodNeed * 2`
+  - [x] run chưa ended
+- [x] `GrowthDaysPerNpc = 1`
 
 ## Rule spawn NPC mới
-- [ ] Spawn `npc_villager_t1`
-- [ ] Prefer near HQ
-- [ ] Fallback theo spawn resolver hiện có
-- [ ] NPC mới:
-  - [ ] `Workplace = 0`
-  - [ ] `CurrentJob = 0`
-  - [ ] `IsIdle = true`
+- [x] Spawn `npc_villager_t1`
+- [x] Prefer near HQ
+- [x] Fallback theo spawn resolver hiện có
+- [x] NPC mới:
+  - [x] `Workplace = 0`
+  - [x] `CurrentJob = 0`
+  - [x] `IsIdle = true`
 
 ## Gợi ý helper nội bộ
-- [ ] `RecountPopulationCurrent()`
-- [ ] `RecountPopulationCap()`
-- [ ] `TryConsumeDailyFood(out int need, out int consumed)`
-- [ ] `CanGrowToday(...)`
-- [ ] `TrySpawnNewVillager()`
-- [ ] `TryFindSpawnCellNearHq(...)`
+- [x] `RecountPopulationCurrent()`
+- [x] `RecountPopulationCap()`
+- [x] `TryConsumeDailyFood(out int need, out int consumed)`
+- [x] `CanGrowToday(...)`
+- [x] `TrySpawnNewVillager()`
+- [x] `TryFindSpawnCellNearHq(...)`
 
 ## Verify
-- [ ] 3 NPC -> tiêu đúng 15 food/day
-- [ ] Có house -> cap tăng đúng
-- [ ] Đủ điều kiện -> spawn thêm 1 NPC/ngày
-- [ ] NPC mới là unassigned
+- [x] 3 NPC -> tiêu đúng 15 food/day
+- [x] Có house -> cap tăng đúng
+- [x] Đủ điều kiện -> spawn thêm 1 NPC/ngày
+- [x] NPC mới là unassigned
 
 ---
 
@@ -139,17 +139,17 @@ Implement core logic population + food upkeep.
 Hook population system vào vòng đời ngày mới.
 
 ## Cần làm
-- [ ] Xác định điểm an toàn để detect day rollover / day start
-- [ ] Gọi `PopulationService.OnDayStarted()` đúng 1 lần mỗi ngày
-- [ ] Không gọi trong run ended
+- [x] Xác định điểm an toàn để detect day rollover / day start
+- [x] Gọi `PopulationService.OnDayStarted()` đúng 1 lần mỗi ngày
+- [x] Không gọi trong run ended
 
 ## Chú ý
-- [ ] Không tick population upkeep mỗi frame
-- [ ] Chỉ trigger theo ngày
+- [x] Không tick population upkeep mỗi frame
+- [x] Chỉ trigger theo ngày
 
 ## Verify
-- [ ] Không double-consume food trong 1 ngày
-- [ ] Pause/resume không gây consume lặp
+- [x] Không double-consume food trong 1 ngày
+- [x] Pause/resume không gây consume lặp
 
 ---
 
@@ -159,10 +159,10 @@ Hook population system vào vòng đời ngày mới.
 Thêm population service vào service graph.
 
 ## Cần làm
-- [ ] Thêm field `IPopulationService PopulationService`
+- [x] Thêm field `IPopulationService PopulationService`
 
 ## Verify
-- [ ] Các chỗ khác truy cập được service qua `GameServices`
+- [x] Các chỗ khác truy cập được service qua `GameServices`
 
 ---
 
@@ -172,19 +172,19 @@ Thêm population service vào service graph.
 Wire concrete `PopulationService` vào runtime.
 
 ## Cần làm
-- [ ] Instantiate `PopulationService`
-- [ ] Inject dependencies cần thiết:
-  - [ ] `WorldState`
+- [x] Instantiate `PopulationService`
+- [x] Inject dependencies cần thiết:
+  - [x] `WorldState`
   - [ ] `WorldIndex` (nếu cần)
-  - [ ] `StorageService`
-  - [ ] `DataRegistry`
-  - [ ] `GridMap`
-  - [ ] `RunOutcomeService` nếu muốn chặn growth sau endgame
-  - [ ] `EventBus` nếu muốn publish event
-- [ ] Reset lifecycle khớp với New Run / Load
+  - [x] `StorageService`
+  - [x] `DataRegistry`
+  - [x] `GridMap`
+  - [x] `RunOutcomeService` nếu muốn chặn growth sau endgame
+  - [x] `EventBus` nếu muốn publish event
+- [x] Reset lifecycle khớp với New Run / Load
 
 ## Verify
-- [ ] Service tồn tại thật trong gameplay session
+- [x] Service tồn tại thật trong gameplay session
 
 ---
 
@@ -194,17 +194,17 @@ Wire concrete `PopulationService` vào runtime.
 Thêm state tối thiểu để save/load population progress.
 
 ## Cần làm
-- [ ] Thêm DTO save cho population state
-- [ ] Persist tối thiểu:
-  - [ ] `GrowthProgressDays`
-  - [ ] `StarvationDays`
-  - [ ] `StarvedToday`
-- [ ] Không cần persist `PopulationCurrent` nếu derive từ NPC store
-- [ ] Không cần persist `PopulationCap` nếu derive từ buildings
+- [x] Thêm DTO save cho population state
+- [x] Persist tối thiểu:
+  - [x] `GrowthProgressDays`
+  - [x] `StarvationDays`
+  - [x] `StarvedToday`
+- [x] Không cần persist `PopulationCurrent` nếu derive từ NPC store
+- [x] Không cần persist `PopulationCap` nếu derive từ buildings
 
 ## Verify
-- [ ] DTO compile sạch
-- [ ] Không duplicate data có thể derive
+- [x] DTO compile sạch
+- [x] Không duplicate data có thể derive
 
 ---
 
@@ -214,11 +214,11 @@ Thêm state tối thiểu để save/load population progress.
 Serialize population state vào save file.
 
 ## Cần làm
-- [ ] Đọc `PopulationService.State`
-- [ ] Ghi sang save DTO
+- [x] Đọc `PopulationService.State`
+- [x] Ghi sang save DTO
 
 ## Verify
-- [ ] Save giữa lúc đang có growth progress vẫn giữ đúng state
+- [x] Save giữa lúc đang có growth progress vẫn giữ đúng state
 
 ---
 
@@ -228,14 +228,14 @@ Serialize population state vào save file.
 Restore population progress sau load.
 
 ## Cần làm
-- [ ] Restore `GrowthProgressDays`
-- [ ] Restore `StarvationDays`
-- [ ] Restore `StarvedToday`
-- [ ] Sau load gọi `RebuildDerivedState()` để recount current/cap từ world thật
+- [x] Restore `GrowthProgressDays`
+- [x] Restore `StarvationDays`
+- [x] Restore `StarvedToday`
+- [x] Sau load gọi `RebuildDerivedState()` để recount current/cap từ world thật
 
 ## Verify
-- [ ] Load không làm sai `PopulationCurrent`
-- [ ] Load không reset nhầm growth progress
+- [x] Load không làm sai `PopulationCurrent`
+- [x] Load không reset nhầm growth progress
 
 ---
 
@@ -246,12 +246,12 @@ Tái dùng logic spawn cell resolver cho population growth.
 
 ## Cần làm
 - [ ] Cân nhắc extract helper spawn-cell chung từ `RunStartNpcSpawner`
-- [ ] Hoặc expose utility nội bộ để `PopulationService` dùng lại logic spawn an toàn
-- [ ] Ưu tiên cell trống gần HQ trước, fallback hợp lệ nếu kẹt
+- [x] Hoặc expose utility nội bộ để `PopulationService` dùng lại logic spawn an toàn
+- [x] Ưu tiên cell trống gần HQ trước, fallback hợp lệ nếu kẹt
 
 ## Verify
-- [ ] NPC mới không spawn vào building/site blocked cell
-- [ ] Không spawn OOB
+- [x] NPC mới không spawn vào building/site blocked cell
+- [x] Không spawn OOB
 
 ---
 
@@ -261,16 +261,16 @@ Tái dùng logic spawn cell resolver cho population growth.
 Xác nhận data hiện có đủ để tính housing cap.
 
 ## Cần làm
-- [ ] Giữ `BuildingDef.IsHouse`
-- [ ] Không cần đổi schema nếu housing cap hardcode theo level trong service
+- [x] Giữ `BuildingDef.IsHouse`
+- [x] Không cần đổi schema nếu housing cap hardcode theo level trong service
 - [ ] Nếu muốn data-driven hơn:
   - [ ] thêm `HousingCapByLevel` hoặc field tương đương ở phase sau
 
 ## Khuyến nghị pass đầu
-- [ ] Hardcode cap house theo level trong service để scope gọn
+- [x] Hardcode cap house theo level trong service để scope gọn
 
 ## Verify
-- [ ] Không phá loader/data hiện tại
+- [x] Không phá loader/data hiện tại
 
 ---
 
@@ -294,16 +294,16 @@ Chưa bắt buộc sửa ở pass đầu, nhưng cần review để chắc House
 Hiển thị population + food pressure cho player.
 
 ## Cần làm tối thiểu
-- [ ] Hiển thị `Population: X / Y`
-- [ ] Hiển thị `Food need/day: Z`
-- [ ] Nếu starving thì hiện status/hint
+- [x] Hiển thị `Population: X / Y`
+- [x] Hiển thị `Food need/day: Z`
+- [x] Nếu starving thì hiện status/hint
 
 ## File cần rà
-- [ ] `HudPresenter`
-- [ ] overlay/hud runtime file liên quan
+- [x] `HudPresenter`
+- [x] overlay/hud runtime file liên quan
 
 ## Verify
-- [ ] Player đọc được tình trạng dân số/lương thực mà không cần debug tool
+- [x] Player đọc được tình trạng dân số/lương thực mà không cần debug tool
 
 ---
 
@@ -313,13 +313,13 @@ Hiển thị population + food pressure cho player.
 Có feedback player-facing khi dân mới tới hoặc thiếu food.
 
 ## Cần làm
-- [ ] Notification: `Có NPC mới!`
-- [ ] Notification: `Thiếu lương thực`
+- [x] Notification: `Có NPC mới!`
+- [x] Notification: `Thiếu lương thực`
 - [ ] Nếu có starvation dài ngày: `Dân đang rời làng`
 
 ## Verify
-- [ ] Notification không spam mỗi frame
-- [ ] Cooldown/dedupe hợp lý
+- [x] Notification không spam mỗi frame
+- [x] Cooldown/dedupe hợp lý
 
 ---
 
@@ -329,23 +329,23 @@ Có feedback player-facing khi dân mới tới hoặc thiếu food.
 Khóa behavior population/food upkeep cốt lõi.
 
 ## File đề xuất
-- [ ] `Assets/_Game/Tests/EditMode/Economy/PopulationServiceTests.cs`
+- [x] `Assets/_Game/Tests/EditMode/Economy/PopulationServiceTests.cs`
   hoặc thêm có chọn lọc vào regression suite hiện có
 
 ## Cần có test
-- [ ] `PopulationCurrent` đếm đúng theo `WorldState.Npcs`
-- [ ] `PopulationCap` tính đúng từ House constructed
-- [ ] 3 NPC tiêu đúng `15 Food/day`
-- [ ] đủ food + còn cap -> growth progress tăng đúng
-- [ ] đủ growth progress -> spawn 1 NPC mới unassigned
-- [ ] thiếu food -> không growth, starvation tăng
-- [ ] save/load restore growth + starvation đúng
-- [ ] house chưa xây xong không tăng cap
-- [ ] upgrade house làm cap tăng đúng
+- [x] `PopulationCurrent` đếm đúng theo `WorldState.Npcs`
+- [x] `PopulationCap` tính đúng từ House constructed
+- [x] 3 NPC tiêu đúng `15 Food/day`
+- [x] đủ food + còn cap -> growth progress tăng đúng
+- [x] đủ growth progress -> spawn 1 NPC mới unassigned
+- [x] thiếu food -> không growth, starvation tăng
+- [x] save/load restore growth + starvation đúng
+- [x] house chưa xây xong không tăng cap
+- [x] upgrade house làm cap tăng đúng
 
 ## Verify
-- [ ] Test pass ổn định
-- [ ] Không phụ thuộc runtime scene
+- [x] Test pass ổn định
+- [x] Không phụ thuộc runtime scene
 
 ---
 
@@ -395,13 +395,13 @@ Khóa behavior population/food upkeep cốt lõi.
 # Definition of Done
 
 ## Pass 1 DONE khi
-- [ ] House tạo housing cap đúng
-- [ ] Mỗi NPC tiêu đúng `5 Food / ngày`
-- [ ] Growth chỉ xảy ra khi còn cap và đủ food reserve
-- [ ] NPC mới spawn đúng flow và unassigned
-- [ ] Save/load giữ được progress + starvation
-- [ ] Có feedback tối thiểu cho player
-- [ ] Regression tests cốt lõi đã có
+- [x] House tạo housing cap đúng
+- [x] Mỗi NPC tiêu đúng `5 Food / ngày`
+- [x] Growth chỉ xảy ra khi còn cap và đủ food reserve
+- [x] NPC mới spawn đúng flow và unassigned
+- [x] Save/load giữ được progress + starvation
+- [x] Có feedback tối thiểu cho player
+- [x] Regression tests cốt lõi đã có
 
 ## Pass 2 DONE khi
 - [ ] Starvation pressure có gameplay consequence rõ ràng

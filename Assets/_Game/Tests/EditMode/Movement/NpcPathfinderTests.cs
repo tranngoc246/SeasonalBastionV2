@@ -84,6 +84,39 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(ok, Is.True);
             Assert.That(path, Is.Not.Null);
             Assert.That(path[path.Count - 1], Is.EqualTo(new CellPos(5, 0)));
+
+            bool usesDisconnectedRoad = false;
+            for (int i = 0; i < path.Count; i++)
+            {
+                if (grid.IsRoad(path[i]))
+                {
+                    usesDisconnectedRoad = true;
+                    break;
+                }
+            }
+
+            Assert.That(usesDisconnectedRoad, Is.False, "Path should fallback cleanly instead of touching disconnected road fragments.");
+        }
+
+        [Test]
+        public void TryFindPath_IsSymmetricAcrossDirections_WhenRoadBackboneExists()
+        {
+            var grid = new GridMap(9, 3);
+            for (int x = 0; x < 9; x++)
+                grid.SetRoad(new CellPos(x, 1), true);
+
+            var sut = new NpcPathfinder(grid);
+
+            bool forwardOk = sut.TryFindPath(new CellPos(0, 0), new CellPos(8, 0), out var forward);
+            bool reverseOk = sut.TryFindPath(new CellPos(8, 0), new CellPos(0, 0), out var reverse);
+
+            Assert.That(forwardOk, Is.True);
+            Assert.That(reverseOk, Is.True);
+            Assert.That(forward, Is.Not.Null);
+            Assert.That(reverse, Is.Not.Null);
+
+            AssertRoadFirstShape(grid, forward);
+            AssertRoadFirstShape(grid, reverse);
         }
 
         [Test]
@@ -152,6 +185,28 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(ok, Is.True);
             Assert.That(cost, Is.EqualTo((NpcPathfinder.RoadCost * 4) + NpcPathfinder.GroundCost));
+        }
+
+        private static void AssertRoadFirstShape(GridMap grid, List<CellPos> path)
+        {
+            bool touchedRoad = false;
+            bool leftRoadBeforeFinalCell = false;
+
+            for (int i = 0; i < path.Count; i++)
+            {
+                bool isRoad = grid.IsRoad(path[i]);
+                if (isRoad)
+                {
+                    touchedRoad = true;
+                    continue;
+                }
+
+                if (touchedRoad && i < path.Count - 1)
+                    leftRoadBeforeFinalCell = true;
+            }
+
+            Assert.That(touchedRoad, Is.True, "Expected path to use a road backbone.");
+            Assert.That(leftRoadBeforeFinalCell, Is.False, "Path should not leave road before the final approach cell.");
         }
     }
 }

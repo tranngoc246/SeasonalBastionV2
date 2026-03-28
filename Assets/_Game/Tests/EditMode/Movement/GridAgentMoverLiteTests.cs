@@ -106,6 +106,36 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void StepToward_UsesRoadBackboneInBothDirections_WhenRoadRouteExists()
+        {
+            var grid = new GridMap(9, 3);
+            for (int x = 0; x < 9; x++)
+                grid.SetRoad(new CellPos(x, 1), true);
+
+            var mover = MakeMover(grid);
+
+            var npcForward = MakeNpc(30, 0, 0);
+            var npcReverse = MakeNpc(31, 8, 0);
+
+            bool forwardTouchedRoad = false;
+            bool reverseTouchedRoad = false;
+
+            for (int i = 0; i < 12; i++)
+            {
+                mover.StepToward(ref npcForward, new CellPos(8, 0), 1f);
+                mover.StepToward(ref npcReverse, new CellPos(0, 0), 1f);
+
+                forwardTouchedRoad |= grid.IsRoad(npcForward.Cell);
+                reverseTouchedRoad |= grid.IsRoad(npcReverse.Cell);
+            }
+
+            Assert.That(forwardTouchedRoad, Is.True, "Forward direction should use road backbone.");
+            Assert.That(reverseTouchedRoad, Is.True, "Reverse direction should use road backbone too.");
+            Assert.That(npcForward.Cell, Is.EqualTo(new CellPos(8, 0)));
+            Assert.That(npcReverse.Cell, Is.EqualTo(new CellPos(0, 0)));
+        }
+
+        [Test]
         public void StepToward_WhenNextStepBecomesBlocked_RepathsAroundObstacle()
         {
             var grid = new GridMap(6, 5);

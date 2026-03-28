@@ -46,6 +46,7 @@ namespace SeasonalBastion
             // Economy
             services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);
             services.ResourceFlowService = new ResourceFlowService(services.WorldState, services.WorldIndex, services.StorageService, services.GridMap);
+            services.PopulationService = new PopulationService(services);
             
             // Jobs
             services.ClaimService = new ClaimService();
@@ -77,7 +78,7 @@ namespace SeasonalBastion
 
             // Save
             var saveMigrator = new SaveMigrator();
-            services.SaveService = new SaveService(new SaveMigrator(), services.DataRegistry, services.GridMap);
+            services.SaveService = new SaveService(new SaveMigrator(), services.DataRegistry, services.GridMap, services.PopulationService);
 
             return services;
         }

@@ -37,6 +37,7 @@ namespace SeasonalBastion
         public ITickable ProducerLoopService; // Day36: producer loop (enqueue Harvest)
         public IStorageService StorageService;
         public IResourceFlowService ResourceFlowService;
+        public IPopulationService PopulationService;
         public IClaimService ClaimService;
         public IJobBoard JobBoard;
         public IJobScheduler JobScheduler;

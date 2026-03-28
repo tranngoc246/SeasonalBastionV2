@@ -227,6 +227,16 @@ namespace SeasonalBastion
                     cs.ResetAfterLoad(dto.combat);
                 }
 
+                if (s.PopulationService != null)
+                {
+                    if (dto.population != null)
+                        s.PopulationService.LoadState(dto.population.GrowthProgressDays, dto.population.StarvationDays, dto.population.StarvedToday);
+                    else
+                        s.PopulationService.Reset();
+
+                    s.PopulationService.RebuildDerivedState();
+                }
+
                 return true;
             }
             catch (Exception e)

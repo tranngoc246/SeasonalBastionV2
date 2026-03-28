@@ -57,6 +57,7 @@ namespace SeasonalBastion
 
             // rebuild derived world index lists (safe even if world is empty).
             _s.WorldIndex?.RebuildAll();
+            _s.PopulationService?.RebuildDerivedState();
         }
 
         private void ResetForNewRun()
@@ -79,6 +80,7 @@ namespace SeasonalBastion
 
             // run-start runtime caches
             try { ResetRunStartRuntime(_s.RunStartRuntime); } catch { }
+            try { _s.PopulationService?.Reset(); } catch { }
 
             // world stores (runtime concrete stores)
             try { (_s.WorldState?.Buildings as IEntityStore<BuildingId, BuildingState>)?.ClearAll(); } catch { }

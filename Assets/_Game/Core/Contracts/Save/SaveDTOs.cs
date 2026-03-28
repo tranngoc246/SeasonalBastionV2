@@ -19,6 +19,7 @@ namespace SeasonalBastion.Contracts
         public BuildDTO build;
         public CombatDTO combat;
         public RewardsDTO rewards;
+        public PopulationDTO population;
     }
 
     public sealed class MetaSaveDTO
@@ -60,6 +61,13 @@ namespace SeasonalBastion.Contracts
     public sealed class RewardsDTO
     {
         public List<string> PickedRewardDefIds = new();
+    }
+
+    public sealed class PopulationDTO
+    {
+        public float GrowthProgressDays;
+        public int StarvationDays;
+        public bool StarvedToday;
     }
 
 }

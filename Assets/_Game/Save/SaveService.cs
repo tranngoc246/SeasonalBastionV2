@@ -12,17 +12,19 @@ namespace SeasonalBastion
         private readonly SaveMigrator _migrator;
         private readonly IDataRegistry _data;
         private readonly IGridMap _grid;
+        private readonly IPopulationService _population;
 
         public int CurrentSchemaVersion => _migrator.CurrentSchemaVersion;
 
         private string RunPath => Path.Combine(Application.persistentDataPath, "run_save.json");
         private string MetaPath => Path.Combine(Application.persistentDataPath, "meta_save.json");
 
-        public SaveService(SaveMigrator migrator, IDataRegistry data, IGridMap grid)
+        public SaveService(SaveMigrator migrator, IDataRegistry data, IGridMap grid, IPopulationService population = null)
         {
             _migrator = migrator;
             _data = data;
             _grid = grid;
+            _population = population;
         }
 
         public bool HasRunSave() => File.Exists(RunPath);
@@ -51,6 +53,7 @@ namespace SeasonalBastion
                     dayTimer = rc != null ? rc.DayTimerSeconds : 0f,
                     world = new WorldFile(),
                     build = new BuildFile(),
+                    population = new PopulationFile()
                 };
 
                 file.combat = new CombatFile
@@ -58,6 +61,14 @@ namespace SeasonalBastion
                     currentWaveIndex = 0, // Reset-wave option: always restart from begin
                     isDefendActive = (clock.CurrentPhase == Phase.Defend)
                 };
+
+                if (_population != null)
+                {
+                    var pop = _population.State;
+                    file.population.growthProgressDays = pop.GrowthProgressDays;
+                    file.population.starvationDays = pop.StarvationDays;
+                    file.population.starvedToday = pop.StarvedToday;
+                }
 
                 // Buildings
                 foreach (var id in world.Buildings.Ids)
@@ -142,7 +153,7 @@ namespace SeasonalBastion
                     });
                 }
 
-                // Towers (TowerState không có DefId/HP, dùng Hp/HpMax)
+                // Towers (TowerState khï¿½ng cï¿½ DefId/HP, dï¿½ng Hp/HpMax)
                 foreach (var id in world.Towers.Ids)
                 {
                     var t = world.Towers.Get(id);
@@ -225,6 +236,7 @@ namespace SeasonalBastion
                     build = new BuildDTO(),
                     combat = new CombatDTO(),
                     rewards = new RewardsDTO(),
+                    population = new PopulationDTO(),
                 };
 
                 // Day33: combat snapshot minimal (reset-wave option)
@@ -236,6 +248,13 @@ namespace SeasonalBastion
                     dto.season == Season.Winter.ToString();
 
                 dto.combat.IsDefendActive = file.combat != null ? file.combat.isDefendActive : derivedDefend;
+
+                if (file.population != null)
+                {
+                    dto.population.GrowthProgressDays = file.population.growthProgressDays;
+                    dto.population.StarvationDays = file.population.starvationDays;
+                    dto.population.StarvedToday = file.population.starvedToday;
+                }
 
                 // Roads
                 if (file.roads != null)
@@ -470,6 +489,7 @@ namespace SeasonalBastion
             public WorldFile world;
             public BuildFile build;
             public CombatFile combat; 
+            public PopulationFile population;
             public List<CellPosI32> roads = new();
         }
 
@@ -567,6 +587,14 @@ namespace SeasonalBastion
         {
             public int currentWaveIndex;
             public bool isDefendActive;
+        }
+
+        [Serializable]
+        private sealed class PopulationFile
+        {
+            public float growthProgressDays;
+            public int starvationDays;
+            public bool starvedToday;
         }
 
         [Serializable]

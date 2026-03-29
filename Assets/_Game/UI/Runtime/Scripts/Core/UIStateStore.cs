@@ -38,6 +38,7 @@ namespace SeasonalBastion.UI
 
             _selected = selection;
             _selectedId = selection.Kind == SelectionKind.Building ? selection.Id : -1;
+            ResourceSelectionBridge.SelectedResourcePatchId = selection.Kind == SelectionKind.ResourcePatch ? selection.Id : -1;
             SelectionChanged?.Invoke(_selectedId);
             SelectionRefChanged?.Invoke(_selected);
         }

@@ -1,5 +1,155 @@
 # CHANGELOG
 
+## 2026-03-29
+
+### Tóm tắt
+Đợt cập nhật này tập trung vào hai cụm lớn:
+- **hoàn thiện nền tảng hybrid resource zone generation** để tài nguyên không còn cố định cứng theo start map authored config
+- **bổ sung inspect/runtime presentation cho resource patches** để người chơi có thể nhìn thấy, click vào và đọc thông tin tài nguyên trực tiếp trên map
+
+Kết quả của pass này là world resource layout đã chuyển từ authored-only sang hướng **starter guarantee + scattered generated clusters**, có overlay hiển thị trên map, có runtime cache/test coverage tương ứng, và resource patches đã trở thành đối tượng inspectable cơ bản trong gameplay.
+
+### Hybrid resource zone generation groundwork
+- Mở rộng `StartMapConfigDto` với block mới `resourceGeneration`.
+- Thêm DTO mới:
+  - `ResourceGenerationDto`
+  - `ResourceSpawnRuleDto`
+- Mở rộng `RunStartConfigValidator` để validate:
+  - `mode = AuthoredOnly | Hybrid | GeneratedOnly`
+  - `starterRules` / `bonusRules`
+  - `resourceType`
+  - count ranges
+  - HQ distance bands
+  - rectangle width/height ranges
+- Giữ backward compatibility cho config cũ:
+  - nếu `resourceGeneration == null` vẫn chạy authored path như trước
+  - nếu có block nhưng `mode` trống thì hiện tại fallback về `AuthoredOnly` thay vì fail hard
+
+### Resource zone generator / run-start wiring
+- Thêm `RunStartResourceZoneGenerator` để sinh `ZoneState` từ rules + seed.
+- Generator hiện hỗ trợ:
+  - resolve HQ anchor
+  - starter rules gần HQ
+  - bonus/outer rules xa HQ hơn
+  - deterministic generation theo seed + `seedOffset`
+  - fallback sweep deterministic khi random probing không tìm được candidate hợp lệ
+- `RunStartZoneInitializer` đã được refactor để route theo mode:
+  - `AuthoredOnly`
+  - `Hybrid`
+  - `GeneratedOnly`
+- Vẫn giữ authored path cũ và legacy fallback rectangles để rollout an toàn.
+
+### Seed plumbing / runtime cache
+- Thêm `Seed` vào `RunStartRuntime` để thread actual run seed qua generation path.
+- `GameLoop.StartNewRun(seed, ...)` giờ persist seed đó vào `RunStartRuntime`.
+- `RunStartZoneInitializer` đã dùng run seed thật thay vì hardcode `0`.
+- `RunStartRuntimeCacheBuilder` được mở rộng để rebuild `RunStartRuntime.Zones` từ **final zones đã apply vào world**, thay vì chỉ mirror authored config.
+
+### Resource distribution / placement quality
+- Config run-start hiện tại (`StartMapConfig_RunStart_64x64_v0.1`) đã được chuyển sang hướng `Hybrid` với starter + bonus rules.
+- Phân bố tài nguyên đã được đổi từ kiểu “mỗi loại tập trung một vùng lớn” sang nhiều cluster nhỏ/vừa rải rác hơn trên bản đồ.
+- Generator được cải thiện thêm để placement nhìn tự nhiên hơn và playable hơn:
+  - reject placement trên `Road`, `Building`, `Site`
+  - same-type minimum separation
+  - cross-resource minimum separation
+  - starter rules nới cross-type spacing để tăng khả năng fulfill guarantee gần HQ
+  - đổi từ **center-only separation** sang **rect-bounds separation** để các patches không còn chồng/ráp nhau theo mắt nhìn
+- Kết quả runtime hiện tại:
+  - resource không còn spawn đè lên road
+  - patches khác loại không còn dính/chồng nhau khó đọc như trước
+  - layout thay đổi theo mỗi run nhưng vẫn giữ opening playable hơn quanh HQ
+
+### Runtime map presentation / overlay
+- Thêm resource zone overlay vào `WorldViewRoot2D` bằng tilemap riêng.
+- Mỗi loại resource hiện có tint màu riêng trên map:
+  - Food
+  - Wood
+  - Stone
+  - Iron
+- Overlay đọc trực tiếp từ `WorldState.Zones`, giúp authored/generated zones đều nhìn thấy được ngay trong runtime.
+- Kết quả: resource layout không còn là logic invisible, người chơi có thể đọc map bằng mắt thường và debug world generation dễ hơn nhiều.
+
+### Resource patch runtime state / inspect flow
+- Thêm typed selection cho UI:
+  - `SelectionKind`
+  - `SelectionRef`
+- `UIStateStore` được mở rộng để hỗ trợ selection typed nhưng vẫn giữ backward compatibility với `SelectedId` cho flow cũ.
+- Thêm `ResourcePatchState` + `ResourcePatchService` trong core runtime.
+- Resource patches hiện được build từ zones theo rule practical:
+  - **1 zone = 1 inspectable resource patch**
+- `ResourcePatchService` hiện hỗ trợ:
+  - rebuild từ zones
+  - query patch theo id
+  - query patch theo clicked cell
+  - `TotalAmount / RemainingAmount`
+  - `Consume(...)`
+- `RunStartFacade` giờ rebuild resource patches sau khi apply zones.
+- `WorldSelectionController` được mở rộng để click cell resource và chọn `ResourcePatch` nếu không hit building/site.
+- `UiSystem` được vá để inspect panel không còn building-only; resource patch selection giờ cũng mở / refresh inspect panel đúng.
+- `InspectPanelPresenter` đã thêm branch `RenderResourcePatch(...)` để hiển thị:
+  - loại tài nguyên
+  - trữ lượng còn lại / tổng
+  - cell count
+  - anchor
+- UX resource inspect đã được polish để panel đọc rõ là `RESOURCE PATCH`, không còn lẫn với building inspect như pass đầu.
+
+### Harvesting integration với resource patches
+- `HarvestExecutor` đã được nối bước đầu với `ResourcePatchService`.
+- Khi producer harvest, runtime sẽ:
+  - tìm patch gần cell harvest cùng loại resource
+  - `Consume(...)` amount tương ứng
+- Kết quả:
+  - inspect panel hiện không còn chỉ hiện số lượng “ảo”
+  - `RemainingAmount` bắt đầu giảm thật khi harvesting diễn ra
+
+### Test / docs / planning
+- Thêm test file mới cho run-start resource generation:
+  - `Assets/_Game/Tests/EditMode/RunStart/ResourceZoneGenerationTests.cs`
+- Test coverage hiện đã có:
+  - same seed => same zones
+  - different seed => different zones
+  - starter guarantee quanh HQ
+  - bounds safety
+  - generated path apply zones + runtime cache sync
+  - authored compatibility path (`AuthoredOnly`) vẫn giữ đúng
+- Viết docs breakdown riêng cho feature này:
+  - `docs/task-breakdown-hybrid-resource-zone-generation.md`
+- Checklist trong docs đã được cập nhật theo tiến độ implementation thực tế.
+
+### Follow-up polish sau pass resource generation ban đầu
+- Thêm `ResourceSelectionBridge` để world renderer có thể highlight patch tài nguyên đang được chọn mà không tạo dependency compile-time từ `Game.World` sang `Game.UI`.
+- `WorldViewRoot2D` giờ boost tint/alpha cho patch tài nguyên đang được inspect, giúp phản hồi chọn trực quan hơn.
+- Overlay resource giờ ưu tiên render từ `ResourcePatchService` và bỏ patch khi `RemainingAmount <= 0`, nên patch cạn sẽ biến mất khỏi map.
+- Harvesting đã được nối patch-aware rõ ràng hơn:
+  - `HarvestExecutor` chỉ consume đúng patch chứa `TargetCell`
+  - không còn fallback consume sang patch “tốt nhất gần đó”, tránh harvest ảo trên patch đã cạn
+- Thêm `HarvestTargetSelectionHelper` để dùng chung logic chọn target harvest theo patch.
+- Harvest target selection đã được nâng cấp theo hướng:
+  - path-aware target selection
+  - chọn cell bên trong patch thay vì chỉ `patch.Anchor`
+  - fallback patch-aware relaxed nếu strict path-aware selection fail
+  - retarget ngay khi patch cũ cạn thay vì đứng yên ở target cũ
+- Kết quả runtime mong muốn của loạt patch follow-up này:
+  - NPC chọn patch/cell harvest hợp lý hơn theo đường đi thực tế
+  - khi patch cạn sẽ chuyển sang patch khác còn tài nguyên
+  - resource selection trên map có highlight rõ ràng hơn
+  - overlay biến mất đúng theo depletion runtime
+
+### Kết luận / trạng thái hiện tại
+- Resource system hiện đã vượt khỏi authored-only static layout và có một nền hybrid generation usable trong runtime thật.
+- Người chơi giờ có thể:
+  - nhìn thấy vùng tài nguyên trên bản đồ
+  - new run với seed khác để thấy layout khác nhau
+  - click vào patch tài nguyên để inspect loại + trữ lượng
+  - thấy patch đang chọn được highlight
+  - thấy patch cạn biến mất khỏi overlay
+- Harvesting hiện đã bám patch-aware tốt hơn đáng kể so với pass đầu.
+- Các bước polish hợp lý tiếp theo nếu muốn đi tiếp sẽ là:
+  1. depletion visual mượt hơn (fade / exhausted state) thay vì biến mất cứng
+  2. stickiness/current patch preference để NPC ít nhảy patch khi patch hiện tại vẫn còn tốt
+  3. tighten starter guarantee và authored fallback path hơn nữa nếu muốn productionize
+  4. cân nhắc merge policy authored + generated sâu hơn cho hybrid mode
+
 ## 2026-03-27
 
 ### Tóm tắt

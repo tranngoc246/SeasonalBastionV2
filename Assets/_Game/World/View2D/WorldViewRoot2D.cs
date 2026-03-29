@@ -337,6 +337,8 @@ namespace SeasonalBastion.View2D
             if (_resourcePatches != null && _resourcePatches.Patches != null && _resourcePatches.Patches.Count > 0)
             {
                 var patches = _resourcePatches.Patches;
+                int selectedPatchId = ResourceSelectionBridge.SelectedResourcePatchId;
+
                 for (int i = 0; i < patches.Count; i++)
                 {
                     var p = patches[i];
@@ -344,6 +346,9 @@ namespace SeasonalBastion.View2D
                         continue;
 
                     Color tint = GetZoneColor(p.Resource);
+                    if (p.Id == selectedPatchId)
+                        tint = BoostHighlight(tint);
+
                     for (int c = 0; c < p.Cells.Count; c++)
                     {
                         var cell = p.Cells[c];
@@ -386,6 +391,18 @@ namespace SeasonalBastion.View2D
                 ResourceType.Iron => _ironZoneColor,
                 _ => new Color(1f, 1f, 1f, 0.35f)
             };
+        }
+
+        private static Color BoostHighlight(Color c)
+        {
+            float boost = 0.20f;
+            float alpha = c.a + 0.20f;
+            if (alpha > 0.90f) alpha = 0.90f;
+            return new Color(
+                c.r + (1f - c.r) * boost,
+                c.g + (1f - c.g) * boost,
+                c.b + (1f - c.b) * boost,
+                alpha);
         }
 
         // ---------------- Entities ----------------

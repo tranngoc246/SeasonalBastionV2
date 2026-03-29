@@ -31,8 +31,9 @@ namespace SeasonalBastion
         // VS2: cached data loaded from StartMapConfig at StartNewRun()
         public RunStartRuntime RunStartRuntime;
 
-        // Day14: simple mover (runtime-only)
+        // Day14: simple mover/pathfinding (runtime-only)
         public GridAgentMoverLite AgentMover;
+        public NpcPathfinder Pathfinder;
 
         // Economy/Jobs
         public ITickable ProducerLoopService; // Day36: producer loop (enqueue Harvest)

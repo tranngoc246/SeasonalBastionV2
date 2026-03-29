@@ -6,6 +6,7 @@ namespace SeasonalBastion
 {
     internal sealed class JobEnqueueService
     {
+        private readonly GameServices _s;
         private readonly IWorldState _w;
         private readonly IJobBoard _board;
         private readonly IJobWorkplacePolicy _workplacePolicy;
@@ -13,12 +14,14 @@ namespace SeasonalBastion
         private readonly JobStateCleanupService _cleanupService;
 
         internal JobEnqueueService(
+            GameServices s,
             IWorldState w,
             IJobBoard board,
             IJobWorkplacePolicy workplacePolicy,
             ResourceLogisticsPolicy resourcePolicy,
             JobStateCleanupService cleanupService)
         {
+            _s = s;
             _w = w;
             _board = board;
             _workplacePolicy = workplacePolicy;
@@ -54,12 +57,15 @@ namespace SeasonalBastion
                 int cur = _resourcePolicy.GetAmountFromBuilding(bs, rt);
                 if (cap > 0 && cur >= cap) continue;
 
-                var zoneCell = _w.Zones.PickCell(rt, bs.Anchor);
-                if (zoneCell.X == 0 && zoneCell.Y == 0)
-                    continue;
-
                 for (int slot = 0; slot < slots; slot++)
                 {
+                    CellPos zoneCell;
+                    if (!HarvestTargetSelectionHelper.TryPickBestHarvestTarget(_s, _w, rt, bs.Anchor, bid.Value, slot, out zoneCell))
+                        continue;
+
+                    if (zoneCell.X == 0 && zoneCell.Y == 0)
+                        continue;
+
                     int key = bid.Value * 4 + slot;
 
                     if (harvestJobByWorkplaceSlot.TryGetValue(key, out var oldId))

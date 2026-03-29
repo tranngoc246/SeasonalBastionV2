@@ -54,6 +54,7 @@ namespace SeasonalBastion.View2D
         private IGridMap _gridMap;
         private IWorldState _world;
         private IDataRegistry _data;
+        private ResourcePatchService _resourcePatches;
 
         private bool _warnedMissing;
 
@@ -97,6 +98,7 @@ namespace SeasonalBastion.View2D
             if (_pollAcc >= _pollInterval)
             {
                 _pollAcc = 0f;
+                RebuildResourceZones();
                 SyncEntities();
             }
         }
@@ -114,6 +116,7 @@ namespace SeasonalBastion.View2D
             _gridMap = ReadMember<IGridMap>(services, "GridMap", "_gridMap", "Grid");
             _world = ReadMember<IWorldState>(services, "WorldState", "_world", "World");
             _data = ReadMember<IDataRegistry>(services, "DataRegistry", "_dataRegistry", "Registry", "Data");
+            _resourcePatches = ReadMember<ResourcePatchService>(services, "ResourcePatchService");
 
             if (_gridMap == null || _world == null)
             {
@@ -328,7 +331,31 @@ namespace SeasonalBastion.View2D
             _resourceZoneTilemap.ClearAllTiles();
             _resourceZoneTilemap.color = Color.white;
 
-            if (!_showResourceZones || _resourceZoneTile == null || _world?.Zones?.Zones == null)
+            if (!_showResourceZones || _resourceZoneTile == null)
+                return;
+
+            if (_resourcePatches != null && _resourcePatches.Patches != null && _resourcePatches.Patches.Count > 0)
+            {
+                var patches = _resourcePatches.Patches;
+                for (int i = 0; i < patches.Count; i++)
+                {
+                    var p = patches[i];
+                    if (p.RemainingAmount <= 0 || p.Cells == null)
+                        continue;
+
+                    Color tint = GetZoneColor(p.Resource);
+                    for (int c = 0; c < p.Cells.Count; c++)
+                    {
+                        var cell = p.Cells[c];
+                        var v = new Vector3Int(cell.X, cell.Y, 0);
+                        _resourceZoneTilemap.SetTile(v, _resourceZoneTile);
+                        _resourceZoneTilemap.SetColor(v, tint);
+                    }
+                }
+                return;
+            }
+
+            if (_world?.Zones?.Zones == null)
                 return;
 
             var zones = _world.Zones.Zones;

@@ -76,9 +76,19 @@ namespace SeasonalBastion
 
         public bool TryGetNearestPatch(ResourceType rt, CellPos nearCell, out ResourcePatchState patch)
         {
+            return TryGetBestPatch(rt, nearCell, out patch);
+        }
+
+        public bool TryGetNearestAvailablePatch(ResourceType rt, CellPos nearCell, out ResourcePatchState patch)
+        {
+            return TryGetBestPatch(rt, nearCell, out patch);
+        }
+
+        public bool TryGetBestPatch(ResourceType rt, CellPos origin, out ResourcePatchState patch)
+        {
             patch = default;
             bool found = false;
-            int best = int.MaxValue;
+            int bestScore = int.MaxValue;
 
             for (int i = 0; i < _ordered.Count; i++)
             {
@@ -86,16 +96,44 @@ namespace SeasonalBastion
                 if (p.Resource != rt || p.RemainingAmount <= 0)
                     continue;
 
-                int d = System.Math.Abs(p.Anchor.X - nearCell.X) + System.Math.Abs(p.Anchor.Y - nearCell.Y);
-                if (!found || d < best)
+                int dist = System.Math.Abs(p.Anchor.X - origin.X) + System.Math.Abs(p.Anchor.Y - origin.Y);
+                int richness = p.RemainingAmount;
+                int score = dist * 12 - (richness > 200 ? 200 : richness);
+                if (!found || score < bestScore)
                 {
                     found = true;
-                    best = d;
+                    bestScore = score;
                     patch = p;
                 }
             }
 
             return found;
+        }
+
+        public bool TryPickCellInPatch(int patchId, CellPos origin, int variationSeed, out CellPos cell)
+        {
+            cell = default;
+            if (!_byId.TryGetValue(patchId, out var patch) || patch.Cells == null || patch.Cells.Count == 0)
+                return false;
+
+            CellPos[] bestCells = new CellPos[4];
+            int[] bestScores = new int[4] { int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue };
+            int foundCount = 0;
+
+            for (int i = 0; i < patch.Cells.Count; i++)
+            {
+                var c = patch.Cells[i];
+                int dist = System.Math.Abs(c.X - origin.X) + System.Math.Abs(c.Y - origin.Y);
+                int score = dist * 8 + ((Mix(variationSeed, c.X, c.Y) & 7));
+                TryInsertBestCell(c, score, bestCells, bestScores, ref foundCount);
+            }
+
+            if (foundCount == 0)
+                return false;
+
+            int pick = (Mix(variationSeed, origin.X, origin.Y) & 0x7fffffff) % foundCount;
+            cell = bestCells[pick];
+            return true;
         }
 
         public int Consume(int patchId, int amount)
@@ -147,6 +185,46 @@ namespace SeasonalBastion
                 _ => 1
             };
             return cellCount * perCell;
+        }
+
+        private static void TryInsertBestCell(CellPos cell, int score, CellPos[] bestCells, int[] bestScores, ref int foundCount)
+        {
+            for (int i = 0; i < bestScores.Length; i++)
+            {
+                if (score >= bestScores[i])
+                    continue;
+
+                for (int j = bestScores.Length - 1; j > i; j--)
+                {
+                    bestScores[j] = bestScores[j - 1];
+                    bestCells[j] = bestCells[j - 1];
+                }
+
+                bestScores[i] = score;
+                bestCells[i] = cell;
+                if (foundCount < bestScores.Length)
+                    foundCount++;
+                return;
+            }
+
+            if (foundCount < bestScores.Length)
+            {
+                bestScores[foundCount] = score;
+                bestCells[foundCount] = cell;
+                foundCount++;
+            }
+        }
+
+        private static int Mix(int a, int b, int c)
+        {
+            unchecked
+            {
+                int h = 17;
+                h = h * 31 + a;
+                h = h * 31 + b;
+                h = h * 31 + c;
+                return h;
+            }
         }
 
         private static int PackCell(CellPos c)

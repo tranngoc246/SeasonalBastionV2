@@ -37,7 +37,8 @@ namespace SeasonalBastion
             services.GridMap = new GridMap(width: 64, height: 64);
             services.ResourcePatchService = new ResourcePatchService();
 
-            // Day14: simple mover (cell-by-cell)
+            // Day14: simple mover/pathfinding (cell-by-cell)
+            services.Pathfinder = new NpcPathfinder(services.GridMap);
             services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance);
             services.EventBus.Subscribe<RoadsDirtyEvent>(_ => services.AgentMover?.NotifyRoadsDirty());
 

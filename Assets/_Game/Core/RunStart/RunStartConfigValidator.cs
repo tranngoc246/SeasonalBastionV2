@@ -1,3 +1,5 @@
+using SeasonalBastion.Contracts;
+
 namespace SeasonalBastion.RunStart
 {
     internal static class RunStartConfigValidator
@@ -54,7 +56,98 @@ namespace SeasonalBastion.RunStart
                 return false;
             }
 
+            if (!ValidateResourceGeneration(cfg.resourceGeneration, out error))
+                return false;
+
             return true;
+        }
+
+        private static bool ValidateResourceGeneration(ResourceGenerationDto rg, out string error)
+        {
+            error = null;
+            if (rg == null)
+                return true;
+
+            if (string.IsNullOrWhiteSpace(rg.mode))
+                return true;
+
+            bool authoredOnly = string.Equals(rg.mode, "AuthoredOnly", System.StringComparison.OrdinalIgnoreCase);
+            bool hybrid = string.Equals(rg.mode, "Hybrid", System.StringComparison.OrdinalIgnoreCase);
+            bool generatedOnly = string.Equals(rg.mode, "GeneratedOnly", System.StringComparison.OrdinalIgnoreCase);
+            if (!authoredOnly && !hybrid && !generatedOnly)
+            {
+                error = $"resourceGeneration.mode='{rg.mode}' unsupported (expect AuthoredOnly | Hybrid | GeneratedOnly).";
+                return false;
+            }
+
+            if ((hybrid || generatedOnly) && (rg.starterRules == null || rg.starterRules.Length == 0))
+            {
+                error = $"resourceGeneration.mode='{rg.mode}' requires non-empty starterRules.";
+                return false;
+            }
+
+            if (!ValidateSpawnRules(rg.starterRules, "starterRules", out error))
+                return false;
+
+            if (!ValidateSpawnRules(rg.bonusRules, "bonusRules", out error))
+                return false;
+
+            return true;
+        }
+
+        private static bool ValidateSpawnRules(ResourceSpawnRuleDto[] rules, string label, out string error)
+        {
+            error = null;
+            if (rules == null)
+                return true;
+
+            for (int i = 0; i < rules.Length; i++)
+            {
+                var r = rules[i];
+                if (r == null)
+                    continue;
+
+                if (!TryParseResourceType(r.resourceType, out _))
+                {
+                    error = $"resourceGeneration.{label}[{i}].resourceType='{r.resourceType}' unsupported.";
+                    return false;
+                }
+
+                if (r.countMin < 0 || r.countMax < 0 || r.countMin > r.countMax)
+                {
+                    error = $"resourceGeneration.{label}[{i}] invalid count range ({r.countMin}..{r.countMax}).";
+                    return false;
+                }
+
+                if (r.minDistanceFromHQ < 0 || r.maxDistanceFromHQ < 0 || r.minDistanceFromHQ > r.maxDistanceFromHQ)
+                {
+                    error = $"resourceGeneration.{label}[{i}] invalid HQ distance range ({r.minDistanceFromHQ}..{r.maxDistanceFromHQ}).";
+                    return false;
+                }
+
+                if (r.rectWidthMin <= 0 || r.rectWidthMax <= 0 || r.rectWidthMin > r.rectWidthMax)
+                {
+                    error = $"resourceGeneration.{label}[{i}] invalid rectWidth range ({r.rectWidthMin}..{r.rectWidthMax}).";
+                    return false;
+                }
+
+                if (r.rectHeightMin <= 0 || r.rectHeightMax <= 0 || r.rectHeightMin > r.rectHeightMax)
+                {
+                    error = $"resourceGeneration.{label}[{i}] invalid rectHeight range ({r.rectHeightMin}..{r.rectHeightMax}).";
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool TryParseResourceType(string text, out ResourceType rt)
+        {
+            if (System.Enum.TryParse<ResourceType>(text, ignoreCase: true, out rt) && rt != ResourceType.None)
+                return true;
+
+            rt = ResourceType.None;
+            return false;
         }
     }
 }

@@ -29,6 +29,9 @@ namespace SeasonalBastion
             catch { }
 
             // Deterministic initial run clock state
+            if (_s.RunStartRuntime != null)
+                _s.RunStartRuntime.Seed = seed;
+
             if (_s.RunClock is RunClockService rc)
                 rc.Start(seed);
             else
@@ -96,6 +99,7 @@ namespace SeasonalBastion
         {
             if (rt == null) return;
 
+            rt.Seed = 0;
             rt.MapWidth = 0;
             rt.MapHeight = 0;
             rt.BuildableRect = default;

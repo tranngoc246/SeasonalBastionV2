@@ -176,6 +176,22 @@
       "cellCount": 16
     }
   ],
+  "resourceGeneration": {
+    "mode": "Hybrid",
+    "seedOffset": 0,
+    "starterRules": [
+      { "resourceType": "Wood",  "countMin": 2, "countMax": 3, "minDistanceFromHQ": 6,  "maxDistanceFromHQ": 14, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Starter wood clusters" },
+      { "resourceType": "Food",  "countMin": 2, "countMax": 3, "minDistanceFromHQ": 6,  "maxDistanceFromHQ": 14, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Starter food clusters" },
+      { "resourceType": "Stone", "countMin": 1, "countMax": 2, "minDistanceFromHQ": 8,  "maxDistanceFromHQ": 16, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Starter stone clusters" },
+      { "resourceType": "Iron",  "countMin": 1, "countMax": 1, "minDistanceFromHQ": 10, "maxDistanceFromHQ": 18, "rectWidthMin": 2, "rectWidthMax": 2, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Starter-lite iron cluster" }
+    ],
+    "bonusRules": [
+      { "resourceType": "Wood",  "countMin": 4, "countMax": 6, "minDistanceFromHQ": 12, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 4, "rectHeightMin": 2, "rectHeightMax": 4, "notes": "Scattered outer wood clusters" },
+      { "resourceType": "Food",  "countMin": 3, "countMax": 5, "minDistanceFromHQ": 12, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 4, "rectHeightMin": 2, "rectHeightMax": 4, "notes": "Scattered outer food clusters" },
+      { "resourceType": "Stone", "countMin": 3, "countMax": 4, "minDistanceFromHQ": 14, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Scattered outer stone clusters" },
+      { "resourceType": "Iron",  "countMin": 2, "countMax": 4, "minDistanceFromHQ": 16, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Scattered outer iron clusters" }
+    ]
+  },
   "initialBuildings": [
     {
       "defId": "bld_hq_t1",

@@ -10,6 +10,7 @@ namespace SeasonalBastion.RunStart
     /// </summary>
     public sealed class RunStartRuntime
     {
+        public int Seed;
         public int MapWidth;
         public int MapHeight;
 

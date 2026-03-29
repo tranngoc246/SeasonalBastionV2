@@ -295,38 +295,41 @@ If generation mode requires starter ring:
 ## Implementation Checklist
 
 ## Batch A - Data + Validator
-- [ ] Add `resourceGeneration` to `StartMapConfigDto`
-- [ ] Add `ResourceGenerationDto`
-- [ ] Add `ResourceSpawnRuleDto`
-- [ ] Extend `RunStartConfigValidator` for new fields
-- [ ] Keep backward compatibility when `resourceGeneration == null`
+- [x] Add `resourceGeneration` to `StartMapConfigDto`
+- [x] Add `ResourceGenerationDto`
+- [x] Add `ResourceSpawnRuleDto`
+- [x] Extend `RunStartConfigValidator` for new fields
+- [x] Keep backward compatibility when `resourceGeneration == null`
 
 ## Batch B - Generator
-- [ ] Create `RunStartResourceZoneGenerator.cs`
-- [ ] Implement deterministic PRNG usage
-- [ ] Implement HQ anchor resolution
-- [ ] Implement starter ring generation
-- [ ] Implement bonus/outer ring generation
-- [ ] Emit `List<ZoneState>` as output
+- [x] Create `RunStartResourceZoneGenerator.cs`
+- [x] Implement deterministic PRNG usage
+- [x] Implement HQ anchor resolution
+- [x] Implement starter ring generation
+- [x] Implement bonus/outer ring generation
+- [x] Emit `List<ZoneState>` as output
+- [x] Add same-resource minimum separation
+- [x] Add cross-resource minimum separation
+- [x] Reject placement on road/building/site cells
 
 ## Batch C - Zone Initializer Wiring
-- [ ] Refactor `RunStartZoneInitializer` to route by mode
-- [ ] Preserve current authored `cfg.zones` path
+- [x] Refactor `RunStartZoneInitializer` to route by mode
+- [x] Preserve current authored `cfg.zones` path
 - [ ] Replace hardcoded fallback rectangles with generated starter fallback in hybrid/generated paths
-- [ ] Keep current zone-store apply path reusable
+- [x] Keep current zone-store apply path reusable
 
 ## Batch D - Runtime Cache + Debug
-- [ ] Ensure `RunStartRuntimeCacheBuilder` reflects final applied zones
+- [x] Ensure `RunStartRuntimeCacheBuilder` reflects final applied zones
 - [ ] Add optional metadata for generation mode/seed if helpful
-- [ ] Update debug tooling to expose seed + generation mode
+- [x] Update map presentation so resource zones are visible in runtime (`WorldViewRoot2D` tilemap overlay)
 
 ## Batch E - Tests
-- [ ] Determinism test: same seed => same zones
-- [ ] Variation test: different seed => different zones
-- [ ] Starter guarantee test: required resources always present near HQ
-- [ ] Bounds test: all generated rects inside map
-- [ ] Sanity test: non-empty zones and valid cell counts
-- [ ] Hybrid mode test: authored mode still works unchanged
+- [x] Determinism test: same seed => same zones
+- [x] Variation test: different seed => different zones
+- [x] Starter guarantee test: required resources always present near HQ
+- [x] Bounds test: all generated rects inside map
+- [x] Sanity test: non-empty zones and valid cell counts
+- [x] Hybrid mode test: authored mode still works unchanged
 
 ---
 

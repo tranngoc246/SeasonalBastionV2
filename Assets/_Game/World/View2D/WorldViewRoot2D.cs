@@ -27,6 +27,15 @@ namespace SeasonalBastion.View2D
         [SerializeField] private Tilemap _roadTilemap;
         [SerializeField] private TileBase _roadTile;
 
+        [Header("Grid / Tilemap (Resource Overlay)")]
+        [SerializeField] private Tilemap _resourceZoneTilemap;
+        [SerializeField] private TileBase _resourceZoneTile;
+        [SerializeField] private bool _showResourceZones = true;
+        [SerializeField] private Color _foodZoneColor = new(0.80f, 0.92f, 0.38f, 0.55f);
+        [SerializeField] private Color _woodZoneColor = new(0.22f, 0.72f, 0.30f, 0.50f);
+        [SerializeField] private Color _stoneZoneColor = new(0.65f, 0.65f, 0.67f, 0.45f);
+        [SerializeField] private Color _ironZoneColor = new(0.45f, 0.52f, 0.78f, 0.52f);
+
         [Header("Fallback Sprites (optional but recommended)")]
         [SerializeField] private Sprite _fallbackBuilding;
         [SerializeField] private Sprite _fallbackNpc;
@@ -123,6 +132,7 @@ namespace SeasonalBastion.View2D
             _bound = true;
 
             if (_rebuildRoadOnStart) RebuildRoad();
+            RebuildResourceZones();
             if (_rebuildEntitiesOnStart) SyncEntities();
         }
 
@@ -308,6 +318,47 @@ namespace SeasonalBastion.View2D
                         _roadTilemap.SetTile(new Vector3Int(x, y, 0), _roadTile);
                 }
             }
+        }
+
+        private void RebuildResourceZones()
+        {
+            if (_resourceZoneTilemap == null)
+                return;
+
+            _resourceZoneTilemap.ClearAllTiles();
+            _resourceZoneTilemap.color = Color.white;
+
+            if (!_showResourceZones || _resourceZoneTile == null || _world?.Zones?.Zones == null)
+                return;
+
+            var zones = _world.Zones.Zones;
+            for (int i = 0; i < zones.Count; i++)
+            {
+                var z = zones[i];
+                if (z == null || z.Cells == null)
+                    continue;
+
+                Color tint = GetZoneColor(z.Resource);
+                for (int c = 0; c < z.Cells.Count; c++)
+                {
+                    var cell = z.Cells[c];
+                    var v = new Vector3Int(cell.X, cell.Y, 0);
+                    _resourceZoneTilemap.SetTile(v, _resourceZoneTile);
+                    _resourceZoneTilemap.SetColor(v, tint);
+                }
+            }
+        }
+
+        private Color GetZoneColor(ResourceType rt)
+        {
+            return rt switch
+            {
+                ResourceType.Food => _foodZoneColor,
+                ResourceType.Wood => _woodZoneColor,
+                ResourceType.Stone => _stoneZoneColor,
+                ResourceType.Iron => _ironZoneColor,
+                _ => new Color(1f, 1f, 1f, 0.35f)
+            };
         }
 
         // ---------------- Entities ----------------

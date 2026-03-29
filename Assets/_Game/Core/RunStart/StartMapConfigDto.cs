@@ -12,6 +12,7 @@ namespace SeasonalBastion.RunStart
         public RoadCellDto[] roads;
         public SpawnGateDto[] spawnGates;
         public ZoneDto[] zones;
+        public ResourceGenerationDto resourceGeneration;
 
         public InitialBuildingDto[] initialBuildings;
         public InitialNpcDto[] initialNpcs;
@@ -75,6 +76,34 @@ namespace SeasonalBastion.RunStart
         public string ownerBuildingHint;
         public RectMinMaxDto cellsRect;
         public int cellCount;
+    }
+
+    [Serializable]
+    internal sealed class ResourceGenerationDto
+    {
+        public string mode;
+        public int seedOffset;
+        public ResourceSpawnRuleDto[] starterRules;
+        public ResourceSpawnRuleDto[] bonusRules;
+    }
+
+    [Serializable]
+    internal sealed class ResourceSpawnRuleDto
+    {
+        public string resourceType;
+
+        public int countMin;
+        public int countMax;
+
+        public int minDistanceFromHQ;
+        public int maxDistanceFromHQ;
+
+        public int rectWidthMin;
+        public int rectWidthMax;
+        public int rectHeightMin;
+        public int rectHeightMax;
+
+        public string notes;
     }
 
     [Serializable]

@@ -35,6 +35,7 @@ namespace SeasonalBastion
 
             // Grid
             services.GridMap = new GridMap(width: 64, height: 64);
+            services.ResourcePatchService = new ResourcePatchService();
 
             // Day14: simple mover (cell-by-cell)
             services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance);

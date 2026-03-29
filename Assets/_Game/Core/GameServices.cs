@@ -26,6 +26,7 @@ namespace SeasonalBastion
         public IWorldIndex WorldIndex;
         public IGridMap GridMap;
         public IPlacementService PlacementService;
+        public ResourcePatchService ResourcePatchService;
 
         // VS2: cached data loaded from StartMapConfig at StartNewRun()
         public RunStartRuntime RunStartRuntime;

@@ -39,6 +39,7 @@ namespace SeasonalBastion.UI.Input
 
         private IGridMap _gridMap;
         private IWorldState _world;
+        private ResourcePatchService _resourcePatches;
 
         private Camera _cam;
         private bool _bound;
@@ -115,6 +116,13 @@ namespace SeasonalBastion.UI.Input
                 }
             }
 
+            // Resource patch cell -> select patch
+            if (_resourcePatches != null && _resourcePatches.TryGetPatchAtCell(cell, out var patch))
+            {
+                SelectResourcePatch(patch.Id);
+                return;
+            }
+
             // Else: clear selection
             if (_clearSelectionWhenClickEmpty) _store?.ClearSelection();
         }
@@ -123,10 +131,20 @@ namespace SeasonalBastion.UI.Input
         {
             if (_store == null) return;
 
-            if (_toggleOffWhenClickSame && _store.SelectedId == id)
+            if (_toggleOffWhenClickSame && _store.Selected.Kind == SelectionKind.Building && _store.Selected.Id == id)
                 _store.ClearSelection();
             else
-                _store.Select(id);
+                _store.SelectBuilding(id);
+        }
+
+        private void SelectResourcePatch(int id)
+        {
+            if (_store == null) return;
+
+            if (_toggleOffWhenClickSame && _store.Selected.Kind == SelectionKind.ResourcePatch && _store.Selected.Id == id)
+                _store.ClearSelection();
+            else
+                _store.SelectResourcePatch(id);
         }
 
         private void TryBind()
@@ -168,9 +186,11 @@ namespace SeasonalBastion.UI.Input
 
             _gridMap = s.GridMap;
             _world = s.WorldState;
+            _resourcePatches = s.ResourcePatchService;
 
             if (_gridMap == null || _world == null || _store == null)
                 return;
+
 
             // World mapping fallbacks
             if (_cam == null) _cam = _cameraOverride != null ? _cameraOverride : Camera.main;

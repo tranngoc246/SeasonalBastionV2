@@ -193,6 +193,18 @@ namespace SeasonalBastion
             int carry = yield;
             if (carry > free) carry = free;
 
+            if (_s.ResourcePatchService != null && _s.ResourcePatchService.TryGetNearestPatch(rt, target, out var patch))
+            {
+                carry = _s.ResourcePatchService.Consume(patch.Id, carry);
+            }
+
+            if (carry <= 0)
+            {
+                if (hasClaimKey) _s.ClaimService.Release(claimKey, npc);
+                job.Status = JobStatus.Cancelled;
+                return true;
+            }
+
             // Release claim after producing carry so other workers can continue
             if (hasClaimKey) _s.ClaimService.Release(claimKey, npc);
 

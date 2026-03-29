@@ -229,9 +229,10 @@ namespace SeasonalBastion.RunStart
             if (existingZones == null || existingZones.Count == 0)
                 return true;
 
-            int cx = x + (width - 1) / 2;
-            int cy = y + (height - 1) / 2;
-            var center = new CellPos(cx, cy);
+            int newXMin = x;
+            int newYMin = y;
+            int newXMax = x + width - 1;
+            int newYMax = y + height - 1;
 
             for (int i = 0; i < existingZones.Count; i++)
             {
@@ -243,17 +244,20 @@ namespace SeasonalBastion.RunStart
                 if (required <= 0)
                     continue;
 
-                ComputeCenter(z.Cells, out int zx, out int zy);
-                if (Manhattan(center, new CellPos(zx, zy)) < required)
+                ComputeBounds(z.Cells, out int zxMin, out int zyMin, out int zxMax, out int zyMax);
+                if (RectsOverlapWithGap(newXMin, newYMin, newXMax, newYMax, zxMin, zyMin, zxMax, zyMax, required))
                     return false;
             }
 
             return true;
         }
 
-        private static void ComputeCenter(List<CellPos> cells, out int x, out int y)
+        private static void ComputeBounds(List<CellPos> cells, out int xMin, out int yMin, out int xMax, out int yMax)
         {
-            int xMin = int.MaxValue, yMin = int.MaxValue, xMax = int.MinValue, yMax = int.MinValue;
+            xMin = int.MaxValue;
+            yMin = int.MaxValue;
+            xMax = int.MinValue;
+            yMax = int.MinValue;
             for (int i = 0; i < cells.Count; i++)
             {
                 var c = cells[i];
@@ -262,8 +266,16 @@ namespace SeasonalBastion.RunStart
                 if (c.X > xMax) xMax = c.X;
                 if (c.Y > yMax) yMax = c.Y;
             }
-            x = xMin + (xMax - xMin) / 2;
-            y = yMin + (yMax - yMin) / 2;
+        }
+
+        private static bool RectsOverlapWithGap(int axMin, int ayMin, int axMax, int ayMax, int bxMin, int byMin, int bxMax, int byMax, int gap)
+        {
+            axMin -= gap;
+            ayMin -= gap;
+            axMax += gap;
+            ayMax += gap;
+
+            return !(axMax < bxMin || axMin > bxMax || ayMax < byMin || ayMin > byMax);
         }
 
         private static int GetMinSeparation(ResourceType rt)

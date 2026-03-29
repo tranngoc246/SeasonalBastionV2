@@ -10,14 +10,17 @@ namespace SeasonalBastion.UI
     public sealed class UIStateStore
     {
         public event Action<int> SelectionChanged;
+        public event Action<SelectionRef> SelectionRefChanged;
         public event Action<string> ActivePanelChanged;
         public event Action<int> ModalStackChanged;
 
         private int _selectedId = -1;
+        private SelectionRef _selected = SelectionRef.None;
         private string _activePanelKey = "";
         private readonly List<string> _modalStack = new(4);
 
         public int SelectedId => _selectedId;
+        public SelectionRef Selected => _selected;
         public string ActivePanelKey => _activePanelKey;
         public int ModalCount => _modalStack.Count;
 
@@ -25,12 +28,23 @@ namespace SeasonalBastion.UI
 
         public void Select(int id)
         {
-            if (_selectedId == id) return;
-            _selectedId = id;
-            SelectionChanged?.Invoke(_selectedId);
+            Select(SelectionRef.Building(id));
         }
 
-        public void ClearSelection() => Select(-1);
+        public void Select(SelectionRef selection)
+        {
+            if (_selected.Kind == selection.Kind && _selected.Id == selection.Id)
+                return;
+
+            _selected = selection;
+            _selectedId = selection.Kind == SelectionKind.Building ? selection.Id : -1;
+            SelectionChanged?.Invoke(_selectedId);
+            SelectionRefChanged?.Invoke(_selected);
+        }
+
+        public void SelectBuilding(int id) => Select(SelectionRef.Building(id));
+        public void SelectResourcePatch(int id) => Select(SelectionRef.ResourcePatch(id));
+        public void ClearSelection() => Select(SelectionRef.None);
 
         public void SetActivePanel(string key)
         {

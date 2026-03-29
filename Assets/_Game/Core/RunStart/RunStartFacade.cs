@@ -23,6 +23,7 @@ namespace SeasonalBastion.RunStart
                 return false;
 
             RunStartZoneInitializer.ApplyZones(s, cfg);
+            s.ResourcePatchService?.RebuildFromZones(s.WorldState?.Zones?.Zones);
             RunStartRuntimeCacheBuilder.ApplyRuntimeZonesFromWorld(s);
             RunStartHqResolver.BuildLanes(s, cfg);
             if (!RunStartStorageInitializer.ApplyStartingStorage(s, out error))

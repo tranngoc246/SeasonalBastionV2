@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using SeasonalBastion.Contracts;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace SeasonalBastion.UI.Presenters
@@ -60,7 +61,7 @@ namespace SeasonalBastion.UI.Presenters
             if (_btnCancelConstruction != null) _btnCancelConstruction.clicked += OnCancelConstruction;
 
             if (Ctx?.Store != null)
-                Ctx.Store.SelectionChanged += OnSelectionChanged;
+                Ctx.Store.SelectionRefChanged += OnSelectionChanged;
         }
 
         protected override void OnUnbind()
@@ -74,16 +75,16 @@ namespace SeasonalBastion.UI.Presenters
             if (_btnCancelConstruction != null) _btnCancelConstruction.clicked -= OnCancelConstruction;
 
             if (Ctx?.Store != null)
-                Ctx.Store.SelectionChanged -= OnSelectionChanged;
+                Ctx.Store.SelectionRefChanged -= OnSelectionChanged;
 
             _s = null;
         }
 
         protected override void OnRefresh()
         {
-            int id = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
+            var selected = Ctx?.Store != null ? Ctx.Store.Selected : SelectionRef.None;
 
-            if (id < 0)
+            if (selected.IsNone)
             {
                 if (_info != null) _info.text = "No selection";
                 Set(_id, "ID: -");
@@ -105,6 +106,13 @@ namespace SeasonalBastion.UI.Presenters
             }
 
             var s = _s;
+            if (selected.Kind == SelectionKind.ResourcePatch)
+            {
+                RenderResourcePatch(s, selected.Id);
+                return;
+            }
+
+            int id = selected.Id;
             if (s?.WorldState?.Buildings == null)
             {
                 if (_info != null) _info.text = $"Selected: {id} (WorldState missing)";
@@ -136,6 +144,45 @@ namespace SeasonalBastion.UI.Presenters
             Set(_ammo, $"Ammo: {bs.Ammo}");
 
             RenderActions(s, bid, bs);
+        }
+
+        private void RenderResourcePatch(GameServices s, int patchId)
+        {
+            if (s?.ResourcePatchService == null || !s.ResourcePatchService.TryGetPatch(patchId, out var patch))
+            {
+                if (_info != null) _info.text = "RESOURCE PATCH";
+                Set(_id, "ID: -");
+                Set(_def, "Type: -");
+                Set(_hp, "Remaining: -");
+                Set(_wood, "Cells: -");
+                Set(_food, "Anchor: -");
+                Set(_stone, "");
+                Set(_iron, "");
+                Set(_ammo, "");
+                Set(_workers, "");
+                SetActionHint("Resource patch not found.");
+                SetEnabled(_btnUpgrade, false);
+                SetEnabled(_btnRepair, false);
+                SetEnabled(_btnAssignNpc, false);
+                SetEnabled(_btnCancelConstruction, false);
+                return;
+            }
+
+            if (_info != null) _info.text = "RESOURCE PATCH";
+            Set(_id, $"ID: {patch.Id}");
+            Set(_def, $"Type: {patch.Resource}");
+            Set(_hp, $"Remaining: {patch.RemainingAmount} / {patch.TotalAmount}");
+            Set(_wood, $"Cells: {patch.Cells?.Count ?? 0}");
+            Set(_food, $"Anchor: ({patch.Anchor.X}, {patch.Anchor.Y})");
+            Set(_stone, "");
+            Set(_iron, "");
+            Set(_ammo, "");
+            Set(_workers, "");
+            SetActionHint("Click another resource patch or building to inspect it.");
+            SetEnabled(_btnUpgrade, false);
+            SetEnabled(_btnRepair, false);
+            SetEnabled(_btnAssignNpc, false);
+            SetEnabled(_btnCancelConstruction, false);
         }
 
         private void RenderActions(GameServices s, BuildingId bid, BuildingState bs)
@@ -342,7 +389,7 @@ namespace SeasonalBastion.UI.Presenters
             return true;
         }
 
-        private void OnSelectionChanged(int _) => Refresh();
+        private void OnSelectionChanged(SelectionRef _) => Refresh();
 
         private void OnClear()
         {

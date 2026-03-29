@@ -158,9 +158,9 @@ namespace SeasonalBastion.UI
 
         private void WireBasicFlow()
         {
-            _store.SelectionChanged += id =>
+            _store.SelectionRefChanged += sel =>
             {
-                if (id >= 0) _panelRegistry.Show(UiKeys.Panel_Inspect);
+                if (!sel.IsNone) _panelRegistry.Show(UiKeys.Panel_Inspect);
                 else _panelRegistry.HideCurrent();
             };
 
@@ -183,7 +183,7 @@ namespace SeasonalBastion.UI
             if (_inspectRefreshTimer >= 0.25f)
             {
                 _inspectRefreshTimer = 0f;
-                if (Ctx?.Panels != null && Ctx.Store != null && Ctx.Panels.IsOpen(UiKeys.Panel_Inspect) && Ctx.Store.SelectedId >= 0)
+                if (Ctx?.Panels != null && Ctx.Store != null && Ctx.Panels.IsOpen(UiKeys.Panel_Inspect) && !Ctx.Store.Selected.IsNone)
                     _inspectPresenter?.Refresh();
             }
         }

@@ -1169,7 +1169,8 @@ namespace SeasonalBastion.Tests.EditMode
             var cleanup = new JobStateCleanupService(new ClaimService());
             var workplacePolicy = new JobWorkplacePolicy(data);
             var resourcePolicy = new ResourceLogisticsPolicy();
-            var enqueue = new JobEnqueueService(world, board, workplacePolicy, resourcePolicy, cleanup);
+            var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup);
 
             var wid = world.Buildings.Create(new BuildingState
             {
@@ -1498,7 +1499,8 @@ namespace SeasonalBastion.Tests.EditMode
             var cleanup = new JobStateCleanupService(new ClaimService());
             var workplacePolicy = new JobWorkplacePolicy(data);
             var resourcePolicy = new ResourceLogisticsPolicy();
-            var enqueue = new JobEnqueueService(world, board, workplacePolicy, resourcePolicy, cleanup);
+            var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup);
 
             var producerId = world.Buildings.Create(new BuildingState
             {
@@ -1542,7 +1544,8 @@ namespace SeasonalBastion.Tests.EditMode
             var cleanup = new JobStateCleanupService(new ClaimService());
             var workplacePolicy = new JobWorkplacePolicy(data);
             var resourcePolicy = new ResourceLogisticsPolicy();
-            var enqueue = new JobEnqueueService(world, board, workplacePolicy, resourcePolicy, cleanup);
+            var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup);
 
             var producerId = world.Buildings.Create(new BuildingState
             {

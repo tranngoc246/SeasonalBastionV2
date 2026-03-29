@@ -135,6 +135,21 @@ Kết quả của pass này là world resource layout đã chuyển từ authore
   - resource selection trên map có highlight rõ ràng hơn
   - overlay biến mất đúng theo depletion runtime
 
+### Camera groundwork
+- Thêm `StrategyCameraController` cho Main Camera theo hướng strategy/RTS camera pass đầu.
+- Camera hiện hỗ trợ:
+  - WASD / arrow key pan
+  - middle mouse drag pan
+  - mouse wheel zoom
+  - zoom-to-cursor
+  - clamp theo kích thước `GridMap`
+  - focus về HQ / center map bằng phím `H`
+- Camera input đã được chuyển hoàn toàn sang **Unity Input System** (`Keyboard.current`, `Mouse.current`) để phù hợp Player Settings hiện tại.
+- Drag pan đã được tune lại để bám tay hơn:
+  - cập nhật drag origin mỗi frame
+  - tăng nhẹ drag speed
+- Camera hiện tại vẫn là pass nền tảng, ưu tiên usability/readability hơn cinematic polish.
+
 ### Kết luận / trạng thái hiện tại
 - Resource system hiện đã vượt khỏi authored-only static layout và có một nền hybrid generation usable trong runtime thật.
 - Người chơi giờ có thể:

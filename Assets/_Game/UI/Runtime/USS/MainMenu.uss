@@ -1,14 +1,28 @@
 .menu-root {
   position: absolute;
-  left: 0; right: 0; top: 0; bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
   align-items: center;
   justify-content: center;
 }
 
 .menu-backdrop {
   position: absolute;
-  left: 0; right: 0; top: 0; bottom: 0;
-  background-color: rgba(18, 31, 52, 0.96);
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(18, 31, 52, 0.97);
+}
+
+.dragon-effect-host {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
 }
 
 .menu-card {
@@ -16,16 +30,17 @@
   max-width: 92%;
   padding: 28px;
   border-radius: 18px;
-  background-color: rgba(0,0,0,0.48);
+  background-color: rgba(2, 10, 24, 0.66);
   border-top-width: 1px;
   border-right-width: 1px;
   border-bottom-width: 1px;
   border-left-width: 1px;
-  border-top-color: rgba(255,255,255,0.10);
-  border-right-color: rgba(255,255,255,0.10);
-  border-bottom-color: rgba(255,255,255,0.10);
-  border-left-color: rgba(255,255,255,0.10);
+  border-top-color: rgba(255,255,255,0.12);
+  border-right-color: rgba(255,255,255,0.12);
+  border-bottom-color: rgba(255,255,255,0.12);
+  border-left-color: rgba(255,255,255,0.12);
   align-items: stretch;
+  z-index: 2;
 }
 
 .menu-title {
@@ -33,6 +48,7 @@
   -unity-font-style: bold;
   font-size: 26px;
   unity-text-align: middle-center;
+  letter-spacing: 0.4px;
 }
 
 .menu-subtitle {
@@ -53,10 +69,27 @@
   color: rgb(245,245,245);
   background-color: rgba(255,255,255,0.10);
   border-radius: 10px;
+  border-top-width: 0;
+  border-right-width: 0;
+  border-bottom-width: 0;
+  border-left-width: 0;
+}
+
+.menu-btn:hover {
+  background-color: rgba(255,255,255,0.16);
+}
+
+.menu-btn:disabled {
+  color: rgba(245,245,245,0.42);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .menu-btn-primary {
-  background-color: rgba(64,140,255,0.60);
+  background-color: rgba(64,140,255,0.68);
+}
+
+.menu-btn-primary:hover {
+  background-color: rgba(86,154,255,0.82);
 }
 
 .menu-hint {

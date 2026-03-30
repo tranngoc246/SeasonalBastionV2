@@ -11,6 +11,10 @@ namespace SeasonalBastion.RunStart
 
             s.RunStartRuntime.MapWidth = cfg.map.width;
             s.RunStartRuntime.MapHeight = cfg.map.height;
+            s.RunStartRuntime.ResourceGenerationModeRequested = NormalizeRequestedMode(cfg?.resourceGeneration?.mode);
+            s.RunStartRuntime.ResourceGenerationModeApplied = null;
+            s.RunStartRuntime.ResourceGenerationFailureReason = null;
+            s.RunStartRuntime.OpeningQualityBand = "Unknown";
 
             if (cfg.map.buildableRect != null)
             {
@@ -53,7 +57,7 @@ namespace SeasonalBastion.RunStart
                     var z = cfg.zones[i];
                     if (z == null || z.cellsRect == null || string.IsNullOrEmpty(z.zoneId)) continue;
                     var rect = new IntRect(z.cellsRect.xMin, z.cellsRect.yMin, z.cellsRect.xMax, z.cellsRect.yMax);
-                    s.RunStartRuntime.Zones[z.zoneId] = new ZoneRect(z.zoneId, z.type, z.ownerBuildingHint, rect, z.cellCount);
+                    s.RunStartRuntime.Zones[z.zoneId] = new ZoneRect(z.zoneId, z.type, z.ownerBuildingHint, rect, z.cellCount, origin: "ConfigAuthored");
                 }
             }
         }
@@ -64,6 +68,7 @@ namespace SeasonalBastion.RunStart
                 return;
 
             s.RunStartRuntime.Zones.Clear();
+            string origin = ResolveZoneOrigin(s.RunStartRuntime.ResourceGenerationModeApplied);
 
             foreach (var z in EnumerateZones(s.WorldState.Zones))
             {
@@ -74,7 +79,7 @@ namespace SeasonalBastion.RunStart
                 string zoneId = $"zone_{z.Id}";
                 string type = ResourceTypeToZoneType(z.Resource);
                 int cellCount = z.Cells.Count;
-                s.RunStartRuntime.Zones[zoneId] = new ZoneRect(zoneId, type, ownerBuildingHint: null, new IntRect(xMin, yMin, xMax, yMax), cellCount);
+                s.RunStartRuntime.Zones[zoneId] = new ZoneRect(zoneId, type, ownerBuildingHint: null, new IntRect(xMin, yMin, xMax, yMax), cellCount, origin);
             }
         }
 
@@ -120,6 +125,28 @@ namespace SeasonalBastion.RunStart
                 ResourceType.Iron => "IronVeinTiles",
                 _ => rt.ToString()
             };
+        }
+
+        private static string NormalizeRequestedMode(string mode)
+        {
+            if (string.IsNullOrWhiteSpace(mode))
+                return "AuthoredOnly";
+            if (string.Equals(mode, "GeneratedOnly", System.StringComparison.OrdinalIgnoreCase))
+                return "GeneratedOnly";
+            if (string.Equals(mode, "Hybrid", System.StringComparison.OrdinalIgnoreCase))
+                return "Hybrid";
+            return "AuthoredOnly";
+        }
+
+        private static string ResolveZoneOrigin(string appliedMode)
+        {
+            if (string.Equals(appliedMode, "Generated", System.StringComparison.OrdinalIgnoreCase))
+                return "Generated";
+            if (string.Equals(appliedMode, "AuthoredFallback", System.StringComparison.OrdinalIgnoreCase))
+                return "AuthoredFallback";
+            if (string.Equals(appliedMode, "LegacyFallback", System.StringComparison.OrdinalIgnoreCase))
+                return "LegacyFallback";
+            return "Unknown";
         }
     }
 }

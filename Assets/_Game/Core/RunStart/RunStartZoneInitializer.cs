@@ -6,66 +6,106 @@ namespace SeasonalBastion.RunStart
 {
     internal static class RunStartZoneInitializer
     {
+        private const string ModeAuthoredOnly = "AuthoredOnly";
+        private const string ModeHybrid = "Hybrid";
+        private const string ModeGeneratedOnly = "GeneratedOnly";
+
+        private const string AppliedGenerated = "Generated";
+        private const string AppliedAuthored = "AuthoredFallback";
+        private const string AppliedLegacy = "LegacyFallback";
+
         internal static void ApplyZones(GameServices s, StartMapConfigDto cfg)
         {
             var zs = s?.WorldState?.Zones;
             if (zs == null) return;
 
             zs.Clear();
+            ResetGenerationDebugState(s, cfg);
 
-            string mode = cfg?.resourceGeneration?.mode;
-            if (string.IsNullOrWhiteSpace(mode))
-                mode = "AuthoredOnly";
-
-            bool authoredOnly = string.Equals(mode, "AuthoredOnly", StringComparison.OrdinalIgnoreCase);
-            bool hybrid = string.Equals(mode, "Hybrid", StringComparison.OrdinalIgnoreCase);
-            bool generatedOnly = string.Equals(mode, "GeneratedOnly", StringComparison.OrdinalIgnoreCase);
-
+            string mode = NormalizeRequestedMode(cfg?.resourceGeneration?.mode);
             bool addedAny = false;
 
-            if (generatedOnly)
-            {
-                addedAny = TryApplyGeneratedZones(s, cfg, out _);
-            }
-            else if (hybrid)
+            if (string.Equals(mode, ModeGeneratedOnly, StringComparison.OrdinalIgnoreCase))
             {
                 addedAny = TryApplyGeneratedZones(s, cfg, out _);
                 if (!addedAny)
-                    addedAny = ApplyAuthoredZones(zs, cfg);
+                {
+                    addedAny = TryApplyAuthoredFallback(s, cfg);
+                    if (!addedAny)
+                        ApplyLegacyFallbackZones(s);
+                }
             }
-            else if (authoredOnly || cfg?.resourceGeneration != null)
+            else if (string.Equals(mode, ModeHybrid, StringComparison.OrdinalIgnoreCase))
             {
-                addedAny = ApplyAuthoredZones(zs, cfg);
+                addedAny = TryApplyGeneratedZones(s, cfg, out _);
+                if (!addedAny)
+                {
+                    addedAny = TryApplyAuthoredFallback(s, cfg);
+                    if (!addedAny)
+                        ApplyLegacyFallbackZones(s);
+                }
             }
             else
             {
-                addedAny = ApplyAuthoredZones(zs, cfg);
+                addedAny = TryApplyAuthoredFallback(s, cfg);
+                if (!addedAny)
+                    ApplyLegacyFallbackZones(s);
             }
+        }
 
-            if (!addedAny)
-                ApplyLegacyFallbackZones(zs);
+        private static void ResetGenerationDebugState(GameServices s, StartMapConfigDto cfg)
+        {
+            if (s?.RunStartRuntime == null)
+                return;
+
+            s.RunStartRuntime.ResourceGenerationModeRequested = NormalizeRequestedMode(cfg?.resourceGeneration?.mode);
+            s.RunStartRuntime.ResourceGenerationModeApplied = null;
+            s.RunStartRuntime.ResourceGenerationFailureReason = null;
+            s.RunStartRuntime.OpeningQualityBand = "Unknown";
         }
 
         private static bool TryApplyGeneratedZones(GameServices s, StartMapConfigDto cfg, out string error)
         {
             error = null;
             if (cfg?.resourceGeneration == null)
+            {
+                error = "resourceGeneration missing.";
+                RecordGenerationFailure(s, error);
                 return false;
+            }
 
             if (!RunStartResourceZoneGenerator.TryGenerateZones(s, cfg, ResolveSeed(s), out var zones, out error))
+            {
+                RecordGenerationFailure(s, error);
                 return false;
+            }
 
             if (zones == null || zones.Count == 0)
+            {
+                error = "Generated resource zone list was empty.";
+                RecordGenerationFailure(s, error);
                 return false;
+            }
 
             ApplyZoneStates(s.WorldState.Zones, zones);
+            RecordAppliedMode(s, AppliedGenerated, "GeneratedUsable");
+            return true;
+        }
+
+        private static bool TryApplyAuthoredFallback(GameServices s, StartMapConfigDto cfg)
+        {
+            bool addedAny = ApplyAuthoredZones(s?.WorldState?.Zones, cfg);
+            if (!addedAny)
+                return false;
+
+            RecordAppliedMode(s, AppliedAuthored, "AuthoredFallback");
             return true;
         }
 
         private static bool ApplyAuthoredZones(IZoneStore zs, StartMapConfigDto cfg)
         {
             bool addedAny = false;
-            if (cfg == null || cfg.zones == null || cfg.zones.Length == 0)
+            if (zs == null || cfg == null || cfg.zones == null || cfg.zones.Length == 0)
                 return false;
 
             int id = 1;
@@ -82,12 +122,17 @@ namespace SeasonalBastion.RunStart
             return addedAny;
         }
 
-        private static void ApplyLegacyFallbackZones(IZoneStore zs)
+        private static void ApplyLegacyFallbackZones(GameServices s)
         {
+            var zs = s?.WorldState?.Zones;
+            if (zs == null)
+                return;
+
             AddRectZone(zs, 1, ResourceType.Wood, 14, 40, 24, 50);
             AddRectZone(zs, 2, ResourceType.Food, 40, 14, 50, 24);
             AddRectZone(zs, 3, ResourceType.Stone, 14, 14, 24, 24);
             AddRectZone(zs, 4, ResourceType.Iron, 40, 40, 50, 50);
+            RecordAppliedMode(s, AppliedLegacy, "LegacyFallback");
         }
 
         private static void ApplyZoneStates(IZoneStore zs, List<ZoneState> zones)
@@ -105,6 +150,36 @@ namespace SeasonalBastion.RunStart
         private static int ResolveSeed(GameServices s)
         {
             return s?.RunStartRuntime != null ? s.RunStartRuntime.Seed : 0;
+        }
+
+        private static void RecordGenerationFailure(GameServices s, string reason)
+        {
+            if (s?.RunStartRuntime == null)
+                return;
+
+            s.RunStartRuntime.ResourceGenerationFailureReason = string.IsNullOrWhiteSpace(reason) ? "Unknown generation failure." : reason;
+            s.RunStartRuntime.OpeningQualityBand = "GenerationFailed";
+        }
+
+        private static void RecordAppliedMode(GameServices s, string appliedMode, string qualityBand)
+        {
+            if (s?.RunStartRuntime == null)
+                return;
+
+            s.RunStartRuntime.ResourceGenerationModeApplied = appliedMode;
+            s.RunStartRuntime.OpeningQualityBand = qualityBand;
+        }
+
+        private static string NormalizeRequestedMode(string mode)
+        {
+            if (string.IsNullOrWhiteSpace(mode))
+                return ModeAuthoredOnly;
+
+            if (string.Equals(mode, ModeGeneratedOnly, StringComparison.OrdinalIgnoreCase))
+                return ModeGeneratedOnly;
+            if (string.Equals(mode, ModeHybrid, StringComparison.OrdinalIgnoreCase))
+                return ModeHybrid;
+            return ModeAuthoredOnly;
         }
 
         private static bool TryMapZoneTypeToResource(string zoneType, out ResourceType rt)

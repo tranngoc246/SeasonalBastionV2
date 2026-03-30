@@ -14,6 +14,11 @@ namespace SeasonalBastion.RunStart
         public int MapWidth;
         public int MapHeight;
 
+        public string ResourceGenerationModeRequested;
+        public string ResourceGenerationModeApplied;
+        public string ResourceGenerationFailureReason;
+        public string OpeningQualityBand;
+
         public IntRect BuildableRect;
 
         public readonly List<SpawnGate> SpawnGates = new(4);
@@ -82,14 +87,16 @@ namespace SeasonalBastion.RunStart
         public readonly string OwnerBuildingHint;
         public readonly IntRect Rect;
         public readonly int CellCount;
+        public readonly string Origin;
 
-        public ZoneRect(string zoneId, string type, string ownerBuildingHint, IntRect rect, int cellCount)
+        public ZoneRect(string zoneId, string type, string ownerBuildingHint, IntRect rect, int cellCount, string origin = null)
         {
             ZoneId = zoneId;
             Type = type;
             OwnerBuildingHint = ownerBuildingHint;
             Rect = rect;
             CellCount = cellCount;
+            Origin = origin;
         }
     }
 }

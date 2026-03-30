@@ -45,6 +45,12 @@ namespace SeasonalBastion
             {
                 if (!RunStartFacade.TryApply(_s, startMapConfigJsonOrMarkdown, out var err))
                 {
+                    if (_s.RunStartRuntime != null)
+                    {
+                        _s.RunStartRuntime.ResourceGenerationFailureReason = err;
+                        _s.RunStartRuntime.OpeningQualityBand = "RunStartApplyFailed";
+                    }
+
                     // Fail-safe: notify + continue (empty world)
                     _s.NotificationService?.Push(
                         key: "RunStartApplyFailed",
@@ -102,6 +108,10 @@ namespace SeasonalBastion
             rt.Seed = 0;
             rt.MapWidth = 0;
             rt.MapHeight = 0;
+            rt.ResourceGenerationModeRequested = null;
+            rt.ResourceGenerationModeApplied = null;
+            rt.ResourceGenerationFailureReason = null;
+            rt.OpeningQualityBand = null;
             rt.BuildableRect = default;
             rt.SpawnGates.Clear();
             rt.Zones.Clear();

@@ -168,6 +168,11 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(services.WorldState.Zones.Zones.Count, Is.GreaterThan(0));
             Assert.That(services.RunStartRuntime.Zones.Count, Is.EqualTo(services.WorldState.Zones.Zones.Count));
+            Assert.That(services.RunStartRuntime.ResourceGenerationModeRequested, Is.EqualTo("GeneratedOnly"));
+            Assert.That(services.RunStartRuntime.ResourceGenerationModeApplied, Is.EqualTo("Generated"));
+            Assert.That(services.RunStartRuntime.OpeningQualityBand, Is.EqualTo("GeneratedUsable"));
+            foreach (var pair in services.RunStartRuntime.Zones)
+                Assert.That(pair.Value.Origin, Is.EqualTo("Generated"));
         }
 
         [Test]
@@ -244,6 +249,55 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(services.WorldState.Zones.Zones.Count, Is.EqualTo(1));
             Assert.That(services.WorldState.Zones.Zones[0].Resource, Is.EqualTo(ResourceType.Wood));
             Assert.That(services.RunStartRuntime.Zones.Count, Is.EqualTo(1));
+            Assert.That(services.RunStartRuntime.ResourceGenerationModeRequested, Is.EqualTo("AuthoredOnly"));
+            Assert.That(services.RunStartRuntime.ResourceGenerationModeApplied, Is.EqualTo("AuthoredFallback"));
+            Assert.That(services.RunStartRuntime.OpeningQualityBand, Is.EqualTo("AuthoredFallback"));
+            foreach (var pair in services.RunStartRuntime.Zones)
+                Assert.That(pair.Value.Origin, Is.EqualTo("AuthoredFallback"));
+        }
+
+        [Test]
+        public void RunStartZoneInitializer_GeneratedOnly_FallsBackToAuthoredAndRecordsReason()
+        {
+            var services = MakeServices();
+            var cfg = MakeGeneratedConfig();
+            cfg.zones = new[]
+            {
+                new ZoneDto
+                {
+                    zoneId = "zone_authored_food",
+                    type = "FarmPlots",
+                    ownerBuildingHint = "bld_farmhouse_t1",
+                    cellsRect = new RectMinMaxDto { xMin = 40, yMin = 40, xMax = 41, yMax = 41 },
+                    cellCount = 4
+                }
+            };
+
+            RunStartZoneInitializer.ApplyZones(services, cfg);
+            RunStartRuntimeCacheBuilder.ApplyRuntimeZonesFromWorld(services);
+
+            Assert.That(services.WorldState.Zones.Zones.Count, Is.EqualTo(1));
+            Assert.That(services.RunStartRuntime.ResourceGenerationModeApplied, Is.EqualTo("AuthoredFallback"));
+            Assert.That(services.RunStartRuntime.ResourceGenerationFailureReason, Is.Not.Null);
+            Assert.That(services.RunStartRuntime.OpeningQualityBand, Is.EqualTo("AuthoredFallback"));
+        }
+
+        [Test]
+        public void RunStartZoneInitializer_HybridWithoutGeneratedOrAuthored_UsesLegacyFallback()
+        {
+            var services = MakeServices();
+            var cfg = MakeGeneratedConfig();
+            cfg.resourceGeneration.mode = "Hybrid";
+            cfg.zones = null;
+
+            RunStartZoneInitializer.ApplyZones(services, cfg);
+            RunStartRuntimeCacheBuilder.ApplyRuntimeZonesFromWorld(services);
+
+            Assert.That(services.WorldState.Zones.Zones.Count, Is.EqualTo(4));
+            Assert.That(services.RunStartRuntime.ResourceGenerationModeApplied, Is.EqualTo("LegacyFallback"));
+            Assert.That(services.RunStartRuntime.OpeningQualityBand, Is.EqualTo("LegacyFallback"));
+            foreach (var pair in services.RunStartRuntime.Zones)
+                Assert.That(pair.Value.Origin, Is.EqualTo("LegacyFallback"));
         }
 
         private static int MinDistanceToZone(CellPos from, ZoneState z)

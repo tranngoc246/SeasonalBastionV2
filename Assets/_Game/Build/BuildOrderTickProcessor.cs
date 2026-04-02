@@ -96,12 +96,14 @@ namespace SeasonalBastion
 
                 if (IsReadyToWork(site) && site.WorkSecondsDone + 1e-4f >= site.WorkSecondsTotal)
                 {
-                    _cancelTrackedJobsForSite?.Invoke(o.Site);
+                    bool wasCompleted = o.Completed;
 
                     if (o.Kind == BuildOrderKind.PlaceNew) _completePlaceOrder?.Invoke(ref o);
                     else if (o.Kind == BuildOrderKind.Upgrade) _completeUpgradeOrder?.Invoke(ref o);
+
                     _orders[id] = o;
-                    _onOrderCompleted?.Invoke(id);
+                    if (!wasCompleted && o.Completed)
+                        _onOrderCompleted?.Invoke(id);
                 }
             }
 

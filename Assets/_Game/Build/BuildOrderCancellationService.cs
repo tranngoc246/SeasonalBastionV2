@@ -31,57 +31,20 @@ namespace SeasonalBastion
         {
             if (o.Completed) return;
 
-            if (o.Kind == BuildOrderKind.PlaceNew)
+            switch (o.Kind)
             {
-                _cancelTrackedJobsForSite?.Invoke(o.Site);
-                TryRollbackAutoRoad(o.OrderId, o);
-                _autoRoadByOrder.Remove(o.OrderId);
-
-                if (_s.WorldState.Sites.Exists(o.Site))
-                {
-                    var stRefund = _s.WorldState.Sites.Get(o.Site);
-                    RefundDeliveredToNearestStorage(stRefund);
-                }
-
-                if (_s.WorldState.Sites.Exists(o.Site))
-                {
-                    var def = _s.DataRegistry.GetBuilding(o.BuildingDefId);
-                    int w = Math.Max(1, def.SizeX);
-                    int h = Math.Max(1, def.SizeY);
-
-                    var st = _s.WorldState.Sites.Get(o.Site);
-                    for (int dy = 0; dy < h; dy++)
-                        for (int dx = 0; dx < w; dx++)
-                            _s.GridMap.ClearSite(new CellPos(st.Anchor.X + dx, st.Anchor.Y + dy));
-
-                    _s.WorldState.Sites.Destroy(o.Site);
-                }
-
-                if (_destroyPlaceholderOnCancel && _s.WorldState.Buildings.Exists(o.TargetBuilding))
-                    _s.WorldState.Buildings.Destroy(o.TargetBuilding);
-
-                _s.NotificationService?.Push(
-                    key: $"BuildCancel_{o.TargetBuilding.Value}",
-                    title: "Construction",
-                    body: $"Cancelled: {o.BuildingDefId}",
-                    severity: NotificationSeverity.Info,
-                    payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true);
+                case BuildOrderKind.PlaceNew:
+                    CancelPlace(ref o);
+                    break;
+                case BuildOrderKind.Upgrade:
+                    CancelUpgrade(ref o);
+                    break;
+                case BuildOrderKind.Repair:
+                    CancelRepair(ref o);
+                    break;
             }
-            else if (o.Kind == BuildOrderKind.Repair)
-            {
-                CancelRepairJob(o.OrderId);
 
-                _s.NotificationService?.Push(
-                    key: $"RepairCancel_{o.TargetBuilding.Value}",
-                    title: "Construction",
-                    body: $"Repair cancelled: {o.BuildingDefId}",
-                    severity: NotificationSeverity.Info,
-                    payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true);
-            }
+            o.Completed = true;
         }
 
         public void CancelRepairJob(int orderId)
@@ -91,6 +54,104 @@ namespace SeasonalBastion
                 _s.JobBoard.Cancel(jid);
                 _repairJobByOrder.Remove(orderId);
             }
+        }
+
+        private void CancelPlace(ref BuildOrder o)
+        {
+            _cancelTrackedJobsForSite?.Invoke(o.Site);
+            TryRollbackAutoRoad(o.OrderId, o);
+            _autoRoadByOrder.Remove(o.OrderId);
+
+            if (TryGetSite(o.Site, out var site))
+            {
+                RefundDeliveredToNearestStorage(site);
+                CleanupBuildSite(o.Site, site);
+            }
+
+            RemovePlaceholder(o.TargetBuilding);
+
+            _s.NotificationService?.Push(
+                key: $"BuildCancel_{o.TargetBuilding.Value}",
+                title: "Construction",
+                body: $"Cancelled: {o.BuildingDefId}",
+                severity: NotificationSeverity.Info,
+                payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
+                cooldownSeconds: 0.25f,
+                dedupeByKey: true);
+        }
+
+        private void CancelUpgrade(ref BuildOrder o)
+        {
+            _cancelTrackedJobsForSite?.Invoke(o.Site);
+
+            if (TryGetSite(o.Site, out var site))
+            {
+                RefundDeliveredToNearestStorage(site);
+                CleanupBuildSite(o.Site, site);
+            }
+
+            _s.NotificationService?.Push(
+                key: $"UpgradeCancel_{o.TargetBuilding.Value}",
+                title: "Construction",
+                body: $"Upgrade cancelled: {o.BuildingDefId}",
+                severity: NotificationSeverity.Info,
+                payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
+                cooldownSeconds: 0.25f,
+                dedupeByKey: true);
+        }
+
+        private void CancelRepair(ref BuildOrder o)
+        {
+            CancelRepairJob(o.OrderId);
+
+            _s.NotificationService?.Push(
+                key: $"RepairCancel_{o.TargetBuilding.Value}",
+                title: "Construction",
+                body: $"Repair cancelled: {o.BuildingDefId}",
+                severity: NotificationSeverity.Info,
+                payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
+                cooldownSeconds: 0.25f,
+                dedupeByKey: true);
+        }
+
+        private void RemovePlaceholder(BuildingId buildingId)
+        {
+            if (!_destroyPlaceholderOnCancel) return;
+            if (buildingId.Value == 0) return;
+            if (_s.WorldState?.Buildings == null) return;
+            if (!_s.WorldState.Buildings.Exists(buildingId)) return;
+
+            var building = _s.WorldState.Buildings.Get(buildingId);
+            if (building.IsConstructed)
+                return;
+
+            var def = SafeGetBuildingDef(building.DefId);
+            int w = Math.Max(1, def?.SizeX ?? 1);
+            int h = Math.Max(1, def?.SizeY ?? 1);
+            for (int dy = 0; dy < h; dy++)
+            for (int dx = 0; dx < w; dx++)
+                _s.GridMap?.ClearBuilding(new CellPos(building.Anchor.X + dx, building.Anchor.Y + dy));
+
+            _s.WorldState.Buildings.Destroy(buildingId);
+            try { _s.WorldIndex?.OnBuildingDestroyed(buildingId); } catch { }
+            _s.EventBus?.Publish(new WorldStateChangedEvent("Building", buildingId.Value));
+            _s.EventBus?.Publish(new RoadsDirtyEvent());
+        }
+
+        private void CleanupBuildSite(SiteId siteId, in BuildSiteState site)
+        {
+            var def = SafeGetBuildingDef(site.BuildingDefId);
+            int w = Math.Max(1, def?.SizeX ?? 1);
+            int h = Math.Max(1, def?.SizeY ?? 1);
+
+            for (int dy = 0; dy < h; dy++)
+            for (int dx = 0; dx < w; dx++)
+                _s.GridMap?.ClearSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy));
+
+            if (_s.WorldState.Sites.Exists(siteId))
+                _s.WorldState.Sites.Destroy(siteId);
+
+            _s.EventBus?.Publish(new WorldStateChangedEvent("BuildSite", siteId.Value));
         }
 
         private void TryRollbackAutoRoad(int orderId, in BuildOrder o)
@@ -159,6 +220,25 @@ namespace SeasonalBastion
                     left -= added;
                 }
             }
+        }
+
+        private bool TryGetSite(SiteId siteId, out BuildSiteState site)
+        {
+            site = default;
+            if (siteId.Value == 0 || _s.WorldState?.Sites == null || !_s.WorldState.Sites.Exists(siteId))
+                return false;
+
+            site = _s.WorldState.Sites.Get(siteId);
+            return true;
+        }
+
+        private BuildingDef SafeGetBuildingDef(string defId)
+        {
+            if (_s?.DataRegistry == null || string.IsNullOrWhiteSpace(defId))
+                return null;
+
+            try { return _s.DataRegistry.GetBuilding(defId); }
+            catch { return null; }
         }
 
         private static int Manhattan(CellPos a, CellPos b)

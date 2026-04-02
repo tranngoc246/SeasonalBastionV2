@@ -2474,6 +2474,114 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void SaveMigrator_RunSave_V1_UpgradesToCurrentSchema_AndBackfillsNewDtoBranches()
+        {
+            var migrator = new SeasonalBastion.SaveMigrator();
+            var legacy = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = null,
+                dayIndex = 0,
+                timeScale = 0f,
+                yearIndex = 0,
+                dayTimer = -3f,
+                world = new WorldDTO
+                {
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = new BuildingId(1),
+                            DefId = "bld_hq_t1",
+                            Anchor = new CellPos(4, 4),
+                            Rotation = Dir4.N,
+                            Level = 0,
+                            IsConstructed = true,
+                            HP = 50,
+                            MaxHP = 0,
+                        }
+                    },
+                    Roads = null,
+                    Npcs = null,
+                    Towers = null,
+                    Enemies = null,
+                },
+                build = new BuildDTO
+                {
+                    Sites = new List<BuildSiteState>
+                    {
+                        new BuildSiteState
+                        {
+                            Id = new SiteId(2),
+                            BuildingDefId = "bld_house_t1",
+                            TargetLevel = 0,
+                            Anchor = new CellPos(6, 6),
+                            Rotation = Dir4.N,
+                            IsActive = true,
+                            WorkSecondsDone = -1f,
+                            WorkSecondsTotal = -5f,
+                            DeliveredSoFar = null,
+                            RemainingCosts = null,
+                        }
+                    }
+                },
+                combat = null,
+                rewards = null,
+                population = null,
+            };
+
+            bool ok = migrator.TryMigrate(legacy, out var migrated);
+
+            Assert.That(ok, Is.True);
+            Assert.That(migrated, Is.SameAs(legacy), "Migration can upgrade in place but must normalize the DTO.");
+            Assert.That(migrated.schemaVersion, Is.EqualTo(migrator.CurrentSchemaVersion));
+            Assert.That(migrated.schemaVersion, Is.EqualTo(SeasonalBastion.SaveMigrator.CurrentSaveSchemaVersion));
+            Assert.That(migrated.season, Is.EqualTo(Season.Spring.ToString()));
+            Assert.That(migrated.dayIndex, Is.EqualTo(1));
+            Assert.That(migrated.timeScale, Is.EqualTo(1f));
+            Assert.That(migrated.yearIndex, Is.EqualTo(1));
+            Assert.That(migrated.dayTimer, Is.EqualTo(0f));
+            Assert.That(migrated.combat, Is.Not.Null);
+            Assert.That(migrated.rewards, Is.Not.Null);
+            Assert.That(migrated.population, Is.Not.Null);
+            Assert.That(migrated.world, Is.Not.Null);
+            Assert.That(migrated.world.Roads, Is.Not.Null);
+            Assert.That(migrated.world.Npcs, Is.Not.Null);
+            Assert.That(migrated.world.Towers, Is.Not.Null);
+            Assert.That(migrated.world.Enemies, Is.Not.Null);
+            Assert.That(migrated.build, Is.Not.Null);
+            Assert.That(migrated.build.Sites, Is.Not.Null);
+            Assert.That(migrated.build.Sites[0].DeliveredSoFar, Is.Not.Null);
+            Assert.That(migrated.build.Sites[0].RemainingCosts, Is.Not.Null);
+            Assert.That(migrated.build.Sites[0].TargetLevel, Is.EqualTo(1));
+            Assert.That(migrated.build.Sites[0].WorkSecondsDone, Is.EqualTo(0f));
+            Assert.That(migrated.build.Sites[0].WorkSecondsTotal, Is.EqualTo(0f));
+            Assert.That(migrated.world.Buildings[0].Level, Is.EqualTo(1));
+            Assert.That(migrated.world.Buildings[0].MaxHP, Is.EqualTo(50));
+        }
+
+        [Test]
+        public void SaveMigrator_MetaSave_V1_UpgradesToCurrentSchema_AndBackfillsCollections()
+        {
+            var migrator = new SeasonalBastion.SaveMigrator();
+            var legacy = new MetaSaveDTO
+            {
+                schemaVersion = 1,
+                currency = -5,
+                unlockIds = null,
+                perkLevels = null,
+            };
+
+            bool ok = migrator.TryMigrate(legacy, out var migrated);
+
+            Assert.That(ok, Is.True);
+            Assert.That(migrated.schemaVersion, Is.EqualTo(migrator.CurrentSchemaVersion));
+            Assert.That(migrated.currency, Is.EqualTo(0));
+            Assert.That(migrated.unlockIds, Is.Not.Null);
+            Assert.That(migrated.perkLevels, Is.Not.Null);
+        }
+
+        [Test]
         public void SaveLoadApplier_ContinuePath_RestoresSavedClockAndDoesNotInjectRunStartBaseline()
         {
             var bus = new TestEventBus();

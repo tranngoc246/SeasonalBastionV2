@@ -42,8 +42,15 @@ namespace SeasonalBastion.Tests.EditMode
         private readonly Dictionary<string, UpgradeEdgeDef> _edgesById = new(StringComparer.Ordinal);
         private readonly Dictionary<string, List<UpgradeEdgeDef>> _edgesFrom = new(StringComparer.Ordinal);
 
+        private readonly Dictionary<string, TowerDef> _towersById = new(StringComparer.Ordinal);
+
         public void Add(BuildingDef def) => _b[def.DefId] = def;
         public void AddWave(WaveDef def) => _waves[def.DefId] = def;
+        public void AddTower(TowerDef def)
+        {
+            if (def == null || string.IsNullOrWhiteSpace(def.DefId)) return;
+            _towersById[def.DefId] = def;
+        }
 
         public void AddNode(BuildableNodeDef node)
         {
@@ -91,8 +98,12 @@ namespace SeasonalBastion.Tests.EditMode
         public bool TryGetRecipe(string id, out RecipeDef def) { def = default; return false; }
         public NpcDef GetNpc(string id) => throw new NotSupportedException();
         public bool TryGetNpc(string id, out NpcDef def) { def = default; return false; }
-        public TowerDef GetTower(string id) => throw new NotSupportedException();
-        public bool TryGetTower(string id, out TowerDef def) { def = default; return false; }
+        public TowerDef GetTower(string id)
+        {
+            if (_towersById.TryGetValue(id, out var def)) return def;
+            throw new NotSupportedException();
+        }
+        public bool TryGetTower(string id, out TowerDef def) => _towersById.TryGetValue(id, out def);
 
         public T GetDef<T>(string id) where T : UnityEngine.Object => throw new NotSupportedException();
         public bool TryGetDef<T>(string id, out T def) where T : UnityEngine.Object { def = default; return false; }
@@ -192,6 +203,9 @@ namespace SeasonalBastion.Tests.EditMode
         public StorageSnapshot GetStorage(BuildingId building) => default;
         public bool CanStore(BuildingId building, ResourceType type) => !_blocked.Contains((building.Value, type)) && GetCap(building, type) > 0;
         public int GetAmount(BuildingId building, ResourceType type) => _amounts.TryGetValue((building.Value, type), out var v) ? v : 0;
+
+        // Default cap is intentionally permissive for tests that do not focus on storage caps.
+        // Tests that care about caps should explicitly call SetCap(...).
         public int GetCap(BuildingId building, ResourceType type) => _caps.TryGetValue((building.Value, type), out var v) ? v : 999;
         public int Add(BuildingId building, ResourceType type, int amount)
         {

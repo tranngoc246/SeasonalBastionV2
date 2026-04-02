@@ -27,11 +27,12 @@ namespace SeasonalBastion
 
             // World
             services.WorldState = new WorldState();
-            services.WorldOps = new WorldOps(services.WorldState, services.EventBus);
             services.WorldIndex = new WorldIndexService(services.WorldState, services.DataRegistry);
+            services.WorldOps = new WorldOps(services.WorldState, services.EventBus, services.DataRegistry, services.WorldIndex, services.JobBoard);
             // Keep derived lists in sync (idempotent; safe with construction flow).
             services.WorldIndex.RebuildAll();
             services.EventBus.Subscribe<BuildingPlacedEvent>(ev => services.WorldIndex.OnBuildingCreated(ev.Building));
+            services.EventBus.Subscribe<BuildingDestroyedEvent>(ev => services.WorldIndex.OnBuildingDestroyed(ev.Building));
 
             // Grid
             services.GridMap = new GridMap(width: 64, height: 64);

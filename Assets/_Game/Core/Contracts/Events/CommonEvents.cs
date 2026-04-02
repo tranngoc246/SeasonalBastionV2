@@ -7,6 +7,13 @@ namespace SeasonalBastion.Contracts
         public BuildingPlacedEvent(string d, BuildingId b){DefId=d;Building=b;}
     }
 
+    public readonly struct BuildingDestroyedEvent
+    {
+        public readonly string DefId;
+        public readonly BuildingId Building;
+        public BuildingDestroyedEvent(string d, BuildingId b){DefId=d;Building=b;}
+    }
+
     public readonly struct BuildingUpgradedEvent
     {
         public readonly string FromDefId;
@@ -20,6 +27,17 @@ namespace SeasonalBastion.Contracts
     {
         public readonly CellPos Cell;
         public RoadPlacedEvent(CellPos c){Cell=c;}
+    }
+
+    public readonly struct WorldStateChangedEvent
+    {
+        public readonly string EntityKind;
+        public readonly int EntityId;
+        public WorldStateChangedEvent(string entityKind, int entityId)
+        {
+            EntityKind = entityKind;
+            EntityId = entityId;
+        }
     }
 
     public readonly struct NPCAssignedEvent

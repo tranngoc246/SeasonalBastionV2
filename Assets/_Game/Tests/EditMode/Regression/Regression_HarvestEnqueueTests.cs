@@ -92,7 +92,7 @@ namespace SeasonalBastion.Tests.EditMode
             var selector = new FakeHarvestTargetSelector(new CellPos(7, 6));
             var (enqueue, world, board, producerId) = CreateHarvestFixture(
                 npcCount: 2,
-                currentWood: 20,
+                currentWood: 40,
                 selector: selector);
 
             var buildingIds = new List<BuildingId> { producerId };

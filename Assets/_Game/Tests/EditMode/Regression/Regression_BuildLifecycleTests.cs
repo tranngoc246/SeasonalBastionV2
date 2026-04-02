@@ -411,7 +411,7 @@ namespace SeasonalBastion.Tests.EditMode
         }
     }
 
-    internal sealed class FakeBuildWorkplaceResolver : IBuildOrderWorkplaceResolver
+    internal sealed class FakeBuildWorkplaceResolver : IBuildWorkplaceResolver
     {
         private readonly BuildingId _workplace;
 

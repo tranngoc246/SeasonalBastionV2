@@ -2,7 +2,7 @@ using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
-    internal interface IHarvestTargetSelector
+    public interface IHarvestTargetSelector
     {
         bool TryPickBestHarvestTarget(
             GameServices services,

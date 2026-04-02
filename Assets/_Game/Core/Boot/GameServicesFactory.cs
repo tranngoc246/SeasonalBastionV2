@@ -27,12 +27,11 @@ namespace SeasonalBastion
 
             // World
             services.WorldState = new WorldState();
+            services.JobBoard = new JobBoard();
             services.WorldIndex = new WorldIndexService(services.WorldState, services.DataRegistry);
             services.WorldOps = new WorldOps(services.WorldState, services.EventBus, services.DataRegistry, services.WorldIndex, services.JobBoard);
-            // Keep derived lists in sync (idempotent; safe with construction flow).
+            // Keep derived lists in sync for existing state at boot.
             services.WorldIndex.RebuildAll();
-            services.EventBus.Subscribe<BuildingPlacedEvent>(ev => services.WorldIndex.OnBuildingCreated(ev.Building));
-            services.EventBus.Subscribe<BuildingDestroyedEvent>(ev => services.WorldIndex.OnBuildingDestroyed(ev.Building));
 
             // Grid
             services.GridMap = new GridMap(width: 64, height: 64);
@@ -53,7 +52,6 @@ namespace SeasonalBastion
             
             // Jobs
             services.ClaimService = new ClaimService();
-            services.JobBoard = new JobBoard();
             services.JobWorkplacePolicy = new JobWorkplacePolicy(services.DataRegistry);
             var executorRegistry = new JobExecutorRegistry(services);
             services.JobScheduler = new JobScheduler( services, services.WorldState, services.JobBoard, services.ClaimService, executorRegistry, services.EventBus, services.DataRegistry, services.NotificationService, services.JobWorkplacePolicy);

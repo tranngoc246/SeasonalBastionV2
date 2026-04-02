@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using SeasonalBastion.Contracts;
+using System.Collections.Generic;
 
 namespace SeasonalBastion.Tests.EditMode
 {
@@ -26,10 +27,10 @@ namespace SeasonalBastion.Tests.EditMode
             data.AddTower(new TowerDef { DefId = "bld_arrowtower_t1", MaxHp = 175, AmmoMax = 24 });
 
             BuildingPlacedEvent? placed = null;
-            WorldStateChangedEvent? changed = null;
+            var changedEvents = new List<WorldStateChangedEvent>();
             int roadsDirtyCount = 0;
             bus.Subscribe<BuildingPlacedEvent>(e => placed = e);
-            bus.Subscribe<WorldStateChangedEvent>(e => changed = e);
+            bus.Subscribe<WorldStateChangedEvent>(e => changedEvents.Add(e));
             bus.Subscribe<RoadsDirtyEvent>(_ => roadsDirtyCount++);
 
             var ops = new WorldOps(world, bus, data, index, board);
@@ -65,9 +66,8 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(placed.HasValue, Is.True);
             Assert.That(placed.Value.Building.Value, Is.EqualTo(id.Value));
             Assert.That(placed.Value.DefId, Is.EqualTo("bld_arrowtower_t1"));
-            Assert.That(changed.HasValue, Is.True);
-            Assert.That(changed.Value.EntityKind, Is.EqualTo("Building"));
-            Assert.That(changed.Value.EntityId, Is.EqualTo(id.Value));
+            Assert.That(changedEvents.Exists(e => e.EntityKind == "Building" && e.EntityId == id.Value), Is.True, "Creating a tower building should publish a Building world-state change event.");
+            Assert.That(changedEvents.Exists(e => e.EntityKind == "Tower" && e.EntityId == createdTower.Id.Value), Is.True, "Creating a tower building should publish a Tower world-state change event.");
             Assert.That(roadsDirtyCount, Is.EqualTo(1));
         }
 
@@ -127,10 +127,10 @@ namespace SeasonalBastion.Tests.EditMode
             world.Npcs.Set(npcId, npc);
 
             BuildingDestroyedEvent? destroyed = null;
-            WorldStateChangedEvent? changed = null;
+            var changedEvents = new List<WorldStateChangedEvent>();
             int roadsDirtyCount = 0;
             bus.Subscribe<BuildingDestroyedEvent>(e => destroyed = e);
-            bus.Subscribe<WorldStateChangedEvent>(e => changed = e);
+            bus.Subscribe<WorldStateChangedEvent>(e => changedEvents.Add(e));
             bus.Subscribe<RoadsDirtyEvent>(_ => roadsDirtyCount++);
 
             ops.DestroyBuilding(workplaceId);
@@ -145,15 +145,22 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(destroyed.HasValue, Is.True);
             Assert.That(destroyed.Value.Building.Value, Is.EqualTo(workplaceId.Value));
             Assert.That(destroyed.Value.DefId, Is.EqualTo("bld_lumbercamp_t1"));
-            Assert.That(changed.HasValue, Is.True);
-            Assert.That(changed.Value.EntityKind, Is.EqualTo("Building"));
-            Assert.That(changed.Value.EntityId, Is.EqualTo(workplaceId.Value));
+            Assert.That(changedEvents.Exists(e => e.EntityKind == "Building" && e.EntityId == workplaceId.Value), Is.True);
             Assert.That(roadsDirtyCount, Is.EqualTo(1));
 
-            int towerCountBeforeDestroyTower = 0;
+            TowerState existingTower = default;
+            bool foundTower = false;
             foreach (var tid in world.Towers.Ids)
-                if (world.Towers.Exists(tid)) towerCountBeforeDestroyTower++;
-            Assert.That(towerCountBeforeDestroyTower, Is.EqualTo(1));
+            {
+                if (!world.Towers.Exists(tid)) continue;
+                existingTower = world.Towers.Get(tid);
+                foundTower = true;
+                break;
+            }
+            Assert.That(foundTower, Is.True);
+
+            changedEvents.Clear();
+            roadsDirtyCount = 0;
 
             ops.DestroyBuilding(towerBuildingId);
 
@@ -161,6 +168,9 @@ namespace SeasonalBastion.Tests.EditMode
             foreach (var tid in world.Towers.Ids)
                 if (world.Towers.Exists(tid)) towerCountAfterDestroyTower++;
             Assert.That(towerCountAfterDestroyTower, Is.EqualTo(0), "Destroying a tower building must remove paired TowerState so systems do not hold stale references.");
+            Assert.That(changedEvents.Exists(e => e.EntityKind == "Building" && e.EntityId == towerBuildingId.Value), Is.True);
+            Assert.That(changedEvents.Exists(e => e.EntityKind == "Tower" && e.EntityId == existingTower.Id.Value), Is.True, "Destroying a tower building should publish a Tower world-state change event.");
+            Assert.That(roadsDirtyCount, Is.EqualTo(1));
         }
     }
 }

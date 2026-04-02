@@ -89,6 +89,9 @@ namespace SeasonalBastion
 
         public void DestroyNpc(NpcId id)
         {
+            if (!_w.Npcs.Exists(id))
+                return;
+
             _w.Npcs.Destroy(id);
             _bus?.Publish(new WorldStateChangedEvent("Npc", id.Value));
         }
@@ -109,6 +112,9 @@ namespace SeasonalBastion
 
         public void DestroyEnemy(EnemyId id)
         {
+            if (!_w.Enemies.Exists(id))
+                return;
+
             _w.Enemies.Destroy(id);
             _bus?.Publish(new WorldStateChangedEvent("Enemy", id.Value));
         }
@@ -125,6 +131,9 @@ namespace SeasonalBastion
 
         public void DestroyBuildSite(SiteId id)
         {
+            if (!_w.Sites.Exists(id))
+                return;
+
             _w.Sites.Destroy(id);
             _bus?.Publish(new WorldStateChangedEvent("BuildSite", id.Value));
         }
@@ -174,6 +183,7 @@ namespace SeasonalBastion
             var towerId = _w.Towers.Create(tower);
             tower.Id = towerId;
             _w.Towers.Set(towerId, tower);
+            _bus?.Publish(new WorldStateChangedEvent("Tower", towerId.Value));
         }
 
         private void DestroyTowerStateForBuilding(in BuildingState building)
@@ -192,6 +202,7 @@ namespace SeasonalBastion
                 if (existing.Cell.X == towerCell.X && existing.Cell.Y == towerCell.Y)
                 {
                     _w.Towers.Destroy(tid);
+                    _bus?.Publish(new WorldStateChangedEvent("Tower", tid.Value));
                     return;
                 }
             }

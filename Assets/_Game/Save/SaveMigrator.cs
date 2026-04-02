@@ -82,7 +82,9 @@ namespace SeasonalBastion
 
         private static void EnsureRunDefaults(RunSaveDTO dto, int version)
         {
-            dto.season ??= Season.Spring.ToString();
+            // Migration currently mutates the provided DTO in-place.
+            // Keep this explicit so callers/tests do not assume copy-on-write semantics.
+            dto.season = NormalizeSeason(dto.season);
             dto.dayIndex = Math.Max(1, dto.dayIndex);
             dto.timeScale = dto.timeScale <= 0f ? 1f : dto.timeScale;
             dto.yearIndex = Math.Max(1, dto.yearIndex);
@@ -123,8 +125,24 @@ namespace SeasonalBastion
             {
                 var b = dto.world.Buildings[i];
                 b.Level = Math.Max(1, b.Level);
+                b.HP = Math.Max(0, b.HP);
                 b.MaxHP = Math.Max(b.MaxHP, b.HP);
                 dto.world.Buildings[i] = b;
+            }
+
+            for (int i = 0; i < dto.world.Towers.Count; i++)
+            {
+                var t = dto.world.Towers[i];
+                t.Hp = Math.Max(0, t.Hp);
+                t.HpMax = Math.Max(t.HpMax, t.Hp);
+                dto.world.Towers[i] = t;
+            }
+
+            for (int i = 0; i < dto.world.Enemies.Count; i++)
+            {
+                var e = dto.world.Enemies[i];
+                e.Hp = Math.Max(0, e.Hp);
+                dto.world.Enemies[i] = e;
             }
 
             for (int i = 0; i < dto.build.Sites.Count; i++)
@@ -133,6 +151,8 @@ namespace SeasonalBastion
                 s.TargetLevel = Math.Max(1, s.TargetLevel);
                 s.WorkSecondsDone = Math.Max(0f, s.WorkSecondsDone);
                 s.WorkSecondsTotal = Math.Max(0f, s.WorkSecondsTotal);
+                if (s.WorkSecondsDone > s.WorkSecondsTotal)
+                    s.WorkSecondsDone = s.WorkSecondsTotal;
                 s.DeliveredSoFar ??= new List<CostDef>();
                 s.RemainingCosts ??= new List<CostDef>();
                 dto.build.Sites[i] = s;
@@ -142,6 +162,14 @@ namespace SeasonalBastion
             dto.population.GrowthProgressDays = Math.Max(0f, dto.population.GrowthProgressDays);
             dto.population.StarvationDays = Math.Max(0, dto.population.StarvationDays);
             return true;
+        }
+
+        private static string NormalizeSeason(string seasonText)
+        {
+            if (!string.IsNullOrWhiteSpace(seasonText) && Enum.TryParse<Season>(seasonText, out var parsed))
+                return parsed.ToString();
+
+            return Season.Spring.ToString();
         }
 
         private static bool MigrateMetaV1ToV2(MetaSaveDTO dto)

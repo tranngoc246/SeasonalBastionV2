@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -28,7 +29,7 @@ namespace SeasonalBastion
             _workplacePolicy = workplacePolicy;
             _resourcePolicy = resourcePolicy;
             _cleanupService = cleanupService;
-            _harvestTargetSelector = harvestTargetSelector;
+            _harvestTargetSelector = harvestTargetSelector ?? throw new ArgumentNullException(nameof(harvestTargetSelector));
         }
 
         internal void EnqueueHarvestJobsIfNeeded(

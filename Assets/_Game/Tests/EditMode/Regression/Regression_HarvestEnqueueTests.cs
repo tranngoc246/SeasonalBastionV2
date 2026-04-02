@@ -66,6 +66,27 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void JobEnqueueService_Harvest_Creates0Jobs_WhenSelectorReturnsZeroZeroCell()
+        {
+            var selector = new FakeHarvestTargetSelector(new CellPos(0, 0));
+            var (enqueue, world, board, producerId) = CreateHarvestFixture(
+                npcCount: 2,
+                currentWood: 5,
+                selector: selector);
+
+            var buildingIds = new List<BuildingId> { producerId };
+            var workplacesWithNpc = new HashSet<int> { producerId.Value };
+            var workplaceNpcCount = new Dictionary<int, int> { [producerId.Value] = 2 };
+            var harvestMap = new Dictionary<int, JobId>();
+
+            enqueue.EnqueueHarvestJobsIfNeeded(buildingIds, workplacesWithNpc, workplaceNpcCount, harvestMap);
+
+            Assert.That(harvestMap.Count, Is.EqualTo(0));
+            Assert.That(board.CountActiveJobs(JobArchetype.Harvest), Is.EqualTo(0));
+            Assert.That(selector.Calls, Is.EqualTo(2));
+        }
+
+        [Test]
         public void JobEnqueueService_Harvest_Creates0Jobs_WhenLocalCapIsAlreadyFull()
         {
             var selector = new FakeHarvestTargetSelector(new CellPos(7, 6));
@@ -116,6 +137,7 @@ namespace SeasonalBastion.Tests.EditMode
             data.Add(new BuildingDef
             {
                 DefId = "bld_lumbercamp",
+                IsProducer = true,
                 WorkRoles = WorkRoleFlags.Harvest,
                 CapWood = new StorageCapsByLevel { L1 = 20, L2 = 40, L3 = 60 },
                 SizeX = 1,

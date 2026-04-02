@@ -372,11 +372,29 @@ namespace SeasonalBastion.Tests.EditMode
         }
     }
 
+    internal readonly struct HarvestTargetSelectorCall
+    {
+        public readonly ResourceType ResourceType;
+        public readonly CellPos Origin;
+        public readonly int WorkplaceId;
+        public readonly int Slot;
+
+        public HarvestTargetSelectorCall(ResourceType resourceType, CellPos origin, int workplaceId, int slot)
+        {
+            ResourceType = resourceType;
+            Origin = origin;
+            WorkplaceId = workplaceId;
+            Slot = slot;
+        }
+    }
+
     internal sealed class FakeHarvestTargetSelector : IHarvestTargetSelector
     {
         private readonly Queue<CellPos> _cells = new();
+        private readonly List<HarvestTargetSelectorCall> _calls = new();
         public bool AlwaysFail { get; set; }
         public int Calls { get; private set; }
+        public IReadOnlyList<HarvestTargetSelectorCall> CallTrace => _calls;
 
         public FakeHarvestTargetSelector(CellPos fixedCell)
         {
@@ -395,6 +413,8 @@ namespace SeasonalBastion.Tests.EditMode
         public bool TryPickBestHarvestTarget(GameServices services, IWorldState world, ResourceType resourceType, CellPos origin, int workplaceId, int slot, out CellPos zoneCell)
         {
             Calls++;
+            _calls.Add(new HarvestTargetSelectorCall(resourceType, origin, workplaceId, slot));
+
             if (AlwaysFail)
             {
                 zoneCell = default;

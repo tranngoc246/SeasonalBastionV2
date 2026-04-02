@@ -42,7 +42,8 @@ namespace SeasonalBastion
             IEventBus bus,
             IDataRegistry data,
             INotificationService noti,
-            IJobWorkplacePolicy workplacePolicy = null)
+            IJobWorkplacePolicy workplacePolicy = null,
+            IHarvestTargetSelector harvestTargetSelector = null)
         {
             _s = s;
             _w = w;
@@ -52,7 +53,7 @@ namespace SeasonalBastion
             workplacePolicy ??= new JobWorkplacePolicy(data);
             var resourcePolicy = new ResourceLogisticsPolicy();
             var notificationPolicy = new JobNotificationPolicy(noti);
-            IHarvestTargetSelector harvestTargetSelector = new DefaultHarvestTargetSelector();
+            harvestTargetSelector ??= new DefaultHarvestTargetSelector();
 
             _cleanupService = new JobStateCleanupService(claims);
             _cacheService = new JobSchedulerCache(w);

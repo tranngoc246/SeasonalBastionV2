@@ -371,4 +371,44 @@ namespace SeasonalBastion.Tests.EditMode
             return true;
         }
     }
+
+    internal sealed class FakeHarvestTargetSelector : IHarvestTargetSelector
+    {
+        private readonly Queue<CellPos> _cells = new();
+        public bool AlwaysFail { get; set; }
+        public int Calls { get; private set; }
+
+        public FakeHarvestTargetSelector(CellPos fixedCell)
+        {
+            _cells.Enqueue(fixedCell);
+        }
+
+        public FakeHarvestTargetSelector(params CellPos[] cells)
+        {
+            if (cells != null)
+            {
+                for (int i = 0; i < cells.Length; i++)
+                    _cells.Enqueue(cells[i]);
+            }
+        }
+
+        public bool TryPickBestHarvestTarget(GameServices services, IWorldState world, ResourceType resourceType, CellPos origin, int workplaceId, int slot, out CellPos zoneCell)
+        {
+            Calls++;
+            if (AlwaysFail)
+            {
+                zoneCell = default;
+                return false;
+            }
+
+            if (_cells.Count > 0)
+            {
+                zoneCell = _cells.Count == 1 ? _cells.Peek() : _cells.Dequeue();
+                return true;
+            }
+
+            zoneCell = default;
+            return false;
+        }
+    }
 }

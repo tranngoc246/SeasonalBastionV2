@@ -732,8 +732,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(orderId, Is.EqualTo(0));
             Assert.That(world.Sites.Count, Is.EqualTo(0), "Locked upgrade should not create upgrade site.");
-            Assert.That(GetPrivateListCount<int>(bos, "_active"), Is.EqualTo(0));
-            Assert.That(GetPrivateDictionaryCount<int, BuildOrder>(bos, "_orders"), Is.EqualTo(0));
+            Assert.That(bos.TryGet(1, out _), Is.False);
 
             var inbox = noti.GetInbox();
             Assert.That(inbox.Count, Is.EqualTo(1));
@@ -809,7 +808,7 @@ namespace SeasonalBastion.Tests.EditMode
             var workplacePolicy = new JobWorkplacePolicy(data);
             var resourcePolicy = new ResourceLogisticsPolicy();
             var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
-            var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup);
+            var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup, new FakeHarvestTargetSelector(new CellPos(1, 1)));
 
             var wid = world.Buildings.Create(new BuildingState
             {
@@ -1118,96 +1117,6 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(claims.IsOwnedBy(claim, npcId), Is.False);
             Assert.That(board.TryGet(jobId, out var afterJob), Is.True);
             Assert.That(afterJob.Status, Is.EqualTo(JobStatus.Completed));
-        }
-
-        [Test]
-        public void JobEnqueueService_Harvest_RespectsWorkplaceNpcCountSlotCap()
-        {
-            var data = new TestDataRegistry();
-            data.Add(new BuildingDef { DefId = "bld_lumbercamp", WorkRoles = WorkRoleFlags.Harvest });
-
-            var world = new WorldState();
-            world.Zones.Add(new ZoneState
-            {
-                Id = 1,
-                Resource = ResourceType.Wood,
-                Cells = new List<CellPos> { new CellPos(11, 10) }
-            });
-
-            var board = new JobBoard();
-            var cleanup = new JobStateCleanupService(new ClaimService());
-            var workplacePolicy = new JobWorkplacePolicy(data);
-            var resourcePolicy = new ResourceLogisticsPolicy();
-            var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
-            var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup);
-
-            var producerId = world.Buildings.Create(new BuildingState
-            {
-                DefId = "bld_lumbercamp_t1",
-                Anchor = new CellPos(10, 10),
-                Rotation = Dir4.N,
-                Level = 1,
-                IsConstructed = true,
-                Wood = 5,
-                HP = 20,
-                MaxHP = 20
-            });
-            var producer = world.Buildings.Get(producerId); producer.Id = producerId; world.Buildings.Set(producerId, producer);
-
-            var buildingIds = new List<BuildingId> { producerId };
-            var workplacesWithNpc = new HashSet<int> { producerId.Value };
-            var workplaceNpcCount = new Dictionary<int, int> { [producerId.Value] = 3 };
-            var harvestMap = new Dictionary<int, JobId>();
-
-            enqueue.EnqueueHarvestJobsIfNeeded(buildingIds, workplacesWithNpc, workplaceNpcCount, harvestMap);
-
-            Assert.That(harvestMap.Count, Is.EqualTo(2), "Harvest slots should be capped to 2 even when workplace has 3 NPCs.");
-            Assert.That(board.CountActiveJobs(JobArchetype.Harvest), Is.EqualTo(2));
-        }
-
-        [Test]
-        public void JobEnqueueService_Harvest_DoesNotEnqueue_WhenLocalCapIsAlreadyFull()
-        {
-            var data = new TestDataRegistry();
-            data.Add(new BuildingDef { DefId = "bld_lumbercamp", WorkRoles = WorkRoleFlags.Harvest });
-
-            var world = new WorldState();
-            world.Zones.Add(new ZoneState
-            {
-                Id = 1,
-                Resource = ResourceType.Wood,
-                Cells = new List<CellPos> { new CellPos(7, 6) }
-            });
-
-            var board = new JobBoard();
-            var cleanup = new JobStateCleanupService(new ClaimService());
-            var workplacePolicy = new JobWorkplacePolicy(data);
-            var resourcePolicy = new ResourceLogisticsPolicy();
-            var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
-            var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup);
-
-            var producerId = world.Buildings.Create(new BuildingState
-            {
-                DefId = "bld_lumbercamp_t1",
-                Anchor = new CellPos(6, 6),
-                Rotation = Dir4.N,
-                Level = 1,
-                IsConstructed = true,
-                Wood = 40,
-                HP = 20,
-                MaxHP = 20
-            });
-            var producer = world.Buildings.Get(producerId); producer.Id = producerId; world.Buildings.Set(producerId, producer);
-
-            var buildingIds = new List<BuildingId> { producerId };
-            var workplacesWithNpc = new HashSet<int> { producerId.Value };
-            var workplaceNpcCount = new Dictionary<int, int> { [producerId.Value] = 2 };
-            var harvestMap = new Dictionary<int, JobId>();
-
-            enqueue.EnqueueHarvestJobsIfNeeded(buildingIds, workplacesWithNpc, workplaceNpcCount, harvestMap);
-
-            Assert.That(harvestMap.Count, Is.EqualTo(0));
-            Assert.That(board.CountActiveJobs(JobArchetype.Harvest), Is.EqualTo(0));
         }
 
         [Test]

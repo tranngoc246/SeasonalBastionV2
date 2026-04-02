@@ -52,11 +52,12 @@ namespace SeasonalBastion
             workplacePolicy ??= new JobWorkplacePolicy(data);
             var resourcePolicy = new ResourceLogisticsPolicy();
             var notificationPolicy = new JobNotificationPolicy(noti);
+            IHarvestTargetSelector harvestTargetSelector = new DefaultHarvestTargetSelector();
 
             _cleanupService = new JobStateCleanupService(claims);
             _cacheService = new JobSchedulerCache(w);
             _assignmentService = new JobAssignmentService(w, board, workplacePolicy, notificationPolicy);
-            _enqueueService = new JobEnqueueService(s, w, board, workplacePolicy, resourcePolicy, _cleanupService);
+            _enqueueService = new JobEnqueueService(s, w, board, workplacePolicy, resourcePolicy, _cleanupService, harvestTargetSelector);
             _executionService = new JobExecutionService(s, w, board, exec, _cleanupService);
             _idleRoamService = new NpcIdleRoamService(s, w);
         }

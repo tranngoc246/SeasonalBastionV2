@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -12,6 +11,7 @@ namespace SeasonalBastion
         private readonly IJobWorkplacePolicy _workplacePolicy;
         private readonly ResourceLogisticsPolicy _resourcePolicy;
         private readonly JobStateCleanupService _cleanupService;
+        private readonly IHarvestTargetSelector _harvestTargetSelector;
 
         internal JobEnqueueService(
             GameServices s,
@@ -19,7 +19,8 @@ namespace SeasonalBastion
             IJobBoard board,
             IJobWorkplacePolicy workplacePolicy,
             ResourceLogisticsPolicy resourcePolicy,
-            JobStateCleanupService cleanupService)
+            JobStateCleanupService cleanupService,
+            IHarvestTargetSelector harvestTargetSelector)
         {
             _s = s;
             _w = w;
@@ -27,6 +28,7 @@ namespace SeasonalBastion
             _workplacePolicy = workplacePolicy;
             _resourcePolicy = resourcePolicy;
             _cleanupService = cleanupService;
+            _harvestTargetSelector = harvestTargetSelector;
         }
 
         internal void EnqueueHarvestJobsIfNeeded(
@@ -59,8 +61,7 @@ namespace SeasonalBastion
 
                 for (int slot = 0; slot < slots; slot++)
                 {
-                    CellPos zoneCell;
-                    if (!HarvestTargetSelectionHelper.TryPickBestHarvestTarget(_s, _w, rt, bs.Anchor, bid.Value, slot, out zoneCell))
+                    if (!_harvestTargetSelector.TryPickBestHarvestTarget(_s, _w, rt, bs.Anchor, bid.Value, slot, out var zoneCell))
                         continue;
 
                     if (zoneCell.X == 0 && zoneCell.Y == 0)
@@ -99,7 +100,7 @@ namespace SeasonalBastion
             IReadOnlyList<BuildingId> buildingIds,
             HashSet<int> workplacesWithNpc,
             Dictionary<int, JobId> haulJobByWorkplaceAndType,
-            Func<ResourceType, bool> anyHarvestProducerHasAmount)
+            System.Func<ResourceType, bool> anyHarvestProducerHasAmount)
         {
             for (int i = 0; i < buildingIds.Count; i++)
             {
@@ -123,7 +124,7 @@ namespace SeasonalBastion
             in BuildingState destState,
             ResourceType rt,
             Dictionary<int, JobId> haulJobByWorkplaceAndType,
-            Func<ResourceType, bool> anyHarvestProducerHasAmount)
+            System.Func<ResourceType, bool> anyHarvestProducerHasAmount)
         {
             if (anyHarvestProducerHasAmount == null || !anyHarvestProducerHasAmount(rt)) return;
             if (destState.Anchor.X == 0 && destState.Anchor.Y == 0) return;

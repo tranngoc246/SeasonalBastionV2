@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -8,7 +7,7 @@ namespace SeasonalBastion
 {
     /// <summary>
     /// Decorative background layer for the main menu.
-    /// Words drift apart when the dragon body passes through them.
+    /// Individual characters drift apart when the dragon body passes through them.
     /// Implemented fully in UI Toolkit so it can live inside the existing UIDocument menu.
     /// </summary>
     public sealed class DragonTextLayer : VisualElement
@@ -24,6 +23,8 @@ namespace SeasonalBastion
             public float BaseY;
             public float CurrentX;
             public float TargetX;
+            public float VelocityX;
+            public bool IsWhitespace;
         }
 
         private sealed class LineData
@@ -41,21 +42,12 @@ namespace SeasonalBastion
             public float Radius;
         }
 
-        private struct Interval
-        {
-            public float Min;
-            public float Max;
-
-            public Interval(float min, float max)
-            {
-                Min = min;
-                Max = max;
-            }
-        }
-
         private readonly List<WordData> _words = new();
         private readonly List<LineData> _lines = new();
         private readonly VisualElement _wordHost;
+        private readonly VisualElement _dragonVisualHost;
+        private readonly List<VisualElement> _dragonSegments = new();
+        private readonly List<VisualElement> _dragonConnectors = new();
 
         private DragonNode[] _dragon = Array.Empty<DragonNode>();
         private VisualElement _exclusionElement;
@@ -69,31 +61,32 @@ namespace SeasonalBastion
         // Layout
         private const float HorizontalPadding = 64f;
         private const float VerticalPadding = 48f;
-        private const float WordSpacing = 16f;
+        private const float GlyphSpacing = 1.25f;
         private const float LineSpacing = 22f;
         private const float FontSize = 22f;
-        private const float ApproxCharWidth = 13.25f;
         private const float LineHeight = 30f;
 
         // Motion
-        private const float WordLerpSpeed = 11f;
-        private const float HeadFollowSpeed = 20f;
-        private const float BodyFollowSharpness = 24f;
-        private const float FollowDistance = 18f;
-        private const float RelaxGap = 10f;
-        private const float PushPadding = 8f;
-        private const float BaseBias = 0.08f;
-        private const float IdleAmplitude = 7f;
+        private const float FollowDistance = 12f;
+        private const float BaseBias = 0.12f;
+        private const float IdleAmplitude = 2.5f;
         private const float IdleFrequency = 1.9f;
         private const float IdleDelay = 0.15f;
 
-        // Shape
-        private const int SegmentCount = 68;
-        private const float RadiusHead = 38f;
-        private const float RadiusBody = 22f;
-        private const float RadiusTail = 8f;
-        private const float LineInfluencePadding = 8f;
+        // Character reaction
+        private const float PushPadding = 16f;
+        private const float MaxWordPush = 128f;
+        private const float LocalInfluenceFalloff = 90f;
+        private const float LineInfluencePadding = 6f;
         private const float ExclusionPadding = 26f;
+        private const float SpacePushMultiplier = 0.45f;
+
+        // Shape
+        private const int SegmentCount = 32;
+        private const float RadiusHead = 30f;
+        private const float RadiusBody = 18f;
+        private const float RadiusTail = 7f;
+        private const float ConnectorThickness = 0.96f;
 
         private Vector2 _mouseLocal;
         private Vector2 _lastMouseLocal;
@@ -109,6 +102,18 @@ namespace SeasonalBastion
             style.bottom = 0;
             pickingMode = PickingMode.Ignore;
 
+            _dragonVisualHost = new VisualElement
+            {
+                name = "DragonVisualHost",
+                pickingMode = PickingMode.Ignore
+            };
+            _dragonVisualHost.style.position = Position.Absolute;
+            _dragonVisualHost.style.left = 0;
+            _dragonVisualHost.style.top = 0;
+            _dragonVisualHost.style.right = 0;
+            _dragonVisualHost.style.bottom = 0;
+            hierarchy.Add(_dragonVisualHost);
+
             _wordHost = new VisualElement
             {
                 name = "DragonWordHost",
@@ -121,7 +126,6 @@ namespace SeasonalBastion
             _wordHost.style.bottom = 0;
             hierarchy.Add(_wordHost);
 
-            generateVisualContent += OnGenerateVisualContent;
             RegisterCallback<GeometryChangedEvent>(_ => Rebuild());
         }
 
@@ -146,13 +150,23 @@ namespace SeasonalBastion
             UpdateExclusionRect();
             UpdateMouseLocal();
             UpdateDragon(deltaTime);
+            UpdateDragonVisuals();
             UpdateWordTargets();
             UpdateWords(deltaTime);
-            MarkDirtyRepaint();
         }
 
         public void Rebuild()
         {
+            if (_dragonVisualHost == null || _wordHost == null)
+            {
+                Debug.LogError("[DragonTextLayer] Visual hosts were not initialized.");
+                return;
+            }
+
+            _dragonVisualHost.Clear();
+            _dragonSegments.Clear();
+            _dragonConnectors.Clear();
+
             _wordHost.Clear();
             _words.Clear();
             _lines.Clear();
@@ -164,14 +178,113 @@ namespace SeasonalBastion
 
             BuildWords();
             BuildDragon();
+            BuildDragonVisuals();
             UpdateExclusionRect();
             _isBuilt = true;
             MarkDirtyRepaint();
         }
 
+        private void BuildDragonVisuals()
+        {
+            _dragonVisualHost.Clear();
+            _dragonSegments.Clear();
+            _dragonConnectors.Clear();
+
+            for (int i = 0; i < Mathf.Max(0, _dragon.Length - 1); i++)
+            {
+                VisualElement connector = new VisualElement
+                {
+                    pickingMode = PickingMode.Ignore
+                };
+
+                connector.style.position = Position.Absolute;
+                connector.style.backgroundColor = new Color(0.50f, 0.78f, 1f, 0.52f);
+                connector.style.transformOrigin = new TransformOrigin(0f, 50f, 0f);
+                connector.style.borderTopLeftRadius = 999f;
+                connector.style.borderTopRightRadius = 999f;
+                connector.style.borderBottomLeftRadius = 999f;
+                connector.style.borderBottomRightRadius = 999f;
+
+                _dragonVisualHost.Add(connector);
+                _dragonConnectors.Add(connector);
+            }
+
+            for (int i = 0; i < _dragon.Length; i++)
+            {
+                VisualElement seg = new VisualElement
+                {
+                    pickingMode = PickingMode.Ignore
+                };
+
+                seg.style.position = Position.Absolute;
+                seg.style.backgroundColor = new Color(0.50f, 0.78f, 1f, 0.72f);
+                seg.style.borderTopLeftRadius = 999f;
+                seg.style.borderTopRightRadius = 999f;
+                seg.style.borderBottomLeftRadius = 999f;
+                seg.style.borderBottomRightRadius = 999f;
+
+                _dragonVisualHost.Add(seg);
+                _dragonSegments.Add(seg);
+            }
+        }
+
+        private void UpdateDragonVisuals()
+        {
+            if (_dragonSegments.Count != _dragon.Length)
+                return;
+
+            for (int i = 0; i < _dragonConnectors.Count; i++)
+            {
+                DragonNode a = _dragon[i];
+                DragonNode b = _dragon[i + 1];
+                VisualElement connector = _dragonConnectors[i];
+
+                Vector2 delta = b.Position - a.Position;
+                float length = delta.magnitude;
+                float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
+                float thickness = Mathf.Max(2f, Mathf.Min(a.Radius, b.Radius) * 2f * ConnectorThickness);
+                float t = i / (float)Mathf.Max(1, _dragonConnectors.Count - 1);
+                float alpha = Mathf.Lerp(0.52f, 0.08f, t);
+
+                connector.style.left = a.Position.x;
+                connector.style.top = a.Position.y - thickness * 0.5f;
+                connector.style.width = length + Mathf.Max(a.Radius, b.Radius) * 0.25f;
+                connector.style.height = thickness;
+                connector.style.rotate = new Rotate(new Angle(angle, AngleUnit.Degree));
+                connector.style.opacity = alpha;
+                connector.style.backgroundColor = Color.Lerp(
+                    new Color(0.30f, 0.60f, 1f, alpha),
+                    new Color(0.72f, 0.88f, 1f, alpha),
+                    0.35f
+                );
+            }
+
+            for (int i = 0; i < _dragon.Length; i++)
+            {
+                DragonNode node = _dragon[i];
+                VisualElement seg = _dragonSegments[i];
+
+                float diameter = node.Radius * 2f;
+                float t = i / (float)Mathf.Max(1, _dragon.Length - 1);
+
+                float alpha = Mathf.Lerp(0.86f, 0.14f, t);
+                Color c = Color.Lerp(
+                    new Color(0.35f, 0.65f, 1f, alpha),
+                    new Color(0.80f, 0.93f, 1f, alpha),
+                    0.35f
+                );
+
+                seg.style.width = diameter;
+                seg.style.height = diameter;
+                seg.style.left = node.Position.x - node.Radius;
+                seg.style.top = node.Position.y - node.Radius;
+                seg.style.backgroundColor = c;
+                seg.style.opacity = alpha;
+            }
+        }
+
         private void BuildWords()
         {
-            List<string> tokens = Tokenize(_sourceText);
             float usableWidth = Mathf.Max(120f, resolvedStyle.width - HorizontalPadding * 2f);
             float leftX = HorizontalPadding;
             float topY = VerticalPadding;
@@ -179,35 +292,57 @@ namespace SeasonalBastion
             float cursorX = leftX;
             float cursorY = topY;
 
-            LineData currentLine = new()
-            {
-                Y = cursorY,
-                Height = LineHeight,
-                MinX = leftX,
-                MaxX = leftX + usableWidth
-            };
+            LineData currentLine = CreateLine(cursorY, leftX, usableWidth);
+            bool lastWasSpace = false;
 
-            for (int i = 0; i < tokens.Count; i++)
+            foreach (char c in _sourceText)
             {
-                string token = tokens[i];
-                float tokenWidth = EstimateWordWidth(token);
+                if (c == '\r')
+                    continue;
 
-                bool needsWrap = currentLine.Words.Count > 0 && (cursorX - leftX + tokenWidth) > usableWidth;
-                if (needsWrap)
+                if (c == '\n')
                 {
                     _lines.Add(currentLine);
                     cursorY += LineHeight + LineSpacing;
                     cursorX = leftX;
-                    currentLine = new LineData
-                    {
-                        Y = cursorY,
-                        Height = LineHeight,
-                        MinX = leftX,
-                        MaxX = leftX + usableWidth
-                    };
+                    currentLine = CreateLine(cursorY, leftX, usableWidth);
+                    lastWasSpace = false;
+                    continue;
                 }
 
-                Label label = new(token)
+                bool isWhitespace = c == ' ' || c == '\t';
+                float glyphWidth = EstimateGlyphWidth(c);
+
+                bool needsWrap = currentLine.Words.Count > 0 && (cursorX - leftX + glyphWidth) > usableWidth;
+                if (needsWrap)
+                {
+                    // tránh xuống dòng với khoảng trắng mở đầu dòng mới
+                    if (isWhitespace)
+                    {
+                        _lines.Add(currentLine);
+                        cursorY += LineHeight + LineSpacing;
+                        cursorX = leftX;
+                        currentLine = CreateLine(cursorY, leftX, usableWidth);
+                        lastWasSpace = true;
+                        continue;
+                    }
+
+                    _lines.Add(currentLine);
+                    cursorY += LineHeight + LineSpacing;
+                    cursorX = leftX;
+                    currentLine = CreateLine(cursorY, leftX, usableWidth);
+                }
+
+                if (isWhitespace && currentLine.Words.Count == 0)
+                {
+                    lastWasSpace = true;
+                    continue;
+                }
+
+                if (isWhitespace && lastWasSpace)
+                    continue;
+
+                Label label = new(c == ' ' ? "\u00A0" : c.ToString())
                 {
                     pickingMode = PickingMode.Ignore
                 };
@@ -215,30 +350,46 @@ namespace SeasonalBastion
                 label.style.left = cursorX;
                 label.style.top = cursorY;
                 label.style.fontSize = FontSize;
-                label.style.color = new Color(0.94f, 0.97f, 1f, 0.10f);
+                label.style.color = isWhitespace
+                    ? new Color(0.94f, 0.97f, 1f, 0.02f)
+                    : new Color(0.94f, 0.97f, 1f, 0.10f);
                 label.style.unityFontStyleAndWeight = FontStyle.Normal;
                 label.style.whiteSpace = WhiteSpace.NoWrap;
                 _wordHost.Add(label);
 
                 WordData word = new()
                 {
-                    Text = token,
+                    Text = c.ToString(),
                     Label = label,
                     LineIndex = _lines.Count,
-                    Width = tokenWidth,
+                    Width = glyphWidth,
                     Height = LineHeight,
                     BaseX = cursorX,
                     BaseY = cursorY,
                     CurrentX = cursorX,
-                    TargetX = cursorX
+                    TargetX = cursorX,
+                    IsWhitespace = isWhitespace
                 };
 
                 currentLine.Words.Add(word);
                 _words.Add(word);
-                cursorX += tokenWidth + WordSpacing;
+                cursorX += glyphWidth + GlyphSpacing;
+                lastWasSpace = isWhitespace;
             }
 
-            _lines.Add(currentLine);
+            if (currentLine.Words.Count > 0 || _lines.Count == 0)
+                _lines.Add(currentLine);
+        }
+
+        private static LineData CreateLine(float y, float leftX, float usableWidth)
+        {
+            return new LineData
+            {
+                Y = y,
+                Height = LineHeight,
+                MinX = leftX,
+                MaxX = leftX + usableWidth
+            };
         }
 
         private void BuildDragon()
@@ -281,7 +432,6 @@ namespace SeasonalBastion
             }
 
             Rect world = _exclusionElement.worldBound;
-
             Vector2 localMin = this.WorldToLocal(world.min);
             Vector2 localMax = this.WorldToLocal(world.max);
 
@@ -307,9 +457,12 @@ namespace SeasonalBastion
             if (panel == null)
                 return;
 
-            Vector2 panelMouse = RuntimePanelUtils.ScreenToPanel(panel, screen);
-            Vector2 worldMouse = panel.visualTree.LocalToWorld(panelMouse);
-            _mouseLocal = this.WorldToLocal(worldMouse);
+            Vector2 panelPos = RuntimePanelUtils.ScreenToPanel(panel, screen);
+            float panelHeight = panel.visualTree.worldBound.height;
+            if (panelHeight <= 0f)
+                panelHeight = resolvedStyle.height;
+
+            _mouseLocal = new Vector2(panelPos.x, panelHeight - panelPos.y);
 
             if ((_mouseLocal - _lastMouseLocal).sqrMagnitude > 0.5f)
             {
@@ -326,17 +479,13 @@ namespace SeasonalBastion
             Vector2 targetHead = _mouseLocal;
             float idleTime = Time.unscaledTime - _lastMouseMoveTime;
             if (idleTime > IdleDelay)
-            {
                 targetHead += new Vector2(0f, Mathf.Sin(Time.unscaledTime * IdleFrequency) * IdleAmplitude);
-            }
 
-            float headBlend = 1f - Mathf.Exp(-HeadFollowSpeed * deltaTime);
+            float headBlend = 1f - Mathf.Exp(-34f * deltaTime);
             _dragon[0].Position = Vector2.Lerp(_dragon[0].Position, targetHead, headBlend);
 
             if (_hasExclusionRect && _cachedExclusionLocalRect.Contains(_dragon[0].Position))
-            {
                 _dragon[0].Position = ClosestPointOnRectEdge(_cachedExclusionLocalRect, _dragon[0].Position);
-            }
 
             for (int i = 1; i < _dragon.Length; i++)
             {
@@ -351,7 +500,7 @@ namespace SeasonalBastion
                 }
 
                 Vector2 desired = prev + dir / len * FollowDistance;
-                float bodyBlend = 1f - Mathf.Exp(-BodyFollowSharpness * deltaTime);
+                float bodyBlend = 1f - Mathf.Exp(-30f * deltaTime);
                 Vector2 next = Vector2.Lerp(current, desired, bodyBlend);
 
                 if (_hasExclusionRect && _cachedExclusionLocalRect.Contains(next))
@@ -368,116 +517,85 @@ namespace SeasonalBastion
 
             foreach (LineData line in _lines)
             {
-                List<Interval> intervals = BuildMergedIntervals(line);
-                if (_hasExclusionRect)
-                {
-                    float lineCenterY = line.Y + line.Height * 0.5f;
-                    if (lineCenterY >= _cachedExclusionLocalRect.yMin && lineCenterY <= _cachedExclusionLocalRect.yMax)
-                    {
-                        intervals.Add(new Interval(_cachedExclusionLocalRect.xMin, _cachedExclusionLocalRect.xMax));
-                    }
-                }
-
-                if (intervals.Count == 0)
-                {
-                    RelaxLine(line);
+                if (line.Words.Count == 0)
                     continue;
+
+                float lineCenterY = line.Y + line.Height * 0.5f;
+
+                for (int w = 0; w < line.Words.Count; w++)
+                {
+                    WordData word = line.Words[w];
+                    float baseCenterX = word.BaseX + word.Width * 0.5f;
+                    float totalPush = 0f;
+
+                    for (int i = 0; i < _dragon.Length; i++)
+                    {
+                        DragonNode node = _dragon[i];
+                        float effectiveRadius = node.Radius + line.Height * 0.5f + LineInfluencePadding;
+                        float dy = Mathf.Abs(node.Position.y - lineCenterY);
+                        if (dy >= effectiveRadius)
+                            continue;
+
+                        float halfWidth = Mathf.Sqrt(Mathf.Max(0f, effectiveRadius * effectiveRadius - dy * dy));
+                        float dx = baseCenterX - node.Position.x;
+                        float absDx = Mathf.Abs(dx);
+                        if (absDx > halfWidth + LocalInfluenceFalloff)
+                            continue;
+
+                        float edgeDistance = Mathf.Max(0f, absDx - halfWidth);
+                        float influence = 1f - Mathf.Clamp01(edgeDistance / LocalInfluenceFalloff);
+                        if (influence <= 0f)
+                            continue;
+
+                        float direction = dx >= 0f ? 1f : -1f;
+                        float pushAmount = PushPadding + node.Radius * 0.90f;
+                        if (word.IsWhitespace)
+                            pushAmount *= SpacePushMultiplier;
+
+                        totalPush += direction * influence * pushAmount;
+                    }
+
+                    totalPush = Mathf.Clamp(totalPush, -MaxWordPush, MaxWordPush);
+                    totalPush *= word.IsWhitespace ? 0.45f : 0.82f;
+                    word.TargetX = word.BaseX + totalPush;
                 }
 
-                intervals.Sort((a, b) => a.Min.CompareTo(b.Min));
-                List<Interval> merged = MergeIntervals(intervals);
-                ApplyIntervalsToLine(line, merged);
+                ApplyExclusionPush(line);
                 RelaxLine(line);
                 ClampLineToBounds(line);
             }
         }
 
-        private List<Interval> BuildMergedIntervals(LineData line)
+        private void ApplyExclusionPush(LineData line)
         {
-            List<Interval> raw = new();
-            float lineCenterY = line.Y + line.Height * 0.5f;
+            if (!_hasExclusionRect)
+                return;
 
-            for (int i = 0; i < _dragon.Length; i++)
+            float lineCenterY = line.Y + line.Height * 0.5f;
+            if (lineCenterY < _cachedExclusionLocalRect.yMin || lineCenterY > _cachedExclusionLocalRect.yMax)
+                return;
+
+            float exclusionCenter = (_cachedExclusionLocalRect.xMin + _cachedExclusionLocalRect.xMax) * 0.5f;
+
+            for (int i = 0; i < line.Words.Count; i++)
             {
-                DragonNode node = _dragon[i];
-                float effectiveRadius = node.Radius + line.Height * 0.5f + LineInfluencePadding;
-                float dy = Mathf.Abs(node.Position.y - lineCenterY);
-                if (dy >= effectiveRadius)
+                WordData word = line.Words[i];
+                float baseCenterX = word.BaseX + word.Width * 0.5f;
+                float dx = baseCenterX - exclusionCenter;
+                float distanceToRect = 0f;
+
+                if (baseCenterX < _cachedExclusionLocalRect.xMin)
+                    distanceToRect = _cachedExclusionLocalRect.xMin - baseCenterX;
+                else if (baseCenterX > _cachedExclusionLocalRect.xMax)
+                    distanceToRect = baseCenterX - _cachedExclusionLocalRect.xMax;
+
+                if (distanceToRect > LocalInfluenceFalloff)
                     continue;
 
-                float halfWidth = Mathf.Sqrt(Mathf.Max(0f, effectiveRadius * effectiveRadius - dy * dy));
-                raw.Add(new Interval(node.Position.x - halfWidth, node.Position.x + halfWidth));
-            }
-
-            return raw.Count == 0 ? raw : MergeIntervals(raw);
-        }
-
-        private static List<Interval> MergeIntervals(List<Interval> intervals)
-        {
-            if (intervals.Count <= 1)
-                return intervals;
-
-            intervals.Sort((a, b) => a.Min.CompareTo(b.Min));
-            List<Interval> merged = new();
-            Interval current = intervals[0];
-
-            for (int i = 1; i < intervals.Count; i++)
-            {
-                if (intervals[i].Min <= current.Max)
-                {
-                    current.Max = Mathf.Max(current.Max, intervals[i].Max);
-                }
-                else
-                {
-                    merged.Add(current);
-                    current = intervals[i];
-                }
-            }
-
-            merged.Add(current);
-            return merged;
-        }
-
-        private static void ApplyIntervalsToLine(LineData line, List<Interval> intervals)
-        {
-            for (int i = 0; i < intervals.Count; i++)
-            {
-                Interval interval = intervals[i];
-
-                float leftCursor = line.MinX;
-                float rightCursor = interval.Max + PushPadding;
-
-                for (int w = 0; w < line.Words.Count; w++)
-                {
-                    WordData word = line.Words[w];
-                    float baseCenter = word.BaseX + word.Width * 0.5f;
-
-                    if (baseCenter < interval.Min)
-                    {
-                        word.TargetX = leftCursor;
-                        leftCursor += word.Width + WordSpacing;
-                        continue;
-                    }
-
-                    if (baseCenter > interval.Max)
-                    {
-                        word.TargetX = Mathf.Max(word.TargetX, rightCursor);
-                        rightCursor = word.TargetX + word.Width + WordSpacing;
-                        continue;
-                    }
-
-                    // Từ nằm trong vùng bị cắt: tách theo nửa trái / phải
-                    if (baseCenter <= (interval.Min + interval.Max) * 0.5f)
-                    {
-                        word.TargetX = leftCursor;
-                        leftCursor += word.Width + WordSpacing;
-                    }
-                    else
-                    {
-                        word.TargetX = Mathf.Max(word.TargetX, rightCursor);
-                        rightCursor = word.TargetX + word.Width + WordSpacing;
-                    }
-                }
+                float influence = 1f - Mathf.Clamp01(distanceToRect / LocalInfluenceFalloff);
+                float direction = dx >= 0f ? 1f : -1f;
+                float push = direction * influence * (word.IsWhitespace ? 12f : 26f);
+                word.TargetX += push;
             }
         }
 
@@ -486,26 +604,24 @@ namespace SeasonalBastion
             if (line.Words.Count == 0)
                 return;
 
-            for (int pass = 0; pass < 4; pass++)
+            for (int pass = 0; pass < 7; pass++)
             {
                 for (int i = 1; i < line.Words.Count; i++)
                 {
                     WordData prev = line.Words[i - 1];
                     WordData cur = line.Words[i];
-                    float minDist = prev.Width + WordSpacing;
-
-                    if (cur.TargetX < prev.TargetX + minDist)
-                        cur.TargetX = prev.TargetX + minDist;
+                    float minX = prev.TargetX + prev.Width + GlyphSpacing;
+                    if (cur.TargetX < minX)
+                        cur.TargetX = minX;
                 }
 
                 for (int i = line.Words.Count - 2; i >= 0; i--)
                 {
                     WordData cur = line.Words[i];
                     WordData next = line.Words[i + 1];
-                    float minDist = cur.Width + WordSpacing;
-
-                    if (cur.TargetX + cur.Width > next.TargetX)
-                        cur.TargetX = next.TargetX - minDist;
+                    float maxX = next.TargetX - cur.Width - GlyphSpacing;
+                    if (cur.TargetX > maxX)
+                        cur.TargetX = maxX;
                 }
             }
 
@@ -546,70 +662,44 @@ namespace SeasonalBastion
 
         private void UpdateWords(float deltaTime)
         {
-            float blend = 1f - Mathf.Exp(-WordLerpSpeed * deltaTime);
+            const float smoothTime = 0.11f;
+            const float maxSpeed = 1600f;
+
             foreach (WordData word in _words)
             {
-                word.CurrentX = Mathf.Lerp(word.CurrentX, word.TargetX, blend);
+                word.CurrentX = Mathf.SmoothDamp(
+                    word.CurrentX,
+                    word.TargetX,
+                    ref word.VelocityX,
+                    smoothTime,
+                    maxSpeed,
+                    deltaTime
+                );
+
                 word.Label.style.left = word.CurrentX;
 
+                if (word.IsWhitespace)
+                {
+                    word.Label.style.opacity = 0.001f;
+                    continue;
+                }
+
                 float offset = Mathf.Abs(word.CurrentX - word.BaseX);
-                float alpha = Mathf.Lerp(0.10f, 0.24f, Mathf.InverseLerp(0f, 52f, offset));
+                float alpha = Mathf.Lerp(0.10f, 0.26f, Mathf.InverseLerp(0f, 80f, offset));
                 word.Label.style.color = new Color(0.94f, 0.97f, 1f, alpha);
             }
         }
 
-        private void OnGenerateVisualContent(MeshGenerationContext mgc)
+        private static float EstimateGlyphWidth(char c)
         {
-            if (!_isBuilt || _dragon.Length == 0)
-                return;
+            if (c == ' ' || c == '\t')
+                return 9f;
 
-            Painter2D painter = mgc.painter2D;
-            for (int i = _dragon.Length - 1; i >= 0; i--)
-            {
-                float t = i / (float)(_dragon.Length - 1);
-                float alpha = Mathf.Lerp(0.30f, 0.02f, t);
-
-                Color fill = Color.Lerp(
-                    new Color(0.40f, 0.66f, 1f, alpha),
-                    new Color(0.60f, 0.83f, 1f, alpha * 0.7f),
-                    0.35f
-                );
-
-                painter.fillColor = fill;
-                painter.BeginPath();
-                painter.Arc(_dragon[i].Position, _dragon[i].Radius, 0f, Mathf.PI * 2f);
-                painter.Fill();
-            }
-        }
-
-        private static float EstimateWordWidth(string token)
-        {
-            if (string.IsNullOrEmpty(token))
-                return 0f;
-
-            float width = 8f;
-
-            for (int i = 0; i < token.Length; i++)
-            {
-                char c = token[i];
-
-                if ("WM@#%&QGOD".IndexOf(c) >= 0) width += 17f;
-                else if ("mw".IndexOf(c) >= 0) width += 15f;
-                else if ("Iil1|!'".IndexOf(c) >= 0) width += 7f;
-                else if (".,:;".IndexOf(c) >= 0) width += 6f;
-                else width += 12f;
-            }
-
-            return width;
-        }
-
-        private static List<string> Tokenize(string text)
-        {
-            List<string> result = new();
-            MatchCollection matches = Regex.Matches(text ?? string.Empty, @"\S+");
-            foreach (Match match in matches)
-                result.Add(match.Value);
-            return result;
+            if ("WM@#%&QGOD".IndexOf(c) >= 0) return 17f;
+            if ("mw".IndexOf(c) >= 0) return 15f;
+            if ("Iil1|!'".IndexOf(c) >= 0) return 7f;
+            if (".,:;".IndexOf(c) >= 0) return 6f;
+            return 12f;
         }
 
         private static Vector2 ClosestPointOnRectEdge(Rect rect, Vector2 point)

@@ -17,7 +17,9 @@ namespace SeasonalBastion
             if (dto == null)
                 return false;
 
-            int version = NormalizeVersion(dto.schemaVersion);
+            if (!TryNormalizeVersion(dto.schemaVersion, out int version))
+                return false;
+
             if (version > CurrentSaveSchemaVersion)
                 return false;
 
@@ -28,8 +30,7 @@ namespace SeasonalBastion
                 switch (version)
                 {
                     case LegacySchemaVersion:
-                        if (!MigrateRunV1ToV2(dto))
-                            return false;
+                        MigrateRunV1ToV2(dto);
                         version = 2;
                         break;
 
@@ -49,7 +50,9 @@ namespace SeasonalBastion
             if (dto == null)
                 return false;
 
-            int version = NormalizeVersion(dto.schemaVersion);
+            if (!TryNormalizeVersion(dto.schemaVersion, out int version))
+                return false;
+
             if (version > CurrentSaveSchemaVersion)
                 return false;
 
@@ -60,8 +63,7 @@ namespace SeasonalBastion
                 switch (version)
                 {
                     case LegacySchemaVersion:
-                        if (!MigrateMetaV1ToV2(dto))
-                            return false;
+                        MigrateMetaV1ToV2(dto);
                         version = 2;
                         break;
 
@@ -75,9 +77,22 @@ namespace SeasonalBastion
             return true;
         }
 
-        private static int NormalizeVersion(int schemaVersion)
+        private static bool TryNormalizeVersion(int schemaVersion, out int version)
         {
-            return schemaVersion <= 0 ? LegacySchemaVersion : schemaVersion;
+            if (schemaVersion == 0)
+            {
+                version = LegacySchemaVersion;
+                return true;
+            }
+
+            if (schemaVersion < 0)
+            {
+                version = 0;
+                return false;
+            }
+
+            version = schemaVersion;
+            return true;
         }
 
         private static void EnsureRunDefaults(RunSaveDTO dto, int version)
@@ -89,6 +104,7 @@ namespace SeasonalBastion
             dto.timeScale = dto.timeScale <= 0f ? 1f : dto.timeScale;
             dto.yearIndex = Math.Max(1, dto.yearIndex);
             dto.dayTimer = Math.Max(0f, dto.dayTimer);
+
             dto.world ??= new WorldDTO();
             dto.build ??= new BuildDTO();
             dto.combat ??= new CombatDTO();
@@ -104,9 +120,7 @@ namespace SeasonalBastion
             dto.rewards.PickedRewardDefIds ??= new List<string>();
 
             if (version <= LegacySchemaVersion)
-            {
                 dto.combat.CurrentWaveIndex = Math.Max(0, dto.combat.CurrentWaveIndex);
-            }
         }
 
         private static void EnsureMetaDefaults(MetaSaveDTO dto)
@@ -115,18 +129,22 @@ namespace SeasonalBastion
             dto.perkLevels ??= new Dictionary<string, int>(StringComparer.Ordinal);
         }
 
-        private static bool MigrateRunV1ToV2(RunSaveDTO dto)
+        private static void MigrateRunV1ToV2(RunSaveDTO dto)
         {
             EnsureRunDefaults(dto, LegacySchemaVersion);
 
-            // v2 canonicalized null/legacy collections and normalized fields so older saves
-            // remain loadable after DTO growth (rewards/population/combat additions).
+            // v2 canonicalizes missing collections and normalizes legacy scalar/state values
+            // so older saves remain loadable after DTO growth.
             for (int i = 0; i < dto.world.Buildings.Count; i++)
             {
                 var b = dto.world.Buildings[i];
                 b.Level = Math.Max(1, b.Level);
                 b.HP = Math.Max(0, b.HP);
+
+                // Keep 0 MaxHP if legacy data is completely broken and HP is also 0.
+                // Runtime/domain code should decide whether to repair from defs later.
                 b.MaxHP = Math.Max(b.MaxHP, b.HP);
+
                 dto.world.Buildings[i] = b;
             }
 
@@ -134,7 +152,10 @@ namespace SeasonalBastion
             {
                 var t = dto.world.Towers[i];
                 t.Hp = Math.Max(0, t.Hp);
+
+                // Keep 0 HpMax if legacy data is completely broken and Hp is also 0.
                 t.HpMax = Math.Max(t.HpMax, t.Hp);
+
                 dto.world.Towers[i] = t;
             }
 
@@ -151,8 +172,10 @@ namespace SeasonalBastion
                 s.TargetLevel = Math.Max(1, s.TargetLevel);
                 s.WorkSecondsDone = Math.Max(0f, s.WorkSecondsDone);
                 s.WorkSecondsTotal = Math.Max(0f, s.WorkSecondsTotal);
+
                 if (s.WorkSecondsDone > s.WorkSecondsTotal)
                     s.WorkSecondsDone = s.WorkSecondsTotal;
+
                 s.DeliveredSoFar ??= new List<CostDef>();
                 s.RemainingCosts ??= new List<CostDef>();
                 dto.build.Sites[i] = s;
@@ -161,22 +184,23 @@ namespace SeasonalBastion
             dto.combat.CurrentWaveIndex = Math.Max(0, dto.combat.CurrentWaveIndex);
             dto.population.GrowthProgressDays = Math.Max(0f, dto.population.GrowthProgressDays);
             dto.population.StarvationDays = Math.Max(0, dto.population.StarvationDays);
-            return true;
         }
 
         private static string NormalizeSeason(string seasonText)
         {
-            if (!string.IsNullOrWhiteSpace(seasonText) && Enum.TryParse<Season>(seasonText, out var parsed))
+            if (!string.IsNullOrWhiteSpace(seasonText) &&
+                Enum.TryParse<Season>(seasonText, ignoreCase: true, out var parsed))
+            {
                 return parsed.ToString();
+            }
 
             return Season.Spring.ToString();
         }
 
-        private static bool MigrateMetaV1ToV2(MetaSaveDTO dto)
+        private static void MigrateMetaV1ToV2(MetaSaveDTO dto)
         {
             EnsureMetaDefaults(dto);
             dto.currency = Math.Max(0, dto.currency);
-            return true;
         }
     }
 }

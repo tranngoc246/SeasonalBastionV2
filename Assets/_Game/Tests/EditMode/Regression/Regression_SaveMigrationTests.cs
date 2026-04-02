@@ -123,5 +123,45 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(migrated.unlockIds, Is.Not.Null);
             Assert.That(migrated.perkLevels, Is.Not.Null);
         }
+
+        [Test]
+        public void SaveMigrator_RunSave_LowercaseSeason_IsAccepted_AndCanonicalized()
+        {
+            var migrator = new SeasonalBastion.SaveMigrator();
+            var legacy = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = "winter",
+                dayIndex = 1,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 0f,
+                world = new WorldDTO(),
+                build = new BuildDTO(),
+                combat = new CombatDTO(),
+                rewards = new RewardsDTO(),
+                population = new PopulationDTO(),
+            };
+
+            bool ok = migrator.TryMigrate(legacy, out var migrated);
+
+            Assert.That(ok, Is.True);
+            Assert.That(migrated.season, Is.EqualTo(Season.Winter.ToString()));
+        }
+
+        [Test]
+        public void SaveMigrator_RunSave_NegativeSchemaVersion_Fails()
+        {
+            var migrator = new SeasonalBastion.SaveMigrator();
+            var legacy = new RunSaveDTO
+            {
+                schemaVersion = -1
+            };
+
+            bool ok = migrator.TryMigrate(legacy, out var migrated);
+
+            Assert.That(ok, Is.False);
+            Assert.That(migrated, Is.SameAs(legacy));
+        }
     }
 }

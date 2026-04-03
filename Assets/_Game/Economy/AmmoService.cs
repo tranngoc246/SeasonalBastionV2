@@ -87,10 +87,10 @@ namespace SeasonalBastion
         public int Debug_InFlightHaulAmmoJobs => _haulAmmoJobByArmory.Count;
         public int Debug_PendingUrgent => _urgent.Count;
         public int Debug_PendingNormal => _normal.Count;
-        public int Debug_TotalTowers { get; private set; }
-        public int Debug_TowersWithoutAmmo { get; private set; }
-        public int Debug_ActiveResupplyJobs { get; private set; }
-        public int Debug_ArmoryAvailableAmmo { get; private set; }
+        public int Debug_TotalTowers { get; internal set; }
+        public int Debug_TowersWithoutAmmo { get; internal set; }
+        public int Debug_ActiveResupplyJobs { get; internal set; }
+        public int Debug_ArmoryAvailableAmmo { get; internal set; }
 
         public AmmoService(GameServices s)
         {
@@ -672,7 +672,7 @@ namespace SeasonalBastion
                 _resupplyJobByArmory.Remove(_tmpTowerKeys[i]);
         }
 
-        private bool TryPickBestRequest(out List<AmmoRequest> list, out int index, out AmmoRequest req, out TowerState towerState)
+        internal bool TryPickBestRequest(out List<AmmoRequest> list, out int index, out AmmoRequest req, out TowerState towerState)
         {
             if (TryFindBestRequestIndex(_urgent, out index, out req, out towerState))
             {
@@ -745,7 +745,7 @@ namespace SeasonalBastion
 
         internal void EvaluateResupplySources_Core(IReadOnlyList<BuildingId> candidates, CellPos targetCell, int rank, ref BuildingId bestSource, ref BuildingState bestState, ref int bestAmmo, ref int bestRank, ref int bestDist, ref int bestId) => _towerResupplyPlanner.EvaluateResupplySources(candidates, targetCell, rank, ref bestSource, ref bestState, ref bestAmmo, ref bestRank, ref bestDist, ref bestId);
 
-        private void ConsumeRequestAt(List<AmmoRequest> list, int index)
+        internal void ConsumeRequestAt(List<AmmoRequest> list, int index)
         {
             if (list == null) return;
             if (index < 0 || index >= list.Count) return;
@@ -760,7 +760,7 @@ namespace SeasonalBastion
             }
         }
 
-        private void RotateRequestToBack(List<AmmoRequest> list, int index, AmmoRequest req)
+        internal void RotateRequestToBack(List<AmmoRequest> list, int index, AmmoRequest req)
         {
             if (list == null) return;
             if (index < 0 || index >= list.Count) return;
@@ -882,7 +882,7 @@ namespace SeasonalBastion
 
         internal void EnsureTestTowerExistsIfNeeded_Core() => _debugHooks.EnsureTestTowerExistsIfNeeded();
 
-        private void MaybeRequeueTowerAmmoRequest(TowerId tower)
+        internal void MaybeRequeueTowerAmmoRequest(TowerId tower)
         {
             if (tower.Value == 0) return;
             if (_s.WorldState == null || !_s.WorldState.Towers.Exists(tower)) return;

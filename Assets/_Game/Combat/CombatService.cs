@@ -97,6 +97,9 @@ namespace SeasonalBastion
         {
             if (_s.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing)
             {
+                if (IsActive)
+                    Debug.Log($"[CombatService] Stop combat because run ended: {_s.RunOutcomeService.Outcome}");
+
                 IsActive = false;
                 _deferWaveStartAfterLoad = false;
                 return;
@@ -250,6 +253,7 @@ namespace SeasonalBastion
             {
                 IsActive = true;
                 _deferWaveStartAfterLoad = true;
+                Debug.Log($"[CombatService] Defer wave start after load because {alive} restored enemies are still alive.");
                 // Do NOT call StartDayWaves here.
                 return;
             }

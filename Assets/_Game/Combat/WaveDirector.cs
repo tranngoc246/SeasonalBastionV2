@@ -16,6 +16,15 @@ namespace SeasonalBastion
     {
         private readonly GameServices _s;
 
+        private enum WaveRuntimeState
+        {
+            Idle = 0,
+            Starting = 1,
+            Spawning = 2,
+            WaitingForClear = 3,
+            Completed = 4,
+        }
+
         public event Action<string> WaveStarted;
         public event Action<WaveDef> WaveEnded;
 
@@ -41,6 +50,7 @@ namespace SeasonalBastion
         private bool _spawnDone;
         private float _resolveElapsed;
         private bool _pendingNextWave;
+        private WaveRuntimeState _runtimeState = WaveRuntimeState.Idle;
 
         // Day34: debug counters
         private int _activePlanned;
@@ -62,7 +72,7 @@ namespace SeasonalBastion
         public bool SpawnDone => _spawnDone;
         public float ResolveElapsedSec => _resolveElapsed;
         public float ResolveTimeoutSec => ResolveTimeoutSecConst;
-        public int AliveCount => _s.WorldState?.Enemies?.Count ?? 0;
+        public int AliveCount => GetAliveCountForActiveWave();
 
         public bool ActiveIsBoss => _active != null && _active.IsBoss;
 
@@ -83,6 +93,7 @@ namespace SeasonalBastion
             _spawnDone = false;
             _resolveElapsed = 0f;
             _pendingNextWave = false;
+            _runtimeState = WaveRuntimeState.Idle;
 
             _activePlanned = 0;
             _activeSpawned = 0;
@@ -112,6 +123,7 @@ namespace SeasonalBastion
             // If no active wave, maybe waiting inter-wave gap
             if (_active == null)
             {
+                _runtimeState = _pendingNextWave ? WaveRuntimeState.Completed : WaveRuntimeState.Idle;
                 if (_pendingNextWave && _cooldown <= 0f)
                 {
                     _pendingNextWave = false;
@@ -123,6 +135,7 @@ namespace SeasonalBastion
             // Spawn phase
             if (!_spawnDone)
             {
+                _runtimeState = _runtimeState == WaveRuntimeState.Starting ? WaveRuntimeState.Starting : WaveRuntimeState.Spawning;
                 while (_cooldown <= 0f && _active != null && !_spawnDone)
                 {
                     if (!TrySpawnNextStep())
@@ -130,12 +143,17 @@ namespace SeasonalBastion
                 }
             }
 
-            // Resolve phase (Day34): spawn done + aliveCount==0
-            if (_active != null && _spawnDone)
+            if (_active == null)
+                return;
+
+            // Resolve phase: wave completes only after all scheduled spawns are done
+            // AND no live enemies attributed to this wave remain.
+            if (_spawnDone)
             {
+                _runtimeState = WaveRuntimeState.WaitingForClear;
                 _resolveElapsed += simDt;
 
-                int alive = AliveCount;
+                int alive = GetAliveCountForActiveWave();
                 if (alive <= 0)
                 {
                     EndActiveWaveNow("cleared");
@@ -171,6 +189,7 @@ namespace SeasonalBastion
             _spawnDone = false;
             _resolveElapsed = 0f;
             _pendingNextWave = false;
+            _runtimeState = WaveRuntimeState.Idle;
 
             _activePlanned = 0;
             _activeSpawned = 0;
@@ -191,10 +210,14 @@ namespace SeasonalBastion
 
         private void StartNextWave()
         {
+            if (_active != null)
+                return;
+
             _waveCursor++;
             if (_waveCursor < 0 || _waveCursor >= _today.Count)
             {
                 _active = null;
+                _runtimeState = WaveRuntimeState.Idle;
                 return;
             }
 
@@ -206,10 +229,12 @@ namespace SeasonalBastion
 
             _spawnDone = false;
             _resolveElapsed = 0f;
+            _runtimeState = WaveRuntimeState.Starting;
 
             _activeSpawned = 0;
             _activePlanned = ComputePlannedCount(_active);
 
+            Debug.Log($"[WaveDirector] Start wave '{_active.DefId}' planned={_activePlanned}");
             WaveStarted?.Invoke(_active.DefId);
 
             // Nếu không có lane -> không spawn được. Để tránh softlock, kết thúc ngay (log warn).
@@ -293,6 +318,8 @@ namespace SeasonalBastion
             if (_active == null) return;
 
             var endedWave = _active;
+            _runtimeState = WaveRuntimeState.Completed;
+            Debug.Log($"[WaveDirector] Complete wave '{endedWave.DefId}' reason={reason} spawned={_activeSpawned}/{_activePlanned}");
             WaveEnded?.Invoke(endedWave);
 
             _active = null;
@@ -313,6 +340,7 @@ namespace SeasonalBastion
 
         private bool TrySpawnEnemy(string enemyDefId)
         {
+            if (_active == null) return false;
             if (_s.WorldState == null || _s.DataRegistry == null) return false;
             if (_laneIdsSorted.Count == 0) return false;
 
@@ -320,7 +348,10 @@ namespace SeasonalBastion
             _laneRR++;
 
             if (!TryGetLaneStartCell(laneId, out var spawnCell))
+            {
+                Debug.LogWarning($"[WaveDirector] Spawn failed for wave '{_active.DefId}': missing start cell for lane {laneId}");
                 return false;
+            }
 
             int hp = 1;
             try
@@ -341,13 +372,39 @@ namespace SeasonalBastion
                 Cell = spawnCell,
                 Hp = hp,
                 Lane = laneId,
-                MoveProgress01 = 0f
+                MoveProgress01 = 0f,
+                WaveId = _active.DefId,
+                WaveYear = _active.Year,
+                WaveSeason = _active.Season,
+                WaveDay = _active.Day,
             };
 
             var id = _s.WorldState.Enemies.Create(st);
             st.Id = id;
             _s.WorldState.Enemies.Set(id, st);
+            _runtimeState = WaveRuntimeState.Spawning;
             return true;
+        }
+
+        private int GetAliveCountForActiveWave()
+        {
+            if (_active == null || _s.WorldState?.Enemies == null)
+                return 0;
+
+            int alive = 0;
+            foreach (var id in _s.WorldState.Enemies.Ids)
+            {
+                if (!_s.WorldState.Enemies.Exists(id)) continue;
+                var st = _s.WorldState.Enemies.Get(id);
+                if (st.Hp <= 0) continue;
+                if (!string.Equals(st.WaveId, _active.DefId, StringComparison.Ordinal)) continue;
+                if (st.WaveYear != _active.Year) continue;
+                if (st.WaveSeason != _active.Season) continue;
+                if (st.WaveDay != _active.Day) continue;
+                alive++;
+            }
+
+            return alive;
         }
 
         private bool TryGetLaneStartCell(int laneId, out CellPos cell)

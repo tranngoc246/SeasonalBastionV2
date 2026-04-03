@@ -112,7 +112,7 @@ namespace SeasonalBastion.Tests.EditMode
             var spawned = world.Enemies.Get(afterResumeIds[0]);
             Assert.That(spawned.DefId, Is.EqualTo("enemy_test"), "Deferred spawn should replace the restored enemy with the scheduled wave enemy.");
             Assert.That(spawned.Hp, Is.GreaterThan(0));
-            Assert.That(spawned.Cell.X, Is.EqualTo(32));`r`n            Assert.That(spawned.Cell.Y, Is.EqualTo(63));
+            Assert.That(spawned.Lane, Is.EqualTo(0));
             Assert.That(spawned.WaveId, Is.EqualTo("wave_resume_guard"));
             Assert.That(spawned.WaveYear, Is.EqualTo(1));
             Assert.That(spawned.WaveSeason, Is.EqualTo(Season.Autumn));
@@ -375,7 +375,7 @@ namespace SeasonalBastion.Tests.EditMode
             var spawned = world.Enemies.Get(afterResumeIds[0]);
             Assert.That(spawned.DefId, Is.EqualTo("enemy_test"), "After restored enemies are cleared, deferred spawning should produce the scheduled wave enemy.");
             Assert.That(spawned.Hp, Is.GreaterThan(0));
-            Assert.That(spawned.Cell.X, Is.EqualTo(32));`r`n            Assert.That(spawned.Cell.Y, Is.EqualTo(63));
+            Assert.That(spawned.Lane, Is.EqualTo(0));
             Assert.That(spawned.WaveId, Is.EqualTo("wave_deferred_resume"));
             Assert.That(spawned.WaveYear, Is.EqualTo(1));
             Assert.That(spawned.WaveSeason, Is.EqualTo(Season.Autumn));

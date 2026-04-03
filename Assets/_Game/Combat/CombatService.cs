@@ -224,6 +224,8 @@ namespace SeasonalBastion
         // Reset-wave option: restart day waves if Defend.
         public void ResetAfterLoad(CombatDTO dto)
         {
+            _waves?.ResetForLoad();
+
             // Relatch current clock
             _latchedPhase = _s.RunClock.CurrentPhase;
             _latchedSeason = _s.RunClock.CurrentSeason;

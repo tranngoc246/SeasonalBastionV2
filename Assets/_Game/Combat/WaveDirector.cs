@@ -82,22 +82,7 @@ namespace SeasonalBastion
             var day = _s.RunClock.DayIndex;
             var year = GetYearIndexOr1();
 
-            _today.Clear();
-            _waveCursor = -1;
-            _active = null;
-
-            _entryIndex = 0;
-            _spawnedInEntry = 0;
-            _cooldown = 0f;
-
-            _spawnDone = false;
-            _resolveElapsed = 0f;
-            _pendingNextWave = false;
-            _runtimeState = WaveRuntimeState.Idle;
-
-            _activePlanned = 0;
-            _activeSpawned = 0;
-
+            ResetRuntimeState();
             BuildLaneIds();
 
             var waves = ResolveWavesForCalendar(year, season, day);
@@ -178,6 +163,28 @@ namespace SeasonalBastion
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (def == null) return;
 
+            ResetRuntimeState();
+            BuildLaneIds();
+
+            _today.Add(def);
+            StartNextWave();
+#endif
+        }
+
+        public void ForceResolveActiveWave()
+        {
+            if (_active == null) return;
+            Debug.LogWarning($"[WaveDirector] ForceResolveActiveWave '{_active.DefId}'");
+            EndActiveWaveNow("force");
+        }
+
+        public void ResetForLoad()
+        {
+            ResetRuntimeState();
+        }
+
+        private void ResetRuntimeState()
+        {
             _today.Clear();
             _waveCursor = -1;
             _active = null;
@@ -193,19 +200,6 @@ namespace SeasonalBastion
 
             _activePlanned = 0;
             _activeSpawned = 0;
-
-            BuildLaneIds();
-
-            _today.Add(def);
-            StartNextWave();
-#endif
-        }
-
-        public void ForceResolveActiveWave()
-        {
-            if (_active == null) return;
-            Debug.LogWarning($"[WaveDirector] ForceResolveActiveWave '{_active.DefId}'");
-            EndActiveWaveNow("force");
         }
 
         private void StartNextWave()

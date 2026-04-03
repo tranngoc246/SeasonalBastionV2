@@ -34,10 +34,12 @@ namespace SeasonalBastion
 
             _cancelTrackedJobsForSite?.Invoke(o.Site);
 
+            ClearSiteFootprint(site);
+
             if (!FinalizePlacedBuilding(ref o, site))
                 return;
 
-            CleanupBuildSite(o.Site, site, publishEvent: true);
+            DestroyBuildSite(o.Site, publishEvent: true);
             o.Completed = true;
             _removeAutoRoadByOrder?.Invoke(o.OrderId);
         }
@@ -56,10 +58,12 @@ namespace SeasonalBastion
 
             _cancelTrackedJobsForSite?.Invoke(o.Site);
 
+            ClearSiteFootprint(site);
+
             if (!FinalizeUpgrade(ref o, site))
                 return;
 
-            CleanupBuildSite(o.Site, site, publishEvent: true);
+            DestroyBuildSite(o.Site, publishEvent: true);
             o.Completed = true;
         }
 
@@ -156,7 +160,11 @@ namespace SeasonalBastion
         private void CleanupBuildSite(SiteId siteId, in BuildSiteState site, bool publishEvent)
         {
             ClearSiteFootprint(site);
+            DestroyBuildSite(siteId, publishEvent);
+        }
 
+        private void DestroyBuildSite(SiteId siteId, bool publishEvent)
+        {
             if (_s.WorldState.Sites.Exists(siteId))
                 _s.WorldState.Sites.Destroy(siteId);
 

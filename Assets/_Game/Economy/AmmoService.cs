@@ -419,7 +419,7 @@ namespace SeasonalBastion
             Debug_TotalTowers = 0;
             Debug_TowersWithoutAmmo = 0;
             Debug_ArmoryAvailableAmmo = 0;
-            Debug_ActiveResupplyJobs = _s.JobBoard is JobBoard concrete ? concrete.CountActiveJobs(JobArchetype.ResupplyTower) : _resupplyJobByTower.Count;
+            Debug_ActiveResupplyJobs = CountTrackedActiveResupplyJobs();
 
             var towers = _s.WorldIndex.Towers;
             if (towers != null)
@@ -478,6 +478,20 @@ namespace SeasonalBastion
             int count = 0;
             count += CountEligibleRequests(_urgent);
             count += CountEligibleRequests(_normal);
+            return count;
+        }
+
+        private int CountTrackedActiveResupplyJobs()
+        {
+            int count = 0;
+            foreach (var kv in _resupplyJobByTower)
+            {
+                if (!_s.JobBoard.TryGet(kv.Value, out var job))
+                    continue;
+
+                if (!IsTerminal(job.Status))
+                    count++;
+            }
             return count;
         }
 

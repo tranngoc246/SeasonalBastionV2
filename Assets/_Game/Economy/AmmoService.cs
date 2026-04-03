@@ -270,6 +270,8 @@ namespace SeasonalBastion
             return false;
         }
 
+        public bool TryStartCraft(BuildingId forge) => TryStartCraft_Core(forge);
+
         internal bool TryStartCraft_Core(BuildingId forge)
         {
             if (_s.WorldState == null || _s.StorageService == null || _s.JobBoard == null || _s.DataRegistry == null) return false;

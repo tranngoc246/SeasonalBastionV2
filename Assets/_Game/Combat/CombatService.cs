@@ -51,6 +51,20 @@ namespace SeasonalBastion
         private int _latchedDay;
         private int _latchedYear;
 
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        private static void LogCombatInfo(string message)
+        {
+            Debug.Log($"[CombatService] {message}");
+        }
+
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        private static void LogCombatWarn(string message)
+        {
+            Debug.LogWarning($"[CombatService] {message}");
+        }
+
         public CombatService(GameServices s)
         {
             _s = s;
@@ -98,7 +112,7 @@ namespace SeasonalBastion
             if (_s.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing)
             {
                 if (IsActive)
-                    Debug.Log($"[CombatService] Stop combat because run ended: {_s.RunOutcomeService.Outcome}");
+                    LogCombatInfo($"Stop combat because run ended: {_s.RunOutcomeService.Outcome}");
 
                 IsActive = false;
                 _deferWaveStartAfterLoad = false;
@@ -258,7 +272,7 @@ namespace SeasonalBastion
             {
                 IsActive = true;
                 _deferWaveStartAfterLoad = true;
-                Debug.Log($"[CombatService] Defer wave start after load because {alive} restored enemies are still alive.");
+                LogCombatInfo($"Defer wave start after load because {alive} restored enemies are still alive.");
                 // Do NOT call StartDayWaves here.
                 return;
             }

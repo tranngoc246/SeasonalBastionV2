@@ -75,12 +75,19 @@ namespace SeasonalBastion
         public int AliveCount => GetAliveCountForActiveWave();
 
         public bool ActiveIsBoss => _active != null && _active.IsBoss;
+        public string Debug_LastWaveEndReason { get; private set; }
 
         public void StartDayWaves(int dayIndex)
         {
+            // Intentional reset point: this method initializes the wave queue for a new defend day
+            // or a controlled restart path (for example after load/reset reconstruction).
+            // It should not be used as a per-frame "ensure active" call.
             var season = _s.RunClock.CurrentSeason;
             var day = _s.RunClock.DayIndex;
             var year = GetYearIndexOr1();
+
+            if (_active != null && _active.Year == year && _active.Season == season && _active.Day == day)
+                return;
 
             ResetRuntimeState();
             BuildLaneIds();
@@ -216,6 +223,7 @@ namespace SeasonalBastion
             }
 
             _active = _today[_waveCursor];
+            Debug_LastWaveEndReason = null;
 
             _entryIndex = 0;
             _spawnedInEntry = 0;
@@ -313,6 +321,7 @@ namespace SeasonalBastion
 
             var endedWave = _active;
             _runtimeState = WaveRuntimeState.Completed;
+            Debug_LastWaveEndReason = reason;
             Debug.Log($"[WaveDirector] Complete wave '{endedWave.DefId}' reason={reason} spawned={_activeSpawned}/{_activePlanned}");
             WaveEnded?.Invoke(endedWave);
 

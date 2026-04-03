@@ -50,6 +50,14 @@ namespace SeasonalBastion.Tests.EditMode
             world.Buildings.Set(id, b);
         }
 
+        private static List<EnemyId> GetEnemyIds(WorldState world)
+        {
+            var ids = new List<EnemyId>();
+            foreach (var id in world.Enemies.Ids) ids.Add(id);
+            ids.Sort((a, b) => a.Value.CompareTo(b.Value));
+            return ids;
+        }
+
         [Test]
         public void CombatLoad_WithSavedEnemies_DoesNotDoubleSpawnUntilCleared()
         {
@@ -91,11 +99,22 @@ namespace SeasonalBastion.Tests.EditMode
             combat.ResetAfterLoad(new CombatDTO { IsDefendActive = true, CurrentWaveIndex = 0 });
 
             for (int i = 0; i < 6; i++) combat.Tick(0.5f);
-            Assert.That(world.Enemies.Count, Is.EqualTo(1));
+            var beforeClearIds = GetEnemyIds(world);
+            Assert.That(beforeClearIds.Count, Is.EqualTo(1));
+            Assert.That(beforeClearIds[0].Value, Is.EqualTo(restoredId.Value), "No new enemy id should appear before restored enemies are cleared.");
 
             world.Enemies.ClearAll();
             for (int i = 0; i < 4; i++) combat.Tick(0.5f);
-            Assert.That(world.Enemies.Count, Is.EqualTo(1));
+
+            var afterResumeIds = GetEnemyIds(world);
+            Assert.That(afterResumeIds.Count, Is.EqualTo(1));
+            Assert.That(afterResumeIds[0].Value, Is.Not.EqualTo(restoredId.Value), "Deferred spawn should create a fresh enemy id after restored enemies are cleared.");
+
+            var spawned = world.Enemies.Get(afterResumeIds[0]);
+            Assert.That(spawned.WaveId, Is.EqualTo("wave_resume_guard"));
+            Assert.That(spawned.WaveYear, Is.EqualTo(1));
+            Assert.That(spawned.WaveSeason, Is.EqualTo(Season.Autumn));
+            Assert.That(spawned.WaveDay, Is.EqualTo(1));
         }
 
         [Test]
@@ -256,6 +275,9 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(world.Enemies.Count, Is.EqualTo(0));
             Assert.That(services.CombatService.IsActive, Is.False);
+
+            for (int i = 0; i < 6; i++) services.CombatService.Tick(0.5f);
+            Assert.That(world.Enemies.Count, Is.EqualTo(0), "After a fresh New Run in build phase, stale combat/deferred runtime state must not spawn enemies.");
         }
 
         [Test]
@@ -337,11 +359,23 @@ namespace SeasonalBastion.Tests.EditMode
 
             combat.ResetAfterLoad(new CombatDTO { IsDefendActive = true, CurrentWaveIndex = 0 });
             for (int i = 0; i < 4; i++) combat.Tick(0.5f);
-            Assert.That(world.Enemies.Count, Is.EqualTo(1));
+
+            var beforeClearIds = GetEnemyIds(world);
+            Assert.That(beforeClearIds.Count, Is.EqualTo(1));
+            Assert.That(beforeClearIds[0].Value, Is.EqualTo(restoredId.Value), "Before restored enemies are cleared, only the restored enemy should exist.");
 
             world.Enemies.ClearAll();
             for (int i = 0; i < 4; i++) combat.Tick(0.5f);
-            Assert.That(world.Enemies.Count, Is.EqualTo(1));
+
+            var afterResumeIds = GetEnemyIds(world);
+            Assert.That(afterResumeIds.Count, Is.EqualTo(1));
+            Assert.That(afterResumeIds[0].Value, Is.Not.EqualTo(restoredId.Value), "Clearing restored enemies should allow deferred spawning to create a fresh enemy.");
+
+            var spawned = world.Enemies.Get(afterResumeIds[0]);
+            Assert.That(spawned.WaveId, Is.EqualTo("wave_deferred_resume"));
+            Assert.That(spawned.WaveYear, Is.EqualTo(1));
+            Assert.That(spawned.WaveSeason, Is.EqualTo(Season.Autumn));
+            Assert.That(spawned.WaveDay, Is.EqualTo(1));
         }
     }
 }

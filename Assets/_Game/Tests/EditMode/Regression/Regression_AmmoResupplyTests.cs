@@ -487,7 +487,7 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
-        public void ResupplyTowerExecutor_FailedAfterPickup_RefundsAmmo_AndAmmoServiceRetries()
+        public void ResupplyTowerExecutor_CancelledAfterPickup_RefundsAmmo_AndAmmoServiceRetries()
         {
             var bus = new TestEventBus();
             var world = new WorldState();
@@ -535,7 +535,7 @@ namespace SeasonalBastion.Tests.EditMode
                 if (armoryAmmo < 50)
                 {
                     pickupObserved = true;
-                    liveJob.Status = JobStatus.Failed;
+                    liveJob.Status = JobStatus.Cancelled;
                     board.Update(liveJob);
                     break;
                 }
@@ -547,7 +547,7 @@ namespace SeasonalBastion.Tests.EditMode
             executor.Tick(npc, ref npcState, ref failedJob, 1f);
             board.Update(failedJob);
             world.Npcs.Set(npc, npcState);
-            Assert.That(storage.GetAmount(armory, ResourceType.Ammo), Is.EqualTo(50), "Failed in-flight delivery must refund carried ammo.");
+            Assert.That(storage.GetAmount(armory, ResourceType.Ammo), Is.EqualTo(50), "Cancelled in-flight delivery must refund carried ammo.");
 
             ammo.Tick(0.1f);
 

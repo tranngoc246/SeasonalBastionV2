@@ -183,7 +183,6 @@ namespace SeasonalBastion
             var towerId = _w.Towers.Create(tower);
             tower.Id = towerId;
             _w.Towers.Set(towerId, tower);
-            _index?.OnTowerCreated(towerId);
             _bus?.Publish(new WorldStateChangedEvent("Tower", towerId.Value));
         }
 
@@ -203,7 +202,6 @@ namespace SeasonalBastion
                 if (existing.Cell.X == towerCell.X && existing.Cell.Y == towerCell.Y)
                 {
                     _w.Towers.Destroy(tid);
-                    _index?.OnTowerDestroyed(tid);
                     _bus?.Publish(new WorldStateChangedEvent("Tower", tid.Value));
                     return;
                 }

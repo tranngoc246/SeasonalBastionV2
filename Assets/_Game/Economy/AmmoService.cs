@@ -580,60 +580,6 @@ namespace SeasonalBastion
 
         internal void EnsureForgeSupplyByRecipe_Core(BuildingId forge, CellPos forgeAnchor, RecipeDef recipe) => _armoryBufferPlanner.EnsureForgeSupplyByRecipe(forge, forgeAnchor, recipe);
 
-        private void EnsureSupplyJobToForge_ByTarget(BuildingId forge, CellPos forgeAnchor, ResourceType rt, int perCraftAmount, int craftsTarget)
-        {
-            if (perCraftAmount <= 0) return;
-
-            int cap = _s.StorageService.GetCap(forge, rt);
-            int cur = _s.StorageService.GetAmount(forge, rt);
-            if (cap <= 0) return;
-            if (cur >= cap) return;
-
-            int target = perCraftAmount * craftsTarget;
-            if (target > cap) target = cap;
-
-            int want = target - cur;
-            if (want <= 0) return;
-
-            int free = cap - cur;
-            if (want > free) want = free;
-
-            // Clamp by per-trip carry cap (fallback = 10).
-            // If you later data-drive HaulToForge carry, update this constant or read from Balance.
-            const int CarryCapFallback = 10;
-            if (want > CarryCapFallback) want = CarryCapFallback;
-
-            if (want <= 0) return;
-
-            int key = forge.Value * 16 + (int)rt;
-            if (_supplyJobByForgeAndType.TryGetValue(key, out var oldId))
-            {
-                if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
-                    return;
-            }
-
-            if (!TryPickPreferredHaulerWorkplace(forgeAnchor, out var workplace))
-                return;
-
-            var j = new Job
-            {
-                Archetype = JobArchetype.HaulToForge,
-                Status = JobStatus.Created,
-
-                Workplace = workplace,
-                SourceBuilding = default,     // executor will pick nearest storage with amount
-                DestBuilding = forge,
-
-                ResourceType = rt,
-                Amount = want,
-                TargetCell = default,
-                CreatedAt = 0
-            };
-
-            var id = _s.JobBoard.Enqueue(j);
-            _supplyJobByForgeAndType[key] = id;
-        }
-
         // ----------------- Day26: ResupplyTower provider -----------------
 
         internal void EnsureResupplyTowerJobs_Core() => _towerResupplyPlanner.EnsureResupplyTowerJobs();

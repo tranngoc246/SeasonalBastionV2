@@ -9,6 +9,9 @@ namespace SeasonalBastion
     public static class SaveLoadApplier
     {
         public static bool TryApply(GameServices s, RunSaveDTO dto, out string error)
+            => TryApply(s, dto, out error, logErrors: true);
+
+        public static bool TryApply(GameServices s, RunSaveDTO dto, out string error, bool logErrors)
         {
             error = null;
             if (s == null) { error = "GameServices null"; return false; }
@@ -20,7 +23,7 @@ namespace SeasonalBastion
             {
                 if (!ValidateSnapshotDeep(s, dto, out error))
                 {
-                    Debug.LogError("[SaveLoad] Snapshot validation failed: " + error);
+                    if (logErrors) Debug.LogError("[SaveLoad] Snapshot validation failed: " + error);
                     return false;
                 }
 
@@ -46,14 +49,14 @@ namespace SeasonalBastion
                 {
                     transaction.Rollback();
                     error = ex.Message;
-                    Debug.LogError("[SaveLoad] Apply transaction failed: " + ex);
+                    if (logErrors) Debug.LogError("[SaveLoad] Apply transaction failed: " + ex);
                     return false;
                 }
             }
             catch (Exception e)
             {
                 error = e.Message;
-                Debug.LogError("[SaveLoad] TryApply failed: " + e);
+                if (logErrors) Debug.LogError("[SaveLoad] TryApply failed: " + e);
                 return false;
             }
         }

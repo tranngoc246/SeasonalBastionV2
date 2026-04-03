@@ -487,21 +487,8 @@ namespace SeasonalBastion
 
         private int ResolveRunSeed(IRunClock clock)
         {
-            if (clock is RunClockService)
-            {
-                try
-                {
-                    var bootstrap = UnityEngine.Object.FindObjectOfType<GameBootstrap>();
-                    var services = bootstrap != null ? bootstrap.Services : null;
-                    if (services?.RunStartRuntime != null)
-                        return services.RunStartRuntime.Seed;
-                }
-                catch (Exception e)
-                {
-                    Debug.LogError("[SaveLoad] ResolveRunSeed failed: " + e);
-                }
-            }
-
+            // Current save contract has no reliable scene-agnostic seed source.
+            // Keep this deterministic and compile-safe until seed is exposed by runtime contracts.
             return 0;
         }
 

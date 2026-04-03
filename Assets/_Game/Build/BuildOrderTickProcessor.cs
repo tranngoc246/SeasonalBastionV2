@@ -101,6 +101,9 @@ namespace SeasonalBastion
                     if (o.Kind == BuildOrderKind.PlaceNew) _completePlaceOrder?.Invoke(ref o);
                     else if (o.Kind == BuildOrderKind.Upgrade) _completeUpgradeOrder?.Invoke(ref o);
 
+                    if (!wasCompleted && o.Completed)
+                        _cancelTrackedJobsForSite?.Invoke(o.Site);
+
                     _orders[id] = o;
                     if (!wasCompleted && o.Completed)
                         _onOrderCompleted?.Invoke(id);

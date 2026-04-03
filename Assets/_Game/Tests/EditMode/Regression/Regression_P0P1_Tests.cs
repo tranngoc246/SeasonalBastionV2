@@ -2242,6 +2242,8 @@ namespace SeasonalBastion.Tests.EditMode
             var grid = new GridMap(64, 64);
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+            data.AddEnemy(new EnemyDef { DefId = "enemy_saved", MaxHp = 10 });
+            data.AddEnemy(new EnemyDef { DefId = "enemy_test", MaxHp = 10 });
 
             var clock = new FakeRunClock();
             var services = MakeServices(bus, data, new NotificationService(bus), clock, new FakeRunOutcomeService(), world: world, grid: grid);
@@ -2328,6 +2330,7 @@ namespace SeasonalBastion.Tests.EditMode
             var grid = new GridMap(64, 64);
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+            data.AddEnemy(new EnemyDef { DefId = "enemy_test", MaxHp = 10 });
 
             var clock = new FakeRunClock();
             var services = MakeServices(bus, data, new NotificationService(bus), clock, new FakeRunOutcomeService(), world: world, grid: grid);

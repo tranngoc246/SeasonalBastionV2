@@ -512,6 +512,16 @@ namespace SeasonalBastion
             return count;
         }
 
+        private bool TryGetAmmoRecipe(out RecipeDef recipe) => TryGetAmmoRecipe_Core(out recipe);
+        private void RebuildWorkplaceHasNpcSet() => RebuildWorkplaceHasNpcSet_Core();
+        private bool TryPickPreferredHaulerWorkplace(CellPos forgeAnchor, out BuildingId workplace) => TryPickPreferredHaulerWorkplace_Core(forgeAnchor, out workplace);
+        private bool TryCreateNextResupplyTowerJob() => TryCreateNextResupplyTowerJob_Core();
+        private bool TryPickBestResupplySource(TowerState towerState, out BuildingId source, out BuildingState sourceState, out int availableAmmo) => TryPickBestResupplySource_Core(towerState, out source, out sourceState, out availableAmmo);
+        private void EvaluateResupplySources(IReadOnlyList<BuildingId> candidates, CellPos targetCell, int rank, ref BuildingId bestSource, ref BuildingState bestState, ref int bestAmmo, ref int bestRank, ref int bestDist, ref int bestId) => EvaluateResupplySources_Core(candidates, targetCell, rank, ref bestSource, ref bestState, ref bestAmmo, ref bestRank, ref bestDist, ref bestId);
+        private bool TryPickNearestWorkplaceFromIndex(IReadOnlyList<BuildingId> list, CellPos from, bool requireNpc, out BuildingId best) => TryPickNearestWorkplaceFromIndex_Core(list, from, requireNpc, out best);
+        private bool TryPickForgeAmmoSource(CellPos refPos, out BuildingId bestForge, out int bestTakeable) => TryPickForgeAmmoSource_Core(refPos, out bestForge, out bestTakeable);
+        private bool ContainsRequestForTower(List<AmmoRequest> list, TowerId tower) => ContainsRequestForTower_Core(list, tower);
+
         private int CountTrackedActiveResupplyJobs()
         {
             int count = 0;

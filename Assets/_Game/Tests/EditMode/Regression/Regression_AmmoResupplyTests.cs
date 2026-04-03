@@ -1,7 +1,6 @@
 ﻿using NUnit.Framework;
 using SeasonalBastion.Contracts;
 using System;
-using System.Collections.Generic;
 
 namespace SeasonalBastion.Tests.EditMode
 {
@@ -521,23 +520,17 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(assignment.TryAssign(npc, ref npcState, _ => true), Is.True);
             world.Npcs.Set(npc, npcState);
 
-            var execMap = new Dictionary<JobArchetype, IJobExecutor>
-            {
-                [JobArchetype.ResupplyTower] = new ResupplyTowerExecutor(services)
-            };
-            var exec = new JobExecutionService(
-                services,
-                world,
-                board,
-                new JobExecutorRegistryShim(execMap),
-                new JobStateCleanupService(services.ClaimService));
+            var executor = new ResupplyTowerExecutor(services);
 
             bool pickupObserved = false;
             int safety = 0;
             while (safety++ < 64)
             {
-                exec.TickCurrentJobs(new List<NpcId> { npc }, 1f);
                 Assert.That(board.TryGet(job.Id, out var liveJob), Is.True);
+                executor.Tick(npc, ref npcState, ref liveJob, 1f);
+                board.Update(liveJob);
+                world.Npcs.Set(npc, npcState);
+
                 int armoryAmmo = storage.GetAmount(armory, ResourceType.Ammo);
                 if (armoryAmmo < 50)
                 {
@@ -550,7 +543,10 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(pickupObserved, Is.True, "NPC should pick up ammo before simulated failure.");
 
-            exec.TickCurrentJobs(new List<NpcId> { npc }, 1f);
+            Assert.That(board.TryGet(job.Id, out var failedJob), Is.True);
+            executor.Tick(npc, ref npcState, ref failedJob, 1f);
+            board.Update(failedJob);
+            world.Npcs.Set(npc, npcState);
             Assert.That(storage.GetAmount(armory, ResourceType.Ammo), Is.EqualTo(50), "Failed in-flight delivery must refund carried ammo.");
 
             ammo.Tick(0.1f);
@@ -576,16 +572,5 @@ namespace SeasonalBastion.Tests.EditMode
             return id;
         }
 
-        private sealed class JobExecutorRegistryShim : JobExecutorRegistry
-        {
-            private readonly Dictionary<JobArchetype, IJobExecutor> _map;
-
-            public JobExecutorRegistryShim(Dictionary<JobArchetype, IJobExecutor> map) : base(new GameServices())
-            {
-                _map = map;
-            }
-
-            public new IJobExecutor Get(JobArchetype a) => _map[a];
-        }
     }
 }

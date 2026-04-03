@@ -1,5 +1,6 @@
 ﻿namespace SeasonalBastion
 {
+    using System;
     using System.Collections.Generic;
     using SeasonalBastion.Contracts;
     using UnityEngine;

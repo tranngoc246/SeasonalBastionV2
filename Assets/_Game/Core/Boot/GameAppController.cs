@@ -1,7 +1,10 @@
-using System;
+﻿using System;
 using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace SeasonalBastion
 {
@@ -27,12 +30,34 @@ namespace SeasonalBastion
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void EnsureExists()
         {
+#if UNITY_EDITOR
+            if (IsRunningEditorTests())
+                return;
+#endif
             if (_instance != null) return;
 
             var go = new GameObject("GameAppController");
             DontDestroyOnLoad(go);
             _instance = go.AddComponent<GameAppController>();
         }
+
+#if UNITY_EDITOR
+        private static bool IsRunningEditorTests()
+        {
+            try
+            {
+                return EditorApplication.isPlayingOrWillChangePlaymode == false
+                    && System.Environment.GetCommandLineArgs() != null
+                    && System.Array.Exists(System.Environment.GetCommandLineArgs(), a =>
+                        string.Equals(a, "-runEditorTests", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(a, "-runTests", StringComparison.OrdinalIgnoreCase));
+            }
+            catch
+            {
+                return false;
+            }
+        }
+#endif
 
         private void Awake()
         {

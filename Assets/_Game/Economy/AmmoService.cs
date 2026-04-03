@@ -1250,6 +1250,31 @@ namespace SeasonalBastion
             return fallback;
         }
 
+        private bool GetBalBool(string section, string key, bool fallback)
+        {
+            try
+            {
+                var cfg = TryGetBalanceConfig();
+                if (cfg == null) return fallback;
+
+                var secField = cfg.GetType().GetField(section);
+                if (secField == null) return fallback;
+
+                var secObj = secField.GetValue(cfg);
+                if (secObj == null) return fallback;
+
+                var keyField = secObj.GetType().GetField(key);
+                if (keyField == null) return fallback;
+
+                var v = keyField.GetValue(secObj);
+                if (v is bool b) return b;
+                if (v is int i) return i != 0;
+                if (v is string s && bool.TryParse(s, out var parsed)) return parsed;
+            }
+            catch { }
+            return fallback;
+        }
+
         private float GetBalFloat(string section, string key, float fallback)
         {
             try

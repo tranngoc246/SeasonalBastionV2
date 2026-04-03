@@ -361,6 +361,84 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(jobB.Tower.Value == towerA.Value || jobB.Tower.Value == towerB.Value, Is.True);
         }
 
+        [Test]
+        public void AmmoResupply_RecreatesJob_WhenTowerStillEmpty_AfterClaimedJobFails()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var storage = new FakeStorageService();
+            var board = new JobBoard();
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = storage;
+            services.JobBoard = board;
+            services.CombatService = new FakeCombatService();
+
+            var armory = CreateConstructedBuilding(world, data, "bld_armory_t1", new CellPos(1, 1), level: 1, isArmory: true, isWarehouse: false, workRoles: WorkRoleFlags.Armory);
+            var tower = CreateTower(world, new CellPos(8, 8), ammo: 0, ammoCap: 20);
+            CreateNpc(world, armory, new CellPos(1, 2));
+            services.WorldIndex.RebuildAll();
+            storage.SetCap(armory, ResourceType.Ammo, 200);
+            storage.SetAmount(armory, ResourceType.Ammo, 50);
+
+            var sut = new AmmoService(services);
+            sut.Tick(0.1f);
+            Assert.That(board.TryPeekForWorkplace(armory, out var firstJob), Is.True);
+
+            firstJob.Status = JobStatus.Claimed;
+            board.Update(firstJob);
+            firstJob.Status = JobStatus.Failed;
+            board.Update(firstJob);
+
+            sut.Tick(0.1f);
+
+            Assert.That(board.TryPeekForWorkplace(armory, out var retryJob), Is.True);
+            Assert.That(retryJob.Id.Value, Is.Not.EqualTo(firstJob.Id.Value));
+            Assert.That(retryJob.Tower.Value, Is.EqualTo(tower.Value));
+            Assert.That(sut.Debug_ActiveResupplyJobs, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void AmmoResupply_NoDeadlock_WhenTrackedMappingsAreStale_ButWorkStillExists()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var storage = new FakeStorageService();
+            var board = new JobBoard();
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = storage;
+            services.JobBoard = board;
+            services.CombatService = new FakeCombatService();
+
+            var armory = CreateConstructedBuilding(world, data, "bld_armory_t1", new CellPos(1, 1), level: 1, isArmory: true, isWarehouse: false, workRoles: WorkRoleFlags.Armory);
+            var tower = CreateTower(world, new CellPos(8, 8), ammo: 0, ammoCap: 20);
+            CreateNpc(world, armory, new CellPos(1, 2));
+            services.WorldIndex.RebuildAll();
+            storage.SetCap(armory, ResourceType.Ammo, 200);
+            storage.SetAmount(armory, ResourceType.Ammo, 50);
+
+            var sut = new AmmoService(services);
+            sut.Tick(0.1f);
+            Assert.That(board.TryPeekForWorkplace(armory, out var firstJob), Is.True);
+
+            firstJob.Status = JobStatus.Completed;
+            board.Update(firstJob);
+
+            var towerState = world.Towers.Get(tower);
+            towerState.Ammo = 0;
+            world.Towers.Set(tower, towerState);
+            sut.NotifyTowerAmmoChanged(tower, 0, 20);
+            sut.Tick(0.1f);
+
+            Assert.That(board.TryPeekForWorkplace(armory, out var secondJob), Is.True);
+            Assert.That(secondJob.Id.Value, Is.Not.EqualTo(firstJob.Id.Value));
+            Assert.That(secondJob.Tower.Value, Is.EqualTo(tower.Value));
+            Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(1));
+        }
+
         private static BuildingId CreateConstructedBuilding(WorldState world, TestDataRegistry data, string defId, CellPos anchor, int level, bool isArmory, bool isWarehouse, WorkRoleFlags workRoles)
         {
             data.Add(new BuildingDef

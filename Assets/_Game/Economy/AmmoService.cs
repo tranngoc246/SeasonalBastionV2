@@ -20,6 +20,7 @@ namespace SeasonalBastion
         private readonly HashSet<int> _towerNeedLogged = new();
         private readonly HashSet<int> _towerNoSourceLogged = new();
         private readonly HashSet<int> _towerNoJobLogged = new();
+        private readonly HashSet<int> _towerDeadlockLogged = new();
 
         // Cooldown timestamps (sim time)
         private readonly Dictionary<int, float> _nextReqLowAt = new();
@@ -390,6 +391,7 @@ namespace SeasonalBastion
             _towerNeedLogged.Clear();
             _towerNoSourceLogged.Clear();
             _towerNoJobLogged.Clear();
+            _towerDeadlockLogged.Clear();
 
             _nextReqLowAt.Clear();
             _nextReqEmptyAt.Clear();
@@ -454,23 +456,37 @@ namespace SeasonalBastion
         private void LogPotentialResupplyDeadlock()
         {
             if (Debug_TowersWithoutAmmo <= 0)
+            {
+                _towerDeadlockLogged.Clear();
                 return;
+            }
 
             if (Debug_ArmoryAvailableAmmo <= 0)
                 return;
 
             if (Debug_ActiveResupplyJobs > 0)
+            {
+                _towerDeadlockLogged.Clear();
                 return;
+            }
 
             int eligibleRequests = CountEligibleRequests();
             if (eligibleRequests <= 0)
                 return;
 
-            for (int i = 0; i < _urgent.Count; i++)
+            LogDeadlockForRequests(_urgent);
+            LogDeadlockForRequests(_normal);
+        }
+
+        private void LogDeadlockForRequests(List<AmmoRequest> list)
+        {
+            if (list == null) return;
+
+            for (int i = 0; i < list.Count; i++)
             {
-                int tid = _urgent[i].Tower.Value;
+                int tid = list[i].Tower.Value;
                 if (tid == 0) continue;
-                if (_towerNoJobLogged.Add(tid))
+                if (_towerDeadlockLogged.Add(tid))
                     Log.E($"[Ammo] Armory has ammo but no job created. tower={tid} totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo} pending={PendingRequests}");
             }
         }
@@ -791,6 +807,8 @@ namespace SeasonalBastion
                 {
                     if (_s.JobBoard.TryGet(inFlightJob, out var jj) && !IsTerminal(jj.Status))
                         continue;
+
+                    _resupplyJobByTower.Remove(tid);
                 }
 
                 var ts = _s.WorldState.Towers.Get(r.Tower);
@@ -833,6 +851,8 @@ namespace SeasonalBastion
                 {
                     if (_s.JobBoard.TryGet(existingTowerJob, out var existing) && !IsTerminal(existing.Status))
                         return false;
+
+                    _resupplyJobByTower.Remove(req.Tower.Value);
                 }
 
                 if (_resupplyJobByArmory.TryGetValue(source.Value, out var oldId))
@@ -876,6 +896,8 @@ namespace SeasonalBastion
                             return false;
                         continue;
                     }
+
+                    _resupplyJobByArmory.Remove(source.Value);
                 }
 
                 int need = towerState.AmmoCap - towerState.Ammo;
@@ -908,12 +930,13 @@ namespace SeasonalBastion
                 _resupplyJobByTower[req.Tower.Value] = id;
                 _towerNoSourceLogged.Remove(req.Tower.Value);
                 _towerNoJobLogged.Remove(req.Tower.Value);
+                _towerDeadlockLogged.Remove(req.Tower.Value);
                 if (DebugAmmoLogs)
                     Log.E($"[Ammo] resupply created source={source.Value} tower={req.Tower.Value} amount={amount} priority={req.Priority}");
                 return true;
             }
 
-            if (_towerNoSourceLogged.Add(req.Tower.Value))
+            if (_towerNoJobLogged.Add(req.Tower.Value))
                 Log.E($"[Ammo] Armory has ammo but no job created. tower={req.Tower.Value} totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo} pending={PendingRequests}");
             return false;
         }
@@ -1022,6 +1045,7 @@ namespace SeasonalBastion
                     _pendingReqTower.Remove(tid);
                     _pendingPriorityByTower.Remove(tid);
                     _towerNoJobLogged.Remove(tid);
+                    _towerDeadlockLogged.Remove(tid);
                 }
             }
         }
@@ -1292,6 +1316,7 @@ namespace SeasonalBastion
             _towerNeedLogged.Remove(tid);
             _towerNoSourceLogged.Remove(tid);
             _towerNoJobLogged.Remove(tid);
+            _towerDeadlockLogged.Remove(tid);
             _nextReqLowAt.Remove(tid);
             _nextReqEmptyAt.Remove(tid);
             _pendingReqTower.Remove(tid);
@@ -1483,6 +1508,7 @@ namespace SeasonalBastion
             _pendingReqTower.Remove(tower.Value);
             _pendingPriorityByTower.Remove(tower.Value);
             _towerNoJobLogged.Remove(tower.Value);
+            _towerDeadlockLogged.Remove(tower.Value);
 
             int thr = GetLowAmmoThreshold(cap);
             AmmoRequestPriority pri = cur <= 0 ? AmmoRequestPriority.Urgent

@@ -83,16 +83,15 @@ namespace SeasonalBastion
             // or a controlled restart path (for example after load/reset reconstruction).
             // It should not be used as a per-frame "ensure active" call.
             var season = _s.RunClock.CurrentSeason;
-            var day = _s.RunClock.DayIndex;
             var year = GetYearIndexOr1();
 
-            if (_active != null && _active.Year == year && _active.Season == season && _active.Day == day)
+            if (_active != null && _active.Year == year && _active.Season == season && _active.Day == dayIndex)
                 return;
 
             ResetRuntimeState();
             BuildLaneIds();
 
-            var waves = ResolveWavesForCalendar(year, season, day);
+            var waves = ResolveWavesForCalendar(year, season, dayIndex);
             if (waves == null || waves.Count == 0)
                 return;
 

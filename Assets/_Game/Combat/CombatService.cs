@@ -58,13 +58,6 @@ namespace SeasonalBastion
             Debug.Log($"[CombatService] {message}");
         }
 
-        [System.Diagnostics.Conditional("UNITY_EDITOR")]
-        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
-        private static void LogCombatWarn(string message)
-        {
-            Debug.LogWarning($"[CombatService] {message}");
-        }
-
         public CombatService(GameServices s)
         {
             _s = s;

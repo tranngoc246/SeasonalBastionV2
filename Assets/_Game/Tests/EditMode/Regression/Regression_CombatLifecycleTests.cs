@@ -186,6 +186,7 @@ namespace SeasonalBastion.Tests.EditMode
             for (int i = 0; i < 8; i++) combat.Tick(0.5f);
 
             Assert.That(ended, Is.EqualTo(1));
+            Assert.That(combat.ActiveWaveId, Is.Null);
         }
 
         [Test]

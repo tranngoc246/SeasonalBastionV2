@@ -1,6 +1,7 @@
 ﻿using NUnit.Framework;
 using SeasonalBastion.Contracts;
 using System;
+using System.Collections.Generic;
 
 namespace SeasonalBastion.Tests.EditMode
 {
@@ -486,6 +487,80 @@ namespace SeasonalBastion.Tests.EditMode
             return id;
         }
 
+        [Test]
+        public void ResupplyTowerExecutor_FailedAfterPickup_RefundsAmmo_AndAmmoServiceRetries()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var storage = new FakeStorageService();
+            var board = new JobBoard();
+            var grid = new GridMap(16, 16);
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = storage;
+            services.JobBoard = board;
+            services.CombatService = new FakeCombatService();
+            services.AgentMover = new GridAgentMoverLite(grid, data, null);
+            services.ClaimService = new ClaimService();
+
+            var armory = CreateConstructedBuilding(world, data, "bld_armory_t1", new CellPos(1, 1), level: 1, isArmory: true, isWarehouse: false, workRoles: WorkRoleFlags.Armory);
+            var tower = CreateTower(world, new CellPos(8, 8), ammo: 0, ammoCap: 20);
+            var npc = CreateNpc(world, armory, new CellPos(1, 2));
+            services.WorldIndex.RebuildAll();
+            storage.SetCap(armory, ResourceType.Ammo, 200);
+            storage.SetAmount(armory, ResourceType.Ammo, 50);
+            services.AmmoService = new AmmoService(services);
+
+            var ammo = (AmmoService)services.AmmoService;
+            ammo.Tick(0.1f);
+            Assert.That(board.TryPeekForWorkplace(armory, out var job), Is.True);
+
+            var assignment = new JobAssignmentService(world, board, new JobWorkplacePolicy(data), new JobNotificationPolicy(services.NotificationService));
+            var npcState = world.Npcs.Get(npc);
+            Assert.That(assignment.TryAssign(npc, ref npcState, _ => true), Is.True);
+            world.Npcs.Set(npc, npcState);
+
+            var execMap = new Dictionary<JobArchetype, IJobExecutor>
+            {
+                [JobArchetype.ResupplyTower] = new ResupplyTowerExecutor(services)
+            };
+            var exec = new JobExecutionService(
+                services,
+                world,
+                board,
+                new JobExecutorRegistryShim(execMap),
+                new JobStateCleanupService(services.ClaimService));
+
+            bool pickupObserved = false;
+            int safety = 0;
+            while (safety++ < 64)
+            {
+                exec.TickCurrentJobs(new List<NpcId> { npc }, 1f);
+                Assert.That(board.TryGet(job.Id, out var liveJob), Is.True);
+                int armoryAmmo = storage.GetAmount(armory, ResourceType.Ammo);
+                if (armoryAmmo < 50)
+                {
+                    pickupObserved = true;
+                    liveJob.Status = JobStatus.Failed;
+                    board.Update(liveJob);
+                    break;
+                }
+            }
+
+            Assert.That(pickupObserved, Is.True, "NPC should pick up ammo before simulated failure.");
+
+            exec.TickCurrentJobs(new List<NpcId> { npc }, 1f);
+            Assert.That(storage.GetAmount(armory, ResourceType.Ammo), Is.EqualTo(50), "Failed in-flight delivery must refund carried ammo.");
+
+            ammo.Tick(0.1f);
+
+            Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(1), "AmmoService should recreate resupply work after executor-side failure.");
+            Assert.That(board.TryPeekForWorkplace(armory, out var retryJob), Is.True);
+            Assert.That(retryJob.Id.Value, Is.Not.EqualTo(job.Id.Value));
+            Assert.That(retryJob.Tower.Value, Is.EqualTo(tower.Value));
+        }
+
         private static NpcId CreateNpc(WorldState world, BuildingId workplace, CellPos cell)
         {
             var id = world.Npcs.Create(new NpcState
@@ -499,6 +574,18 @@ namespace SeasonalBastion.Tests.EditMode
             st.Id = id;
             world.Npcs.Set(id, st);
             return id;
+        }
+
+        private sealed class JobExecutorRegistryShim : JobExecutorRegistry
+        {
+            private readonly Dictionary<JobArchetype, IJobExecutor> _map;
+
+            public JobExecutorRegistryShim(Dictionary<JobArchetype, IJobExecutor> map) : base(new GameServices())
+            {
+                _map = map;
+            }
+
+            public new IJobExecutor Get(JobArchetype a) => _map[a];
         }
     }
 }

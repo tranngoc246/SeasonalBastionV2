@@ -341,11 +341,17 @@ namespace SeasonalBastion.Tests.EditMode
             var sut = new AmmoService(services);
             sut.Tick(0.1f);
 
-            Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(2), "Work should not deadlock when another armory still has ammo and workers.");
-            Assert.That(board.TryPeekForWorkplace(armoryA, out var jobA), Is.True);
-            Assert.That(board.TryPeekForWorkplace(armoryB, out var jobB), Is.True);
-            Assert.That(jobA.Tower.Value, Is.Not.EqualTo(jobB.Tower.Value));
+            Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(1), "At least one resupply job must be created immediately when ammo work exists.");
+            Assert.That(board.TryPeekForWorkplace(armoryA, out var jobA) || board.TryPeekForWorkplace(armoryB, out jobA), Is.True);
             Assert.That(jobA.Tower.Value == towerA.Value || jobA.Tower.Value == towerB.Value, Is.True);
+
+            jobA.Status = JobStatus.Completed;
+            board.Update(jobA);
+            sut.Tick(0.1f);
+
+            Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(1), "Work should continue on the remaining tower instead of deadlocking after the first job completes.");
+            Assert.That(board.TryPeekForWorkplace(armoryA, out var jobB) || board.TryPeekForWorkplace(armoryB, out jobB), Is.True);
+            Assert.That(jobB.Tower.Value, Is.Not.EqualTo(jobA.Tower.Value));
             Assert.That(jobB.Tower.Value == towerA.Value || jobB.Tower.Value == towerB.Value, Is.True);
         }
 

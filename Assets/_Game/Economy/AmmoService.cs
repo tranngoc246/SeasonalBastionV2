@@ -805,93 +805,104 @@ namespace SeasonalBastion
             if (!TryPickBestRequest(out var list, out var idx, out var req, out var towerState))
                 return false;
 
-            if (!TryPickBestResupplySource(towerState, out var source, out var sourceState, out var availableAmmo))
+            int scanned = 0;
+            int maxScan = _urgent.Count + _normal.Count + 1;
+            while (scanned < maxScan)
             {
-                if (_towerNoSourceLogged.Add(req.Tower.Value))
-                    Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: no ammo source totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo}");
-                return false;
-            }
-
-            if (_resupplyJobByTower.TryGetValue(req.Tower.Value, out var existingTowerJob))
-            {
-                if (_s.JobBoard.TryGet(existingTowerJob, out var existing) && !IsTerminal(existing.Status))
-                    return false;
-            }
-
-            if (_resupplyJobByArmory.TryGetValue(source.Value, out var oldId))
-            {
-                if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                if (!TryPickBestResupplySource(towerState, out var source, out var sourceState, out var availableAmmo))
                 {
-                    if (old.Status == JobStatus.Created && req.Priority == AmmoRequestPriority.Urgent)
-                    {
-                        int currentTid = old.Tower.Value;
-                        int urgentTid = req.Tower.Value;
-                        if (urgentTid != 0 && urgentTid != currentTid)
-                        {
-                            int urgentNeed = towerState.AmmoCap - towerState.Ammo;
-                            int urgentAmount = GetArmoryResupplyTripByLevel(sourceState.Level);
-                            if (urgentAmount > urgentNeed) urgentAmount = urgentNeed;
-                            if (urgentAmount > availableAmmo) urgentAmount = availableAmmo;
-
-                            if (urgentAmount > 0)
-                            {
-                                if (currentTid != 0)
-                                    _resupplyJobByTower.Remove(currentTid);
-
-                                ConsumeRequestAt(list, idx);
-                                old.Tower = req.Tower;
-                                old.Amount = urgentAmount;
-                                _s.JobBoard.Update(old);
-                                _resupplyJobByArmory[source.Value] = old.Id;
-                                _resupplyJobByTower[urgentTid] = old.Id;
-                                _towerNoSourceLogged.Remove(req.Tower.Value);
-                                _towerNoJobLogged.Remove(req.Tower.Value);
-                                if (DebugAmmoLogs)
-                                    Log.E($"[Ammo] resupply reprioritized source={source.Value} tower={urgentTid} amount={urgentAmount}");
-                                return true;
-                            }
-                        }
-                    }
-
                     if (_towerNoSourceLogged.Add(req.Tower.Value))
-                        Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: source {source.Value} busy totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo}");
+                        Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: no ammo source totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo}");
                     return false;
                 }
+
+                if (_resupplyJobByTower.TryGetValue(req.Tower.Value, out var existingTowerJob))
+                {
+                    if (_s.JobBoard.TryGet(existingTowerJob, out var existing) && !IsTerminal(existing.Status))
+                        return false;
+                }
+
+                if (_resupplyJobByArmory.TryGetValue(source.Value, out var oldId))
+                {
+                    if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                    {
+                        if (old.Status == JobStatus.Created && req.Priority == AmmoRequestPriority.Urgent)
+                        {
+                            int currentTid = old.Tower.Value;
+                            int urgentTid = req.Tower.Value;
+                            if (urgentTid != 0 && urgentTid != currentTid)
+                            {
+                                int urgentNeed = towerState.AmmoCap - towerState.Ammo;
+                                int urgentAmount = GetArmoryResupplyTripByLevel(sourceState.Level);
+                                if (urgentAmount > urgentNeed) urgentAmount = urgentNeed;
+                                if (urgentAmount > availableAmmo) urgentAmount = availableAmmo;
+
+                                if (urgentAmount > 0)
+                                {
+                                    if (currentTid != 0)
+                                        _resupplyJobByTower.Remove(currentTid);
+
+                                    ConsumeRequestAt(list, idx);
+                                    old.Tower = req.Tower;
+                                    old.Amount = urgentAmount;
+                                    _s.JobBoard.Update(old);
+                                    _resupplyJobByArmory[source.Value] = old.Id;
+                                    _resupplyJobByTower[urgentTid] = old.Id;
+                                    _towerNoSourceLogged.Remove(req.Tower.Value);
+                                    _towerNoJobLogged.Remove(req.Tower.Value);
+                                    if (DebugAmmoLogs)
+                                        Log.E($"[Ammo] resupply reprioritized source={source.Value} tower={urgentTid} amount={urgentAmount}");
+                                    return true;
+                                }
+                            }
+                        }
+
+                        scanned++;
+                        RotateRequestToBack(list, idx, req);
+                        if (!TryPickBestRequest(out list, out idx, out req, out towerState))
+                            return false;
+                        continue;
+                    }
+                }
+
+                int need = towerState.AmmoCap - towerState.Ammo;
+                int amount = GetArmoryResupplyTripByLevel(sourceState.Level);
+                if (amount > need) amount = need;
+                if (amount > availableAmmo) amount = availableAmmo;
+                if (amount <= 0)
+                    return false;
+
+                ConsumeRequestAt(list, idx);
+
+                var j = new Job
+                {
+                    Archetype = JobArchetype.ResupplyTower,
+                    Status = JobStatus.Created,
+
+                    Workplace = source,
+                    SourceBuilding = source,
+
+                    Tower = req.Tower,
+                    ResourceType = ResourceType.Ammo,
+                    Amount = amount,
+
+                    TargetCell = default,
+                    CreatedAt = 0
+                };
+
+                var id = _s.JobBoard.Enqueue(j);
+                _resupplyJobByArmory[source.Value] = id;
+                _resupplyJobByTower[req.Tower.Value] = id;
+                _towerNoSourceLogged.Remove(req.Tower.Value);
+                _towerNoJobLogged.Remove(req.Tower.Value);
+                if (DebugAmmoLogs)
+                    Log.E($"[Ammo] resupply created source={source.Value} tower={req.Tower.Value} amount={amount} priority={req.Priority}");
+                return true;
             }
 
-            int need = towerState.AmmoCap - towerState.Ammo;
-            int amount = GetArmoryResupplyTripByLevel(sourceState.Level);
-            if (amount > need) amount = need;
-            if (amount > availableAmmo) amount = availableAmmo;
-            if (amount <= 0)
-                return false;
-
-            ConsumeRequestAt(list, idx);
-
-            var j = new Job
-            {
-                Archetype = JobArchetype.ResupplyTower,
-                Status = JobStatus.Created,
-
-                Workplace = source,
-                SourceBuilding = source,
-
-                Tower = req.Tower,
-                ResourceType = ResourceType.Ammo,
-                Amount = amount,
-
-                TargetCell = default,
-                CreatedAt = 0
-            };
-
-            var id = _s.JobBoard.Enqueue(j);
-            _resupplyJobByArmory[source.Value] = id;
-            _resupplyJobByTower[req.Tower.Value] = id;
-            _towerNoSourceLogged.Remove(req.Tower.Value);
-            _towerNoJobLogged.Remove(req.Tower.Value);
-            if (DebugAmmoLogs)
-                Log.E($"[Ammo] resupply created source={source.Value} tower={req.Tower.Value} amount={amount} priority={req.Priority}");
-            return true;
+            if (_towerNoSourceLogged.Add(req.Tower.Value))
+                Log.E($"[Ammo] Armory has ammo but no job created. tower={req.Tower.Value} totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo} pending={PendingRequests}");
+            return false;
         }
 
         private bool TryPickBestResupplySource(TowerState towerState, out BuildingId source, out BuildingState sourceState, out int availableAmmo)
@@ -955,6 +966,15 @@ namespace SeasonalBastion
                 _pendingReqTower.Remove(tid);
                 _pendingPriorityByTower.Remove(tid);
             }
+        }
+
+        private void RotateRequestToBack(List<AmmoRequest> list, int index, AmmoRequest req)
+        {
+            if (list == null) return;
+            if (index < 0 || index >= list.Count) return;
+
+            list.RemoveAt(index);
+            list.Add(req);
         }
 
         private void PruneInvalidRequests(List<AmmoRequest> list)

@@ -216,7 +216,6 @@ namespace SeasonalBastion
                         dto.world.Towers.Add(new TowerState
                         {
                             Id = new TowerId(t.id),
-                            DefId = t.defId,
                             Cell = new CellPos(t.cellX, t.cellY),
                             Ammo = t.ammo,
                             AmmoCap = t.ammoCap,
@@ -446,7 +445,6 @@ namespace SeasonalBastion
                 file.world.towers.Add(new SaveTower
                 {
                     id = t.Id.Value,
-                    defId = t.DefId,
                     cellX = t.Cell.X,
                     cellY = t.Cell.Y,
                     ammo = t.Ammo,
@@ -598,7 +596,6 @@ namespace SeasonalBastion
         private struct SaveTower
         {
             public int id;
-            public string defId;
             public int cellX, cellY;
             public int ammo, ammoCap;
             public int hp, hpMax;

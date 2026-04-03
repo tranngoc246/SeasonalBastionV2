@@ -2938,7 +2938,6 @@ namespace SeasonalBastion.Tests.EditMode
                         new TowerState
                         {
                             Id = new TowerId(3),
-                            DefId = "tower_missing",
                             Cell = new CellPos(4, 4),
                         }
                     },
@@ -2975,7 +2974,7 @@ namespace SeasonalBastion.Tests.EditMode
             bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
 
             Assert.That(ok, Is.False);
-            Assert.That(error, Does.Contain("TargetBuildingId").Or.Contain("Missing NpcDef").Or.Contain("Missing TowerDef").Or.Contain("Missing EnemyDef"));
+            Assert.That(error, Does.Contain("TargetBuildingId").Or.Contain("Missing NpcDef").Or.Contain("Missing EnemyDef"));
         }
 
         [Test]

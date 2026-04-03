@@ -200,11 +200,6 @@ namespace SeasonalBastion
                 for (int i = 0; i < dto.world.Towers.Count; i++)
                 {
                     var t = dto.world.Towers[i];
-                    if (string.IsNullOrWhiteSpace(t.DefId) || !s.DataRegistry.TryGetTower(t.DefId, out _))
-                    {
-                        error = $"Missing TowerDef for tower '{t.DefId}'";
-                        return false;
-                    }
 
                     long key = PackCell(t.Cell.X, t.Cell.Y);
                     if (towersByCell.ContainsKey(key))

@@ -549,11 +549,7 @@ namespace SeasonalBastion
         {
             PruneInvalidRequests(_urgent);
             PruneInvalidRequests(_normal);
-
-            while (TryCreateNextResupplyTowerJob())
-            {
-                // Drain deterministic highest-priority work until no valid request/source pair remains.
-            }
+            TryCreateNextResupplyTowerJob();
         }
 
         private void CleanupResupplyTowerInFlight()

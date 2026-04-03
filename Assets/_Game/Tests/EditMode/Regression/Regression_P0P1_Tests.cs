@@ -2028,6 +2028,7 @@ namespace SeasonalBastion.Tests.EditMode
             var world = new WorldState();
             var grid = new GridMap(64, 64);
             var data = new TestDataRegistry();
+            data.AddNpc(new NpcDef { DefId = "npc_test" });
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 5, SizeY = 5, MaxHp = 300, IsHQ = true, WorkRoles = WorkRoleFlags.Build | WorkRoleFlags.HaulBasic, CapWood = new StorageCapsByLevel { L1 = 200 }, CapFood = new StorageCapsByLevel { L1 = 200 }, CapStone = new StorageCapsByLevel { L1 = 200 }, CapIron = new StorageCapsByLevel { L1 = 200 }, CapAmmo = new StorageCapsByLevel { L1 = 200 } });
             data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsHouse = true });
 
@@ -2120,6 +2121,7 @@ namespace SeasonalBastion.Tests.EditMode
             var world = new WorldState();
             var grid = new GridMap(16, 16);
             var data = new TestDataRegistry();
+            data.AddNpc(new NpcDef { DefId = "npc_test" });
             data.Add(new BuildingDef { DefId = "bld_warehouse", SizeX = 2, SizeY = 2, MaxHp = 20, IsWarehouse = true, WorkRoles = WorkRoleFlags.HaulBasic });
             data.Add(new BuildingDef { DefId = "bld_warehouse_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 20, IsWarehouse = true, WorkRoles = WorkRoleFlags.HaulBasic });
             var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);

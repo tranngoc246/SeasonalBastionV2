@@ -347,6 +347,12 @@ namespace SeasonalBastion.Tests.EditMode
 
             jobA.Status = JobStatus.Completed;
             board.Update(jobA);
+
+            var firstTowerState = world.Towers.Get(jobA.Tower);
+            firstTowerState.Ammo = Math.Min(firstTowerState.AmmoCap, firstTowerState.Ammo + jobA.Amount);
+            world.Towers.Set(jobA.Tower, firstTowerState);
+            sut.NotifyTowerAmmoChanged(jobA.Tower, firstTowerState.Ammo, firstTowerState.AmmoCap);
+
             sut.Tick(0.1f);
 
             Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(1), "Work should continue on the remaining tower instead of deadlocking after the first job completes.");

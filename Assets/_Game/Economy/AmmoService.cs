@@ -1,4 +1,4 @@
-﻿using SeasonalBastion.Contracts;
+using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
 
@@ -19,6 +19,7 @@ namespace SeasonalBastion
         private readonly Dictionary<int, byte> _lastStateByTower = new(); // 0=ok,1=low,2=empty
         private readonly HashSet<int> _towerNeedLogged = new();
         private readonly HashSet<int> _towerNoSourceLogged = new();
+        private readonly HashSet<int> _towerNoJobLogged = new();
 
         // Cooldown timestamps (sim time)
         private readonly Dictionary<int, float> _nextReqLowAt = new();
@@ -43,7 +44,7 @@ namespace SeasonalBastion
         // Day24: 1 pending HaulAmmoToArmory job per Armory
         private readonly Dictionary<int, JobId> _haulAmmoJobByArmory = new();
 
-        // Day26: 1 pending ResupplyTower job per Armory
+        // Day26: 1 pending ResupplyTower job per source/tower
         private readonly Dictionary<int, JobId> _resupplyJobByArmory = new();
         private readonly Dictionary<int, JobId> _resupplyJobByTower = new();
         private readonly List<int> _tmpTowerKeys = new(64);
@@ -60,6 +61,10 @@ namespace SeasonalBastion
         public int Debug_InFlightHaulAmmoJobs => _haulAmmoJobByArmory.Count;
         public int Debug_PendingUrgent => _urgent.Count;
         public int Debug_PendingNormal => _normal.Count;
+        public int Debug_TotalTowers { get; private set; }
+        public int Debug_TowersWithoutAmmo { get; private set; }
+        public int Debug_ActiveResupplyJobs { get; private set; }
+        public int Debug_ArmoryAvailableAmmo { get; private set; }
 
         public AmmoService(GameServices s) { _s = s; }
 
@@ -143,12 +148,14 @@ namespace SeasonalBastion
             {
                 Log.E($"[Ammo] tower {tid} requests resupply ammo={current}/{max} state={(stateNow == 2 ? "empty" : "low")} thr={thr}");
                 _towerNoSourceLogged.Remove(tid);
+                _towerNoJobLogged.Remove(tid);
             }
 
             if (stateNow == 0)
             {
                 _towerNeedLogged.Remove(tid);
                 _towerNoSourceLogged.Remove(tid);
+                _towerNoJobLogged.Remove(tid);
                 return;
             }
 
@@ -361,6 +368,8 @@ namespace SeasonalBastion
             CleanupResupplyTowerInFlight();
             EnsureResupplyTowerJobs();   // Day26
             EnsureArmoryAmmoBuffer();    // Day24
+            UpdateDebugMetrics();
+            LogPotentialResupplyDeadlock();
         }
 
         public void ClearAll()
@@ -376,6 +385,9 @@ namespace SeasonalBastion
             _lastAmmoByTower.Clear();
             _lastCapByTower.Clear();
             _lastStateByTower.Clear();
+            _towerNeedLogged.Clear();
+            _towerNoSourceLogged.Clear();
+            _towerNoJobLogged.Clear();
 
             _nextReqLowAt.Clear();
             _nextReqEmptyAt.Clear();
@@ -395,6 +407,94 @@ namespace SeasonalBastion
 
             _cachedAmmoRecipe = null;
             _cachedAmmoRecipeId = null;
+
+            Debug_TotalTowers = 0;
+            Debug_TowersWithoutAmmo = 0;
+            Debug_ActiveResupplyJobs = 0;
+            Debug_ArmoryAvailableAmmo = 0;
+        }
+
+        private void UpdateDebugMetrics()
+        {
+            Debug_TotalTowers = 0;
+            Debug_TowersWithoutAmmo = 0;
+            Debug_ArmoryAvailableAmmo = 0;
+            Debug_ActiveResupplyJobs = _s.JobBoard is JobBoard concrete ? concrete.CountActiveJobs(JobArchetype.ResupplyTower) : _resupplyJobByTower.Count;
+
+            var towers = _s.WorldIndex.Towers;
+            if (towers != null)
+            {
+                for (int i = 0; i < towers.Count; i++)
+                {
+                    var tid = towers[i];
+                    if (!_s.WorldState.Towers.Exists(tid)) continue;
+                    Debug_TotalTowers++;
+                    var tower = _s.WorldState.Towers.Get(tid);
+                    if (tower.Ammo <= 0)
+                        Debug_TowersWithoutAmmo++;
+                }
+            }
+
+            var armories = _s.WorldIndex.Armories;
+            if (armories != null)
+            {
+                for (int i = 0; i < armories.Count; i++)
+                {
+                    var armory = armories[i];
+                    if (!_s.WorldState.Buildings.Exists(armory)) continue;
+                    var st = _s.WorldState.Buildings.Get(armory);
+                    if (!st.IsConstructed) continue;
+                    Debug_ArmoryAvailableAmmo += Math.Max(0, _s.StorageService.GetAmount(armory, ResourceType.Ammo));
+                }
+            }
+        }
+
+        private void LogPotentialResupplyDeadlock()
+        {
+            if (Debug_TowersWithoutAmmo <= 0)
+                return;
+
+            if (Debug_ArmoryAvailableAmmo <= 0)
+                return;
+
+            if (Debug_ActiveResupplyJobs > 0)
+                return;
+
+            int eligibleRequests = CountEligibleRequests();
+            if (eligibleRequests <= 0)
+                return;
+
+            for (int i = 0; i < _urgent.Count; i++)
+            {
+                int tid = _urgent[i].Tower.Value;
+                if (tid == 0) continue;
+                if (_towerNoJobLogged.Add(tid))
+                    Log.E($"[Ammo] Armory has ammo but no job created. tower={tid} totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo} pending={PendingRequests}");
+            }
+        }
+
+        private int CountEligibleRequests()
+        {
+            int count = 0;
+            count += CountEligibleRequests(_urgent);
+            count += CountEligibleRequests(_normal);
+            return count;
+        }
+
+        private int CountEligibleRequests(List<AmmoRequest> list)
+        {
+            int count = 0;
+            for (int i = 0; i < list.Count; i++)
+            {
+                var req = list[i];
+                if (req.Tower.Value == 0) continue;
+                if (!_s.WorldState.Towers.Exists(req.Tower)) continue;
+                var tower = _s.WorldState.Towers.Get(req.Tower);
+                if (tower.AmmoCap <= 0) continue;
+                if (tower.Ammo >= tower.AmmoCap) continue;
+                count++;
+            }
+            return count;
         }
 
         // ----------------- Recipe-driven forge supply -----------------
@@ -550,7 +650,13 @@ namespace SeasonalBastion
         {
             PruneInvalidRequests(_urgent);
             PruneInvalidRequests(_normal);
-            TryCreateNextResupplyTowerJob();
+
+            int guard = CountEligibleRequests() + 4;
+            while (guard-- > 0)
+            {
+                if (!TryCreateNextResupplyTowerJob())
+                    break;
+            }
         }
 
         private void CleanupResupplyTowerInFlight()
@@ -642,6 +748,7 @@ namespace SeasonalBastion
             bestReq = default;
             bestTowerState = default;
 
+            int bestStateRank = int.MaxValue;
             int bestAmmo = int.MaxValue;
             int bestTid = int.MaxValue;
 
@@ -663,9 +770,11 @@ namespace SeasonalBastion
                 int need = ts.AmmoCap - ts.Ammo;
                 if (ts.AmmoCap <= 0 || need <= 0) continue;
 
+                int stateRank = ts.Ammo <= 0 ? 0 : 1;
                 int ammo = ts.Ammo;
-                if (ammo < bestAmmo || (ammo == bestAmmo && tid < bestTid))
+                if (stateRank < bestStateRank || (stateRank == bestStateRank && (ammo < bestAmmo || (ammo == bestAmmo && tid < bestTid))))
                 {
+                    bestStateRank = stateRank;
                     bestAmmo = ammo;
                     bestTid = tid;
                     bestIndex = i;
@@ -684,9 +793,15 @@ namespace SeasonalBastion
 
             if (!TryPickBestResupplySource(towerState, out var source, out var sourceState, out var availableAmmo))
             {
-                if (DebugAmmoLogs && _towerNoSourceLogged.Add(req.Tower.Value))
-                    Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: no ammo source");
+                if (_towerNoSourceLogged.Add(req.Tower.Value))
+                    Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: no ammo source totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo}");
                 return false;
+            }
+
+            if (_resupplyJobByTower.TryGetValue(req.Tower.Value, out var existingTowerJob))
+            {
+                if (_s.JobBoard.TryGet(existingTowerJob, out var existing) && !IsTerminal(existing.Status))
+                    return false;
             }
 
             if (_resupplyJobByArmory.TryGetValue(source.Value, out var oldId))
@@ -715,6 +830,8 @@ namespace SeasonalBastion
                                 _s.JobBoard.Update(old);
                                 _resupplyJobByArmory[source.Value] = old.Id;
                                 _resupplyJobByTower[urgentTid] = old.Id;
+                                _towerNoSourceLogged.Remove(req.Tower.Value);
+                                _towerNoJobLogged.Remove(req.Tower.Value);
                                 if (DebugAmmoLogs)
                                     Log.E($"[Ammo] resupply reprioritized source={source.Value} tower={urgentTid} amount={urgentAmount}");
                                 return true;
@@ -722,8 +839,8 @@ namespace SeasonalBastion
                         }
                     }
 
-                    if (DebugAmmoLogs && _towerNoSourceLogged.Add(req.Tower.Value))
-                        Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: source {source.Value} busy");
+                    if (_towerNoSourceLogged.Add(req.Tower.Value))
+                        Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: source {source.Value} busy totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo}");
                     return false;
                 }
             }
@@ -757,6 +874,7 @@ namespace SeasonalBastion
             _resupplyJobByArmory[source.Value] = id;
             _resupplyJobByTower[req.Tower.Value] = id;
             _towerNoSourceLogged.Remove(req.Tower.Value);
+            _towerNoJobLogged.Remove(req.Tower.Value);
             if (DebugAmmoLogs)
                 Log.E($"[Ammo] resupply created source={source.Value} tower={req.Tower.Value} amount={amount} priority={req.Priority}");
             return true;
@@ -856,6 +974,7 @@ namespace SeasonalBastion
                 {
                     _pendingReqTower.Remove(tid);
                     _pendingPriorityByTower.Remove(tid);
+                    _towerNoJobLogged.Remove(tid);
                 }
             }
         }
@@ -1086,6 +1205,7 @@ namespace SeasonalBastion
             _lastStateByTower.Remove(tid);
             _towerNeedLogged.Remove(tid);
             _towerNoSourceLogged.Remove(tid);
+            _towerNoJobLogged.Remove(tid);
             _nextReqLowAt.Remove(tid);
             _nextReqEmptyAt.Remove(tid);
             _pendingReqTower.Remove(tid);
@@ -1276,6 +1396,7 @@ namespace SeasonalBastion
             _nextReqLowAt.Remove(tower.Value);
             _pendingReqTower.Remove(tower.Value);
             _pendingPriorityByTower.Remove(tower.Value);
+            _towerNoJobLogged.Remove(tower.Value);
 
             int thr = GetLowAmmoThreshold(cap);
             AmmoRequestPriority pri = cur <= 0 ? AmmoRequestPriority.Urgent

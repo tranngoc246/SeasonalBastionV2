@@ -34,6 +34,10 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(board.TryPeekForWorkplace(armory, out var job), Is.True);
             Assert.That(job.Archetype, Is.EqualTo(JobArchetype.ResupplyTower));
             Assert.That(job.Tower.Value, Is.EqualTo(tower.Value));
+            Assert.That(sut.Debug_TotalTowers, Is.EqualTo(1));
+            Assert.That(sut.Debug_TowersWithoutAmmo, Is.EqualTo(1));
+            Assert.That(sut.Debug_ActiveResupplyJobs, Is.EqualTo(1));
+            Assert.That(sut.Debug_ArmoryAvailableAmmo, Is.EqualTo(50));
         }
 
         [Test]
@@ -90,6 +94,8 @@ namespace SeasonalBastion.Tests.EditMode
             sut.Tick(0.1f);
 
             Assert.That(board.CountForWorkplace(armory), Is.EqualTo(0));
+            Assert.That(sut.Debug_ActiveResupplyJobs, Is.EqualTo(0));
+            Assert.That(sut.Debug_ArmoryAvailableAmmo, Is.EqualTo(0));
         }
 
         [Test]
@@ -119,6 +125,7 @@ namespace SeasonalBastion.Tests.EditMode
             sut.Tick(0.1f);
 
             Assert.That(board.CountForWorkplace(armory), Is.EqualTo(1));
+            Assert.That(sut.Debug_ActiveResupplyJobs, Is.EqualTo(1));
         }
 
         [Test]
@@ -303,6 +310,43 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(job.SourceBuilding.Value, Is.EqualTo(warehouse.Value));
             Assert.That(job.Tower.Value, Is.EqualTo(tower.Value));
             Assert.That(board.CountForWorkplace(armory), Is.EqualTo(0));
+        }
+
+        [Test]
+        public void AmmoResupply_CreatesJob_WhenArmoryHasAmmo_AndAnotherSourceIsBusy()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var storage = new FakeStorageService();
+            var board = new JobBoard();
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(32, 32));
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = storage;
+            services.JobBoard = board;
+            services.CombatService = new FakeCombatService();
+
+            var armoryA = CreateConstructedBuilding(world, data, "bld_armory_t1", new CellPos(1, 1), level: 1, isArmory: true, isWarehouse: false, workRoles: WorkRoleFlags.Armory);
+            var armoryB = CreateConstructedBuilding(world, data, "bld_armory_t1_b", new CellPos(4, 1), level: 1, isArmory: true, isWarehouse: false, workRoles: WorkRoleFlags.Armory);
+            var towerA = CreateTower(world, new CellPos(10, 10), ammo: 0, ammoCap: 20);
+            var towerB = CreateTower(world, new CellPos(12, 10), ammo: 0, ammoCap: 20);
+            CreateNpc(world, armoryA, new CellPos(1, 2));
+            CreateNpc(world, armoryB, new CellPos(4, 2));
+            services.WorldIndex.RebuildAll();
+            storage.SetCap(armoryA, ResourceType.Ammo, 200);
+            storage.SetAmount(armoryA, ResourceType.Ammo, 50);
+            storage.SetCap(armoryB, ResourceType.Ammo, 200);
+            storage.SetAmount(armoryB, ResourceType.Ammo, 50);
+
+            var sut = new AmmoService(services);
+            sut.Tick(0.1f);
+
+            Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(2), "Work should not deadlock when another armory still has ammo and workers.");
+            Assert.That(board.TryPeekForWorkplace(armoryA, out var jobA), Is.True);
+            Assert.That(board.TryPeekForWorkplace(armoryB, out var jobB), Is.True);
+            Assert.That(jobA.Tower.Value, Is.Not.EqualTo(jobB.Tower.Value));
+            Assert.That(jobA.Tower.Value == towerA.Value || jobA.Tower.Value == towerB.Value, Is.True);
+            Assert.That(jobB.Tower.Value == towerA.Value || jobB.Tower.Value == towerB.Value, Is.True);
         }
 
         private static BuildingId CreateConstructedBuilding(WorldState world, TestDataRegistry data, string defId, CellPos anchor, int level, bool isArmory, bool isWarehouse, WorkRoleFlags workRoles)

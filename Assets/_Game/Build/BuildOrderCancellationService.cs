@@ -136,7 +136,8 @@ namespace SeasonalBastion
                 _s.GridMap?.ClearBuilding(new CellPos(building.Anchor.X + dx, building.Anchor.Y + dy));
 
             _s.WorldState.Buildings.Destroy(buildingId);
-            try { _s.WorldIndex?.OnBuildingDestroyed(buildingId); } catch { }
+            try { _s.WorldIndex?.OnBuildingDestroyed(buildingId); }
+            catch (Exception ex) { UnityEngine.Debug.LogError($"[BuildOrderCancellationService] Failed to update WorldIndex after removing placeholder building {buildingId.Value}: {ex}"); }
             _s.EventBus?.Publish(new WorldStateChangedEvent("Building", buildingId.Value));
             _s.EventBus?.Publish(new RoadsDirtyEvent());
         }

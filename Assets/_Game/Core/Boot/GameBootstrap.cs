@@ -87,7 +87,8 @@
 
             if (wipeExistingSave)
             {
-                try { _services.SaveService?.DeleteRunSave(); } catch { }
+                try { _services.SaveService?.DeleteRunSave(); }
+                catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameBootstrap] Failed to delete existing run save before bootstrap: {ex}"); }
             }
 
             var cfg = !string.IsNullOrWhiteSpace(startMapConfigOverride) ? startMapConfigOverride : _cfg;

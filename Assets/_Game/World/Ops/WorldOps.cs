@@ -71,7 +71,7 @@ namespace SeasonalBastion
 
             _w.Buildings.Destroy(id);
 
-            try { _index?.OnBuildingDestroyed(id); } catch { }
+            try { _index?.OnBuildingDestroyed(id); } catch (Exception ex) { UnityEngine.Debug.LogError($"[WorldOps] Failed to update WorldIndex after destroying building {id.Value}: {ex}"); }
             _bus?.Publish(new BuildingDestroyedEvent(defId, id));
             _bus?.Publish(new WorldStateChangedEvent("Building", id.Value));
             _bus?.Publish(new RoadsDirtyEvent());
@@ -140,7 +140,7 @@ namespace SeasonalBastion
 
         private void NotifyBuildingCreated(string buildingDefId, BuildingId id)
         {
-            try { _index?.OnBuildingCreated(id); } catch { }
+            try { _index?.OnBuildingCreated(id); } catch (Exception ex) { UnityEngine.Debug.LogError($"[WorldOps] Failed to update WorldIndex after creating building {id.Value} ({buildingDefId}): {ex}"); }
             _bus?.Publish(new BuildingPlacedEvent(buildingDefId, id));
             _bus?.Publish(new WorldStateChangedEvent("Building", id.Value));
             _bus?.Publish(new RoadsDirtyEvent());

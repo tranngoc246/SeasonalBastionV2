@@ -209,7 +209,10 @@ namespace SeasonalBastion
                     _s.WorldIndex?.OnBuildingDestroyed(buildingId);
                 _s.WorldIndex?.OnBuildingCreated(buildingId);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"[BuildOrderCompletionService] Failed to refresh WorldIndex for finalized building {buildingId.Value}: {ex}");
+            }
 
             if (publishPlacedEvent)
                 _s.EventBus?.Publish(new BuildingPlacedEvent(building.DefId, buildingId));

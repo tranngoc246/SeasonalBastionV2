@@ -243,7 +243,7 @@ namespace SeasonalBastion
                 if (!b.IsConstructed) continue;
 
                 BuildingDef bdef = null;
-                try { bdef = data.GetBuilding(b.DefId); } catch { }
+                try { bdef = data.GetBuilding(b.DefId); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[ResupplyTowerExecutor] Failed to resolve building def '{b.DefId}' while matching tower cell: {ex}"); }
 
                 if (bdef == null || !bdef.IsTower) continue;
 

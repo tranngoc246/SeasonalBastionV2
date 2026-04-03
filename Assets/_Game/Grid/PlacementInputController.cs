@@ -851,13 +851,13 @@ namespace SeasonalBastion
             var prop = t.GetProperty("Services", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (prop != null)
             {
-                try { var v = prop.GetValue(mb); if (v != null) return v; } catch { }
+                try { var v = prop.GetValue(mb); if (v != null) return v; } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[PlacementInputController] Failed to read Services property from {t.Name}: {ex}"); }
             }
 
             var m = t.GetMethod("GetServices", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (m != null && m.GetParameters().Length == 0)
             {
-                try { var v = m.Invoke(mb, null); if (v != null) return v; } catch { }
+                try { var v = m.Invoke(mb, null); if (v != null) return v; } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[PlacementInputController] Failed to invoke GetServices on {t.Name}: {ex}"); }
             }
 
             return null;
@@ -872,13 +872,13 @@ namespace SeasonalBastion
             var p = t.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (p != null)
             {
-                try { var v = p.GetValue(obj) as T; if (v != null) return v; } catch { }
+                try { var v = p.GetValue(obj) as T; if (v != null) return v; } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[PlacementInputController] Failed to read member '{name}' from {t.Name}: {ex}"); }
             }
 
             var f = t.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (f != null)
             {
-                try { var v = f.GetValue(obj) as T; if (v != null) return v; } catch { }
+                try { var v = f.GetValue(obj) as T; if (v != null) return v; } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[PlacementInputController] Failed to read field '{name}' from {t.Name}: {ex}"); }
             }
 
             return null;

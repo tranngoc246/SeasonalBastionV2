@@ -48,7 +48,10 @@ namespace SeasonalBastion.RunStart
                 bs.Ammo = ammo;
                 s.WorldState.Buildings.Set(building.Id, bs);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[RunStartTowerInitializer] Failed to mirror ammo to building {building.Id.Value}: {ex}");
+            }
         }
 
         internal static void TryCreateArrowTowerStandalone(GameServices s, CellPos desiredCell, InitialBuildingDto b)
@@ -68,7 +71,10 @@ namespace SeasonalBastion.RunStart
                     ammoMax = Mathf.Max(0, tdef.AmmoMax);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[RunStartTowerInitializer] Failed to resolve tower def '{TowerArrowDefId}': {ex}");
+            }
 
             int ammo = ResolveAmmo(ammoMax, b);
             var st = new TowerState { Cell = finalCell, Hp = hpMax, HpMax = hpMax, Ammo = ammo, AmmoCap = ammoMax };
@@ -77,7 +83,7 @@ namespace SeasonalBastion.RunStart
             st.Id = id;
             s.WorldState.Towers.Set(id, st);
 
-            try { s.WorldIndex?.RebuildAll(); } catch { }
+            try { s.WorldIndex?.RebuildAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[RunStartTowerInitializer] Failed to rebuild WorldIndex after standalone tower creation: {ex}"); }
         }
 
         private static int ResolveAmmo(int ammoMax, InitialBuildingDto b)

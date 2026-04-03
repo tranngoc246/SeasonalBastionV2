@@ -584,7 +584,10 @@ namespace SeasonalBastion
                         recipe = r;
                         return true;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogWarning($"[AmmoService] Failed to load fallback recipe 'ForgeAmmo' after recipe '{rid}' lookup failed: {ex}");
+                    }
                 }
                 return false;
             }
@@ -1578,7 +1581,10 @@ namespace SeasonalBastion
                 var v = keyField.GetValue(secObj);
                 if (v is int i) return i;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access Balance.Config.{section}.{key} as int: {ex}");
+            }
             return fallback;
         }
 
@@ -1603,7 +1609,10 @@ namespace SeasonalBastion
                 if (v is int i) return i != 0;
                 if (v is string s && bool.TryParse(s, out var parsed)) return parsed;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access Balance.Config.{section}.{key} as bool: {ex}");
+            }
             return fallback;
         }
 
@@ -1627,7 +1636,10 @@ namespace SeasonalBastion
                 if (v is float f) return f;
                 if (v is double d) return (float)d;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access Balance.Config.{section}.{key} as float: {ex}");
+            }
             return fallback;
         }
 
@@ -1650,7 +1662,10 @@ namespace SeasonalBastion
                 var v = keyField.GetValue(secObj) as string;
                 if (!string.IsNullOrEmpty(v)) return v;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access Balance.Config.{section}.{key} as string: {ex}");
+            }
             return fallback;
         }
     }

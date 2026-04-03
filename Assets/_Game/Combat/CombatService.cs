@@ -193,7 +193,10 @@ namespace SeasonalBastion
                 foreach (var id in es.Ids) toKill.Add(id);
                 for (int i = 0; i < toKill.Count; i++) es.Destroy(toKill[i]);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[CombatService] Failed to clear enemies during combat reset: {ex}");
+            }
         }
 
         private void HandleWaveStarted(string waveId)

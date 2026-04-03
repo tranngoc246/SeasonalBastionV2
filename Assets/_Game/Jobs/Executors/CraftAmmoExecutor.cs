@@ -196,7 +196,10 @@ namespace SeasonalBastion
                         recipe = _s.DataRegistry.GetRecipe(DefaultAmmoRecipeId);
                         return recipe != null;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogWarning($"[CraftAmmoExecutor] Failed to load fallback ammo recipe '{DefaultAmmoRecipeId}' after recipe '{rid}' lookup failed: {ex}");
+                    }
                 }
 
                 return false;

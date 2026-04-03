@@ -87,7 +87,7 @@ namespace SeasonalBastion.RunStart
 
                 RunStartPlacementHelper.PromoteRunStartEntryRoads(s, st, w, h);
 
-                try { s.WorldIndex?.OnBuildingCreated(id); } catch { }
+                try { s.WorldIndex?.OnBuildingCreated(id); } catch (Exception ex) { UnityEngine.Debug.LogError($"[RunStartWorldBuilder] Failed to register created building {id.Value} ({defId}) in WorldIndex: {ex}"); }
 
                 if (!ctx.DefIdToBuildingId.ContainsKey(defId))
                     ctx.DefIdToBuildingId[defId] = id;

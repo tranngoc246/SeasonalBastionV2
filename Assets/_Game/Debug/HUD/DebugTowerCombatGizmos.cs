@@ -72,7 +72,10 @@ namespace SeasonalBastion.DebugTools
 
                 TowerDef tdef = null;
                 try { tdef = data.GetTower(towerDefId); }
-                catch { }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[DebugTowerCombatGizmos] Failed to resolve tower def '{towerDefId}': {ex}");
+                }
 
                 if (tdef == null) continue;
 

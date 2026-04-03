@@ -85,7 +85,10 @@ namespace SeasonalBastion
                         if (def.RoadSpeedMultiplier > 0f) roadMul = def.RoadSpeedMultiplier;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogWarning($"[GridAgentMoverLite] Failed to resolve NPC move stats for '{st.DefId}': {ex}");
+                }
             }
 
             bool onRoad = _grid.IsRoad(st.Cell);

@@ -900,7 +900,10 @@ namespace SeasonalBastion.DebugTools
                 {
                     _gs.NotificationService?.Push("data_invalid", "Data INVALID", _dataLastSummary, NotificationSeverity.Error, default, cooldownSeconds: 0f, dedupeByKey: true);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[DebugHUDHub] Failed to push data validation notification: {ex}");
+                }
             }
         }
 
@@ -1133,7 +1136,11 @@ namespace SeasonalBastion.DebugTools
             if (bs.MaxHP <= 0)
             {
                 int mhp = 100;
-                try { mhp = Mathf.Max(1, _gs.DataRegistry.GetBuilding(bs.DefId).MaxHp); } catch { }
+                try { mhp = Mathf.Max(1, _gs.DataRegistry.GetBuilding(bs.DefId).MaxHp); }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[DebugHUDHub] Failed to resolve building max HP for '{bs.DefId}': {ex}");
+                }
                 bs.MaxHP = mhp;
                 if (bs.HP <= 0) bs.HP = bs.MaxHP;
             }
@@ -1541,7 +1548,10 @@ namespace SeasonalBastion.DebugTools
                     bh = Mathf.Max(1, def.SizeY);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[DebugHUDHub] Failed to resolve linked tower footprint for building '{bs.DefId}' ({bid.Value}): {ex}");
+            }
 
             var towerCell = new CellPos(bs.Anchor.X + (bw / 2), bs.Anchor.Y + (bh / 2));
             foreach (var id in _gs.WorldState.Towers.Ids)
@@ -1577,7 +1587,10 @@ namespace SeasonalBastion.DebugTools
                 bs.Ammo = ts.Ammo;
                 _gs.WorldState.Buildings.Set(bid, bs);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[DebugHUDHub] Failed to mirror drained ammo to building {bid.Value}: {ex}");
+            }
 
             _gs.AmmoService?.NotifyTowerAmmoChanged(tid, ts.Ammo, ts.AmmoCap);
             _gs.NotificationService?.Push("dbg_tower_drain_one", "Debug", $"{bs.DefId} #{bid.Value} ammo -> {ts.Ammo}/{ts.AmmoCap}", NotificationSeverity.Info, default, 0.1f, true);
@@ -1599,7 +1612,10 @@ namespace SeasonalBastion.DebugTools
                 bs.Ammo = ts.Ammo;
                 _gs.WorldState.Buildings.Set(bid, bs);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[DebugHUDHub] Failed to mirror refilled ammo to building {bid.Value}: {ex}");
+            }
 
             _gs.AmmoService?.NotifyTowerAmmoChanged(tid, ts.Ammo, ts.AmmoCap);
             _gs.NotificationService?.Push("dbg_tower_refill_one", "Debug", $"{bs.DefId} #{bid.Value} ammo -> {ts.Ammo}/{ts.AmmoCap}", NotificationSeverity.Info, default, 0.1f, true);

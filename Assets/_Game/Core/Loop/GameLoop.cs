@@ -26,7 +26,10 @@ namespace SeasonalBastion
                 if (_s.NotificationService is NotificationService ns)
                     ns.MuteForSeconds(4.0f);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[GameLoop] Failed to mute notifications during run reset: {ex}");
+            }
 
             // Deterministic initial run clock state
             if (_s.RunStartRuntime != null)
@@ -74,29 +77,29 @@ namespace SeasonalBastion
             // clear transient UI
             if (_s.NotificationService is NotificationService ns) ns.ClearInbox();
             else _s.NotificationService.ClearAll();
-            try { _s.TutorialHints.Reset(); } catch { }
+            try { _s.TutorialHints.Reset(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset TutorialHints: {ex}"); }
             // Day40: reset season metrics
-            try { _s.SeasonMetrics.Reset(); } catch { }
+            try { _s.SeasonMetrics.Reset(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset SeasonMetrics: {ex}"); }
 
             // jobs / claims / build orders (runtime concrete types)
-            try { _s.JobBoard.ClearAll(); } catch { }
-            try { _s.ClaimService.ClearAll(); } catch { }
-            try { _s.BuildOrderService.ClearAll(); } catch { }
+            try { _s.JobBoard.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear JobBoard during run reset: {ex}"); }
+            try { _s.ClaimService.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear ClaimService during run reset: {ex}"); }
+            try { _s.BuildOrderService.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear BuildOrderService during run reset: {ex}"); }
 
             // grid occupancy
-            try { _s.GridMap.ClearAll(); } catch { }
-            try { _s.AgentMover?.ClearAll(); } catch { }
+            try { _s.GridMap.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear GridMap during run reset: {ex}"); }
+            try { _s.AgentMover?.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to clear AgentMover caches during run reset: {ex}"); }
 
             // run-start runtime caches
-            try { ResetRunStartRuntime(_s.RunStartRuntime); } catch { }
-            try { _s.PopulationService?.Reset(); } catch { }
+            try { ResetRunStartRuntime(_s.RunStartRuntime); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset RunStartRuntime: {ex}"); }
+            try { _s.PopulationService?.Reset(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset PopulationService: {ex}"); }
 
             // world stores (runtime concrete stores)
-            try { (_s.WorldState?.Buildings as IEntityStore<BuildingId, BuildingState>)?.ClearAll(); } catch { }
-            try { (_s.WorldState?.Sites as IEntityStore<SiteId, BuildSiteState>)?.ClearAll(); } catch { }
-            try { (_s.WorldState?.Npcs as IEntityStore<NpcId, NpcState>)?.ClearAll(); } catch { }
-            try { (_s.WorldState?.Enemies as IEntityStore<EnemyId, EnemyState>)?.ClearAll(); } catch { }
-            try { (_s.WorldState?.Towers as IEntityStore<TowerId, TowerState>)?.ClearAll(); } catch { }
+            try { (_s.WorldState?.Buildings as IEntityStore<BuildingId, BuildingState>)?.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear building store during run reset: {ex}"); }
+            try { (_s.WorldState?.Sites as IEntityStore<SiteId, BuildSiteState>)?.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear site store during run reset: {ex}"); }
+            try { (_s.WorldState?.Npcs as IEntityStore<NpcId, NpcState>)?.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear NPC store during run reset: {ex}"); }
+            try { (_s.WorldState?.Enemies as IEntityStore<EnemyId, EnemyState>)?.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear enemy store during run reset: {ex}"); }
+            try { (_s.WorldState?.Towers as IEntityStore<TowerId, TowerState>)?.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear tower store during run reset: {ex}"); }
         }
 
         public void Tick(float dt) => TickOrder.TickAll(_s, dt);

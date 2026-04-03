@@ -221,7 +221,10 @@ namespace SeasonalBastion.View2D
                         var v = p.GetValue(obj) as T;
                         if (v != null) return v;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[WorldViewRoot2D] Failed to read property '{n}' from {t.Name}: {ex}");
+                    }
                 }
 
                 // 2) Field
@@ -233,7 +236,10 @@ namespace SeasonalBastion.View2D
                         var v = f.GetValue(obj) as T;
                         if (v != null) return v;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[WorldViewRoot2D] Failed to read field '{n}' from {t.Name}: {ex}");
+                    }
                 }
 
                 // 3) Method (optional): GetGridMap(), GetWorldState()...
@@ -245,7 +251,10 @@ namespace SeasonalBastion.View2D
                         var v = m.Invoke(obj, null) as T;
                         if (v != null) return v;
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[WorldViewRoot2D] Failed to invoke method '{n}' on {t.Name}: {ex}");
+                    }
                 }
             }
 

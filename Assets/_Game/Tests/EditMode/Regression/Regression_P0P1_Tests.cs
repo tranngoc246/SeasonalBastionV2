@@ -2679,10 +2679,6 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(issues.Exists(x => x.Code == "HQ_MISSING"), Is.True);
         }
 
-
-    }
-}
-
         [Test]
         public void SaveLoadApplier_GridOccupancyMatchesRestoredWorld_AndClearsStaleOccupancy()
         {
@@ -2892,6 +2888,155 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void SaveLoadApplier_DeepValidation_RejectsMissingEnemyTowerNpcAndBrokenSiteReference()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Spring.ToString(),
+                dayIndex = 1,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 0f,
+                world = new WorldDTO
+                {
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = new BuildingId(1),
+                            DefId = "bld_hq_t1",
+                            Anchor = new CellPos(1, 1),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 100,
+                            MaxHP = 100,
+                        }
+                    },
+                    Npcs = new List<NpcState>
+                    {
+                        new NpcState
+                        {
+                            Id = new NpcId(2),
+                            DefId = "npc_missing",
+                            Workplace = new BuildingId(999),
+                            Cell = new CellPos(2, 2),
+                        }
+                    },
+                    Towers = new List<TowerState>
+                    {
+                        new TowerState
+                        {
+                            Id = new TowerId(3),
+                            DefId = "tower_missing",
+                            Cell = new CellPos(4, 4),
+                        }
+                    },
+                    Enemies = new List<EnemyState>
+                    {
+                        new EnemyState
+                        {
+                            Id = new EnemyId(4),
+                            DefId = "enemy_missing",
+                            Cell = new CellPos(5, 5),
+                        }
+                    }
+                },
+                build = new BuildDTO
+                {
+                    Sites = new List<BuildSiteState>
+                    {
+                        new BuildSiteState
+                        {
+                            Id = new SiteId(10),
+                            BuildingDefId = "bld_hq_t1",
+                            Anchor = new CellPos(1, 1),
+                            Rotation = Dir4.N,
+                            IsActive = true,
+                            WorkSecondsTotal = 2f,
+                            TargetBuilding = new BuildingId(777),
+                            Kind = 0,
+                        }
+                    }
+                },
+                combat = new CombatDTO(),
+            };
+
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain("TargetBuildingId").Or.Contain("Missing NpcDef").Or.Contain("Missing TowerDef").Or.Contain("Missing EnemyDef"));
+        }
+
+        [Test]
+        public void SaveLoadApplier_DeepValidation_RejectsGridOverlapMismatch()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Spring.ToString(),
+                dayIndex = 1,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 0f,
+                world = new WorldDTO
+                {
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = new BuildingId(1),
+                            DefId = "bld_hq_t1",
+                            Anchor = new CellPos(2, 2),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 100,
+                            MaxHP = 100,
+                        },
+                        new BuildingState
+                        {
+                            Id = new BuildingId(2),
+                            DefId = "bld_hq_t1",
+                            Anchor = new CellPos(3, 3),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 100,
+                            MaxHP = 100,
+                        }
+                    }
+                },
+                build = new BuildDTO(),
+                combat = new CombatDTO(),
+            };
+
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain("overlap").IgnoreCase);
+        }
+
+        [Test]
         public void NewRun_AfterSuccessfulLoad_DoesNotLeakLoadedWorldState()
         {
             var cfg = UnityEngine.Resources.Load<UnityEngine.TextAsset>("RunStart/StartMapConfig_RunStart_64x64_v0.1");
@@ -2964,3 +3109,5 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(world.Enemies.Count, Is.EqualTo(0), "New Run should not leak enemies restored by prior load/apply.");
             Assert.That(grid.IsRoad(new CellPos(8, 8)), Is.False, "New Run should clear roads restored by prior load before applying fresh run-start state.");
         }
+    }
+}

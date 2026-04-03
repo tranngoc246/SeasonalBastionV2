@@ -50,6 +50,8 @@ namespace SeasonalBastion
                 return 0;
 
             var placeholderByKey = new Dictionary<long, BuildingId>(128);
+            var seenSites = new HashSet<int>();
+            var seenTargetBuildings = new HashSet<int>();
 
             foreach (var bid in _s.WorldState.Buildings.Ids)
             {
@@ -72,6 +74,7 @@ namespace SeasonalBastion
             {
                 var sid = siteIds[i];
                 if (!_s.WorldState.Sites.Exists(sid)) continue;
+                if (!seenSites.Add(sid.Value)) continue;
 
                 var site = _s.WorldState.Sites.Get(sid);
                 if (!site.IsActive) continue;
@@ -93,6 +96,9 @@ namespace SeasonalBastion
                         );
                         continue;
                     }
+
+                    if (!seenTargetBuildings.Add(buildingId.Value))
+                        continue;
 
                     int orderId = _allocateOrderId();
                     var order = new BuildOrder
@@ -117,6 +123,7 @@ namespace SeasonalBastion
                 {
                     var buildingId = site.TargetBuilding;
                     if (!_s.WorldState.Buildings.Exists(buildingId)) continue;
+                    if (!seenTargetBuildings.Add(buildingId.Value)) continue;
 
                     int orderId = _allocateOrderId();
                     var order = new BuildOrder

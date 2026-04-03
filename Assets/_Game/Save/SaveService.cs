@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using UnityEngine;
 using SeasonalBastion.Contracts;
 
@@ -17,6 +18,8 @@ namespace SeasonalBastion
         public int CurrentSchemaVersion => _migrator.CurrentSchemaVersion;
 
         private string RunPath => Path.Combine(Application.persistentDataPath, "run_save.json");
+        private string RunTempPath => Path.Combine(Application.persistentDataPath, "run_save.tmp");
+        private string RunBackupPath => Path.Combine(Application.persistentDataPath, "run_save.bak");
         private string MetaPath => Path.Combine(Application.persistentDataPath, "meta_save.json");
 
         public SaveService(SaveMigrator migrator, IDataRegistry data, IGridMap grid, IPopulationService population = null)
@@ -32,6 +35,8 @@ namespace SeasonalBastion
         public void DeleteRunSave()
         {
             if (File.Exists(RunPath)) File.Delete(RunPath);
+            if (File.Exists(RunTempPath)) File.Delete(RunTempPath);
+            if (File.Exists(RunBackupPath)) File.Delete(RunBackupPath);
         }
 
         public SaveResult SaveRun(IWorldState world, IRunClock clock)
@@ -41,171 +46,15 @@ namespace SeasonalBastion
                 if (world == null || clock == null)
                     return new SaveResult(SaveResultCode.Failed, "world/clock null");
 
-                var rc = clock as RunClockService;
-                var file = new RunSaveFile
-                {
-                    schemaVersion = CurrentSchemaVersion,
-                    seed = 0,
-                    season = clock.CurrentSeason.ToString(),
-                    dayIndex = clock.DayIndex,
-                    timeScale = clock.TimeScale,
-                    yearIndex = rc != null ? rc.YearIndex : 1,
-                    dayTimer = rc != null ? rc.DayTimerSeconds : 0f,
-                    world = new WorldFile(),
-                    build = new BuildFile(),
-                    population = new PopulationFile()
-                };
-
-                file.combat = new CombatFile
-                {
-                    currentWaveIndex = 0, // Reset-wave option: always restart from begin
-                    isDefendActive = (clock.CurrentPhase == Phase.Defend)
-                };
-
-                if (_population != null)
-                {
-                    var pop = _population.State;
-                    file.population.growthProgressDays = pop.GrowthProgressDays;
-                    file.population.starvationDays = pop.StarvationDays;
-                    file.population.starvedToday = pop.StarvedToday;
-                }
-
-                // Buildings
-                foreach (var id in world.Buildings.Ids)
-                {
-                    var b = world.Buildings.Get(id);
-                    file.world.buildings.Add(new SaveBuilding
-                    {
-                        id = b.Id.Value,
-                        defId = b.DefId,
-                        ax = b.Anchor.X,
-                        ay = b.Anchor.Y,
-                        rot = (int)b.Rotation,
-                        level = b.Level,
-                        isConstructed = b.IsConstructed,
-                        hp = b.HP,
-                        maxHp = b.MaxHP,
-                        wood = b.Wood,
-                        food = b.Food,
-                        stone = b.Stone,
-                        iron = b.Iron,
-                        ammo = b.Ammo
-                    });
-                }
-
-                // Sites
-                foreach (var id in world.Sites.Ids)
-                {
-                    var s = world.Sites.Get(id);
-                    var sf = new SaveSite
-                    {
-                        id = s.Id.Value,
-                        buildingDefId = s.BuildingDefId,
-                        targetLevel = s.TargetLevel,
-                        ax = s.Anchor.X,
-                        ay = s.Anchor.Y,
-                        rot = (int)s.Rotation,
-                        isActive = s.IsActive,
-                        workDone = s.WorkSecondsDone,
-                        workTotal = s.WorkSecondsTotal,
-                        delivered = new List<SaveCost>(),
-                        remaining = new List<SaveCost>(),
-                        kind = s.Kind,
-                        targetBuildingId = s.TargetBuilding.Value,
-                        fromDefId = s.FromDefId,
-                        edgeId = s.EdgeId
-                    };
-
-                    if (s.DeliveredSoFar != null)
-                    {
-                        for (int i = 0; i < s.DeliveredSoFar.Count; i++)
-                        {
-                            var c = s.DeliveredSoFar[i];
-                            sf.delivered.Add(new SaveCost { res = (int)c.Resource, amt = c.Amount });
-                        }
-                    }
-
-                    if (s.RemainingCosts != null)
-                    {
-                        for (int i = 0; i < s.RemainingCosts.Count; i++)
-                        {
-                            var c = s.RemainingCosts[i];
-                            sf.remaining.Add(new SaveCost { res = (int)c.Resource, amt = c.Amount });
-                        }
-                    }
-
-                    file.build.sites.Add(sf);
-                }
-
-                // NPCs
-                foreach (var id in world.Npcs.Ids)
-                {
-                    var n = world.Npcs.Get(id);
-                    file.world.npcs.Add(new SaveNpc
-                    {
-                        id = n.Id.Value,
-                        defId = n.DefId,
-                        cellX = n.Cell.X,
-                        cellY = n.Cell.Y,
-                        workplaceBuildingId = n.Workplace.Value,
-                        currentJobId = n.CurrentJob.Value,
-                        isIdle = n.IsIdle
-                    });
-                }
-
-                // Towers (TowerState kh�ng c� DefId/HP, d�ng Hp/HpMax)
-                foreach (var id in world.Towers.Ids)
-                {
-                    var t = world.Towers.Get(id);
-                    file.world.towers.Add(new SaveTower
-                    {
-                        id = t.Id.Value,
-                        cellX = t.Cell.X,
-                        cellY = t.Cell.Y,
-                        ammo = t.Ammo,
-                        ammoCap = t.AmmoCap,
-                        hp = t.Hp,
-                        hpMax = t.HpMax
-                    });
-                }
-
-                // Enemies (Day33: persist enemies so load reset-wave can "carry" leftovers)
-                foreach (var id in world.Enemies.Ids)
-                {
-                    var e = world.Enemies.Get(id);
-                    file.world.enemies.Add(new SaveEnemy
-                    {
-                        id = e.Id.Value,
-                        defId = e.DefId,
-                        cellX = e.Cell.X,
-                        cellY = e.Cell.Y,
-                        hp = e.Hp,
-                        lane = e.Lane,
-                        move01 = e.MoveProgress01
-                    });
-                }
-
-                // Roads
-                if (_grid != null)
-                {
-                    for (int y = 0; y < _grid.Height; y++)
-                    {
-                        for (int x = 0; x < _grid.Width; x++)
-                        {
-                            var c = new CellPos(x, y);
-                            if (_grid.IsRoad(c))
-                                file.roads.Add(new CellPosI32(x, y));
-                        }
-                    }
-                }
-
+                var file = CreateImmutableRunSnapshot(world, clock);
                 var json = JsonUtility.ToJson(file, true);
-                File.WriteAllText(RunPath, json);
+                AtomicWriteRunSave(json);
 
                 return new SaveResult(SaveResultCode.Ok, "Saved run");
             }
             catch (Exception e)
             {
+                Debug.LogError("[SaveLoad] SaveRun failed: " + e);
                 return new SaveResult(SaveResultCode.Failed, e.Message);
             }
         }
@@ -216,7 +65,17 @@ namespace SeasonalBastion
             try
             {
                 if (!File.Exists(RunPath))
-                    return new SaveResult(SaveResultCode.NotFound, "No run save");
+                {
+                    if (File.Exists(RunBackupPath))
+                    {
+                        Debug.LogWarning("[SaveLoad] Primary run save missing, attempting backup restore from run_save.bak.");
+                        File.Copy(RunBackupPath, RunPath, overwrite: true);
+                    }
+                    else
+                    {
+                        return new SaveResult(SaveResultCode.NotFound, "No run save");
+                    }
+                }
 
                 var json = File.ReadAllText(RunPath);
                 var file = JsonUtility.FromJson<RunSaveFile>(json);
@@ -239,8 +98,6 @@ namespace SeasonalBastion
                     population = new PopulationDTO(),
                 };
 
-                // Day33: combat snapshot minimal (reset-wave option)
-                // If file has combat, use it; else derive from season/phase.
                 dto.combat.CurrentWaveIndex = file.combat != null ? file.combat.currentWaveIndex : 0;
 
                 bool derivedDefend =
@@ -256,7 +113,6 @@ namespace SeasonalBastion
                     dto.population.StarvedToday = file.population.starvedToday;
                 }
 
-                // Roads
                 if (file.roads != null)
                 {
                     for (int i = 0; i < file.roads.Count; i++)
@@ -266,7 +122,6 @@ namespace SeasonalBastion
                     }
                 }
 
-                // Buildings
                 if (file.world?.buildings != null)
                 {
                     for (int i = 0; i < file.world.buildings.Count; i++)
@@ -291,7 +146,6 @@ namespace SeasonalBastion
                     }
                 }
 
-                // Sites
                 if (file.build?.sites != null)
                 {
                     for (int i = 0; i < file.build.sites.Count; i++)
@@ -337,7 +191,6 @@ namespace SeasonalBastion
                     }
                 }
 
-                // NPCs
                 if (file.world?.npcs != null)
                 {
                     for (int i = 0; i < file.world.npcs.Count; i++)
@@ -355,7 +208,6 @@ namespace SeasonalBastion
                     }
                 }
 
-                // Towers
                 if (file.world?.towers != null)
                 {
                     for (int i = 0; i < file.world.towers.Count; i++)
@@ -364,6 +216,7 @@ namespace SeasonalBastion
                         dto.world.Towers.Add(new TowerState
                         {
                             Id = new TowerId(t.id),
+                            DefId = t.defId,
                             Cell = new CellPos(t.cellX, t.cellY),
                             Ammo = t.ammo,
                             AmmoCap = t.ammoCap,
@@ -373,7 +226,6 @@ namespace SeasonalBastion
                     }
                 }
 
-                // Enemies
                 if (file.world?.enemies != null)
                 {
                     for (int i = 0; i < file.world.enemies.Count; i++)
@@ -399,6 +251,7 @@ namespace SeasonalBastion
             }
             catch (Exception e)
             {
+                Debug.LogError("[SaveLoad] LoadRun failed: " + e);
                 return new SaveResult(SaveResultCode.Failed, e.Message);
             }
         }
@@ -428,6 +281,7 @@ namespace SeasonalBastion
             }
             catch (Exception e)
             {
+                Debug.LogError("[SaveLoad] SaveMeta failed: " + e);
                 return new SaveResult(SaveResultCode.Failed, e.Message);
             }
         }
@@ -470,7 +324,215 @@ namespace SeasonalBastion
             }
             catch (Exception e)
             {
+                Debug.LogError("[SaveLoad] LoadMeta failed: " + e);
                 return new SaveResult(SaveResultCode.Failed, e.Message);
+            }
+        }
+
+        private RunSaveFile CreateImmutableRunSnapshot(IWorldState world, IRunClock clock)
+        {
+            var rc = clock as RunClockService;
+            var file = new RunSaveFile
+            {
+                schemaVersion = CurrentSchemaVersion,
+                seed = ResolveRunSeed(clock),
+                season = clock.CurrentSeason.ToString(),
+                dayIndex = clock.DayIndex,
+                timeScale = clock.TimeScale,
+                yearIndex = rc != null ? rc.YearIndex : 1,
+                dayTimer = rc != null ? rc.DayTimerSeconds : 0f,
+                world = new WorldFile(),
+                build = new BuildFile(),
+                combat = new CombatFile
+                {
+                    currentWaveIndex = 0,
+                    isDefendActive = (clock.CurrentPhase == Phase.Defend)
+                },
+                population = new PopulationFile(),
+                roads = new List<CellPosI32>()
+            };
+
+            if (_population != null)
+            {
+                var pop = _population.State;
+                file.population.growthProgressDays = pop.GrowthProgressDays;
+                file.population.starvationDays = pop.StarvationDays;
+                file.population.starvedToday = pop.StarvedToday;
+            }
+
+            foreach (var id in world.Buildings.Ids)
+            {
+                var b = world.Buildings.Get(id);
+                file.world.buildings.Add(new SaveBuilding
+                {
+                    id = b.Id.Value,
+                    defId = b.DefId,
+                    ax = b.Anchor.X,
+                    ay = b.Anchor.Y,
+                    rot = (int)b.Rotation,
+                    level = b.Level,
+                    isConstructed = b.IsConstructed,
+                    hp = b.HP,
+                    maxHp = b.MaxHP,
+                    wood = b.Wood,
+                    food = b.Food,
+                    stone = b.Stone,
+                    iron = b.Iron,
+                    ammo = b.Ammo
+                });
+            }
+
+            foreach (var id in world.Sites.Ids)
+            {
+                var s = world.Sites.Get(id);
+                var sf = new SaveSite
+                {
+                    id = s.Id.Value,
+                    buildingDefId = s.BuildingDefId,
+                    targetLevel = s.TargetLevel,
+                    ax = s.Anchor.X,
+                    ay = s.Anchor.Y,
+                    rot = (int)s.Rotation,
+                    isActive = s.IsActive,
+                    workDone = s.WorkSecondsDone,
+                    workTotal = s.WorkSecondsTotal,
+                    delivered = new List<SaveCost>(),
+                    remaining = new List<SaveCost>(),
+                    kind = s.Kind,
+                    targetBuildingId = s.TargetBuilding.Value,
+                    fromDefId = s.FromDefId,
+                    edgeId = s.EdgeId
+                };
+
+                if (s.DeliveredSoFar != null)
+                {
+                    for (int i = 0; i < s.DeliveredSoFar.Count; i++)
+                    {
+                        var c = s.DeliveredSoFar[i];
+                        sf.delivered.Add(new SaveCost { res = (int)c.Resource, amt = c.Amount });
+                    }
+                }
+
+                if (s.RemainingCosts != null)
+                {
+                    for (int i = 0; i < s.RemainingCosts.Count; i++)
+                    {
+                        var c = s.RemainingCosts[i];
+                        sf.remaining.Add(new SaveCost { res = (int)c.Resource, amt = c.Amount });
+                    }
+                }
+
+                file.build.sites.Add(sf);
+            }
+
+            foreach (var id in world.Npcs.Ids)
+            {
+                var n = world.Npcs.Get(id);
+                file.world.npcs.Add(new SaveNpc
+                {
+                    id = n.Id.Value,
+                    defId = n.DefId,
+                    cellX = n.Cell.X,
+                    cellY = n.Cell.Y,
+                    workplaceBuildingId = n.Workplace.Value,
+                    currentJobId = n.CurrentJob.Value,
+                    isIdle = n.IsIdle
+                });
+            }
+
+            foreach (var id in world.Towers.Ids)
+            {
+                var t = world.Towers.Get(id);
+                file.world.towers.Add(new SaveTower
+                {
+                    id = t.Id.Value,
+                    defId = t.DefId,
+                    cellX = t.Cell.X,
+                    cellY = t.Cell.Y,
+                    ammo = t.Ammo,
+                    ammoCap = t.AmmoCap,
+                    hp = t.Hp,
+                    hpMax = t.HpMax
+                });
+            }
+
+            foreach (var id in world.Enemies.Ids)
+            {
+                var e = world.Enemies.Get(id);
+                file.world.enemies.Add(new SaveEnemy
+                {
+                    id = e.Id.Value,
+                    defId = e.DefId,
+                    cellX = e.Cell.X,
+                    cellY = e.Cell.Y,
+                    hp = e.Hp,
+                    lane = e.Lane,
+                    move01 = e.MoveProgress01
+                });
+            }
+
+            if (_grid != null)
+            {
+                for (int y = 0; y < _grid.Height; y++)
+                {
+                    for (int x = 0; x < _grid.Width; x++)
+                    {
+                        var c = new CellPos(x, y);
+                        if (_grid.IsRoad(c))
+                            file.roads.Add(new CellPosI32(x, y));
+                    }
+                }
+            }
+
+            return file;
+        }
+
+        private int ResolveRunSeed(IRunClock clock)
+        {
+            if (clock is RunClockService)
+            {
+                try
+                {
+                    var bootstrap = UnityEngine.Object.FindObjectOfType<GameBootstrap>();
+                    var services = bootstrap != null ? bootstrap.Services : null;
+                    if (services?.RunStartRuntime != null)
+                        return services.RunStartRuntime.Seed;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError("[SaveLoad] ResolveRunSeed failed: " + e);
+                }
+            }
+
+            return 0;
+        }
+
+        private void AtomicWriteRunSave(string json)
+        {
+            var dir = Path.GetDirectoryName(RunPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
+            if (File.Exists(RunTempPath))
+                File.Delete(RunTempPath);
+
+            var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+            using (var fs = new FileStream(RunTempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var writer = new StreamWriter(fs, utf8NoBom))
+            {
+                writer.Write(json);
+                writer.Flush();
+                fs.Flush(flushToDisk: true);
+            }
+
+            if (File.Exists(RunPath))
+            {
+                File.Replace(RunTempPath, RunPath, RunBackupPath, ignoreMetadataErrors: true);
+            }
+            else
+            {
+                File.Move(RunTempPath, RunPath);
+                File.Copy(RunPath, RunBackupPath, overwrite: true);
             }
         }
 
@@ -488,7 +550,7 @@ namespace SeasonalBastion
             public float dayTimer;
             public WorldFile world;
             public BuildFile build;
-            public CombatFile combat; 
+            public CombatFile combat;
             public PopulationFile population;
             public List<CellPosI32> roads = new();
         }
@@ -536,6 +598,7 @@ namespace SeasonalBastion
         private struct SaveTower
         {
             public int id;
+            public string defId;
             public int cellX, cellY;
             public int ammo, ammoCap;
             public int hp, hpMax;

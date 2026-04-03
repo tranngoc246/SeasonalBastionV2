@@ -69,9 +69,23 @@ namespace SeasonalBastion.Tests.EditMode
         private readonly Dictionary<string, List<UpgradeEdgeDef>> _edgesFrom = new(StringComparer.Ordinal);
 
         private readonly Dictionary<string, TowerDef> _towersById = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, EnemyDef> _enemiesById = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, NpcDef> _npcsById = new(StringComparer.Ordinal);
 
         public void Add(BuildingDef def) => _b[def.DefId] = def;
         public void AddWave(WaveDef def) => _waves[def.DefId] = def;
+        public void AddEnemy(EnemyDef def)
+        {
+            if (def == null || string.IsNullOrWhiteSpace(def.DefId)) return;
+            _enemiesById[def.DefId] = def;
+        }
+
+        public void AddNpc(NpcDef def)
+        {
+            if (def == null || string.IsNullOrWhiteSpace(def.DefId)) return;
+            _npcsById[def.DefId] = def;
+        }
+
         public void AddTower(TowerDef def)
         {
             if (def == null || string.IsNullOrWhiteSpace(def.DefId)) return;
@@ -110,8 +124,12 @@ namespace SeasonalBastion.Tests.EditMode
 
         public bool TryGetBuilding(string id, out BuildingDef def) => _b.TryGetValue(id, out def);
 
-        public EnemyDef GetEnemy(string id) => throw new NotSupportedException();
-        public bool TryGetEnemy(string id, out EnemyDef def) { def = default; return false; }
+        public EnemyDef GetEnemy(string id)
+        {
+            if (_enemiesById.TryGetValue(id, out var def)) return def;
+            throw new NotSupportedException();
+        }
+        public bool TryGetEnemy(string id, out EnemyDef def) => _enemiesById.TryGetValue(id, out def);
         public WaveDef GetWave(string id)
         {
             if (_waves.TryGetValue(id, out var def)) return def;
@@ -122,8 +140,12 @@ namespace SeasonalBastion.Tests.EditMode
         public bool TryGetReward(string id, out RewardDef def) { def = default; return false; }
         public RecipeDef GetRecipe(string id) => throw new NotSupportedException();
         public bool TryGetRecipe(string id, out RecipeDef def) { def = default; return false; }
-        public NpcDef GetNpc(string id) => throw new NotSupportedException();
-        public bool TryGetNpc(string id, out NpcDef def) { def = default; return false; }
+        public NpcDef GetNpc(string id)
+        {
+            if (_npcsById.TryGetValue(id, out var def)) return def;
+            throw new NotSupportedException();
+        }
+        public bool TryGetNpc(string id, out NpcDef def) => _npcsById.TryGetValue(id, out def);
         public TowerDef GetTower(string id)
         {
             if (_towersById.TryGetValue(id, out var def)) return def;

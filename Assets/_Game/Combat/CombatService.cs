@@ -137,8 +137,11 @@ namespace SeasonalBastion
             // until the restored enemies are cleared (prevents double-spawn).
             if (IsActive && _deferWaveStartAfterLoad)
             {
-                // Only start when no alive enemies and no active wave is running.
-                if (AliveEnemyCount <= 0 && !_waves.HasActiveWave)
+                int restoredAlive = _s.WorldState?.Enemies?.Count ?? 0;
+
+                // Only start when no restored enemies remain anywhere in world
+                // and no active wave is already running.
+                if (restoredAlive <= 0 && !_waves.HasActiveWave)
                 {
                     _deferWaveStartAfterLoad = false;
                     _waves.StartDayWaves(_s.RunClock.DayIndex);

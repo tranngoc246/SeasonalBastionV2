@@ -9,6 +9,7 @@ namespace SeasonalBastion
         protected readonly Dictionary<int, TState> _map = new();
         protected readonly List<int> _ids = new();
         protected int _nextId = 1;
+        protected int _version = 0;
 
         public abstract int ToInt(TId id);
         public abstract TId FromInt(int v);
@@ -16,7 +17,11 @@ namespace SeasonalBastion
         public bool Exists(TId id) => _map.ContainsKey(ToInt(id));
         public TState Get(TId id) => _map[ToInt(id)];
 
-        public void Set(TId id, TState state) => _map[ToInt(id)] = state;
+        public void Set(TId id, TState state)
+        {
+            _map[ToInt(id)] = state;
+            _version++;
+        }
 
         public TId Create(TState state)
         {
@@ -25,6 +30,7 @@ namespace SeasonalBastion
             _map[key] = state;
 
             _ids.Add(key);
+            _version++;
             return id;
         }
 
@@ -40,16 +46,18 @@ namespace SeasonalBastion
             if (!overwriteIfExists && _map.ContainsKey(key))
                 return id;
 
+            bool existed = _map.ContainsKey(key);
             _map[key] = state;
 
             // keep insertion order deterministic; caller should insert sorted.
-            if (!_ids.Contains(key))
+            if (!existed)
                 _ids.Add(key);
 
             // ensure next Create() won't collide
             if (key >= _nextId)
                 _nextId = key + 1;
 
+            _version++;
             return id;
         }
 
@@ -57,7 +65,10 @@ namespace SeasonalBastion
         {
             var key = ToInt(id);
             if (_map.Remove(key))
+            {
                 _ids.Remove(key);
+                _version++;
+            }
         }
 
         public virtual void ClearAll()
@@ -65,9 +76,11 @@ namespace SeasonalBastion
             _map.Clear();
             _ids.Clear();
             _nextId = 1;
+            _version++;
         }
 
         public int Count => _map.Count;
+        public int Version => _version;
 
         public IEnumerable<TId> Ids
         {

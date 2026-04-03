@@ -1099,12 +1099,12 @@ namespace SeasonalBastion
             return best.Value != 0;
         }
 
-        private int _lastNpcCountForWorkplaces = -1;
+        private int _lastNpcVersionForWorkplaces = -1;
 
         private void RebuildWorkplaceHasNpcSet()
         {
-            int npcCount = _s.WorldState?.Npcs != null ? _s.WorldState.Npcs.Count : 0;
-            if (_lastNpcCountForWorkplaces == npcCount && _npcIds.Count == npcCount && _workplacesWithNpc.Count > 0)
+            int npcVersion = _s.WorldState?.Npcs != null ? _s.WorldState.Npcs.Version : 0;
+            if (_lastNpcVersionForWorkplaces == npcVersion)
                 return;
 
             _npcIds.Clear();
@@ -1121,7 +1121,7 @@ namespace SeasonalBastion
                     _workplacesWithNpc.Add(ns.Workplace.Value);
             }
 
-            _lastNpcCountForWorkplaces = npcCount;
+            _lastNpcVersionForWorkplaces = npcVersion;
         }
 
         private static bool IsTerminal(JobStatus s)

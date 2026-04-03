@@ -13,6 +13,7 @@ namespace SeasonalBastion.Contracts
         void ClearAll();
 
         int Count { get; }
+        int Version { get; }
         IEnumerable<TId> Ids { get; }
     }
 }

@@ -165,10 +165,20 @@ namespace SeasonalBastion
                             return false;
                         }
 
-                        if (buildingCells.TryGetValue(key, out var otherBuilding) && site.Kind == 0 && site.TargetBuilding.Value != otherBuilding)
+                        if (buildingCells.TryGetValue(key, out var otherBuilding) && site.Kind == 0)
                         {
-                            error = $"Grid occupancy mismatch at ({x},{y}): site {site.Id.Value} conflicts with building {otherBuilding}";
-                            return false;
+                            bool matchesTargetBuilding = site.TargetBuilding.Value != 0 && site.TargetBuilding.Value == otherBuilding;
+                            bool matchesPlaceholderByDefAndAnchor = buildingsById.TryGetValue(otherBuilding, out var existingBuilding)
+                                && !existingBuilding.IsConstructed
+                                && string.Equals(existingBuilding.DefId, site.BuildingDefId, StringComparison.Ordinal)
+                                && existingBuilding.Anchor.X == site.Anchor.X
+                                && existingBuilding.Anchor.Y == site.Anchor.Y;
+
+                            if (!matchesTargetBuilding && !matchesPlaceholderByDefAndAnchor)
+                            {
+                                error = $"Grid occupancy mismatch at ({x},{y}): site {site.Id.Value} conflicts with building {otherBuilding}";
+                                return false;
+                            }
                         }
 
                         siteCells.Add(key, site.Id.Value);

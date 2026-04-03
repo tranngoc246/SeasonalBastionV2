@@ -64,7 +64,9 @@ namespace SeasonalBastion
         public void ClearSite(CellPos c)
         {
             if (!IsInside(c)) return;
-            _cells[Idx(c)] = new CellOccupancy(CellOccupancyKind.Empty, default, default);
+            int idx = Idx(c);
+            if (_cells[idx].Kind != CellOccupancyKind.Site) return;
+            _cells[idx] = new CellOccupancy(CellOccupancyKind.Empty, default, default);
         }
 
         public void ClearAll()

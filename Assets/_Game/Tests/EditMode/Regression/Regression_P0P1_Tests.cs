@@ -2682,3 +2682,285 @@ namespace SeasonalBastion.Tests.EditMode
 
     }
 }
+
+        [Test]
+        public void SaveLoadApplier_GridOccupancyMatchesRestoredWorld_AndClearsStaleOccupancy()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 2, SizeY = 2, MaxHp = 50, IsHouse = true });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            grid.SetRoad(new CellPos(1, 1), true);
+            grid.SetBuilding(new CellPos(2, 2), new BuildingId(999));
+            grid.SetSite(new CellPos(3, 3), new SiteId(999));
+
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Spring.ToString(),
+                dayIndex = 2,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 0f,
+                world = new WorldDTO
+                {
+                    Roads = new List<CellPosI32> { new CellPosI32(4, 4) },
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = new BuildingId(10),
+                            DefId = "bld_hq_t1",
+                            Anchor = new CellPos(6, 6),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 100,
+                            MaxHP = 100,
+                        },
+                        new BuildingState
+                        {
+                            Id = new BuildingId(11),
+                            DefId = "bld_house_t1",
+                            Anchor = new CellPos(10, 10),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = false,
+                            HP = 25,
+                            MaxHP = 50,
+                        }
+                    }
+                },
+                build = new BuildDTO
+                {
+                    Sites = new List<BuildSiteState>
+                    {
+                        new BuildSiteState
+                        {
+                            Id = new SiteId(20),
+                            BuildingDefId = "bld_house_t1",
+                            TargetLevel = 1,
+                            Anchor = new CellPos(10, 10),
+                            Rotation = Dir4.N,
+                            IsActive = true,
+                            WorkSecondsDone = 1f,
+                            WorkSecondsTotal = 5f,
+                            DeliveredSoFar = new List<CostDef>(),
+                            RemainingCosts = new List<CostDef>(),
+                            Kind = 0,
+                        }
+                    }
+                },
+                combat = new CombatDTO(),
+            };
+
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(grid.IsRoad(new CellPos(1, 1)), Is.False, "Old pre-load road occupancy must be cleared before applying snapshot.");
+            Assert.That(grid.IsRoad(new CellPos(4, 4)), Is.True, "Saved roads must be restored exactly once.");
+            var hqOcc = grid.Get(new CellPos(6, 6));
+            Assert.That(hqOcc.Kind, Is.EqualTo(CellOccupancyKind.Building));
+            Assert.That(hqOcc.Building.Value, Is.EqualTo(10));
+            var siteOcc = grid.Get(new CellPos(10, 10));
+            Assert.That(siteOcc.Kind, Is.EqualTo(CellOccupancyKind.Site));
+            Assert.That(siteOcc.Site.Value, Is.EqualTo(20));
+            Assert.That(grid.Get(new CellPos(2, 2)).Kind, Is.EqualTo(CellOccupancyKind.Empty));
+            Assert.That(grid.Get(new CellPos(3, 3)).Kind, Is.EqualTo(CellOccupancyKind.Empty));
+        }
+
+        [Test]
+        public void BuildOrderService_RebuildFromSites_AfterLoad_IsIdempotentAcrossRepeatedCalls()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            var world = new WorldState();
+
+            var placeholderId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_test_placeholder",
+                Anchor = new CellPos(3, 3),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = false,
+                HP = 10,
+                MaxHP = 10
+            });
+            var placeholder = world.Buildings.Get(placeholderId);
+            placeholder.Id = placeholderId;
+            world.Buildings.Set(placeholderId, placeholder);
+
+            var siteId = world.Sites.Create(new BuildSiteState
+            {
+                BuildingDefId = "bld_test_placeholder",
+                TargetLevel = 1,
+                Anchor = new CellPos(3, 3),
+                Rotation = Dir4.N,
+                IsActive = true,
+                WorkSecondsDone = 2f,
+                WorkSecondsTotal = 10f,
+                DeliveredSoFar = new List<CostDef>(),
+                RemainingCosts = new List<CostDef>(),
+                Kind = 0,
+            });
+            var site = world.Sites.Get(siteId);
+            site.Id = siteId;
+            world.Sites.Set(siteId, site);
+
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            var bos = new BuildOrderService(services);
+
+            int createdFirst = bos.RebuildActivePlaceOrdersFromSitesAfterLoad();
+            int createdSecond = bos.RebuildActivePlaceOrdersFromSitesAfterLoad();
+
+            Assert.That(createdFirst, Is.EqualTo(1));
+            Assert.That(createdSecond, Is.EqualTo(1), "Reload helper may rebuild from scratch, but should not accumulate duplicates across repeated calls.");
+            Assert.That(bos.TryGet(1, out var firstOrder), Is.True);
+            Assert.That(firstOrder.Site.Value, Is.EqualTo(siteId.Value));
+            Assert.That(bos.TryGet(2, out _), Is.False, "Repeated rebuild should reset/reconstruct logical active orders rather than append duplicates.");
+        }
+
+        [Test]
+        public void SaveLoadApplier_InvalidSnapshot_FailsBeforeMutatingExistingRuntimeState()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+
+            var existingId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(1, 1),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100,
+            });
+            var existing = world.Buildings.Get(existingId);
+            existing.Id = existingId;
+            world.Buildings.Set(existingId, existing);
+            grid.SetBuilding(new CellPos(1, 1), existingId);
+
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Spring.ToString(),
+                dayIndex = 1,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 0f,
+                world = new WorldDTO
+                {
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = new BuildingId(2),
+                            DefId = "bld_missing_def_t1",
+                            Anchor = new CellPos(5, 5),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 50,
+                            MaxHP = 50,
+                        }
+                    }
+                },
+                build = new BuildDTO(),
+                combat = new CombatDTO(),
+            };
+
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain("Missing BuildingDef"));
+            Assert.That(world.Buildings.Exists(existingId), Is.True, "Invalid snapshot should fail before clearing/restoring runtime world state.");
+            Assert.That(grid.Get(new CellPos(1, 1)).Building.Value, Is.EqualTo(existingId.Value));
+        }
+
+        [Test]
+        public void NewRun_AfterSuccessfulLoad_DoesNotLeakLoadedWorldState()
+        {
+            var cfg = UnityEngine.Resources.Load<UnityEngine.TextAsset>("RunStart/StartMapConfig_RunStart_64x64_v0.1");
+            if (cfg == null)
+                Assert.Ignore("RunStart config resource is not available in EditMode test runtime; skip new-run-after-load regression.");
+
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var grid = new GridMap(64, 64);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 5, SizeY = 5, MaxHp = 300, IsHQ = true, WorkRoles = WorkRoleFlags.Build | WorkRoleFlags.HaulBasic, CapWood = new StorageCapsByLevel { L1 = 200 }, CapFood = new StorageCapsByLevel { L1 = 200 }, CapStone = new StorageCapsByLevel { L1 = 200 }, CapIron = new StorageCapsByLevel { L1 = 200 }, CapAmmo = new StorageCapsByLevel { L1 = 200 } });
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsHouse = true });
+            data.Add(new BuildingDef { DefId = "bld_farmhouse_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsProducer = true, WorkRoles = WorkRoleFlags.Harvest, CapFood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_lumbercamp_t1", SizeX = 3, SizeY = 3, MaxHp = 120, IsProducer = true, WorkRoles = WorkRoleFlags.Harvest, CapWood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_tower_arrow_t1", SizeX = 3, SizeY = 3, MaxHp = 180, IsTower = true });
+            var clock = new FakeRunClock();
+            var services = MakeServices(bus, data, new NotificationService(bus), clock, new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = new StorageService(world, data, bus);
+            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            services.JobBoard = new JobBoard();
+            services.ClaimService = new ClaimService();
+            services.BuildOrderService = new FakeBuildOrderService();
+            services.CombatService = new CombatService(services);
+
+            var dto = new RunSaveDTO
+            {
+                schemaVersion = 1,
+                season = Season.Winter.ToString(),
+                dayIndex = 3,
+                timeScale = 1f,
+                yearIndex = 2,
+                dayTimer = 4f,
+                world = new WorldDTO
+                {
+                    Roads = new List<CellPosI32> { new CellPosI32(8, 8) },
+                    Buildings = new List<BuildingState>
+                    {
+                        new BuildingState
+                        {
+                            Id = new BuildingId(50),
+                            DefId = "bld_hq_t1",
+                            Anchor = new CellPos(20, 20),
+                            Rotation = Dir4.N,
+                            Level = 1,
+                            IsConstructed = true,
+                            HP = 300,
+                            MaxHP = 300,
+                            Wood = 33,
+                        }
+                    },
+                    Enemies = new List<EnemyState>
+                    {
+                        new EnemyState { Id = new EnemyId(60), DefId = "enemy_saved", Cell = new CellPos(30, 30), Hp = 8, Lane = 0 }
+                    }
+                },
+                build = new BuildDTO(),
+                combat = new CombatDTO { IsDefendActive = true },
+            };
+
+            bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
+            Assert.That(ok, Is.True, error);
+            Assert.That(world.Buildings.Exists(new BuildingId(50)), Is.True);
+            Assert.That(world.Enemies.Count, Is.EqualTo(1));
+
+            var loop = new GameLoop(services);
+            loop.StartNewRun(seed: 123, startMapConfigJsonOrMarkdown: cfg.text);
+
+            Assert.That(world.Buildings.Exists(new BuildingId(50)), Is.False, "New Run should clear previously loaded world state before applying fresh baseline config.");
+            Assert.That(world.Enemies.Count, Is.EqualTo(0), "New Run should not leak enemies restored by prior load/apply.");
+            Assert.That(grid.IsRoad(new CellPos(8, 8)), Is.False, "New Run should clear roads restored by prior load before applying fresh run-start state.");
+        }

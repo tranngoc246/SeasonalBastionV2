@@ -13,13 +13,18 @@ namespace SeasonalBastion
         private readonly AmmoDebugHooks _debugHooks;
         private readonly List<AmmoRequest> _urgent = new();
         private readonly List<AmmoRequest> _normal = new();
+        internal List<AmmoRequest> UrgentRequests => _urgent;
+        internal List<AmmoRequest> NormalRequests => _normal;
 
         // Deterministic sim-time (no Unity realtime)
         private float _simTime;
+        internal float SimTime => _simTime;
 
         // Cache to detect ammo changes without relying on combat firing hook
         private readonly Dictionary<int, int> _lastAmmoByTower = new();
         private readonly Dictionary<int, int> _lastCapByTower = new();
+        internal Dictionary<int, int> LastAmmoByTower => _lastAmmoByTower;
+        internal Dictionary<int, int> LastCapByTower => _lastCapByTower;
         private readonly Dictionary<int, byte> _lastStateByTower = new(); // 0=ok,1=low,2=empty
         private readonly HashSet<int> _towerNeedLogged = new();
         private readonly HashSet<int> _towerNoSourceLogged = new();
@@ -32,6 +37,7 @@ namespace SeasonalBastion
 
         // Anti-dup pending request per tower (supports promote low->empty)
         private readonly HashSet<int> _pendingReqTower = new();
+        internal HashSet<int> PendingReqTower => _pendingReqTower;
         private readonly Dictionary<int, AmmoRequestPriority> _pendingPriorityByTower = new();
 
         // ----------------- Day25 DEV HOOK (no combat yet) -----------------
@@ -41,6 +47,7 @@ namespace SeasonalBastion
         public int DevHook_AmmoPerShot { get; set; } = 1;
 
         private float _devHookTimer;
+        internal float DevHookTimer { get => _devHookTimer; set => _devHookTimer = value; }
 
         // Prevent enqueue spam: (forgeId*16 + resType) -> jobId
         private readonly Dictionary<int, JobId> _supplyJobByForgeAndType = new();
@@ -52,11 +59,15 @@ namespace SeasonalBastion
         // Day26: 1 pending ResupplyTower job per source/tower
         private readonly Dictionary<int, JobId> _resupplyJobByArmory = new();
         private readonly Dictionary<int, JobId> _resupplyJobByTower = new();
+        internal Dictionary<int, JobId> ResupplyJobByTower => _resupplyJobByTower;
         private readonly List<int> _tmpTowerKeys = new(64);
+        internal List<int> TempTowerKeys => _tmpTowerKeys;
 
         // Reuse buffers
         private readonly List<NpcId> _npcIds = new(64);
+        internal List<NpcId> NpcIds => _npcIds;
         private readonly HashSet<int> _workplacesWithNpc = new();
+        internal HashSet<int> WorkplacesWithNpc => _workplacesWithNpc;
 
         // Cached recipe snapshot (reloaded lazily)
         private RecipeDef _cachedAmmoRecipe;
@@ -81,6 +92,7 @@ namespace SeasonalBastion
         }
 
         public int PendingRequests => _urgent.Count + _normal.Count;
+        internal GameServices Services => _s;
 
         // ----------------- Tunables (prefer Balance json if present; fallback to defaults) -----------------
 
@@ -552,16 +564,7 @@ namespace SeasonalBastion
             return count;
         }
 
-        internal bool ContainsRequestForTower_Core(List<AmmoRequest> list, TowerId tower)
-        {
-            if (list == null) return false;
-            for (int i = 0; i < list.Count; i++)
-            {
-                if (list[i].Tower.Value == tower.Value)
-                    return true;
-            }
-            return false;
-        }
+        internal bool ContainsRequestForTower_Core(List<AmmoRequest> list, TowerId tower) => _topologyCache.ContainsRequestForTower(list, tower);
 
         // ----------------- Recipe-driven forge supply -----------------
 
@@ -1076,83 +1079,21 @@ namespace SeasonalBastion
             }
         }
 
-        internal bool TryPickPreferredHaulerWorkplace_Core(CellPos forgeAnchor, out BuildingId workplace)
-        {
-            workplace = default;
+        internal bool TryPickPreferredHaulerWorkplace_Core(CellPos forgeAnchor, out BuildingId workplace) => _topologyCache.TryPickPreferredHaulerWorkplace(forgeAnchor, out workplace);
 
-            // 1) Prefer Armory with at least one NPC assigned
-            if (TryPickNearestWorkplaceFromIndex(_s.WorldIndex.Armories, forgeAnchor, requireNpc: true, out workplace))
-                return true;
-
-            // 2) Fallback: Warehouse/HQ with NPC
-            if (TryPickNearestWorkplaceFromIndex(_s.WorldIndex.Warehouses, forgeAnchor, requireNpc: true, out workplace))
-                return true;
-
-            return false;
-        }
-
-        internal bool TryPickNearestWorkplaceFromIndex_Core(IReadOnlyList<BuildingId> list, CellPos from, bool requireNpc, out BuildingId best)
-        {
-            best = default;
-
-            int bestDist = int.MaxValue;
-            int bestId = int.MaxValue;
-
-            for (int i = 0; i < list.Count; i++)
-            {
-                var bid = list[i];
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
-
-                var bs = _s.WorldState.Buildings.Get(bid);
-                if (!bs.IsConstructed) continue;
-
-                if (requireNpc && !_workplacesWithNpc.Contains(bid.Value)) continue;
-
-                int d = Manhattan(from, bs.Anchor);
-                int idv = bid.Value;
-
-                if (d < bestDist || (d == bestDist && idv < bestId))
-                {
-                    bestDist = d;
-                    bestId = idv;
-                    best = bid;
-                }
-            }
-
-            return best.Value != 0;
-        }
+        internal bool TryPickNearestWorkplaceFromIndex_Core(IReadOnlyList<BuildingId> list, CellPos from, bool requireNpc, out BuildingId best) => _topologyCache.TryPickNearestWorkplaceFromIndex(list, from, requireNpc, out best);
 
         private int _lastNpcVersionForWorkplaces = -1;
+        internal int LastNpcVersionForWorkplaces { get => _lastNpcVersionForWorkplaces; set => _lastNpcVersionForWorkplaces = value; }
 
-        internal void RebuildWorkplaceHasNpcSet_Core()
-        {
-            int npcVersion = _s.WorldState?.Npcs != null ? _s.WorldState.Npcs.Version : 0;
-            if (_lastNpcVersionForWorkplaces == npcVersion)
-                return;
+        internal void RebuildWorkplaceHasNpcSet_Core() => _topologyCache.RebuildWorkplaceHasNpcSet();
 
-            _npcIds.Clear();
-            foreach (var id in _s.WorldState.Npcs.Ids) _npcIds.Add(id);
-            _npcIds.Sort((a, b) => a.Value.CompareTo(b.Value));
-
-            _workplacesWithNpc.Clear();
-            for (int i = 0; i < _npcIds.Count; i++)
-            {
-                var nid = _npcIds[i];
-                if (!_s.WorldState.Npcs.Exists(nid)) continue;
-                var ns = _s.WorldState.Npcs.Get(nid);
-                if (ns.Workplace.Value != 0)
-                    _workplacesWithNpc.Add(ns.Workplace.Value);
-            }
-
-            _lastNpcVersionForWorkplaces = npcVersion;
-        }
-
-        private static bool IsTerminal(JobStatus s)
+        internal static bool IsTerminal(JobStatus s)
         {
             return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
         }
 
-        private static int Manhattan(CellPos a, CellPos b)
+        internal static int Manhattan(CellPos a, CellPos b)
         {
             int dx = a.X - b.X; if (dx < 0) dx = -dx;
             int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
@@ -1280,69 +1221,11 @@ namespace SeasonalBastion
             return bestForge.Value != 0;
         }
 
-        internal void ReconcileOutstandingTowerNeeds_Core()
-        {
-            var towers = _s.WorldIndex.Towers;
-            if (towers == null) return;
+        internal void ReconcileOutstandingTowerNeeds_Core() => _topologyCache.ReconcileOutstandingTowerNeeds();
 
-            for (int i = 0; i < towers.Count; i++)
-            {
-                var tid = towers[i];
-                if (!_s.WorldState.Towers.Exists(tid)) continue;
+        internal void CleanupDestroyedTowerCaches_Core() => _topologyCache.CleanupDestroyedTowerCaches();
 
-                var tower = _s.WorldState.Towers.Get(tid);
-                if (tower.AmmoCap <= 0) continue;
-
-                int need = tower.AmmoCap - tower.Ammo;
-                if (need <= 0) continue;
-
-                if (_pendingReqTower.Contains(tid.Value))
-                    continue;
-
-                if (ContainsRequestForTower(_urgent, tid) || ContainsRequestForTower(_normal, tid))
-                    continue;
-
-                if (_resupplyJobByTower.TryGetValue(tid.Value, out var existingJob))
-                {
-                    if (_s.JobBoard.TryGet(existingJob, out var job) && !IsTerminal(job.Status))
-                        continue;
-                }
-
-                AmmoRequestPriority pri = tower.Ammo <= 0 ? AmmoRequestPriority.Urgent : AmmoRequestPriority.Normal;
-                EnqueueRequest(new AmmoRequest
-                {
-                    Tower = tid,
-                    AmountNeeded = need,
-                    Priority = pri,
-                    CreatedAt = _simTime
-                });
-            }
-        }
-
-        internal void CleanupDestroyedTowerCaches_Core()
-        {
-            if (_s.WorldState == null) return;
-
-            _tmpTowerKeys.Clear();
-
-            foreach (var kv in _lastAmmoByTower)
-            {
-                int tid = kv.Key;
-                if (!_s.WorldState.Towers.Exists(new TowerId(tid)) && !_tmpTowerKeys.Contains(tid))
-                    _tmpTowerKeys.Add(tid);
-            }
-
-            foreach (var tid in _pendingReqTower)
-            {
-                if (!_s.WorldState.Towers.Exists(new TowerId(tid)) && !_tmpTowerKeys.Contains(tid))
-                    _tmpTowerKeys.Add(tid);
-            }
-
-            foreach (var tid in _tmpTowerKeys)
-                RemoveTowerCacheState(tid);
-        }
-
-        private void RemoveTowerCacheState(int tid)
+        internal void RemoveTowerCacheState(int tid)
         {
             _lastAmmoByTower.Remove(tid);
             _lastCapByTower.Remove(tid);
@@ -1377,155 +1260,11 @@ namespace SeasonalBastion
             return thr;
         }
 
-        internal void ScanTowersAndNotify_Core()
-        {
-            var towers = _s.WorldIndex.Towers;
-            if (towers == null) return;
+        internal void ScanTowersAndNotify_Core() => _topologyCache.ScanTowersAndNotify();
 
-            for (int i = 0; i < towers.Count; i++)
-            {
-                var tid = towers[i];
-                if (!_s.WorldState.Towers.Exists(tid)) continue;
+        internal void DevHookTick_Core(float dt) => _debugHooks.Tick(dt);
 
-                var ts = _s.WorldState.Towers.Get(tid);
-
-                int cur = ts.Ammo;
-                int cap = ts.AmmoCap;
-
-                if (_lastAmmoByTower.TryGetValue(tid.Value, out var lastAmmo) &&
-                    _lastCapByTower.TryGetValue(tid.Value, out var lastCap) &&
-                    lastAmmo == cur && lastCap == cap)
-                    continue;
-
-                _lastAmmoByTower[tid.Value] = cur;
-                _lastCapByTower[tid.Value] = cap;
-
-                NotifyTowerAmmoChanged(tid, cur, cap);
-            }
-        }
-
-        internal void DevHookTick_Core(float dt)
-        {
-            if (!DevHook_Enabled) return;
-
-            _devHookTimer -= dt;
-            if (_devHookTimer > 0f) return;
-
-            _devHookTimer += (DevHook_ShotInterval > 0f ? DevHook_ShotInterval : 0.5f);
-
-            var towers = _s.WorldIndex.Towers;
-            if (towers == null) return;
-
-            for (int i = 0; i < towers.Count; i++)
-            {
-                var tid = towers[i];
-                if (!_s.WorldState.Towers.Exists(tid)) continue;
-
-                var ts = _s.WorldState.Towers.Get(tid);
-                if (ts.AmmoCap <= 0) continue;
-                if (ts.Ammo <= 0) continue;
-
-                int dec = DevHook_AmmoPerShot <= 0 ? 1 : DevHook_AmmoPerShot;
-                int newAmmo = ts.Ammo - dec;
-                if (newAmmo < 0) newAmmo = 0;
-
-                ts.Ammo = newAmmo;
-                _s.WorldState.Towers.Set(tid, ts);
-
-                _lastAmmoByTower[tid.Value] = newAmmo;
-                _lastCapByTower[tid.Value] = ts.AmmoCap;
-
-                NotifyTowerAmmoChanged(tid, newAmmo, ts.AmmoCap);
-                break; // 1 shot per interval (deterministic)
-            }
-        }
-
-        internal void EnsureTestTowerExistsIfNeeded_Core()
-        {
-            if (!DevHook_Enabled) return;
-            if (_s.WorldState == null || _s.WorldIndex == null || _s.GridMap == null || _s.DataRegistry == null) return;
-
-            if (_s.WorldIndex.Towers != null && _s.WorldIndex.Towers.Count > 0)
-                return;
-
-            CellPos center = default;
-            bool foundHQ = false;
-
-            foreach (var bid in _s.WorldState.Buildings.Ids)
-            {
-                var bs = _s.WorldState.Buildings.Get(bid);
-                if (bs.IsConstructed && DefIdTierUtil.IsBase(bs.DefId, "bld_hq"))
-                {
-                    center = bs.Anchor;
-                    foundHQ = true;
-                    break;
-                }
-            }
-
-            if (!foundHQ) center = new CellPos(0, 0);
-
-            CellPos spawn = default;
-            bool found = false;
-
-            const int R = 12;
-            for (int r = 1; r <= R && !found; r++)
-            {
-                for (int dx = -r; dx <= r && !found; dx++)
-                {
-                    var c1 = new CellPos(center.X + dx, center.Y + r);
-                    var c2 = new CellPos(center.X + dx, center.Y - r);
-
-                    if (_s.GridMap.IsInside(c1) && _s.GridMap.Get(c1).Kind == CellOccupancyKind.Empty) { spawn = c1; found = true; break; }
-                    if (_s.GridMap.IsInside(c2) && _s.GridMap.Get(c2).Kind == CellOccupancyKind.Empty) { spawn = c2; found = true; break; }
-                }
-
-                for (int dy = -r + 1; dy <= r - 1 && !found; dy++)
-                {
-                    var c1 = new CellPos(center.X + r, center.Y + dy);
-                    var c2 = new CellPos(center.X - r, center.Y + dy);
-
-                    if (_s.GridMap.IsInside(c1) && _s.GridMap.Get(c1).Kind == CellOccupancyKind.Empty) { spawn = c1; found = true; break; }
-                    if (_s.GridMap.IsInside(c2) && _s.GridMap.Get(c2).Kind == CellOccupancyKind.Empty) { spawn = c2; found = true; break; }
-                }
-            }
-
-            if (!found) return;
-
-            TowerDef def = null;
-            _s.DataRegistry.TryGetTower("bld_tower_arrow_t1", out def);
-
-            int ammoCap = def != null ? def.AmmoMax : 60;
-            int hpMax = def != null ? def.MaxHp : 200;
-
-            var st = new TowerState
-            {
-                Id = default,
-                Cell = spawn,
-                Ammo = ammoCap,
-                AmmoCap = ammoCap,
-                Hp = hpMax,
-                HpMax = hpMax
-            };
-
-            var tid = _s.WorldState.Towers.Create(st);
-            st.Id = tid;
-            _s.WorldState.Towers.Set(tid, st);
-
-            if (_s.WorldIndex is WorldIndexService worldIndex)
-                worldIndex.OnTowerCreated(tid);
-            else
-                _s.WorldIndex.RebuildAll();
-
-            _s.NotificationService?.Push(
-                key: $"Dev_TowerSpawn_{tid.Value}",
-                title: "DEV",
-                body: $"Spawn test tower {tid.Value} at ({spawn.X},{spawn.Y}) ammo {ammoCap}/{ammoCap}",
-                severity: NotificationSeverity.Info,
-                payload: default,
-                cooldownSeconds: 0.5f,
-                dedupeByKey: true
-            );
-        }
+        internal void EnsureTestTowerExistsIfNeeded_Core() => _debugHooks.EnsureTestTowerExistsIfNeeded();
 
         private void MaybeRequeueTowerAmmoRequest(TowerId tower)
         {

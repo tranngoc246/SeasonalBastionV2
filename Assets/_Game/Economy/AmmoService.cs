@@ -366,6 +366,7 @@ namespace SeasonalBastion
             }
 
             CleanupResupplyTowerInFlight();
+            ReconcileOutstandingTowerNeeds();
             EnsureResupplyTowerJobs();   // Day26
             EnsureArmoryAmmoBuffer();    // Day24
             UpdateDebugMetrics();
@@ -1207,6 +1208,42 @@ namespace SeasonalBastion
             }
 
             return bestForge.Value != 0;
+        }
+
+        private void ReconcileOutstandingTowerNeeds()
+        {
+            var towers = _s.WorldIndex.Towers;
+            if (towers == null) return;
+
+            for (int i = 0; i < towers.Count; i++)
+            {
+                var tid = towers[i];
+                if (!_s.WorldState.Towers.Exists(tid)) continue;
+
+                var tower = _s.WorldState.Towers.Get(tid);
+                if (tower.AmmoCap <= 0) continue;
+
+                int need = tower.AmmoCap - tower.Ammo;
+                if (need <= 0) continue;
+
+                if (_pendingReqTower.Contains(tid.Value))
+                    continue;
+
+                if (_resupplyJobByTower.TryGetValue(tid.Value, out var existingJob))
+                {
+                    if (_s.JobBoard.TryGet(existingJob, out var job) && !IsTerminal(job.Status))
+                        continue;
+                }
+
+                AmmoRequestPriority pri = tower.Ammo <= 0 ? AmmoRequestPriority.Urgent : AmmoRequestPriority.Normal;
+                EnqueueRequest(new AmmoRequest
+                {
+                    Tower = tid,
+                    AmountNeeded = need,
+                    Priority = pri,
+                    CreatedAt = _simTime
+                });
+            }
         }
 
         private void CleanupDestroyedTowerCaches()

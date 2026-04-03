@@ -558,7 +558,7 @@ namespace SeasonalBastion
 
         private void CleanupResupplyTowerInFlight()
         {
-            if (_resupplyJobByTower.Count == 0) return;
+            if (_resupplyJobByTower.Count == 0 && _resupplyJobByArmory.Count == 0) return;
 
             _tmpTowerKeys.Clear();
             foreach (var kv in _resupplyJobByTower)
@@ -573,10 +573,49 @@ namespace SeasonalBastion
                 {
                     _resupplyJobByTower.Remove(tid);
 
+                    if (j.Workplace.Value != 0)
+                        _resupplyJobByArmory.Remove(j.Workplace.Value);
+                    else
+                        RemoveArmoryMappingByJob(jid);
+
                     if (_s.WorldState != null && _s.WorldState.Towers.Exists(new TowerId(tid)))
                         MaybeRequeueTowerAmmoRequest(new TowerId(tid));
                 }
             }
+
+            CleanupResupplyArmoryMappings();
+        }
+
+        private void CleanupResupplyArmoryMappings()
+        {
+            if (_resupplyJobByArmory.Count == 0) return;
+
+            _tmpTowerKeys.Clear();
+            foreach (var kv in _resupplyJobByArmory)
+                _tmpTowerKeys.Add(kv.Key);
+
+            for (int i = 0; i < _tmpTowerKeys.Count; i++)
+            {
+                int armoryId = _tmpTowerKeys[i];
+                var jid = _resupplyJobByArmory[armoryId];
+                if (!_s.JobBoard.TryGet(jid, out var j) || IsTerminal(j.Status))
+                    _resupplyJobByArmory.Remove(armoryId);
+            }
+        }
+
+        private void RemoveArmoryMappingByJob(JobId jobId)
+        {
+            if (_resupplyJobByArmory.Count == 0) return;
+
+            _tmpTowerKeys.Clear();
+            foreach (var kv in _resupplyJobByArmory)
+            {
+                if (kv.Value.Value == jobId.Value)
+                    _tmpTowerKeys.Add(kv.Key);
+            }
+
+            for (int i = 0; i < _tmpTowerKeys.Count; i++)
+                _resupplyJobByArmory.Remove(_tmpTowerKeys[i]);
         }
 
         private bool TryPickBestRequest(out List<AmmoRequest> list, out int index, out AmmoRequest req, out TowerState towerState)

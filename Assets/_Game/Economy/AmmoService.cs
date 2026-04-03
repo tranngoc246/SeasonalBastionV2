@@ -366,8 +366,9 @@ namespace SeasonalBastion
             }
 
             CleanupResupplyTowerInFlight();
-            ReconcileOutstandingTowerNeeds();
             EnsureResupplyTowerJobs();   // Day26
+            ReconcileOutstandingTowerNeeds();
+            EnsureResupplyTowerJobs();   // backfill only if cleanup/terminal paths dropped demand
             EnsureArmoryAmmoBuffer();    // Day24
             UpdateDebugMetrics();
             LogPotentialResupplyDeadlock();
@@ -510,6 +511,17 @@ namespace SeasonalBastion
                 count++;
             }
             return count;
+        }
+
+        private bool ContainsRequestForTower(List<AmmoRequest> list, TowerId tower)
+        {
+            if (list == null) return false;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i].Tower.Value == tower.Value)
+                    return true;
+            }
+            return false;
         }
 
         // ----------------- Recipe-driven forge supply -----------------
@@ -1227,6 +1239,9 @@ namespace SeasonalBastion
                 if (need <= 0) continue;
 
                 if (_pendingReqTower.Contains(tid.Value))
+                    continue;
+
+                if (ContainsRequestForTower(_urgent, tid) || ContainsRequestForTower(_normal, tid))
                     continue;
 
                 if (_resupplyJobByTower.TryGetValue(tid.Value, out var existingJob))

@@ -74,7 +74,6 @@ namespace SeasonalBastion.DebugTools
 
         // Quick spawn enemy
         [SerializeField] private string _quickEnemyDefId = "Swarmling";
-        [SerializeField] private int _quickLaneId = 0;
         [SerializeField] private int _quickSpawnCount = 1;
 
         [SerializeField] private string _quickGiveAmtStr = "200";

@@ -323,7 +323,9 @@ namespace SeasonalBastion.Tests.EditMode
 
     internal sealed class FakeBuildOrderService : IBuildOrderService
     {
+#pragma warning disable CS0067
         public event Action<int> OnOrderCompleted;
+#pragma warning restore CS0067
         public int TickCalls { get; private set; }
         public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation) => 0;
         public int CreateUpgradeOrder(BuildingId building) => 0;
@@ -340,8 +342,10 @@ namespace SeasonalBastion.Tests.EditMode
     {
         public int TickCalls { get; private set; }
         public bool IsActive => false;
+#pragma warning disable CS0067
         public event Action<string> OnWaveStarted;
         public event Action<string> OnWaveEnded;
+#pragma warning restore CS0067
         public void OnDefendPhaseStarted() { }
         public void OnDefendPhaseEnded() { }
         public void Tick(float dt) => TickCalls++;

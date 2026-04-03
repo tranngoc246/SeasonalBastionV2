@@ -108,7 +108,9 @@ namespace SeasonalBastion.Tests.EditMode
             private int _next = 1;
             private readonly Dictionary<int, BuildOrder> _orders = new();
 
+#pragma warning disable CS0067
             public event Action<int> OnOrderCompleted;
+#pragma warning restore CS0067
 
             public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation)
             {

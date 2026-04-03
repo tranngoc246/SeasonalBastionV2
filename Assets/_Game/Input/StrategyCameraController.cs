@@ -27,9 +27,6 @@ namespace SeasonalBastion
         [SerializeField] private bool _clampToMap = true;
         [SerializeField] private float _boundsPadding = 2f;
 
-        [Header("Focus")]
-        [SerializeField] private Key _focusHqKey = Key.H;
-
         [Header("Smoothing")]
         [SerializeField] private bool _smoothMotion = true;
         [SerializeField] private float _moveSmoothTime = 0.08f;

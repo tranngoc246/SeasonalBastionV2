@@ -1231,7 +1231,33 @@ namespace SeasonalBastion
             if (_s.WorldState == null || !_s.WorldState.Towers.Exists(tower)) return;
 
             var ts = _s.WorldState.Towers.Get(tower);
-            NotifyTowerAmmoChanged(tower, ts.Ammo, ts.AmmoCap);
+            int cap = ts.AmmoCap;
+            if (cap <= 0) return;
+
+            int cur = ts.Ammo;
+            int need = cap - cur;
+            if (need <= 0) return;
+
+            _nextReqEmptyAt.Remove(tower.Value);
+            _nextReqLowAt.Remove(tower.Value);
+            _pendingReqTower.Remove(tower.Value);
+            _pendingPriorityByTower.Remove(tower.Value);
+
+            int thr = GetLowAmmoThreshold(cap);
+            AmmoRequestPriority pri = cur <= 0 ? AmmoRequestPriority.Urgent
+                : (cur <= thr ? AmmoRequestPriority.Normal : (AmmoRequestPriority)(-1));
+            if ((int)pri < 0) return;
+
+            EnqueueRequest(new AmmoRequest
+            {
+                Tower = tower,
+                AmountNeeded = need,
+                Priority = pri,
+                CreatedAt = _simTime
+            });
+
+            if (DebugAmmoLogs)
+                Log.E($"[Ammo] resupply requeued tower={tower.Value} ammo={cur}/{cap} priority={pri}");
         }
 
         // ----------------- Balance reflection helpers -----------------

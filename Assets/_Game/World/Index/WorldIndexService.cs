@@ -19,6 +19,8 @@ namespace SeasonalBastion
         private readonly List<BuildingId> _forges = new();
         private readonly List<BuildingId> _armories = new();
         private readonly List<TowerId> _towers = new();
+        private int _lastBuildingCount = -1;
+        private int _lastTowerCount = -1;
 
         // Idempotency guards (avoid duplicates if hooked via both direct call + event bus)
         private readonly HashSet<int> _warehousesSet = new();
@@ -43,10 +45,18 @@ namespace SeasonalBastion
 
         public void RebuildAll()
         {
+            if (_w == null) return;
+
+            int buildingCount = _w.Buildings != null ? _w.Buildings.Count : 0;
+            int towerCount = _w.Towers != null ? _w.Towers.Count : 0;
+
+            if (_lastBuildingCount == buildingCount && _lastTowerCount == towerCount)
+                return;
+
             ClearAllLists();
 
             // Buildings: sort by id.Value for deterministic order (EntityStore uses Dictionary)
-            var buildingIds = new List<BuildingId>();
+            var buildingIds = new List<BuildingId>(buildingCount);
             foreach (var bid in _w.Buildings.Ids) buildingIds.Add(bid);
             buildingIds.Sort((a, b) => a.Value.CompareTo(b.Value));
 
@@ -54,12 +64,15 @@ namespace SeasonalBastion
                 OnBuildingCreated(buildingIds[i]);
 
             // Towers: sort for determinism
-            var towerIds = new List<TowerId>();
+            var towerIds = new List<TowerId>(towerCount);
             foreach (var tid in _w.Towers.Ids) towerIds.Add(tid);
             towerIds.Sort((a, b) => a.Value.CompareTo(b.Value));
 
             for (int i = 0; i < towerIds.Count; i++)
                 AddUniqueSorted(_towers, _towersSet, towerIds[i].Value, towerIds[i]);
+
+            _lastBuildingCount = buildingCount;
+            _lastTowerCount = towerCount;
         }
 
         public void OnBuildingCreated(BuildingId id)
@@ -92,6 +105,7 @@ namespace SeasonalBastion
             if (IsHouse) AddUniqueSorted(_houses, _housesSet, id.Value, id);
             if (isForge) AddUniqueSorted(_forges, _forgesSet, id.Value, id);
             if (isArmory) AddUniqueSorted(_armories, _armoriesSet, id.Value, id);
+            _lastBuildingCount = _w.Buildings.Count;
 
             // Towers are separate store (TowerId). Ignore building.IsTower here in v0.1.
         }
@@ -103,6 +117,21 @@ namespace SeasonalBastion
             Remove(_houses, _housesSet, id.Value);
             Remove(_forges, _forgesSet, id.Value);
             Remove(_armories, _armoriesSet, id.Value);
+            _lastBuildingCount = _w?.Buildings != null ? _w.Buildings.Count : _lastBuildingCount;
+        }
+
+        public void OnTowerCreated(TowerId id)
+        {
+            if (id.Value == 0) return;
+            if (_w?.Towers == null || !_w.Towers.Exists(id)) return;
+            AddUniqueSorted(_towers, _towersSet, id.Value, id);
+            _lastTowerCount = _w.Towers.Count;
+        }
+
+        public void OnTowerDestroyed(TowerId id)
+        {
+            Remove(_towers, _towersSet, id.Value);
+            _lastTowerCount = _w?.Towers != null ? _w.Towers.Count : _lastTowerCount;
         }
 
         private void ClearAllLists()
@@ -133,6 +162,19 @@ namespace SeasonalBastion
         }
 
         private static void Remove(List<BuildingId> list, HashSet<int> set, int key)
+        {
+            if (!set.Remove(key)) return;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i].Value == key)
+                {
+                    list.RemoveAt(i);
+                    return;
+                }
+            }
+        }
+
+        private static void Remove(List<TowerId> list, HashSet<int> set, int key)
         {
             if (!set.Remove(key)) return;
             for (int i = 0; i < list.Count; i++)

@@ -1099,8 +1099,14 @@ namespace SeasonalBastion
             return best.Value != 0;
         }
 
+        private int _lastNpcCountForWorkplaces = -1;
+
         private void RebuildWorkplaceHasNpcSet()
         {
+            int npcCount = _s.WorldState?.Npcs != null ? _s.WorldState.Npcs.Count : 0;
+            if (_lastNpcCountForWorkplaces == npcCount && _npcIds.Count == npcCount && _workplacesWithNpc.Count > 0)
+                return;
+
             _npcIds.Clear();
             foreach (var id in _s.WorldState.Npcs.Ids) _npcIds.Add(id);
             _npcIds.Sort((a, b) => a.Value.CompareTo(b.Value));
@@ -1114,6 +1120,8 @@ namespace SeasonalBastion
                 if (ns.Workplace.Value != 0)
                     _workplacesWithNpc.Add(ns.Workplace.Value);
             }
+
+            _lastNpcCountForWorkplaces = npcCount;
         }
 
         private static bool IsTerminal(JobStatus s)
@@ -1480,7 +1488,10 @@ namespace SeasonalBastion
             st.Id = tid;
             _s.WorldState.Towers.Set(tid, st);
 
-            _s.WorldIndex.RebuildAll();
+            if (_s.WorldIndex is WorldIndexService worldIndex)
+                worldIndex.OnTowerCreated(tid);
+            else
+                _s.WorldIndex.RebuildAll();
 
             _s.NotificationService?.Push(
                 key: $"Dev_TowerSpawn_{tid.Value}",

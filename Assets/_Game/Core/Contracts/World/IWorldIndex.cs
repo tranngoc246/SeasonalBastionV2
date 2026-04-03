@@ -16,5 +16,7 @@ namespace SeasonalBastion.Contracts
         void RebuildAll();
         void OnBuildingCreated(BuildingId id);
         void OnBuildingDestroyed(BuildingId id);
+        void OnTowerCreated(TowerId id);
+        void OnTowerDestroyed(TowerId id);
     }
 }

@@ -77,22 +77,49 @@ namespace SeasonalBastion
             // clear transient UI
             if (_s.NotificationService is NotificationService ns) ns.ClearInbox();
             else _s.NotificationService.ClearAll();
-            try { _s.TutorialHints.Reset(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset TutorialHints: {ex}"); }
+            if (_s.TutorialHints != null)
+            {
+                try { _s.TutorialHints.Reset(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset TutorialHints: {ex}"); }
+            }
             // Day40: reset season metrics
-            try { _s.SeasonMetrics.Reset(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset SeasonMetrics: {ex}"); }
+            if (_s.SeasonMetrics != null)
+            {
+                try { _s.SeasonMetrics.Reset(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset SeasonMetrics: {ex}"); }
+            }
 
             // jobs / claims / build orders (runtime concrete types)
-            try { _s.JobBoard.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear JobBoard during run reset: {ex}"); }
-            try { _s.ClaimService.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear ClaimService during run reset: {ex}"); }
-            try { _s.BuildOrderService.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear BuildOrderService during run reset: {ex}"); }
+            if (_s.JobBoard != null)
+            {
+                try { _s.JobBoard.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear JobBoard during run reset: {ex}"); }
+            }
+            if (_s.ClaimService != null)
+            {
+                try { _s.ClaimService.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear ClaimService during run reset: {ex}"); }
+            }
+            if (_s.BuildOrderService != null)
+            {
+                try { _s.BuildOrderService.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear BuildOrderService during run reset: {ex}"); }
+            }
 
             // grid occupancy
-            try { _s.GridMap.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear GridMap during run reset: {ex}"); }
-            try { _s.AgentMover?.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to clear AgentMover caches during run reset: {ex}"); }
+            if (_s.GridMap != null)
+            {
+                try { _s.GridMap.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear GridMap during run reset: {ex}"); }
+            }
+            if (_s.AgentMover != null)
+            {
+                try { _s.AgentMover.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to clear AgentMover caches during run reset: {ex}"); }
+            }
 
             // run-start runtime caches
-            try { ResetRunStartRuntime(_s.RunStartRuntime); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset RunStartRuntime: {ex}"); }
-            try { _s.PopulationService?.Reset(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset PopulationService: {ex}"); }
+            if (_s.RunStartRuntime != null)
+            {
+                try { ResetRunStartRuntime(_s.RunStartRuntime); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset RunStartRuntime: {ex}"); }
+            }
+            if (_s.PopulationService != null)
+            {
+                try { _s.PopulationService.Reset(); } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[GameLoop] Failed to reset PopulationService: {ex}"); }
+            }
 
             // world stores (runtime concrete stores)
             try { (_s.WorldState?.Buildings as IEntityStore<BuildingId, BuildingState>)?.ClearAll(); } catch (Exception ex) { UnityEngine.Debug.LogError($"[GameLoop] Failed to clear building store during run reset: {ex}"); }

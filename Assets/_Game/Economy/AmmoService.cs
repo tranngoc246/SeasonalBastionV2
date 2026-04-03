@@ -319,6 +319,7 @@ namespace SeasonalBastion
 
             _simTime += dt;
 
+            CleanupDestroyedTowerCaches();
             EnsureTestTowerExists_IfNeeded();
 
             DevHook_Tick(dt);         // simulate ammo drain (optional)
@@ -1053,6 +1054,46 @@ namespace SeasonalBastion
             }
 
             return bestForge.Value != 0;
+        }
+
+        private void CleanupDestroyedTowerCaches()
+        {
+            if (_s.WorldState == null) return;
+
+            _tmpTowerKeys.Clear();
+
+            foreach (var kv in _lastAmmoByTower)
+                if (!_s.WorldState.Towers.Exists(new TowerId(kv.Key))) _tmpTowerKeys.Add(kv.Key);
+            foreach (var tid in _tmpTowerKeys)
+            {
+                _lastAmmoByTower.Remove(tid);
+                _lastCapByTower.Remove(tid);
+                _lastStateByTower.Remove(tid);
+                _towerNeedLogged.Remove(tid);
+                _towerNoSourceLogged.Remove(tid);
+                _nextReqLowAt.Remove(tid);
+                _nextReqEmptyAt.Remove(tid);
+                _pendingReqTower.Remove(tid);
+                _pendingPriorityByTower.Remove(tid);
+                _resupplyJobByTower.Remove(tid);
+            }
+
+            _tmpTowerKeys.Clear();
+            foreach (var tid in _pendingReqTower)
+                if (!_s.WorldState.Towers.Exists(new TowerId(tid))) _tmpTowerKeys.Add(tid);
+            foreach (var tid in _tmpTowerKeys)
+            {
+                _lastAmmoByTower.Remove(tid);
+                _lastCapByTower.Remove(tid);
+                _lastStateByTower.Remove(tid);
+                _towerNeedLogged.Remove(tid);
+                _towerNoSourceLogged.Remove(tid);
+                _nextReqLowAt.Remove(tid);
+                _nextReqEmptyAt.Remove(tid);
+                _pendingReqTower.Remove(tid);
+                _pendingPriorityByTower.Remove(tid);
+                _resupplyJobByTower.Remove(tid);
+            }
         }
 
         private static int GetArmoryChunkByLevel(int level)

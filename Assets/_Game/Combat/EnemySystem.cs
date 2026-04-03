@@ -193,7 +193,11 @@ namespace SeasonalBastion
                         Cell = next,
                         Hp = st.Hp,
                         Lane = st.Lane,
-                        MoveProgress01 = 0f
+                        MoveProgress01 = 0f,
+                        WaveId = st.WaveId,
+                        WaveYear = st.WaveYear,
+                        WaveSeason = st.WaveSeason,
+                        WaveDay = st.WaveDay,
                     };
 
                     // Day34: moved successfully => reset path fail streak
@@ -217,7 +221,11 @@ namespace SeasonalBastion
                     Cell = st.Cell,
                     Hp = st.Hp,
                     Lane = st.Lane,
-                    MoveProgress01 = Mathf.Clamp01(progress)
+                    MoveProgress01 = Mathf.Clamp01(progress),
+                    WaveId = st.WaveId,
+                    WaveYear = st.WaveYear,
+                    WaveSeason = st.WaveSeason,
+                    WaveDay = st.WaveDay,
                 };
 
                 _attackCd[key] = cd;

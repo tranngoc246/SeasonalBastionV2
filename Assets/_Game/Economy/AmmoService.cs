@@ -7,6 +7,10 @@ namespace SeasonalBastion
     public sealed class AmmoService : IAmmoService, ITickable
     {
         private readonly GameServices _s;
+        private readonly AmmoTopologyCache _topologyCache;
+        private readonly ArmoryBufferPlanner _armoryBufferPlanner;
+        private readonly TowerResupplyPlanner _towerResupplyPlanner;
+        private readonly AmmoDebugHooks _debugHooks;
         private readonly List<AmmoRequest> _urgent = new();
         private readonly List<AmmoRequest> _normal = new();
 
@@ -67,7 +71,14 @@ namespace SeasonalBastion
         public int Debug_ActiveResupplyJobs { get; private set; }
         public int Debug_ArmoryAvailableAmmo { get; private set; }
 
-        public AmmoService(GameServices s) { _s = s; }
+        public AmmoService(GameServices s)
+        {
+            _s = s;
+            _topologyCache = new AmmoTopologyCache(this);
+            _armoryBufferPlanner = new ArmoryBufferPlanner(this);
+            _towerResupplyPlanner = new TowerResupplyPlanner(this);
+            _debugHooks = new AmmoDebugHooks(this);
+        }
 
         public int PendingRequests => _urgent.Count + _normal.Count;
 
@@ -259,7 +270,7 @@ namespace SeasonalBastion
             return false;
         }
 
-        public bool TryStartCraft(BuildingId forge)
+        internal bool TryStartCraft_Core(BuildingId forge)
         {
             if (_s.WorldState == null || _s.StorageService == null || _s.JobBoard == null || _s.DataRegistry == null) return false;
             if (!_s.WorldState.Buildings.Exists(forge)) return false;
@@ -327,16 +338,16 @@ namespace SeasonalBastion
 
             _simTime += dt;
 
-            CleanupDestroyedTowerCaches();
-            EnsureTestTowerExists_IfNeeded();
+            _topologyCache.CleanupDestroyedTowerCaches();
+            _debugHooks.EnsureTestTowerExistsIfNeeded();
 
-            DevHook_Tick(dt);         // simulate ammo drain (optional)
-            ScanTowers_AndNotify();   // detect changes + enqueue request
+            _debugHooks.Tick(dt);     // simulate ammo drain (optional)
+            _topologyCache.ScanTowersAndNotify();   // detect changes + enqueue request
 
-            RebuildWorkplaceHasNpcSet();
+            _topologyCache.RebuildWorkplaceHasNpcSet();
 
             // Cache recipe once per tick (avoid repeated parse/lookup)
-            bool hasRecipe = TryGetAmmoRecipe(out var recipe);
+            bool hasRecipe = _armoryBufferPlanner.TryGetAmmoRecipe(out var recipe);
 
             // For each Forge: ensure supply, then try start craft
             var forges = _s.WorldIndex.Forges;
@@ -356,23 +367,23 @@ namespace SeasonalBastion
 
                 // Ensure Forge has local caps for inputs (must be >0)
                 // If cap is 0, hauling won't work; user must set in Buildings.json
-                if (!HasCapForForgeInputs(forge, recipe))
+                if (!_armoryBufferPlanner.HasCapForForgeInputs(forge, recipe))
                     continue;
 
-                EnsureForgeSupplyByRecipe(forge, bs.Anchor, recipe);
+                _armoryBufferPlanner.EnsureForgeSupplyByRecipe(forge, bs.Anchor, recipe);
 
                 // Start craft if possible (only if there is a worker at forge)
                 if (forgeHasNpc)
-                    TryStartCraft(forge);
+                    _armoryBufferPlanner.TryStartCraft(forge);
             }
 
-            CleanupResupplyTowerInFlight();
-            EnsureResupplyTowerJobs();   // Day26
-            ReconcileOutstandingTowerNeeds();
-            EnsureResupplyTowerJobs();   // backfill only if cleanup/terminal paths dropped demand
-            EnsureArmoryAmmoBuffer();    // Day24
-            UpdateDebugMetrics();
-            LogPotentialResupplyDeadlock();
+            _towerResupplyPlanner.CleanupResupplyTowerInFlight();
+            _towerResupplyPlanner.EnsureResupplyTowerJobs();   // Day26
+            _topologyCache.ReconcileOutstandingTowerNeeds();
+            _towerResupplyPlanner.EnsureResupplyTowerJobs();   // backfill only if cleanup/terminal paths dropped demand
+            _armoryBufferPlanner.EnsureArmoryAmmoBuffer();    // Day24
+            _towerResupplyPlanner.UpdateDebugMetrics();
+            _towerResupplyPlanner.LogPotentialResupplyDeadlock();
         }
 
         public void ClearAll()
@@ -418,7 +429,7 @@ namespace SeasonalBastion
             Debug_ArmoryAvailableAmmo = 0;
         }
 
-        private void UpdateDebugMetrics()
+        internal void UpdateDebugMetrics_Core()
         {
             Debug_TotalTowers = 0;
             Debug_TowersWithoutAmmo = 0;
@@ -453,7 +464,7 @@ namespace SeasonalBastion
             }
         }
 
-        private void LogPotentialResupplyDeadlock()
+        internal void LogPotentialResupplyDeadlock_Core()
         {
             if (Debug_TowersWithoutAmmo <= 0)
             {
@@ -529,7 +540,7 @@ namespace SeasonalBastion
             return count;
         }
 
-        private bool ContainsRequestForTower(List<AmmoRequest> list, TowerId tower)
+        internal bool ContainsRequestForTower_Core(List<AmmoRequest> list, TowerId tower)
         {
             if (list == null) return false;
             for (int i = 0; i < list.Count; i++)
@@ -542,7 +553,7 @@ namespace SeasonalBastion
 
         // ----------------- Recipe-driven forge supply -----------------
 
-        private bool TryGetAmmoRecipe(out RecipeDef recipe)
+        internal bool TryGetAmmoRecipe_Core(out RecipeDef recipe)
         {
             recipe = null;
 
@@ -593,7 +604,7 @@ namespace SeasonalBastion
             }
         }
 
-        private bool HasCapForForgeInputs(BuildingId forge, RecipeDef recipe)
+        internal bool HasCapForForgeInputs_Core(BuildingId forge, RecipeDef recipe)
         {
             int capMain = _s.StorageService.GetCap(forge, recipe.InputType);
             if (capMain <= 0) return false;
@@ -613,7 +624,7 @@ namespace SeasonalBastion
             return true;
         }
 
-        private void EnsureForgeSupplyByRecipe(BuildingId forge, CellPos forgeAnchor, RecipeDef recipe)
+        internal void EnsureForgeSupplyByRecipe_Core(BuildingId forge, CellPos forgeAnchor, RecipeDef recipe)
         {
             // Target = perCraftAmount * ForgeTargetCrafts (clamp by cap)
             // We enqueue HaulToForge jobs for any deficit.
@@ -692,7 +703,7 @@ namespace SeasonalBastion
 
         // ----------------- Day26: ResupplyTower provider -----------------
 
-        private void EnsureResupplyTowerJobs()
+        internal void EnsureResupplyTowerJobs_Core()
         {
             PruneInvalidRequests(_urgent);
             PruneInvalidRequests(_normal);
@@ -705,7 +716,7 @@ namespace SeasonalBastion
             }
         }
 
-        private void CleanupResupplyTowerInFlight()
+        internal void CleanupResupplyTowerInFlight_Core()
         {
             if (_resupplyJobByTower.Count == 0 && _resupplyJobByArmory.Count == 0) return;
 
@@ -834,7 +845,7 @@ namespace SeasonalBastion
             return bestIndex >= 0;
         }
 
-        private bool TryCreateNextResupplyTowerJob()
+        internal bool TryCreateNextResupplyTowerJob_Core()
         {
             if (!TryPickBestRequest(out var list, out var idx, out var req, out var towerState))
                 return false;
@@ -944,7 +955,7 @@ namespace SeasonalBastion
             return false;
         }
 
-        private bool TryPickBestResupplySource(TowerState towerState, out BuildingId source, out BuildingState sourceState, out int availableAmmo)
+        internal bool TryPickBestResupplySource_Core(TowerState towerState, out BuildingId source, out BuildingState sourceState, out int availableAmmo)
         {
             source = default;
             sourceState = default;
@@ -960,7 +971,7 @@ namespace SeasonalBastion
             return source.Value != 0;
         }
 
-        private void EvaluateResupplySources(IReadOnlyList<BuildingId> candidates, CellPos targetCell, int rank, ref BuildingId bestSource, ref BuildingState bestState, ref int bestAmmo, ref int bestRank, ref int bestDist, ref int bestId)
+        internal void EvaluateResupplySources_Core(IReadOnlyList<BuildingId> candidates, CellPos targetCell, int rank, ref BuildingId bestSource, ref BuildingState bestState, ref int bestAmmo, ref int bestRank, ref int bestDist, ref int bestId)
         {
             if (candidates == null) return;
 
@@ -1053,7 +1064,7 @@ namespace SeasonalBastion
             }
         }
 
-        private bool TryPickPreferredHaulerWorkplace(CellPos forgeAnchor, out BuildingId workplace)
+        internal bool TryPickPreferredHaulerWorkplace_Core(CellPos forgeAnchor, out BuildingId workplace)
         {
             workplace = default;
 
@@ -1068,7 +1079,7 @@ namespace SeasonalBastion
             return false;
         }
 
-        private bool TryPickNearestWorkplaceFromIndex(IReadOnlyList<BuildingId> list, CellPos from, bool requireNpc, out BuildingId best)
+        internal bool TryPickNearestWorkplaceFromIndex_Core(IReadOnlyList<BuildingId> list, CellPos from, bool requireNpc, out BuildingId best)
         {
             best = default;
 
@@ -1101,7 +1112,7 @@ namespace SeasonalBastion
 
         private int _lastNpcVersionForWorkplaces = -1;
 
-        private void RebuildWorkplaceHasNpcSet()
+        internal void RebuildWorkplaceHasNpcSet_Core()
         {
             int npcVersion = _s.WorldState?.Npcs != null ? _s.WorldState.Npcs.Version : 0;
             if (_lastNpcVersionForWorkplaces == npcVersion)
@@ -1138,7 +1149,7 @@ namespace SeasonalBastion
 
         // ----------------- Day24: Armory buffer + HaulAmmo -----------------
 
-        private void EnsureArmoryAmmoBuffer()
+        internal void EnsureArmoryAmmoBuffer_Core()
         {
             var armories = _s.WorldIndex.Armories;
             if (armories == null || armories.Count == 0) return;
@@ -1207,7 +1218,7 @@ namespace SeasonalBastion
             }
         }
 
-        private bool TryPickForgeAmmoSource(CellPos refPos, out BuildingId bestForge, out int bestTakeable)
+        internal bool TryPickForgeAmmoSource_Core(CellPos refPos, out BuildingId bestForge, out int bestTakeable)
         {
             bestForge = default;
             bestTakeable = 0;
@@ -1257,7 +1268,7 @@ namespace SeasonalBastion
             return bestForge.Value != 0;
         }
 
-        private void ReconcileOutstandingTowerNeeds()
+        internal void ReconcileOutstandingTowerNeeds_Core()
         {
             var towers = _s.WorldIndex.Towers;
             if (towers == null) return;
@@ -1296,7 +1307,7 @@ namespace SeasonalBastion
             }
         }
 
-        private void CleanupDestroyedTowerCaches()
+        internal void CleanupDestroyedTowerCaches_Core()
         {
             if (_s.WorldState == null) return;
 
@@ -1354,7 +1365,7 @@ namespace SeasonalBastion
             return thr;
         }
 
-        private void ScanTowers_AndNotify()
+        internal void ScanTowersAndNotify_Core()
         {
             var towers = _s.WorldIndex.Towers;
             if (towers == null) return;
@@ -1381,7 +1392,7 @@ namespace SeasonalBastion
             }
         }
 
-        private void DevHook_Tick(float dt)
+        internal void DevHookTick_Core(float dt)
         {
             if (!DevHook_Enabled) return;
 
@@ -1417,7 +1428,7 @@ namespace SeasonalBastion
             }
         }
 
-        private void EnsureTestTowerExists_IfNeeded()
+        internal void EnsureTestTowerExistsIfNeeded_Core()
         {
             if (!DevHook_Enabled) return;
             if (_s.WorldState == null || _s.WorldIndex == null || _s.GridMap == null || _s.DataRegistry == null) return;

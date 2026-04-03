@@ -1,9 +1,35 @@
-using SeasonalBastion.Contracts;
+﻿using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
 
 namespace SeasonalBastion.Tests.EditMode
 {
+    internal static class RegressionTestServiceFactory
+    {
+        public static GameServices MakeServices(
+            IEventBus bus,
+            IDataRegistry data,
+            INotificationService noti,
+            IRunClock clock,
+            IRunOutcomeService outcome,
+            IWorldState world = null,
+            IGridMap grid = null,
+            IPlacementService placement = null)
+        {
+            return new GameServices
+            {
+                EventBus = bus,
+                DataRegistry = data,
+                NotificationService = noti,
+                RunClock = clock,
+                RunOutcomeService = outcome,
+                WorldState = world,
+                GridMap = grid,
+                PlacementService = placement
+            };
+        }
+    }
+
     internal sealed class TestEventBus : IEventBus
     {
         private readonly Dictionary<Type, List<Delegate>> _subs = new();

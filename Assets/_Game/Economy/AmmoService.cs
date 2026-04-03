@@ -1063,37 +1063,34 @@ namespace SeasonalBastion
             _tmpTowerKeys.Clear();
 
             foreach (var kv in _lastAmmoByTower)
-                if (!_s.WorldState.Towers.Exists(new TowerId(kv.Key))) _tmpTowerKeys.Add(kv.Key);
-            foreach (var tid in _tmpTowerKeys)
             {
-                _lastAmmoByTower.Remove(tid);
-                _lastCapByTower.Remove(tid);
-                _lastStateByTower.Remove(tid);
-                _towerNeedLogged.Remove(tid);
-                _towerNoSourceLogged.Remove(tid);
-                _nextReqLowAt.Remove(tid);
-                _nextReqEmptyAt.Remove(tid);
-                _pendingReqTower.Remove(tid);
-                _pendingPriorityByTower.Remove(tid);
-                _resupplyJobByTower.Remove(tid);
+                int tid = kv.Key;
+                if (!_s.WorldState.Towers.Exists(new TowerId(tid)) && !_tmpTowerKeys.Contains(tid))
+                    _tmpTowerKeys.Add(tid);
             }
 
-            _tmpTowerKeys.Clear();
             foreach (var tid in _pendingReqTower)
-                if (!_s.WorldState.Towers.Exists(new TowerId(tid))) _tmpTowerKeys.Add(tid);
-            foreach (var tid in _tmpTowerKeys)
             {
-                _lastAmmoByTower.Remove(tid);
-                _lastCapByTower.Remove(tid);
-                _lastStateByTower.Remove(tid);
-                _towerNeedLogged.Remove(tid);
-                _towerNoSourceLogged.Remove(tid);
-                _nextReqLowAt.Remove(tid);
-                _nextReqEmptyAt.Remove(tid);
-                _pendingReqTower.Remove(tid);
-                _pendingPriorityByTower.Remove(tid);
-                _resupplyJobByTower.Remove(tid);
+                if (!_s.WorldState.Towers.Exists(new TowerId(tid)) && !_tmpTowerKeys.Contains(tid))
+                    _tmpTowerKeys.Add(tid);
             }
+
+            foreach (var tid in _tmpTowerKeys)
+                RemoveTowerCacheState(tid);
+        }
+
+        private void RemoveTowerCacheState(int tid)
+        {
+            _lastAmmoByTower.Remove(tid);
+            _lastCapByTower.Remove(tid);
+            _lastStateByTower.Remove(tid);
+            _towerNeedLogged.Remove(tid);
+            _towerNoSourceLogged.Remove(tid);
+            _nextReqLowAt.Remove(tid);
+            _nextReqEmptyAt.Remove(tid);
+            _pendingReqTower.Remove(tid);
+            _pendingPriorityByTower.Remove(tid);
+            _resupplyJobByTower.Remove(tid);
         }
 
         private static int GetArmoryChunkByLevel(int level)

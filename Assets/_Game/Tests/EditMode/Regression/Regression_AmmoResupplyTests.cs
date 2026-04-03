@@ -6,30 +6,6 @@ namespace SeasonalBastion.Tests.EditMode
 {
     public sealed class Regression_AmmoResupplyTests
     {
-        private static GameServices MakeServices(
-            IEventBus bus,
-            IDataRegistry data,
-            INotificationService noti,
-            IRunClock clock,
-            IRunOutcomeService outcome,
-            IWorldState world = null,
-            IGridMap grid = null,
-            IPlacementService placement = null
-        )
-        {
-            return new GameServices
-            {
-                EventBus = bus,
-                DataRegistry = data,
-                NotificationService = noti,
-                RunClock = clock,
-                RunOutcomeService = outcome,
-                WorldState = world,
-                GridMap = grid,
-                PlacementService = placement
-            };
-        }
-
         [Test]
         public void AmmoResupply_ZeroAmmo_AlwaysTriggersJob_WhenStorageHasAmmo()
         {
@@ -38,7 +14,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var storage = new FakeStorageService();
             var board = new JobBoard();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = storage;
             services.JobBoard = board;
@@ -68,7 +44,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var storage = new FakeStorageService();
             var board = new JobBoard();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = storage;
             services.JobBoard = board;
@@ -97,7 +73,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var storage = new FakeStorageService();
             var board = new JobBoard();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = storage;
             services.JobBoard = board;
@@ -124,7 +100,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var storage = new FakeStorageService();
             var board = new JobBoard();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = storage;
             services.JobBoard = board;
@@ -153,7 +129,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var storage = new FakeStorageService();
             var board = new JobBoard();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(32, 32));
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(32, 32));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = storage;
             services.JobBoard = board;
@@ -183,7 +159,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var storage = new FakeStorageService();
             var board = new JobBoard();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = storage;
             services.JobBoard = board;
@@ -227,7 +203,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var storage = new FakeStorageService();
             var board = new JobBoard();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(16, 16));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = storage;
             services.JobBoard = board;
@@ -261,7 +237,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var storage = new FakeStorageService();
             var board = new JobBoard();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(32, 32));
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(32, 32));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = storage;
             services.JobBoard = board;
@@ -301,7 +277,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             var storage = new FakeStorageService();
             var board = new JobBoard();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(32, 32));
+            var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: new GridMap(32, 32));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = storage;
             services.JobBoard = board;

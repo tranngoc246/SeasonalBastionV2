@@ -17,6 +17,8 @@ namespace SeasonalBastion
         private readonly Dictionary<int, int> _lastAmmoByTower = new();
         private readonly Dictionary<int, int> _lastCapByTower = new();
         private readonly Dictionary<int, byte> _lastStateByTower = new(); // 0=ok,1=low,2=empty
+        private readonly HashSet<int> _towerNeedLogged = new();
+        private readonly HashSet<int> _towerNoSourceLogged = new();
 
         // Cooldown timestamps (sim time)
         private readonly Dictionary<int, float> _nextReqLowAt = new();
@@ -66,6 +68,7 @@ namespace SeasonalBastion
         // ----------------- Tunables (prefer Balance json if present; fallback to defaults) -----------------
 
         private int LowAmmoPercent => GetBalInt("ammoMonitor", "lowAmmoPct", 25);
+        private bool DebugAmmoLogs => GetBalBool("ammoMonitor", "debugLogs", false);
 
         private float ReqCooldownLow => GetBalFloat("ammoMonitor", "reqCooldownLowSec", 8f);
         private float ReqCooldownEmpty => GetBalFloat("ammoMonitor", "reqCooldownEmptySec", 4f);
@@ -93,13 +96,12 @@ namespace SeasonalBastion
                     return;
             }
 
-            int thr = (max * LowAmmoPercent + 99) / 100; // ceil
-            if (thr < 1) thr = 1;
+            int thr = GetLowAmmoThreshold(max);
 
             byte stateNow;
-            if (current <= thr) stateNow = 2;            // urgent (includes empty)
-            else if (current < max) stateNow = 1;        // normal top-up: any non-full tower
-            else stateNow = 0;                           // full
+            if (current <= 0) stateNow = 2;             // empty: highest priority
+            else if (current <= thr) stateNow = 1;      // low ammo threshold
+            else stateNow = 0;                          // healthy enough: no request
 
             _lastStateByTower.TryGetValue(tid, out var statePrev);
             _lastStateByTower[tid] = stateNow;
@@ -137,8 +139,18 @@ namespace SeasonalBastion
                 }
             }
 
-            // ---- Request queue (non-spam + per tower cooldown) ----
-            if (stateNow == 0) return;
+            if (DebugAmmoLogs && stateNow != 0 && _towerNeedLogged.Add(tid))
+            {
+                Log.E($"[Ammo] tower {tid} requests resupply ammo={current}/{max} state={(stateNow == 2 ? "empty" : "low")} thr={thr}");
+                _towerNoSourceLogged.Remove(tid);
+            }
+
+            if (stateNow == 0)
+            {
+                _towerNeedLogged.Remove(tid);
+                _towerNoSourceLogged.Remove(tid);
+                return;
+            }
 
             var pri = (stateNow == 2) ? AmmoRequestPriority.Urgent : AmmoRequestPriority.Normal;
 
@@ -535,113 +547,12 @@ namespace SeasonalBastion
 
         private void EnsureResupplyTowerJobs()
         {
-            var armories = _s.WorldIndex.Armories;
-            if (armories == null || armories.Count == 0) return;
-
             PruneInvalidRequests(_urgent);
             PruneInvalidRequests(_normal);
 
-            for (int i = 0; i < armories.Count; i++)
+            while (TryCreateNextResupplyTowerJob())
             {
-                var arm = armories[i];
-                if (!_s.WorldState.Buildings.Exists(arm)) continue;
-
-                var armSt = _s.WorldState.Buildings.Get(arm);
-                if (!armSt.IsConstructed) continue;
-
-                if (!_workplacesWithNpc.Contains(arm.Value)) continue;
-                if (!_s.StorageService.CanStore(arm, ResourceType.Ammo)) continue;
-
-                int armAmmo = _s.StorageService.GetAmount(arm, ResourceType.Ammo);
-                if (armAmmo <= 0) continue;
-
-                if (_resupplyJobByArmory.TryGetValue(arm.Value, out var oldId))
-                {
-                    if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
-                    {
-                        // Soft preemption: if this armory still has an unclaimed queued resupply job,
-                        // let an urgent tower cut in line before the next delivery starts.
-                        if (old.Status == JobStatus.Created && TryFindBestRequestIndex(_urgent, armSt.Anchor, out var urgIdx, out var urgReq))
-                        {
-                            int currentTid = old.Tower.Value;
-                            int urgentTid = urgReq.Tower.Value;
-                            if (urgentTid != 0 && urgentTid != currentTid && _s.WorldState.Towers.Exists(urgReq.Tower))
-                            {
-                                var uts = _s.WorldState.Towers.Get(urgReq.Tower);
-                                int urgentNeed = uts.AmmoCap - uts.Ammo;
-                                int urgentTrip = GetArmoryResupplyTripByLevel(armSt.Level);
-                                int urgentAmount = urgentTrip;
-                                if (urgentAmount > urgentNeed) urgentAmount = urgentNeed;
-                                if (urgentAmount > armAmmo) urgentAmount = armAmmo;
-
-                                if (urgentAmount > 0)
-                                {
-                                    if (currentTid != 0)
-                                        _resupplyJobByTower.Remove(currentTid);
-
-                                    ConsumeRequestAt(_urgent, urgIdx);
-                                    old.Tower = urgReq.Tower;
-                                    old.Amount = urgentAmount;
-                                    _s.JobBoard.Update(old);
-                                    _resupplyJobByArmory[arm.Value] = old.Id;
-                                    _resupplyJobByTower[urgentTid] = old.Id;
-                                }
-                            }
-                        }
-                        continue;
-                    }
-                }
-
-                if (!TryPickBestRequestForArmory(armSt.Anchor, out var list, out var idx, out var req))
-                    continue;
-
-                if (!_s.WorldState.Towers.Exists(req.Tower))
-                {
-                    ConsumeRequestAt(list, idx);
-                    continue;
-                }
-
-                var ts = _s.WorldState.Towers.Get(req.Tower);
-                if (ts.AmmoCap <= 0)
-                {
-                    ConsumeRequestAt(list, idx);
-                    continue;
-                }
-
-                int need = ts.AmmoCap - ts.Ammo;
-                if (need <= 0)
-                {
-                    ConsumeRequestAt(list, idx);
-                    continue;
-                }
-
-                int trip = GetArmoryResupplyTripByLevel(armSt.Level);
-                int amount = trip;
-                if (amount > need) amount = need;
-                if (amount > armAmmo) amount = armAmmo;
-                if (amount <= 0) continue;
-
-                ConsumeRequestAt(list, idx);
-
-                var j = new Job
-                {
-                    Archetype = JobArchetype.ResupplyTower,
-                    Status = JobStatus.Created,
-
-                    Workplace = arm,
-                    SourceBuilding = arm,
-
-                    Tower = req.Tower,
-                    ResourceType = ResourceType.Ammo,
-                    Amount = amount,
-
-                    TargetCell = default,
-                    CreatedAt = 0
-                };
-
-                var id = _s.JobBoard.Enqueue(j);
-                _resupplyJobByArmory[arm.Value] = id;
-                _resupplyJobByTower[req.Tower.Value] = id;
+                // Drain deterministic highest-priority work until no valid request/source pair remains.
             }
         }
 
@@ -663,23 +574,20 @@ namespace SeasonalBastion
                     _resupplyJobByTower.Remove(tid);
 
                     if (_s.WorldState != null && _s.WorldState.Towers.Exists(new TowerId(tid)))
-                    {
-                        if (j.Status == JobStatus.Cancelled || j.Status == JobStatus.Failed)
-                            MaybeRequeueTowerAmmoRequest(new TowerId(tid));
-                    }
+                        MaybeRequeueTowerAmmoRequest(new TowerId(tid));
                 }
             }
         }
 
-        private bool TryPickBestRequestForArmory(CellPos armAnchor, out List<AmmoRequest> list, out int index, out AmmoRequest req)
+        private bool TryPickBestRequest(out List<AmmoRequest> list, out int index, out AmmoRequest req, out TowerState towerState)
         {
-            if (TryFindBestRequestIndex(_urgent, armAnchor, out index, out req))
+            if (TryFindBestRequestIndex(_urgent, out index, out req, out towerState))
             {
                 list = _urgent;
                 return true;
             }
 
-            if (TryFindBestRequestIndex(_normal, armAnchor, out index, out req))
+            if (TryFindBestRequestIndex(_normal, out index, out req, out towerState))
             {
                 list = _normal;
                 return true;
@@ -688,15 +596,17 @@ namespace SeasonalBastion
             list = null;
             index = -1;
             req = default;
+            towerState = default;
             return false;
         }
 
-        private bool TryFindBestRequestIndex(List<AmmoRequest> src, CellPos armAnchor, out int bestIndex, out AmmoRequest bestReq)
+        private bool TryFindBestRequestIndex(List<AmmoRequest> src, out int bestIndex, out AmmoRequest bestReq, out TowerState bestTowerState)
         {
             bestIndex = -1;
             bestReq = default;
+            bestTowerState = default;
 
-            int bestDist = int.MaxValue;
+            int bestAmmo = int.MaxValue;
             int bestTid = int.MaxValue;
 
             for (int i = 0; i < src.Count; i++)
@@ -705,7 +615,6 @@ namespace SeasonalBastion
 
                 int tid = r.Tower.Value;
                 if (tid == 0) continue;
-
                 if (!_s.WorldState.Towers.Exists(r.Tower)) continue;
 
                 if (_resupplyJobByTower.TryGetValue(tid, out var inFlightJob))
@@ -716,20 +625,153 @@ namespace SeasonalBastion
 
                 var ts = _s.WorldState.Towers.Get(r.Tower);
                 int need = ts.AmmoCap - ts.Ammo;
-                if (need <= 0) continue;
+                if (ts.AmmoCap <= 0 || need <= 0) continue;
 
-                int d = Manhattan(armAnchor, ts.Cell);
-
-                if (d < bestDist || (d == bestDist && tid < bestTid))
+                int ammo = ts.Ammo;
+                if (ammo < bestAmmo || (ammo == bestAmmo && tid < bestTid))
                 {
-                    bestDist = d;
+                    bestAmmo = ammo;
                     bestTid = tid;
                     bestIndex = i;
                     bestReq = r;
+                    bestTowerState = ts;
                 }
             }
 
             return bestIndex >= 0;
+        }
+
+        private bool TryCreateNextResupplyTowerJob()
+        {
+            if (!TryPickBestRequest(out var list, out var idx, out var req, out var towerState))
+                return false;
+
+            if (!TryPickBestResupplySource(towerState, out var source, out var sourceState, out var availableAmmo))
+            {
+                if (DebugAmmoLogs && _towerNoSourceLogged.Add(req.Tower.Value))
+                    Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: no ammo source");
+                return false;
+            }
+
+            if (_resupplyJobByArmory.TryGetValue(source.Value, out var oldId))
+            {
+                if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
+                {
+                    if (old.Status == JobStatus.Created && req.Priority == AmmoRequestPriority.Urgent)
+                    {
+                        int currentTid = old.Tower.Value;
+                        int urgentTid = req.Tower.Value;
+                        if (urgentTid != 0 && urgentTid != currentTid)
+                        {
+                            int urgentNeed = towerState.AmmoCap - towerState.Ammo;
+                            int urgentAmount = GetArmoryResupplyTripByLevel(sourceState.Level);
+                            if (urgentAmount > urgentNeed) urgentAmount = urgentNeed;
+                            if (urgentAmount > availableAmmo) urgentAmount = availableAmmo;
+
+                            if (urgentAmount > 0)
+                            {
+                                if (currentTid != 0)
+                                    _resupplyJobByTower.Remove(currentTid);
+
+                                ConsumeRequestAt(list, idx);
+                                old.Tower = req.Tower;
+                                old.Amount = urgentAmount;
+                                _s.JobBoard.Update(old);
+                                _resupplyJobByArmory[source.Value] = old.Id;
+                                _resupplyJobByTower[urgentTid] = old.Id;
+                                if (DebugAmmoLogs)
+                                    Log.E($"[Ammo] resupply reprioritized source={source.Value} tower={urgentTid} amount={urgentAmount}");
+                                return true;
+                            }
+                        }
+                    }
+
+                    if (DebugAmmoLogs && _towerNoSourceLogged.Add(req.Tower.Value))
+                        Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: source {source.Value} busy");
+                    return false;
+                }
+            }
+
+            int need = towerState.AmmoCap - towerState.Ammo;
+            int amount = GetArmoryResupplyTripByLevel(sourceState.Level);
+            if (amount > need) amount = need;
+            if (amount > availableAmmo) amount = availableAmmo;
+            if (amount <= 0)
+                return false;
+
+            ConsumeRequestAt(list, idx);
+
+            var j = new Job
+            {
+                Archetype = JobArchetype.ResupplyTower,
+                Status = JobStatus.Created,
+
+                Workplace = source,
+                SourceBuilding = source,
+
+                Tower = req.Tower,
+                ResourceType = ResourceType.Ammo,
+                Amount = amount,
+
+                TargetCell = default,
+                CreatedAt = 0
+            };
+
+            var id = _s.JobBoard.Enqueue(j);
+            _resupplyJobByArmory[source.Value] = id;
+            _resupplyJobByTower[req.Tower.Value] = id;
+            _towerNoSourceLogged.Remove(req.Tower.Value);
+            if (DebugAmmoLogs)
+                Log.E($"[Ammo] resupply created source={source.Value} tower={req.Tower.Value} amount={amount} priority={req.Priority}");
+            return true;
+        }
+
+        private bool TryPickBestResupplySource(TowerState towerState, out BuildingId source, out BuildingState sourceState, out int availableAmmo)
+        {
+            source = default;
+            sourceState = default;
+            availableAmmo = 0;
+
+            int bestRank = int.MaxValue;
+            int bestDist = int.MaxValue;
+            int bestId = int.MaxValue;
+
+            EvaluateResupplySources(_s.WorldIndex.Armories, towerState.Cell, 0, ref source, ref sourceState, ref availableAmmo, ref bestRank, ref bestDist, ref bestId);
+            EvaluateResupplySources(_s.WorldIndex.Warehouses, towerState.Cell, 1, ref source, ref sourceState, ref availableAmmo, ref bestRank, ref bestDist, ref bestId);
+
+            return source.Value != 0;
+        }
+
+        private void EvaluateResupplySources(IReadOnlyList<BuildingId> candidates, CellPos targetCell, int rank, ref BuildingId bestSource, ref BuildingState bestState, ref int bestAmmo, ref int bestRank, ref int bestDist, ref int bestId)
+        {
+            if (candidates == null) return;
+
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                var bid = candidates[i];
+                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+
+                var st = _s.WorldState.Buildings.Get(bid);
+                if (!st.IsConstructed) continue;
+                if (!_workplacesWithNpc.Contains(bid.Value)) continue;
+                if (!_s.StorageService.CanStore(bid, ResourceType.Ammo)) continue;
+
+                int ammo = _s.StorageService.GetAmount(bid, ResourceType.Ammo);
+                if (ammo <= 0) continue;
+
+                int dist = Manhattan(st.Anchor, targetCell);
+                int idv = bid.Value;
+
+                if (rank < bestRank || (rank == bestRank && (dist < bestDist || (dist == bestDist && idv < bestId))))
+                {
+                    bestRank = rank;
+                    bestDist = dist;
+                    bestId = idv;
+                    bestSource = bid;
+                    bestState = st;
+                    bestAmmo = ammo;
+                }
+            }
         }
 
         private void ConsumeRequestAt(List<AmmoRequest> list, int index)
@@ -990,6 +1032,13 @@ namespace SeasonalBastion
             return lvl == 1 ? 20 : (lvl == 2 ? 30 : 40);
         }
 
+        private int GetLowAmmoThreshold(int max)
+        {
+            int thr = (max * LowAmmoPercent + 99) / 100;
+            if (thr < 1) thr = 1;
+            return thr;
+        }
+
         private void ScanTowers_AndNotify()
         {
             var towers = _s.WorldIndex.Towers;
@@ -1143,49 +1192,7 @@ namespace SeasonalBastion
             if (_s.WorldState == null || !_s.WorldState.Towers.Exists(tower)) return;
 
             var ts = _s.WorldState.Towers.Get(tower);
-            int cap = ts.AmmoCap;
-            if (cap <= 0) return;
-
-            int cur = ts.Ammo;
-            int need = cap - cur;
-            if (need <= 0) return;
-
-            if (_pendingReqTower.Contains(tower.Value)) return;
-
-            if (_resupplyJobByTower.TryGetValue(tower.Value, out var inflight))
-            {
-                if (_s.JobBoard != null && _s.JobBoard.TryGet(inflight, out var jj) && !IsTerminal(jj.Status))
-                    return;
-            }
-
-            int thr = (cap * LowAmmoPercent + 99) / 100;
-            if (thr < 1) thr = 1;
-
-            AmmoRequestPriority pri;
-            if (cur <= thr) pri = AmmoRequestPriority.Urgent;
-            else if (cur < cap) pri = AmmoRequestPriority.Normal;
-            else return;
-
-            float now = _simTime;
-            if (pri == AmmoRequestPriority.Urgent)
-            {
-                if (_nextReqEmptyAt.TryGetValue(tower.Value, out var until) && now < until) return;
-                _nextReqEmptyAt[tower.Value] = now + ReqCooldownEmpty;
-            }
-            else
-            {
-                if (_nextReqLowAt.TryGetValue(tower.Value, out var until) && now < until) return;
-                _nextReqLowAt[tower.Value] = now + ReqCooldownLow;
-            }
-
-            var req = new AmmoRequest
-            {
-                Tower = tower,
-                AmountNeeded = need,
-                Priority = pri,
-                CreatedAt = now
-            };
-            EnqueueRequest(req);
+            NotifyTowerAmmoChanged(tower, ts.Ammo, ts.AmmoCap);
         }
 
         // ----------------- Balance reflection helpers -----------------

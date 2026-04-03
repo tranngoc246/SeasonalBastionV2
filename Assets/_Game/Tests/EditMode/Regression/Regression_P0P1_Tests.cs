@@ -2884,6 +2884,8 @@ namespace SeasonalBastion.Tests.EditMode
                 combat = new CombatDTO(),
             };
 
+            UnityEngine.TestTools.LogAssert.Expect(UnityEngine.LogType.Error, new System.Text.RegularExpressions.Regex(@"\[SaveLoad\] Snapshot validation failed: Missing BuildingDef.*"));
+
             bool ok = SeasonalBastion.SaveLoadApplier.TryApply(services, dto, out var error);
 
             Assert.That(ok, Is.False);

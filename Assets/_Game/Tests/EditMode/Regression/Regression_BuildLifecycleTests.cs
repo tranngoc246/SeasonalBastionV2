@@ -33,6 +33,9 @@ namespace SeasonalBastion.Tests.EditMode
         public void PlaceFlowCompletion_FinalizesExactlyOneConstructedBuilding_AndRemovesSite()
         {
             var bus = new TestEventBus();
+            int placedEvents = 0;
+            bus.Subscribe<BuildingPlacedEvent>(_ => placedEvents++);
+
             var data = new TestDataRegistry();
             data.Add(new BuildingDef
             {
@@ -42,7 +45,8 @@ namespace SeasonalBastion.Tests.EditMode
                 BaseLevel = 1,
                 MaxHp = 50,
                 BuildChunksL1 = 1,
-                BuildCostsL1 = new[] { new CostDef { Resource = ResourceType.Wood, Amount = 5 } }
+                BuildCostsL1 = new[] { new CostDef { Resource = ResourceType.Wood, Amount = 5 } },
+                IsHouse = true
             });
 
             var world = new WorldState();
@@ -110,12 +114,20 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(grid.Get(new CellPos(4, 4)).Kind, Is.EqualTo(CellOccupancyKind.Building));
             Assert.That(grid.Get(new CellPos(4, 4)).Building.Value, Is.EqualTo(placeholderId.Value));
             Assert.That(world.Buildings.Count, Is.EqualTo(1), "Re-running finalize must not spawn duplicate constructed buildings.");
+            Assert.That(placedEvents, Is.EqualTo(1), "Place finalize should emit BuildingPlacedEvent exactly once.");
+
+            BuildOrderInvariantHelper.AssertBuildInvariant(world, grid, data, services.WorldIndex, placeholderId);
         }
 
         [Test]
         public void UpgradeFlowCompletion_FinalizesUpgrade_AndRemovesTemporarySite()
         {
             var bus = new TestEventBus();
+            int placedEvents = 0;
+            int upgradedEvents = 0;
+            bus.Subscribe<BuildingPlacedEvent>(_ => placedEvents++);
+            bus.Subscribe<BuildingUpgradedEvent>(_ => upgradedEvents++);
+
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true });
             data.Add(new BuildingDef { DefId = "bld_hq_t2", SizeX = 2, SizeY = 2, BaseLevel = 2, MaxHp = 160, IsHQ = true });
@@ -143,6 +155,7 @@ namespace SeasonalBastion.Tests.EditMode
             grid.SetBuilding(new CellPos(4, 3), buildingId);
             grid.SetBuilding(new CellPos(3, 4), buildingId);
             grid.SetBuilding(new CellPos(4, 4), buildingId);
+            services.WorldIndex.RebuildAll();
 
             var siteId = world.Sites.Create(new BuildSiteState
             {
@@ -193,6 +206,10 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(upgraded.HP, Is.EqualTo(160));
             Assert.That(grid.Get(new CellPos(3, 3)).Kind, Is.EqualTo(CellOccupancyKind.Building));
             Assert.That(grid.Get(new CellPos(4, 4)).Building.Value, Is.EqualTo(buildingId.Value));
+            Assert.That(placedEvents, Is.EqualTo(0), "Upgrade finalize must not emit BuildingPlacedEvent.");
+            Assert.That(upgradedEvents, Is.EqualTo(1), "Upgrade finalize should emit BuildingUpgradedEvent exactly once.");
+
+            BuildOrderInvariantHelper.AssertBuildInvariant(world, grid, data, services.WorldIndex, buildingId);
         }
 
         [Test]

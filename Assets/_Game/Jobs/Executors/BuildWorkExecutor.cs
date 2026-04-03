@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
@@ -46,6 +46,12 @@ namespace SeasonalBastion
                 return true;
             }
 
+            if (job.Status == JobStatus.Completed || job.Status == JobStatus.Cancelled || job.Status == JobStatus.Failed)
+            {
+                Cleanup(job.Id.Value, npc);
+                return true;
+            }
+
             if (job.Site.Value == 0 || !_s.WorldState.Sites.Exists(job.Site))
             {
                 job.Status = JobStatus.Cancelled;
@@ -58,6 +64,12 @@ namespace SeasonalBastion
             {
                 job.Status = JobStatus.Cancelled;
                 Cleanup(job.Id.Value, npc);
+                return true;
+            }
+
+            if (site.WorkSecondsDone + 1e-4f >= site.WorkSecondsTotal)
+            {
+                CompleteOnce(jjobId: job.Id.Value, npc: npc, ref npcState, ref job, site);
                 return true;
             }
 
@@ -317,13 +329,25 @@ namespace SeasonalBastion
 
             if (site.WorkSecondsDone + 1e-4f >= site.WorkSecondsTotal)
             {
-                InteractionCellExitHelper.TryStepOffCell(_s, ref npcState, buildEntry, dt, site.Anchor);
-                job.Status = JobStatus.Completed;
-                Cleanup(jid, npc);
+                CompleteOnce(jjobId: jid, npc: npc, ref npcState, ref job, site, buildEntry);
                 return true;
             }
 
             return true;
+        }
+
+        private void CompleteOnce(int jjobId, NpcId npc, ref NpcState npcState, ref Job job, in BuildSiteState site, CellPos? buildEntryOverride = null)
+        {
+            if (job.Status == JobStatus.Completed)
+            {
+                Cleanup(jjobId, npc);
+                return;
+            }
+
+            var stepOffCell = buildEntryOverride ?? (_buildEntry.TryGetValue(jjobId, out var lockedEntry) ? lockedEntry : EntryCellUtil.GetApproachCellForSite(_s, site, npcState.Cell));
+            InteractionCellExitHelper.TryStepOffCell(_s, ref npcState, stepOffCell, 0f, site.Anchor);
+            job.Status = JobStatus.Completed;
+            Cleanup(jjobId, npc);
         }
 
         private void Cleanup(int jobId, NpcId npc)

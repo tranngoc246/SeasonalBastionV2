@@ -145,6 +145,9 @@ namespace SeasonalBastion
                 FromDefId = "",
                 EdgeId = ""
             };
+
+            CleanupOrphanSiteForBuilding(buildingId);
+
             var siteId = _s.WorldState.Sites.Create(site);
             site.Id = siteId;
             _s.WorldState.Sites.Set(siteId, site);
@@ -353,6 +356,8 @@ namespace SeasonalBastion
                 RemainingCosts = _cloneCostsOrEmpty(edge.Cost)
             };
 
+            CleanupOrphanSiteForBuilding(building);
+
             var siteId = _s.WorldState.Sites.Create(site);
             site.Id = siteId;
             _s.WorldState.Sites.Set(siteId, site);
@@ -449,6 +454,46 @@ namespace SeasonalBastion
             );
 
             return orderId;
+        }
+
+        private void CleanupOrphanSiteForBuilding(BuildingId buildingId)
+        {
+            if (buildingId.Value == 0 || _s.WorldState?.Sites == null)
+                return;
+
+            var stale = new List<SiteId>();
+            foreach (var siteId in _s.WorldState.Sites.Ids)
+            {
+                if (!_s.WorldState.Sites.Exists(siteId)) continue;
+                var site = _s.WorldState.Sites.Get(siteId);
+                if (site.TargetBuilding.Value == buildingId.Value)
+                    stale.Add(siteId);
+            }
+
+            for (int i = 0; i < stale.Count; i++)
+            {
+                var siteId = stale[i];
+                if (!_s.WorldState.Sites.Exists(siteId)) continue;
+                var site = _s.WorldState.Sites.Get(siteId);
+                var def = SafeGetBuildingDef(site.BuildingDefId);
+                int w = Math.Max(1, def?.SizeX ?? 1);
+                int h = Math.Max(1, def?.SizeY ?? 1);
+                for (int dy = 0; dy < h; dy++)
+                for (int dx = 0; dx < w; dx++)
+                    _s.GridMap?.ClearSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy));
+
+                _s.WorldState.Sites.Destroy(siteId);
+                _s.EventBus?.Publish(new WorldStateChangedEvent("BuildSite", siteId.Value));
+            }
+        }
+
+        private BuildingDef SafeGetBuildingDef(string defId)
+        {
+            if (_s?.DataRegistry == null || string.IsNullOrWhiteSpace(defId))
+                return null;
+
+            try { return _s.DataRegistry.GetBuilding(defId); }
+            catch { return null; }
         }
     }
 }

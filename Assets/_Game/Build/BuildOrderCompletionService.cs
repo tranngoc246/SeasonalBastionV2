@@ -40,6 +40,7 @@ namespace SeasonalBastion
                 return;
 
             DestroyBuildSite(o.Site, publishEvent: true);
+            ValidateFinalizedState(o.TargetBuilding);
             o.Completed = true;
             _removeAutoRoadByOrder?.Invoke(o.OrderId);
         }
@@ -64,18 +65,22 @@ namespace SeasonalBastion
                 return;
 
             DestroyBuildSite(o.Site, publishEvent: true);
+            ValidateFinalizedState(o.TargetBuilding);
             o.Completed = true;
         }
 
         private bool FinalizePlacedBuilding(ref BuildOrder o, in BuildSiteState site)
         {
             if (!_s.WorldState.Buildings.Exists(o.TargetBuilding))
+            {
+                UnityEngine.Debug.LogError($"[BuildOrderCompletionService] Site removed but building missing during place finalize: site={site.Id.Value}, building={o.TargetBuilding.Value}.");
                 return false;
+            }
 
             var b = _s.WorldState.Buildings.Get(o.TargetBuilding);
             if (b.IsConstructed)
             {
-                EnsureConstructedBuildingIndexedAndOccupying(o.TargetBuilding, b);
+                EnsureConstructedBuildingIndexedAndOccupying(o.TargetBuilding, b, publishPlacedEvent: false, rebuildIndex: true);
                 return true;
             }
 
@@ -93,7 +98,7 @@ namespace SeasonalBastion
                 b.HP = b.MaxHP;
 
             _s.WorldState.Buildings.Set(o.TargetBuilding, b);
-            EnsureConstructedBuildingIndexedAndOccupying(o.TargetBuilding, b);
+            EnsureConstructedBuildingIndexedAndOccupying(o.TargetBuilding, b, publishPlacedEvent: true, rebuildIndex: true);
 
             _s.NotificationService?.Push(
                 key: $"BuildComplete_{o.TargetBuilding.Value}",
@@ -111,7 +116,10 @@ namespace SeasonalBastion
         private bool FinalizeUpgrade(ref BuildOrder o, in BuildSiteState site)
         {
             if (!_s.WorldState.Buildings.Exists(o.TargetBuilding))
+            {
+                UnityEngine.Debug.LogError($"[BuildOrderCompletionService] Site removed but building missing during upgrade finalize: site={site.Id.Value}, building={o.TargetBuilding.Value}.");
                 return false;
+            }
 
             var b = _s.WorldState.Buildings.Get(o.TargetBuilding);
             string fromId = string.IsNullOrWhiteSpace(site.FromDefId) ? b.DefId : site.FromDefId;
@@ -137,7 +145,7 @@ namespace SeasonalBastion
             }
 
             SyncUpgradeTowerState(o.TargetBuilding, ref b);
-            EnsureConstructedBuildingIndexedAndOccupying(o.TargetBuilding, b, rebuildIndex: !alreadyFinalized);
+            EnsureConstructedBuildingIndexedAndOccupying(o.TargetBuilding, b, publishPlacedEvent: false, rebuildIndex: true);
 
             if (!alreadyFinalized)
             {
@@ -183,7 +191,7 @@ namespace SeasonalBastion
                 _s.GridMap?.ClearSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy));
         }
 
-        private void EnsureConstructedBuildingIndexedAndOccupying(BuildingId buildingId, in BuildingState building, bool rebuildIndex = false)
+        private void EnsureConstructedBuildingIndexedAndOccupying(BuildingId buildingId, in BuildingState building, bool publishPlacedEvent, bool rebuildIndex = false)
         {
             var def = SafeGetBuildingDef(building.DefId);
             int w = Math.Max(1, def?.SizeX ?? 1);
@@ -203,9 +211,28 @@ namespace SeasonalBastion
             }
             catch { }
 
-            _s.EventBus?.Publish(new BuildingPlacedEvent(building.DefId, buildingId));
+            if (publishPlacedEvent)
+                _s.EventBus?.Publish(new BuildingPlacedEvent(building.DefId, buildingId));
             _s.EventBus?.Publish(new WorldStateChangedEvent("Building", buildingId.Value));
             _s.EventBus?.Publish(new RoadsDirtyEvent());
+        }
+
+        private void ValidateFinalizedState(BuildingId buildingId)
+        {
+            if (buildingId.Value == 0)
+                return;
+
+            if (_s.WorldState?.Buildings == null || !_s.WorldState.Buildings.Exists(buildingId))
+            {
+                UnityEngine.Debug.LogError($"[BuildOrderCompletionService] Site removed but building missing: {buildingId.Value}.");
+                return;
+            }
+
+            var building = _s.WorldState.Buildings.Get(buildingId);
+            if (!building.IsConstructed)
+                UnityEngine.Debug.LogError($"[BuildOrderCompletionService] Building exists but not constructed: {buildingId.Value} ({building.DefId}).");
+
+            BuildOrderInvariantHelper.AssertBuildInvariant(_s.WorldState, _s.GridMap, _s.DataRegistry, _s.WorldIndex, buildingId);
         }
 
         private void SyncUpgradeTowerState(BuildingId buildingId, ref BuildingState building)

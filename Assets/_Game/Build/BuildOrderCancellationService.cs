@@ -69,6 +69,7 @@ namespace SeasonalBastion
             }
 
             RemovePlaceholder(o.TargetBuilding);
+            CleanupOrphanSiteForBuilding(o.TargetBuilding);
 
             _s.NotificationService?.Push(
                 key: $"BuildCancel_{o.TargetBuilding.Value}",
@@ -89,6 +90,8 @@ namespace SeasonalBastion
                 RefundDeliveredToNearestStorage(site);
                 CleanupBuildSite(o.Site, site);
             }
+
+            CleanupOrphanSiteForBuilding(o.TargetBuilding);
 
             _s.NotificationService?.Push(
                 key: $"UpgradeCancel_{o.TargetBuilding.Value}",
@@ -152,6 +155,29 @@ namespace SeasonalBastion
                 _s.WorldState.Sites.Destroy(siteId);
 
             _s.EventBus?.Publish(new WorldStateChangedEvent("BuildSite", siteId.Value));
+        }
+
+        private void CleanupOrphanSiteForBuilding(BuildingId buildingId)
+        {
+            if (buildingId.Value == 0 || _s.WorldState?.Sites == null)
+                return;
+
+            var stale = new List<SiteId>();
+            foreach (var siteId in _s.WorldState.Sites.Ids)
+            {
+                if (!_s.WorldState.Sites.Exists(siteId)) continue;
+                var site = _s.WorldState.Sites.Get(siteId);
+                if (site.TargetBuilding.Value == buildingId.Value)
+                    stale.Add(siteId);
+            }
+
+            for (int i = 0; i < stale.Count; i++)
+            {
+                var siteId = stale[i];
+                if (!_s.WorldState.Sites.Exists(siteId)) continue;
+                var site = _s.WorldState.Sites.Get(siteId);
+                CleanupBuildSite(siteId, site);
+            }
         }
 
         private void TryRollbackAutoRoad(int orderId, in BuildOrder o)

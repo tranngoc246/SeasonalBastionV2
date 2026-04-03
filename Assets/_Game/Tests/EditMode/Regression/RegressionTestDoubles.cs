@@ -154,6 +154,14 @@ namespace SeasonalBastion.Tests.EditMode
         {
             CurrentSeason = s;
             DayIndex = dayIndex;
+
+            var newPhase = (s == Season.Autumn || s == Season.Winter) ? Phase.Defend : Phase.Build;
+            if (CurrentPhase != newPhase)
+            {
+                CurrentPhase = newPhase;
+                OnPhaseChanged?.Invoke(newPhase);
+            }
+
             OnSeasonDayChanged?.Invoke(s, dayIndex);
         }
 

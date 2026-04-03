@@ -56,7 +56,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
             var clock = new FakeRunClock();
-            clock.RaisePhaseChanged(Phase.Defend);
+
             clock.ForceSeasonDay(Season.Autumn, 1);
             var outcome = new FakeRunOutcomeService();
             var world = new WorldState();
@@ -104,7 +104,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
             var clock = new FakeRunClock();
-            clock.RaisePhaseChanged(Phase.Defend);
+
             clock.ForceSeasonDay(Season.Autumn, 1);
             var outcome = new FakeRunOutcomeService();
             var world = new WorldState();
@@ -135,7 +135,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
             var clock = new FakeRunClock();
-            clock.RaisePhaseChanged(Phase.Defend);
+
             clock.ForceSeasonDay(Season.Autumn, 1);
             var outcome = new FakeRunOutcomeService();
             var world = new WorldState();
@@ -173,7 +173,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
             var clock = new FakeRunClock();
-            clock.RaisePhaseChanged(Phase.Defend);
+
             clock.ForceSeasonDay(Season.Autumn, 1);
             var outcome = new FakeRunOutcomeService();
             var world = new WorldState();
@@ -264,7 +264,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
             var clock = new FakeRunClock();
-            clock.RaisePhaseChanged(Phase.Defend);
+
             clock.ForceSeasonDay(Season.Autumn, 1);
             var outcome = new FakeRunOutcomeService();
             var world = new WorldState();
@@ -304,7 +304,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, MaxHp = 100, IsHQ = true });
             var clock = new FakeRunClock();
-            clock.RaisePhaseChanged(Phase.Defend);
+
             clock.ForceSeasonDay(Season.Autumn, 1);
             var outcome = new FakeRunOutcomeService();
             var world = new WorldState();

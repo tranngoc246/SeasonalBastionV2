@@ -31,6 +31,12 @@ namespace SeasonalBastion.Tests.EditMode
             if (services.GridMap != null)
                 services.Pathfinder = new NpcPathfinder(services.GridMap);
 
+            services.ApplyRunStartConfig = (s, cfg) =>
+            {
+                bool ok = SeasonalBastion.RunStart.RunStartFacade.TryApply(s, cfg, out var error);
+                return (ok, error);
+            };
+
             return services;
         }
     }

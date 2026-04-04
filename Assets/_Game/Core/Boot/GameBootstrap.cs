@@ -31,6 +31,11 @@
             Application.targetFrameRate = 60;
 
             _services = GameServicesFactory.Create(_defsCatalog);
+            _services.ApplyRunStartConfig = (services, cfg) =>
+            {
+                bool ok = RunStartFacade.TryApply(services, cfg, out var error);
+                return (ok, error);
+            };
             _loop = new GameLoop(_services);
 
             // Day 17: Validate data at boot (fail-fast)
@@ -51,7 +56,6 @@
                 }
 
                 _loop.StartNewRun(seed: _debugSeed, startMapConfigJsonOrMarkdown: _cfg);
-                TryApplyRunStartConfig(_cfg);
 
                 // Apply app default speed (only if build phase)
                 ApplyAppDefaultSpeedIfAllowed();
@@ -108,7 +112,6 @@
             _cfg = cfg;
 
             _loop.StartNewRun(seed, _cfg);
-            TryApplyRunStartConfig(_cfg);
 
             // Apply app default speed (only if build phase)
             ApplyAppDefaultSpeedIfAllowed();
@@ -210,34 +213,6 @@
                 Debug.LogError("[DataValidator] " + errors[i]);
 
             return false;
-        }
-
-        private void TryApplyRunStartConfig(string cfg)
-        {
-            if (string.IsNullOrEmpty(cfg) || _services == null)
-                return;
-
-            if (!RunStartFacade.TryApply(_services, cfg, out var err))
-            {
-                if (_services.RunStartRuntime != null)
-                {
-                    _services.RunStartRuntime.ResourceGenerationFailureReason = err;
-                    _services.RunStartRuntime.OpeningQualityBand = "RunStartApplyFailed";
-                }
-
-                _services.NotificationService?.Push(
-                    key: "RunStartApplyFailed",
-                    title: "Run Start",
-                    body: err,
-                    severity: NotificationSeverity.Error,
-                    payload: default,
-                    cooldownSeconds: 0f,
-                    dedupeByKey: true
-                );
-            }
-
-            _services.WorldIndex?.RebuildAll();
-            _services.PopulationService?.RebuildDerivedState();
         }
 
         private string ResolveStartMapConfig()

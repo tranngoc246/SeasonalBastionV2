@@ -42,8 +42,28 @@ namespace SeasonalBastion
                 _s.RunClock.SetTimeScale(1f);
             }
 
-            // StartMapConfig apply is owned by boot composition layer so Game.Core
-            // does not depend on Game.RunStart implementation.
+            if (!string.IsNullOrEmpty(startMapConfigJsonOrMarkdown) && _s.ApplyRunStartConfig != null)
+            {
+                var result = _s.ApplyRunStartConfig(_s, startMapConfigJsonOrMarkdown);
+                if (!result.ok)
+                {
+                    if (_s.RunStartRuntime != null)
+                    {
+                        _s.RunStartRuntime.ResourceGenerationFailureReason = result.error;
+                        _s.RunStartRuntime.OpeningQualityBand = "RunStartApplyFailed";
+                    }
+
+                    _s.NotificationService?.Push(
+                        key: "RunStartApplyFailed",
+                        title: "Run Start",
+                        body: result.error,
+                        severity: NotificationSeverity.Error,
+                        payload: default,
+                        cooldownSeconds: 0f,
+                        dedupeByKey: true
+                    );
+                }
+            }
 
             // rebuild derived world index lists (safe even if world is empty).
             _s.WorldIndex?.RebuildAll();

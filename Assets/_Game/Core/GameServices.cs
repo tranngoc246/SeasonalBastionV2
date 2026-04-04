@@ -1,3 +1,4 @@
+using System;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
@@ -26,6 +27,10 @@ namespace SeasonalBastion
         public IGridMap GridMap;
         public IPlacementService PlacementService;
         public ResourcePatchService ResourcePatchService;
+
+        // Boot-composed run-start applier so Game.Core can preserve StartNewRun behavior
+        // without directly depending on Game.RunStart implementation.
+        public Func<GameServices, string, (bool ok, string error)> ApplyRunStartConfig;
 
         // VS2: cached data loaded from StartMapConfig at StartNewRun()
         public RunStartRuntime RunStartRuntime;

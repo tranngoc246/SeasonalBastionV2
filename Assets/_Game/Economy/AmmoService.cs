@@ -20,6 +20,7 @@ namespace SeasonalBastion
         private readonly AmmoRecipeProvider _recipeProvider;
         private readonly AmmoCraftService _craftService;
         private readonly AmmoRuntimeState _runtimeState = new();
+        private readonly AmmoTowerStateTracker _towerStateTracker = new();
         internal List<AmmoRequest> UrgentRequests => _requestQueue.UrgentRequests;
         internal List<AmmoRequest> NormalRequests => _requestQueue.NormalRequests;
         internal AmmoRequestQueue Requests => _requestQueue;
@@ -28,12 +29,8 @@ namespace SeasonalBastion
         private float _simTime;
         internal float SimTime => _simTime;
 
-        private readonly Dictionary<int, int> _lastAmmoByTower = new();
-        private readonly Dictionary<int, int> _lastCapByTower = new();
-        internal Dictionary<int, int> LastAmmoByTower => _lastAmmoByTower;
-        internal Dictionary<int, int> LastCapByTower => _lastCapByTower;
-        private readonly Dictionary<int, byte> _lastStateByTower = new();
-        private readonly HashSet<int> _towerNeedLogged = new();
+        internal Dictionary<int, int> LastAmmoByTower => _towerStateTracker.LastAmmoByTower;
+        internal Dictionary<int, int> LastCapByTower => _towerStateTracker.LastCapByTower;
         internal HashSet<int> TowerNoSourceLogged => _recoveryService.TowerNoSourceLogged;
         internal HashSet<int> TowerNoJobLogged => _recoveryService.TowerNoJobLogged;
         internal HashSet<int> TowerDeadlockLogged => _recoveryService.TowerDeadlockLogged;
@@ -126,8 +123,7 @@ namespace SeasonalBastion
             else if (current <= thr) stateNow = 1;
             else stateNow = 0;
 
-            _lastStateByTower.TryGetValue(tid, out var statePrev);
-            _lastStateByTower[tid] = stateNow;
+            _towerStateTracker.SetState(tid, stateNow);
 
             if (_s.NotificationService != null && stateNow != 0)
             {
@@ -161,7 +157,7 @@ namespace SeasonalBastion
                 }
             }
 
-            if (DebugAmmoLogs && stateNow != 0 && _towerNeedLogged.Add(tid))
+            if (DebugAmmoLogs && stateNow != 0 && _towerStateTracker.TryMarkNeedLogged(tid))
             {
                 Log.E($"[Ammo] tower {tid} requests resupply ammo={current}/{max} state={(stateNow == 2 ? "empty" : "low")} thr={thr}");
                 _recoveryService.ClearNeedLogs(tid);
@@ -169,7 +165,7 @@ namespace SeasonalBastion
 
             if (stateNow == 0)
             {
-                _towerNeedLogged.Remove(tid);
+                _towerStateTracker.ClearNeedLogged(tid);
                 _recoveryService.ClearNeedLogs(tid);
                 return;
             }
@@ -217,10 +213,7 @@ namespace SeasonalBastion
             _simTime = 0f;
             _devHookTimer = 0f;
 
-            _lastAmmoByTower.Clear();
-            _lastCapByTower.Clear();
-            _lastStateByTower.Clear();
-            _towerNeedLogged.Clear();
+            _towerStateTracker.Clear();
 
             _recoveryService.ClearAll();
             _cooldownManager.ClearAll();
@@ -273,10 +266,7 @@ namespace SeasonalBastion
 
         internal void RemoveTowerCacheState(int tid)
         {
-            _lastAmmoByTower.Remove(tid);
-            _lastCapByTower.Remove(tid);
-            _lastStateByTower.Remove(tid);
-            _towerNeedLogged.Remove(tid);
+            _towerStateTracker.RemoveTower(tid);
             _recoveryService.ClearTowerLogs(tid);
             _cooldownManager.ClearTower(tid);
             _requestQueue.RemovePendingForTower(tid);
@@ -309,6 +299,8 @@ namespace SeasonalBastion
         internal void ScanTowersAndNotify_Core() => _topologyCache.ScanTowersAndNotify();
         internal void DevHookTick_Core(float dt) => _debugHooks.Tick(dt);
         internal void EnsureTestTowerExistsIfNeeded_Core() => _debugHooks.EnsureTestTowerExistsIfNeeded();
+        internal void RecordTowerSnapshot(TowerId towerId, int ammo, int cap) => _towerStateTracker.RecordSnapshot(towerId, ammo, cap);
+        internal bool MatchesTowerSnapshot(TowerId towerId, int ammo, int cap) => _towerStateTracker.MatchesSnapshot(towerId, ammo, cap);
         internal void MaybeRequeueTowerAmmoRequest(TowerId tower) => _recoveryService.MaybeRequeueTowerAmmoRequest(tower);
         internal int GetLowAmmoThresholdValue(int max) => GetLowAmmoThreshold(max);
         internal void ResetRequestStateForTower(int towerId) => _recoveryService.ResetRequestStateForTower(towerId);

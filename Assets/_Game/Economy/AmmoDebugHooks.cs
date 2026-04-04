@@ -41,8 +41,7 @@ namespace SeasonalBastion
                 ts.Ammo = newAmmo;
                 _s.WorldState.Towers.Set(tid, ts);
 
-                _owner.LastAmmoByTower[tid.Value] = newAmmo;
-                _owner.LastCapByTower[tid.Value] = ts.AmmoCap;
+                _owner.RecordTowerSnapshot(tid, newAmmo, ts.AmmoCap);
 
                 _owner.NotifyTowerAmmoChanged(tid, newAmmo, ts.AmmoCap);
                 break;

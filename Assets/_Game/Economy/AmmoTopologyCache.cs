@@ -75,13 +75,10 @@ namespace SeasonalBastion
                 int cur = ts.Ammo;
                 int cap = ts.AmmoCap;
 
-                if (_owner.LastAmmoByTower.TryGetValue(tid.Value, out var lastAmmo) &&
-                    _owner.LastCapByTower.TryGetValue(tid.Value, out var lastCap) &&
-                    lastAmmo == cur && lastCap == cap)
+                if (_owner.MatchesTowerSnapshot(tid, cur, cap))
                     continue;
 
-                _owner.LastAmmoByTower[tid.Value] = cur;
-                _owner.LastCapByTower[tid.Value] = cap;
+                _owner.RecordTowerSnapshot(tid, cur, cap);
 
                 _owner.NotifyTowerAmmoChanged(tid, cur, cap);
             }

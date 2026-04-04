@@ -156,8 +156,10 @@ namespace SeasonalBastion.DebugTools
             if (_runClockHud != null) _runClockHud.SetHubControlled(true);
             if (_waveHud != null) _waveHud.SetHubControlled(true);
 
-            var kb = Keyboard.current;
-            if (kb != null) HandleHotkeys(kb);
+            // Do not poll hotkeys in Awake; it can consume stale key state during scene init
+            // and accidentally hide the hub before first visible frame.
+            _showUi = true;
+            DebugHubState.Enabled = true;
 
             ApplyMode(_mode);
 

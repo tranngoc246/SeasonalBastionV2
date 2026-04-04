@@ -1,5 +1,4 @@
 using SeasonalBastion.Contracts;
-using System;
 using System.Collections.Generic;
 
 namespace SeasonalBastion
@@ -212,78 +211,6 @@ namespace SeasonalBastion
             }
         }
 
-        internal void LogPotentialResupplyDeadlock()
-        {
-            if (_owner.Debug_TowersWithoutAmmo <= 0)
-            {
-                _owner.TowerDeadlockLogged.Clear();
-                return;
-            }
-
-            if (_owner.Debug_ArmoryAvailableAmmo <= 0)
-                return;
-
-            if (_owner.Debug_ActiveResupplyJobs > 0)
-            {
-                _owner.TowerDeadlockLogged.Clear();
-                return;
-            }
-
-            int eligibleRequests = _owner.CountEligibleResupplyRequests();
-            if (eligibleRequests <= 0)
-                return;
-
-            LogDeadlockForRequests(_owner.UrgentRequests);
-            LogDeadlockForRequests(_owner.NormalRequests);
-        }
-
-        internal void UpdateDebugMetrics()
-        {
-            _owner.Debug_TotalTowers = 0;
-            _owner.Debug_TowersWithoutAmmo = 0;
-            _owner.Debug_ArmoryAvailableAmmo = 0;
-            _owner.Debug_ActiveResupplyJobs = _owner.CountTrackedActiveResupplyJobs_Core();
-
-            var towers = _s.WorldIndex.Towers;
-            if (towers != null)
-            {
-                for (int i = 0; i < towers.Count; i++)
-                {
-                    var tid = towers[i];
-                    if (!_s.WorldState.Towers.Exists(tid)) continue;
-                    _owner.Debug_TotalTowers++;
-                    var tower = _s.WorldState.Towers.Get(tid);
-                    if (tower.Ammo <= 0)
-                        _owner.Debug_TowersWithoutAmmo++;
-                }
-            }
-
-            var armories = _s.WorldIndex.Armories;
-            if (armories != null)
-            {
-                for (int i = 0; i < armories.Count; i++)
-                {
-                    var armory = armories[i];
-                    if (!_s.WorldState.Buildings.Exists(armory)) continue;
-                    var st = _s.WorldState.Buildings.Get(armory);
-                    if (!st.IsConstructed) continue;
-                    _owner.Debug_ArmoryAvailableAmmo += Math.Max(0, _s.StorageService.GetAmount(armory, ResourceType.Ammo));
-                }
-            }
-        }
-
-        private void LogDeadlockForRequests(List<AmmoRequest> list)
-        {
-            if (list == null) return;
-
-            for (int i = 0; i < list.Count; i++)
-            {
-                int tid = list[i].Tower.Value;
-                if (tid == 0) continue;
-                if (_owner.TowerDeadlockLogged.Add(tid))
-                    Log.E($"[Ammo] Armory has ammo but no job created. tower={tid} totalTowers={_owner.Debug_TotalTowers} emptyTowers={_owner.Debug_TowersWithoutAmmo} activeResupplyJobs={_owner.Debug_ActiveResupplyJobs} armoryAmmo={_owner.Debug_ArmoryAvailableAmmo} pending={_owner.PendingRequests}");
-            }
-        }
 
     }
 }

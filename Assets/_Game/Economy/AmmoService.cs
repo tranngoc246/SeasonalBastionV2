@@ -13,6 +13,10 @@ namespace SeasonalBastion
         private readonly AmmoDebugHooks _debugHooks;
         private readonly AmmoRequestQueue _requestQueue;
         private readonly AmmoResupplyTracking _resupplyTracking;
+        private readonly AmmoCooldownManager _cooldownManager;
+        private readonly AmmoRecoveryService _recoveryService;
+        private readonly AmmoMetricsReporter _metricsReporter;
+        private readonly AmmoConfigProvider _configProvider;
         internal List<AmmoRequest> UrgentRequests => _requestQueue.UrgentRequests;
         internal List<AmmoRequest> NormalRequests => _requestQueue.NormalRequests;
 
@@ -33,10 +37,6 @@ namespace SeasonalBastion
         internal HashSet<int> TowerNoJobLogged => _towerNoJobLogged;
         private readonly HashSet<int> _towerDeadlockLogged = new();
         internal HashSet<int> TowerDeadlockLogged => _towerDeadlockLogged;
-
-        // Cooldown timestamps (sim time)
-        private readonly Dictionary<int, float> _nextReqLowAt = new();
-        private readonly Dictionary<int, float> _nextReqEmptyAt = new();
 
         // Anti-dup pending request per tower (supports promote low->empty)
         internal HashSet<int> PendingReqTower => _requestQueue.PendingReqTower;
@@ -96,6 +96,10 @@ namespace SeasonalBastion
             _debugHooks = new AmmoDebugHooks(this);
             _requestQueue = new AmmoRequestQueue(s);
             _resupplyTracking = new AmmoResupplyTracking(s);
+            _cooldownManager = new AmmoCooldownManager(this);
+            _recoveryService = new AmmoRecoveryService(this);
+            _metricsReporter = new AmmoMetricsReporter(this);
+            _configProvider = new AmmoConfigProvider(s);
         }
 
         public int PendingRequests => _requestQueue.PendingRequests;
@@ -103,20 +107,20 @@ namespace SeasonalBastion
 
         // ----------------- Tunables (prefer Balance json if present; fallback to defaults) -----------------
 
-        private int LowAmmoPercent => GetBalInt("ammoMonitor", "lowAmmoPct", 25);
-        private bool DebugAmmoLogs => GetBalBool("ammoMonitor", "debugLogs", false);
+        private int LowAmmoPercent => _configProvider.GetInt("ammoMonitor", "lowAmmoPct", 25);
+        private bool DebugAmmoLogs => _configProvider.GetBool("ammoMonitor", "debugLogs", false);
         internal bool DebugAmmoLogsValue => DebugAmmoLogs;
 
-        private float ReqCooldownLow => GetBalFloat("ammoMonitor", "reqCooldownLowSec", 8f);
-        private float ReqCooldownEmpty => GetBalFloat("ammoMonitor", "reqCooldownEmptySec", 4f);
+        internal float ReqCooldownLowValue => _configProvider.GetFloat("ammoMonitor", "reqCooldownLowSec", 8f);
+        internal float ReqCooldownEmptyValue => _configProvider.GetFloat("ammoMonitor", "reqCooldownEmptySec", 4f);
 
-        private float NotifyCooldownLow => GetBalFloat("ammoMonitor", "notifyCooldownLowSec", 6f);
-        private float NotifyCooldownEmpty => GetBalFloat("ammoMonitor", "notifyCooldownEmptySec", 4f);
+        private float NotifyCooldownLow => _configProvider.GetFloat("ammoMonitor", "notifyCooldownLowSec", 6f);
+        private float NotifyCooldownEmpty => _configProvider.GetFloat("ammoMonitor", "notifyCooldownEmptySec", 4f);
 
-        private int ForgeTargetCrafts => GetBalInt("ammoSupply", "forgeTargetCrafts", 5);
+        private int ForgeTargetCrafts => _configProvider.GetInt("ammoSupply", "forgeTargetCrafts", 5);
         internal int ForgeTargetCraftsValue => ForgeTargetCrafts;
 
-        private string AmmoRecipeId => GetBalString("crafting", "ammoRecipeId", "ForgeAmmo");
+        private string AmmoRecipeId => _configProvider.GetString("crafting", "ammoRecipeId", "ForgeAmmo");
         internal string AmmoRecipeIdValue => AmmoRecipeId;
 
         // ----------------- Public API -----------------
@@ -195,20 +199,8 @@ namespace SeasonalBastion
 
             var pri = (stateNow == 2) ? AmmoRequestPriority.Urgent : AmmoRequestPriority.Normal;
 
-            if (pri == AmmoRequestPriority.Urgent)
-            {
-                if (_nextReqEmptyAt.TryGetValue(tid, out var until) && _simTime < until)
-                    return;
-
-                _nextReqEmptyAt[tid] = _simTime + ReqCooldownEmpty;
-            }
-            else
-            {
-                if (_nextReqLowAt.TryGetValue(tid, out var until) && _simTime < until)
-                    return;
-
-                _nextReqLowAt[tid] = _simTime + ReqCooldownLow;
-            }
+            if (!_cooldownManager.TryConsumeRequestCooldown(tower, pri))
+                return;
 
             int need = max - current;
             if (need <= 0) return;
@@ -299,52 +291,9 @@ namespace SeasonalBastion
             RebuildInFlightResupplyFromJobBoardAfterLoad();
             _simTime += dt;
 
-            _topologyCache.CleanupDestroyedTowerCaches();
-            _debugHooks.EnsureTestTowerExistsIfNeeded();
-
-            _debugHooks.Tick(dt);     // simulate ammo drain (optional)
-            _topologyCache.ScanTowersAndNotify();   // detect changes + enqueue request
-
-            _topologyCache.RebuildWorkplaceHasNpcSet();
-
-            // Cache recipe once per tick (avoid repeated parse/lookup)
-            bool hasRecipe = _armoryBufferPlanner.TryGetAmmoRecipe(out var recipe);
-
-            // For each Forge: ensure supply, then try start craft
-            var forges = _s.WorldIndex.Forges;
-            for (int i = 0; i < forges.Count; i++)
-            {
-                var forge = forges[i];
-                if (!_s.WorldState.Buildings.Exists(forge)) continue;
-
-                var bs = _s.WorldState.Buildings.Get(forge);
-                if (!bs.IsConstructed) continue;
-
-                // If no NPC at forge, skip starting craft (still can enqueue supply)
-                bool forgeHasNpc = _workplacesWithNpc.Contains(forge.Value);
-
-                if (!hasRecipe)
-                    continue;
-
-                // Ensure Forge has local caps for inputs (must be >0)
-                // If cap is 0, hauling won't work; user must set in Buildings.json
-                if (!_armoryBufferPlanner.HasCapForForgeInputs(forge, recipe))
-                    continue;
-
-                _armoryBufferPlanner.EnsureForgeSupplyByRecipe(forge, bs.Anchor, recipe);
-
-                // Start craft if possible (only if there is a worker at forge)
-                if (forgeHasNpc)
-                    _armoryBufferPlanner.TryStartCraft(forge);
-            }
-
-            _towerResupplyPlanner.CleanupResupplyTowerInFlight();
-            _towerResupplyPlanner.EnsureResupplyTowerJobs();   // Day26
-            _topologyCache.ReconcileOutstandingTowerNeeds();
-            _towerResupplyPlanner.EnsureResupplyTowerJobs();   // backfill only if cleanup/terminal paths dropped demand
-            _armoryBufferPlanner.EnsureArmoryAmmoBuffer();    // Day24
-            _towerResupplyPlanner.UpdateDebugMetrics();
-            _towerResupplyPlanner.LogPotentialResupplyDeadlock();
+            CollectAmmoRuntimeState(dt);
+            PlanAmmoFlow();
+            ExecuteAmmoFlow();
         }
 
         public void RebuildInFlightResupplyFromJobBoardAfterLoad() => _resupplyTracking.RebuildFromJobBoard();
@@ -366,8 +315,7 @@ namespace SeasonalBastion
             _towerNoJobLogged.Clear();
             _towerDeadlockLogged.Clear();
 
-            _nextReqLowAt.Clear();
-            _nextReqEmptyAt.Clear();
+            _cooldownManager.ClearAll();
 
             _supplyJobByForgeAndType.Clear();
             _craftJobByForge.Clear();
@@ -386,9 +334,9 @@ namespace SeasonalBastion
             Debug_ArmoryAvailableAmmo = 0;
         }
 
-        internal void UpdateDebugMetrics_Core() => _towerResupplyPlanner.UpdateDebugMetrics();
+        internal void UpdateDebugMetrics_Core() => _metricsReporter.UpdateDebugMetrics();
 
-        internal void LogPotentialResupplyDeadlock_Core() => _towerResupplyPlanner.LogPotentialResupplyDeadlock();
+        internal void LogPotentialResupplyDeadlock_Core() => _recoveryService.LogPotentialResupplyDeadlock();
         internal void CleanupResupplyArmoryMappings_Core() => CleanupResupplyArmoryMappings();
         internal void RemoveArmoryMappingByJob_Core(JobId jobId) => RemoveArmoryMappingByJob(jobId);
         internal int CountEligibleResupplyRequests() => CountEligibleRequests();
@@ -532,8 +480,7 @@ namespace SeasonalBastion
             _towerNoSourceLogged.Remove(tid);
             _towerNoJobLogged.Remove(tid);
             _towerDeadlockLogged.Remove(tid);
-            _nextReqLowAt.Remove(tid);
-            _nextReqEmptyAt.Remove(tid);
+            _cooldownManager.ClearTower(tid);
             PendingReqTower.Remove(tid);
             PendingPriorityByTower.Remove(tid);
             _resupplyTracking.RemoveTower(tid);
@@ -568,184 +515,64 @@ namespace SeasonalBastion
 
         internal void EnsureTestTowerExistsIfNeeded_Core() => _debugHooks.EnsureTestTowerExistsIfNeeded();
 
-        internal void MaybeRequeueTowerAmmoRequest(TowerId tower)
+        internal void MaybeRequeueTowerAmmoRequest(TowerId tower) => _recoveryService.MaybeRequeueTowerAmmoRequest(tower);
+
+        internal int GetLowAmmoThresholdValue(int max) => GetLowAmmoThreshold(max);
+
+        internal void ResetRequestStateForTower(int towerId)
         {
-            if (tower.Value == 0) return;
-            if (_s.WorldState == null || !_s.WorldState.Towers.Exists(tower)) return;
-
-            var ts = _s.WorldState.Towers.Get(tower);
-            int cap = ts.AmmoCap;
-            if (cap <= 0) return;
-
-            int cur = ts.Ammo;
-            int need = cap - cur;
-            if (need <= 0) return;
-
-            _nextReqEmptyAt.Remove(tower.Value);
-            _nextReqLowAt.Remove(tower.Value);
-            PendingReqTower.Remove(tower.Value);
-            PendingPriorityByTower.Remove(tower.Value);
-            _towerNoJobLogged.Remove(tower.Value);
-            _towerDeadlockLogged.Remove(tower.Value);
-
-            int thr = GetLowAmmoThreshold(cap);
-            AmmoRequestPriority pri = cur <= 0 ? AmmoRequestPriority.Urgent
-                : (cur <= thr ? AmmoRequestPriority.Normal : (AmmoRequestPriority)(-1));
-            if ((int)pri < 0) return;
-
-            EnqueueRequest(new AmmoRequest
-            {
-                Tower = tower,
-                AmountNeeded = need,
-                Priority = pri,
-                CreatedAt = _simTime
-            });
-
-            if (DebugAmmoLogs)
-                Log.E($"[Ammo] resupply requeued tower={tower.Value} ammo={cur}/{cap} priority={pri}");
+            _cooldownManager.ResetForTower(towerId);
+            PendingReqTower.Remove(towerId);
+            PendingPriorityByTower.Remove(towerId);
+            _towerNoJobLogged.Remove(towerId);
+            _towerDeadlockLogged.Remove(towerId);
         }
 
-        // ----------------- Balance reflection helpers -----------------
-        // These read:
-        // GameServices.Balance.Config.<section>.<key>
-        // If not present, return fallback.
-
-        private object TryGetBalanceConfig()
+        private void CollectAmmoRuntimeState(float dt)
         {
-            if (_s == null) return null;
-
-            try
-            {
-                var sType = _s.GetType();
-                var balField = sType.GetField("Balance");
-                if (balField == null) return null;
-
-                var balObj = balField.GetValue(_s);
-                if (balObj == null) return null;
-
-                var balType = balObj.GetType();
-                var cfgProp = balType.GetProperty("Config");
-                if (cfgProp != null)
-                    return cfgProp.GetValue(balObj, null);
-
-                var cfgField = balType.GetField("Config");
-                if (cfgField != null)
-                    return cfgField.GetValue(balObj);
-
-                return null;
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access GameServices.Balance.Config via reflection. Using fallback balance values. {ex}");
-                return null;
-            }
+            _topologyCache.CleanupDestroyedTowerCaches();
+            _debugHooks.EnsureTestTowerExistsIfNeeded();
+            _debugHooks.Tick(dt);
+            _topologyCache.ScanTowersAndNotify();
+            _topologyCache.RebuildWorkplaceHasNpcSet();
         }
 
-        private int GetBalInt(string section, string key, int fallback)
+        private void PlanAmmoFlow()
         {
-            try
-            {
-                var cfg = TryGetBalanceConfig();
-                if (cfg == null) return fallback;
-
-                var secField = cfg.GetType().GetField(section);
-                if (secField == null) return fallback;
-
-                var secObj = secField.GetValue(cfg);
-                if (secObj == null) return fallback;
-
-                var keyField = secObj.GetType().GetField(key);
-                if (keyField == null) return fallback;
-
-                var v = keyField.GetValue(secObj);
-                if (v is int i) return i;
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access Balance.Config.{section}.{key} as int: {ex}");
-            }
-            return fallback;
+            _towerResupplyPlanner.CleanupResupplyTowerInFlight();
+            _towerResupplyPlanner.EnsureResupplyTowerJobs();
+            _topologyCache.ReconcileOutstandingTowerNeeds();
+            _towerResupplyPlanner.EnsureResupplyTowerJobs();
         }
 
-        private bool GetBalBool(string section, string key, bool fallback)
+        private void ExecuteAmmoFlow()
         {
-            try
+            bool hasRecipe = _armoryBufferPlanner.TryGetAmmoRecipe(out var recipe);
+
+            var forges = _s.WorldIndex.Forges;
+            for (int i = 0; i < forges.Count; i++)
             {
-                var cfg = TryGetBalanceConfig();
-                if (cfg == null) return fallback;
+                var forge = forges[i];
+                if (!_s.WorldState.Buildings.Exists(forge)) continue;
 
-                var secField = cfg.GetType().GetField(section);
-                if (secField == null) return fallback;
+                var bs = _s.WorldState.Buildings.Get(forge);
+                if (!bs.IsConstructed) continue;
 
-                var secObj = secField.GetValue(cfg);
-                if (secObj == null) return fallback;
+                bool forgeHasNpc = _workplacesWithNpc.Contains(forge.Value);
+                if (!hasRecipe)
+                    continue;
 
-                var keyField = secObj.GetType().GetField(key);
-                if (keyField == null) return fallback;
+                if (!_armoryBufferPlanner.HasCapForForgeInputs(forge, recipe))
+                    continue;
 
-                var v = keyField.GetValue(secObj);
-                if (v is bool b) return b;
-                if (v is int i) return i != 0;
-                if (v is string s && bool.TryParse(s, out var parsed)) return parsed;
+                _armoryBufferPlanner.EnsureForgeSupplyByRecipe(forge, bs.Anchor, recipe);
+                if (forgeHasNpc)
+                    _armoryBufferPlanner.TryStartCraft(forge);
             }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access Balance.Config.{section}.{key} as bool: {ex}");
-            }
-            return fallback;
-        }
 
-        private float GetBalFloat(string section, string key, float fallback)
-        {
-            try
-            {
-                var cfg = TryGetBalanceConfig();
-                if (cfg == null) return fallback;
-
-                var secField = cfg.GetType().GetField(section);
-                if (secField == null) return fallback;
-
-                var secObj = secField.GetValue(cfg);
-                if (secObj == null) return fallback;
-
-                var keyField = secObj.GetType().GetField(key);
-                if (keyField == null) return fallback;
-
-                var v = keyField.GetValue(secObj);
-                if (v is float f) return f;
-                if (v is double d) return (float)d;
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access Balance.Config.{section}.{key} as float: {ex}");
-            }
-            return fallback;
-        }
-
-        private string GetBalString(string section, string key, string fallback)
-        {
-            try
-            {
-                var cfg = TryGetBalanceConfig();
-                if (cfg == null) return fallback;
-
-                var secField = cfg.GetType().GetField(section);
-                if (secField == null) return fallback;
-
-                var secObj = secField.GetValue(cfg);
-                if (secObj == null) return fallback;
-
-                var keyField = secObj.GetType().GetField(key);
-                if (keyField == null) return fallback;
-
-                var v = keyField.GetValue(secObj) as string;
-                if (!string.IsNullOrEmpty(v)) return v;
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access Balance.Config.{section}.{key} as string: {ex}");
-            }
-            return fallback;
+            _armoryBufferPlanner.EnsureArmoryAmmoBuffer();
+            _metricsReporter.UpdateDebugMetrics();
+            _recoveryService.LogPotentialResupplyDeadlock();
         }
     }
 }

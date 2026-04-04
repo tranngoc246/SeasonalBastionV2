@@ -1,7 +1,6 @@
 using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 
 namespace SeasonalBastion
 {
@@ -33,13 +32,11 @@ namespace SeasonalBastion
 
             try
             {
-                var jobsField = board.GetType().GetField("_jobs", BindingFlags.Instance | BindingFlags.NonPublic);
-                if (jobsField?.GetValue(board) is not Dictionary<int, Job> jobs)
+                if (board is not JobBoard concreteBoard)
                     return;
 
-                foreach (var kv in jobs)
+                foreach (var job in concreteBoard.EnumerateAllJobs())
                 {
-                    var job = kv.Value;
                     if (job.Archetype != JobArchetype.ResupplyTower) continue;
                     if (AmmoService.IsTerminal(job.Status)) continue;
                     if (job.Tower.Value == 0 || job.Workplace.Value == 0) continue;

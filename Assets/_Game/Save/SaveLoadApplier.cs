@@ -463,7 +463,7 @@ namespace SeasonalBastion
                 if (!seenIds.Add(buildingId.Value))
                 {
                     error = $"[SaveLoad] Post-apply validation failed: duplicate runtime building id {buildingId.Value}.";
-                    Debug.LogError(error);
+                    Debug.LogWarning(error);
                     return;
                 }
 
@@ -478,7 +478,7 @@ namespace SeasonalBastion
                 catch (Exception ex)
                 {
                     error = $"[SaveLoad] Post-apply validation failed for constructed building {buildingId.Value} ({building.DefId}): {ex.Message}";
-                    Debug.LogError(error + " Exception=" + ex);
+                    Debug.LogWarning(error + " Exception=" + ex);
                     return;
                 }
             }
@@ -627,7 +627,7 @@ namespace SeasonalBastion
                 if (!seenSiteIds.Add(siteId.Value))
                 {
                     error = $"[SaveLoad] Post-apply validation failed: duplicate runtime site id {siteId.Value}.";
-                    Debug.LogError(error);
+                    Debug.LogWarning(error);
                     return;
                 }
 
@@ -637,7 +637,7 @@ namespace SeasonalBastion
                     if (s.WorldState.Buildings == null || !s.WorldState.Buildings.Exists(site.TargetBuilding))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: site {siteId.Value} references missing target building {site.TargetBuilding.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
 
@@ -645,7 +645,7 @@ namespace SeasonalBastion
                     if (target.IsConstructed)
                     {
                         error = $"[SaveLoad] Post-apply validation failed: site {siteId.Value} still targets constructed building {site.TargetBuilding.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
                 }
@@ -666,7 +666,7 @@ namespace SeasonalBastion
                 if (!seenTowerIds.Add(towerId.Value))
                 {
                     error = $"[SaveLoad] Post-apply validation failed: duplicate runtime tower id {towerId.Value}.";
-                    Debug.LogError(error);
+                    Debug.LogWarning(error);
                     return;
                 }
 
@@ -675,7 +675,7 @@ namespace SeasonalBastion
                 if (!seenTowerCells.Add(key))
                 {
                     error = $"[SaveLoad] Post-apply validation failed: duplicate tower cell ({tower.Cell.X},{tower.Cell.Y}).";
-                    Debug.LogError(error);
+                    Debug.LogWarning(error);
                     return;
                 }
             }
@@ -694,7 +694,7 @@ namespace SeasonalBastion
                 if (!seenNpcIds.Add(npcId.Value))
                 {
                     error = $"[SaveLoad] Post-apply validation failed: duplicate runtime npc id {npcId.Value}.";
-                    Debug.LogError(error);
+                    Debug.LogWarning(error);
                     return;
                 }
 
@@ -702,7 +702,7 @@ namespace SeasonalBastion
                 if (npc.Workplace.Value != 0 && (s.WorldState.Buildings == null || !s.WorldState.Buildings.Exists(npc.Workplace)))
                 {
                     error = $"[SaveLoad] Post-apply validation failed: npc {npcId.Value} references missing workplace building {npc.Workplace.Value}.";
-                    Debug.LogError(error);
+                    Debug.LogWarning(error);
                     return;
                 }
 
@@ -711,14 +711,14 @@ namespace SeasonalBastion
                     if (s.JobBoard == null || !s.JobBoard.TryGet(npc.CurrentJob, out var job))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: npc {npcId.Value} references missing job {npc.CurrentJob.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
 
                     if (job.ClaimedBy.Value != 0 && job.ClaimedBy.Value != npcId.Value)
                     {
                         error = $"[SaveLoad] Post-apply validation failed: npc {npcId.Value} current job {npc.CurrentJob.Value} is claimed by npc {job.ClaimedBy.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
                 }
@@ -738,7 +738,7 @@ namespace SeasonalBastion
                 if (!seenEnemyIds.Add(enemyId.Value))
                 {
                     error = $"[SaveLoad] Post-apply validation failed: duplicate runtime enemy id {enemyId.Value}.";
-                    Debug.LogError(error);
+                    Debug.LogWarning(error);
                     return;
                 }
 
@@ -746,7 +746,7 @@ namespace SeasonalBastion
                 if (string.IsNullOrWhiteSpace(enemy.DefId) || !s.DataRegistry.TryGetEnemy(enemy.DefId, out _))
                 {
                     error = $"[SaveLoad] Post-apply validation failed: enemy {enemyId.Value} has invalid def '{enemy.DefId}'.";
-                    Debug.LogError(error);
+                    Debug.LogWarning(error);
                     return;
                 }
             }
@@ -772,42 +772,42 @@ namespace SeasonalBastion
                     if (job.Workplace.Value != 0 && (s.WorldState?.Buildings == null || !s.WorldState.Buildings.Exists(job.Workplace)))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing workplace building {job.Workplace.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
 
                     if (job.SourceBuilding.Value != 0 && (s.WorldState?.Buildings == null || !s.WorldState.Buildings.Exists(job.SourceBuilding)))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing source building {job.SourceBuilding.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
 
                     if (job.DestBuilding.Value != 0 && (s.WorldState?.Buildings == null || !s.WorldState.Buildings.Exists(job.DestBuilding)))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing destination building {job.DestBuilding.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
 
                     if (job.Site.Value != 0 && (s.WorldState?.Sites == null || !s.WorldState.Sites.Exists(job.Site)))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing site {job.Site.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
 
                     if (job.Tower.Value != 0 && (s.WorldState?.Towers == null || !s.WorldState.Towers.Exists(job.Tower)))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing tower {job.Tower.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
 
                     if (job.ClaimedBy.Value != 0 && (s.WorldState?.Npcs == null || !s.WorldState.Npcs.Exists(job.ClaimedBy)))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} is claimed by missing npc {job.ClaimedBy.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
                 }
@@ -820,14 +820,14 @@ namespace SeasonalBastion
                         if (!jobs.TryGetValue(jobId, out var job))
                         {
                             error = $"[SaveLoad] Post-apply validation failed: job queue for workplace {workplaceId} references missing job {jobId}.";
-                            Debug.LogError(error);
+                            Debug.LogWarning(error);
                             return;
                         }
 
                         if (job.Workplace.Value != workplaceId)
                         {
                             error = $"[SaveLoad] Post-apply validation failed: queued job {jobId} is stored under workplace {workplaceId} but targets workplace {job.Workplace.Value}.";
-                            Debug.LogError(error);
+                            Debug.LogWarning(error);
                             return;
                         }
                     }
@@ -836,7 +836,7 @@ namespace SeasonalBastion
             catch (Exception ex)
             {
                 error = "[SaveLoad] Post-apply validation failed while inspecting JobBoard: " + ex.Message;
-                Debug.LogError(error + " Exception=" + ex);
+                Debug.LogWarning(error + " Exception=" + ex);
             }
         }
 
@@ -857,14 +857,14 @@ namespace SeasonalBastion
                     if (owner.Value == 0 || s.WorldState?.Npcs == null || !s.WorldState.Npcs.Exists(owner))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: claim '{kv.Key.Kind}:{kv.Key.A}:{kv.Key.B}' references missing npc {owner.Value}.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
 
                     if (!IsValidClaimKeyTarget(s, kv.Key))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: claim '{kv.Key.Kind}:{kv.Key.A}:{kv.Key.B}' targets missing runtime entity.";
-                        Debug.LogError(error);
+                        Debug.LogWarning(error);
                         return;
                     }
                 }
@@ -872,7 +872,7 @@ namespace SeasonalBastion
             catch (Exception ex)
             {
                 error = "[SaveLoad] Post-apply validation failed while inspecting ClaimService: " + ex.Message;
-                Debug.LogError(error + " Exception=" + ex);
+                Debug.LogWarning(error + " Exception=" + ex);
             }
         }
 

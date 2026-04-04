@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using SeasonalBastion.Contracts;
+using SeasonalBastion.RunStart;
 using System.Collections.Generic;
 
 namespace SeasonalBastion.Tests.EditMode

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 
 namespace SeasonalBastion.RunStart
 {
-    internal static class RunStartFacade
+    public static class RunStartFacade
     {
-        internal static bool TryApply(GameServices s, string jsonOrMarkdown, out string error)
+        public static bool TryApply(GameServices s, string jsonOrMarkdown, out string error)
         {
             error = null;
             if (s == null) { error = "services=null"; return false; }

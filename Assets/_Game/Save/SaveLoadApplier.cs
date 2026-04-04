@@ -899,6 +899,7 @@ namespace SeasonalBastion
             TryRebuildRunStartRuntimeCaches(s);
             s.EventBus?.Publish(new RoadsDirtyEvent());
             s.WorldIndex?.RebuildAll();
+            (s.AmmoService as AmmoService)?.RebuildInFlightResupplyFromJobBoardAfterLoad();
             PublishResourceRefreshEvents(s);
         }
 

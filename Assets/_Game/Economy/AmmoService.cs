@@ -413,6 +413,44 @@ namespace SeasonalBastion
             _towerResupplyPlanner.LogPotentialResupplyDeadlock();
         }
 
+        public void RebuildInFlightResupplyFromJobBoardAfterLoad()
+        {
+            _resupplyJobByArmory.Clear();
+            _resupplyJobByTower.Clear();
+
+            if (_s?.JobBoard is not JobBoard board)
+                return;
+
+            try
+            {
+                var jobsField = typeof(JobBoard).GetField("_jobs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (jobsField?.GetValue(board) is not Dictionary<int, Job> jobs)
+                    return;
+
+                foreach (var kv in jobs)
+                {
+                    var job = kv.Value;
+                    if (job.Archetype != JobArchetype.ResupplyTower)
+                        continue;
+                    if (IsTerminal(job.Status))
+                        continue;
+                    if (job.Tower.Value == 0 || job.Workplace.Value == 0)
+                        continue;
+                    if (_s.WorldState?.Towers == null || !_s.WorldState.Towers.Exists(job.Tower))
+                        continue;
+                    if (_s.WorldState?.Buildings == null || !_s.WorldState.Buildings.Exists(job.Workplace))
+                        continue;
+
+                    _resupplyJobByTower[job.Tower.Value] = job.Id;
+                    _resupplyJobByArmory[job.Workplace.Value] = job.Id;
+                }
+            }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to rebuild in-flight resupply jobs after load: {ex}");
+            }
+        }
+
         public void ClearAll()
         {
             // IMPORTANT (VS3 hardening): clear ALL runtime caches.

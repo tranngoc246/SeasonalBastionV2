@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Generic;
 using SeasonalBastion.Contracts;
+using UnityEngine;
 
 namespace SeasonalBastion
 {
     public sealed class RewardService : IRewardService
     {
         private readonly GameServices _s;
+        private const bool RewardSelectionRuntimeEnabled = false;
+        private const string PlaceholderRewardId = "Reward_None";
 
         public bool IsSelectionActive { get; private set; }
         public RewardOffer CurrentOffer { get; private set; }
@@ -41,25 +45,85 @@ namespace SeasonalBastion
 
         public RewardOffer GenerateOffer(int dayIndex, int seed)
         {
-            // TODO: deterministic pool pick
-            return new RewardOffer("reward.x", "reward.y", "reward.z");
+            var ids = BuildDeterministicPlaceholderOffer(seed, dayIndex);
+            return new RewardOffer(ids[0], ids[1], ids[2]);
         }
 
         public void StartSelection(RewardOffer offer)
         {
+            CurrentOffer = NormalizeOffer(offer);
+
+            if (!RewardSelectionRuntimeEnabled)
+            {
+                LogPlaceholderGate("StartSelection blocked: reward runtime is placeholder-only in current project state.");
+                IsSelectionActive = false;
+                return;
+            }
+
             IsSelectionActive = true;
-            CurrentOffer = offer;
             OnSelectionStarted?.Invoke();
         }
 
         public void Choose(int slotIndex)
         {
-            // TODO: apply reward effect to RunMods or defs modifiers
+            if (!RewardSelectionRuntimeEnabled)
+            {
+                LogPlaceholderGate("Choose ignored: reward selection/apply path is placeholder-only and disabled.");
+                IsSelectionActive = false;
+                return;
+            }
+
             var chosen = slotIndex == 0 ? CurrentOffer.A : (slotIndex == 1 ? CurrentOffer.B : CurrentOffer.C);
             OnRewardChosen?.Invoke(chosen);
 
             IsSelectionActive = false;
             OnSelectionEnded?.Invoke();
+        }
+
+        private RewardOffer NormalizeOffer(RewardOffer offer)
+        {
+            string a = string.IsNullOrWhiteSpace(offer.A) ? PlaceholderRewardId : offer.A;
+            string b = string.IsNullOrWhiteSpace(offer.B) ? a : offer.B;
+            string c = string.IsNullOrWhiteSpace(offer.C) ? b : offer.C;
+            return new RewardOffer(a, b, c);
+        }
+
+        private string[] BuildDeterministicPlaceholderOffer(int seed, int dayIndex)
+        {
+            var ids = new List<string>();
+            if (_s?.DataRegistry != null)
+            {
+                foreach (var id in _s.DataRegistry.GetAllRewardIds())
+                {
+                    if (!string.IsNullOrWhiteSpace(id))
+                        ids.Add(id);
+                }
+            }
+
+            if (ids.Count == 0)
+                ids.Add(PlaceholderRewardId);
+
+            ids.Sort(StringComparer.OrdinalIgnoreCase);
+            int count = ids.Count;
+            int baseIndex = Math.Abs((seed * 397) ^ dayIndex);
+
+            string a = ids[baseIndex % count];
+            string b = ids[(baseIndex + 1) % count];
+            string c = ids[(baseIndex + 2) % count];
+            return new[] { a, b, c };
+        }
+
+        private void LogPlaceholderGate(string message)
+        {
+            Debug.LogWarning($"[RewardService] {message}");
+            _s?.NotificationService?.Push(
+                key: "reward_placeholder_gate",
+                title: "Rewards",
+                body: "Reward runtime is placeholder-only right now; no gameplay reward was started or applied.",
+                severity: NotificationSeverity.Info,
+                payload: default,
+                cooldownSeconds: 1f,
+                dedupeByKey: true);
         }
     }
 }

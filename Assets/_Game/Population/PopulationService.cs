@@ -127,12 +127,44 @@ namespace SeasonalBastion
 
         private void OnBuildingPlaced(BuildingPlacedEvent ev)
         {
+            if (!ShouldRebuildPopulationForPlaced(ev.DefId))
+                return;
+
             RebuildDerivedState();
         }
 
         private void OnBuildingUpgraded(BuildingUpgradedEvent ev)
         {
+            if (!ShouldRebuildPopulationForUpgrade(ev.FromDefId, ev.ToDefId))
+                return;
+
             RebuildDerivedState();
+        }
+
+        private bool ShouldRebuildPopulationForPlaced(string defId)
+        {
+            if (_s?.DataRegistry == null || string.IsNullOrWhiteSpace(defId))
+                return true;
+
+            return _s.DataRegistry.TryGetBuilding(defId, out var def) && def != null && def.IsHouse;
+        }
+
+        private bool ShouldRebuildPopulationForUpgrade(string fromDefId, string toDefId)
+        {
+            if (_s?.DataRegistry == null)
+                return true;
+
+            bool fromIsHouse = !string.IsNullOrWhiteSpace(fromDefId)
+                && _s.DataRegistry.TryGetBuilding(fromDefId, out var fromDef)
+                && fromDef != null
+                && fromDef.IsHouse;
+
+            bool toIsHouse = !string.IsNullOrWhiteSpace(toDefId)
+                && _s.DataRegistry.TryGetBuilding(toDefId, out var toDef)
+                && toDef != null
+                && toDef.IsHouse;
+
+            return fromIsHouse || toIsHouse;
         }
 
         private bool CanGrowToday(int availableFoodBeforeConsume)

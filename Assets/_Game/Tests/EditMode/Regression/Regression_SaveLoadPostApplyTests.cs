@@ -223,11 +223,11 @@ namespace SeasonalBastion.Tests.EditMode
         public void ConstructedBuildingInvariantValidator_Fails_WhenWorldIndexMissingBuilding()
         {
             var data = new TestDataRegistry();
-            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsHouse = true });
+            data.Add(new BuildingDef { DefId = "bld_custom_misc_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100 });
 
             var world = new WorldState();
             var grid = new GridMap(16, 16);
-            var buildingId = world.Buildings.Create(MakeBuildingState("bld_house_t1", 5, 5, true));
+            var buildingId = world.Buildings.Create(MakeBuildingState("bld_custom_misc_t1", 5, 5, true));
             var building = world.Buildings.Get(buildingId);
             building.Id = buildingId;
             world.Buildings.Set(buildingId, building);

@@ -30,7 +30,7 @@ namespace SeasonalBastion.Tests.EditMode
             data.AddTower(new TowerDef { DefId = "bld_tower_arrow_t1", MaxHp = 100, AmmoMax = 12 });
 
             var world = new WorldState();
-            var grid = new GridMap(16, 16);
+            var grid = new GridMap(64, 64);
             var services = MakeServices(bus, data, world, grid);
 
             var originalId = world.Buildings.Create(new BuildingState
@@ -93,7 +93,7 @@ namespace SeasonalBastion.Tests.EditMode
             data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 80 });
 
             var world = new WorldState();
-            var grid = new GridMap(16, 16);
+            var grid = new GridMap(64, 64);
             var services = MakeServices(bus, data, world, grid);
 
             var dto = new RunSaveDTO
@@ -156,7 +156,7 @@ namespace SeasonalBastion.Tests.EditMode
             data.Add(new BuildingDef { DefId = "bld_hq_t2", SizeX = 2, SizeY = 2, BaseLevel = 2, MaxHp = 150, IsHQ = true });
 
             var world = new WorldState();
-            var grid = new GridMap(16, 16);
+            var grid = new GridMap(64, 64);
             var services = MakeServices(bus, data, world, grid);
 
             var dto = new RunSaveDTO
@@ -220,7 +220,7 @@ namespace SeasonalBastion.Tests.EditMode
             data.AddEnemy(new EnemyDef { DefId = "enemy_test", MaxHp = 10 });
 
             var world = new WorldState();
-            var grid = new GridMap(16, 16);
+            var grid = new GridMap(64, 64);
             var services = MakeServices(bus, data, world, grid);
 
             var dto = new RunSaveDTO
@@ -263,7 +263,7 @@ namespace SeasonalBastion.Tests.EditMode
             data.Add(new BuildingDef { DefId = "bld_armory_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsArmory = true, WorkRoles = WorkRoleFlags.Armory });
 
             var world = new WorldState();
-            var grid = new GridMap(16, 16);
+            var grid = new GridMap(64, 64);
             var services = MakeServices(bus, data, world, grid);
 
             var originalBuildingId = world.Buildings.Create(MakeBuildingState("bld_armory_t1", 1, 1, true));

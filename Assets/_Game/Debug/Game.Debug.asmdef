@@ -11,6 +11,7 @@
         "Game.Rewards",
         "Game.Save",
         "Game.Contracts",
+        "Game.RunStart",
         "Game.Boot",
         "Unity.InputSystem",
         "Game.Build"

@@ -61,6 +61,10 @@ namespace SeasonalBastion.Contracts
     public sealed class RewardsDTO
     {
         public List<string> PickedRewardDefIds = new();
+        public string OfferedA;
+        public string OfferedB;
+        public string OfferedC;
+        public bool IsSelectionActive;
     }
 
     public sealed class PopulationDTO

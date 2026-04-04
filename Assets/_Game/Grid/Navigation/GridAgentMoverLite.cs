@@ -93,7 +93,9 @@ namespace SeasonalBastion
             }
 
             bool onRoad = _grid.IsRoad(st.Cell);
-            float spd = onRoad ? (baseSpd * roadMul) : baseSpd;
+            float rewardMoveMult = _bal != null ? _bal.RewardNpcMoveSpeedMultiplier : 1f;
+
+            float spd = (onRoad ? (baseSpd * roadMul) : baseSpd) * rewardMoveMult;
 
             a += dt * spd;
 

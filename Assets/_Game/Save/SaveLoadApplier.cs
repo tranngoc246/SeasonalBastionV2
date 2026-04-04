@@ -42,6 +42,7 @@ namespace SeasonalBastion
                     RebuildRuntimeCachesAndIndices(s);
                     RestoreCombatAfterLoad(s, dto.combat);
                     RestorePopulationAfterLoad(s, dto.population);
+                    RestoreRewardsAfterLoad(s, dto.rewards);
                     ValidatePostApplyRuntime(s, dto, out error);
                     if (!string.IsNullOrEmpty(error))
                         throw new InvalidOperationException(error);
@@ -793,6 +794,19 @@ namespace SeasonalBastion
                 s.PopulationService.Reset();
 
             s.PopulationService.RebuildDerivedState();
+        }
+
+        private static void RestoreRewardsAfterLoad(GameServices s, RewardsDTO rewards)
+        {
+            if (s?.RewardService == null)
+                return;
+
+            s.RewardService.LoadPickedRewards(rewards?.PickedRewardDefIds);
+
+            if (rewards != null && rewards.IsSelectionActive)
+            {
+                s.RewardService.StartSelection(new RewardOffer(rewards.OfferedA, rewards.OfferedB, rewards.OfferedC));
+            }
         }
 
         private static void TryRebuildRunStartRuntimeCaches(GameServices s)

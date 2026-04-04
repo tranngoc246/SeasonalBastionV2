@@ -14,12 +14,17 @@ namespace SeasonalBastion.Contracts
     {
         bool IsSelectionActive { get; }
         RewardOffer CurrentOffer { get; }
+        RewardOffer LastGeneratedOffer { get; }
+        IReadOnlyList<string> PickedRewardDefIds { get; }
 
         // called by RunClock end-of-defend-day
         RewardOffer GenerateOffer(int dayIndex, int seed);
 
         void StartSelection(RewardOffer offer);
         void Choose(int slotIndex); // 0..2
+        void TriggerWaveEndReward(string waveId, int year, Season season, int day, bool isBoss, bool isFinalWave);
+        void TriggerSeasonEndReward(Season season, int yearIndex, int dayIndex);
+        void LoadPickedRewards(IReadOnlyList<string> rewardIds);
 
         event System.Action OnSelectionStarted;
         event System.Action<string> OnRewardChosen;

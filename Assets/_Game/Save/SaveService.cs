@@ -14,6 +14,9 @@ namespace SeasonalBastion
         private readonly IDataRegistry _data;
         private readonly IGridMap _grid;
         private readonly IPopulationService _population;
+        private readonly GameServices _services;
+
+        public int LastLoadedOrSavedSeed { get; private set; }
 
         public int CurrentSchemaVersion => _migrator.CurrentSchemaVersion;
 
@@ -22,12 +25,13 @@ namespace SeasonalBastion
         private string RunBackupPath => Path.Combine(Application.persistentDataPath, "run_save.bak");
         private string MetaPath => Path.Combine(Application.persistentDataPath, "meta_save.json");
 
-        public SaveService(SaveMigrator migrator, IDataRegistry data, IGridMap grid, IPopulationService population = null)
+        public SaveService(SaveMigrator migrator, IDataRegistry data, IGridMap grid, IPopulationService population = null, GameServices services = null)
         {
             _migrator = migrator;
             _data = data;
             _grid = grid;
             _population = population;
+            _services = services;
         }
 
         public bool HasRunSave() => File.Exists(RunPath);
@@ -97,6 +101,8 @@ namespace SeasonalBastion
                     rewards = new RewardsDTO(),
                     population = new PopulationDTO(),
                 };
+
+                LastLoadedOrSavedSeed = file.seed;
 
                 dto.combat.CurrentWaveIndex = file.combat != null ? file.combat.currentWaveIndex : 0;
 
@@ -242,6 +248,15 @@ namespace SeasonalBastion
                     }
                 }
 
+                if (file.rewards != null)
+                {
+                    dto.rewards.PickedRewardDefIds = file.rewards.pickedRewardDefIds ?? new List<string>();
+                    dto.rewards.OfferedA = file.rewards.offeredA;
+                    dto.rewards.OfferedB = file.rewards.offeredB;
+                    dto.rewards.OfferedC = file.rewards.offeredC;
+                    dto.rewards.IsSelectionActive = file.rewards.isSelectionActive;
+                }
+
                 if (!_migrator.TryMigrate(dto, out var migrated))
                     return new SaveResult(SaveResultCode.IncompatibleSchema, "Migrate failed");
 
@@ -331,10 +346,13 @@ namespace SeasonalBastion
         private RunSaveFile CreateImmutableRunSnapshot(IWorldState world, IRunClock clock)
         {
             var rc = clock as RunClockService;
+            int resolvedSeed = ResolveRunSeed(clock);
+            LastLoadedOrSavedSeed = resolvedSeed;
+
             var file = new RunSaveFile
             {
                 schemaVersion = CurrentSchemaVersion,
-                seed = ResolveRunSeed(clock),
+                seed = resolvedSeed,
                 season = clock.CurrentSeason.ToString(),
                 dayIndex = clock.DayIndex,
                 timeScale = clock.TimeScale,
@@ -347,6 +365,7 @@ namespace SeasonalBastion
                     currentWaveIndex = 0,
                     isDefendActive = (clock.CurrentPhase == Phase.Defend)
                 },
+                rewards = new RewardsFile(),
                 population = new PopulationFile(),
                 roads = new List<CellPosI32>()
             };
@@ -482,13 +501,22 @@ namespace SeasonalBastion
                 }
             }
 
+            if (_services?.RewardService != null)
+            {
+                file.rewards.pickedRewardDefIds = new List<string>(_services.RewardService.PickedRewardDefIds);
+                file.rewards.offeredA = _services.RewardService.CurrentOffer.A;
+                file.rewards.offeredB = _services.RewardService.CurrentOffer.B;
+                file.rewards.offeredC = _services.RewardService.CurrentOffer.C;
+                file.rewards.isSelectionActive = _services.RewardService.IsSelectionActive;
+            }
+
             return file;
         }
 
         private int ResolveRunSeed(IRunClock clock)
         {
-            // Current save contract has no reliable scene-agnostic seed source.
-            // Keep this deterministic and compile-safe until seed is exposed by runtime contracts.
+            if (LastLoadedOrSavedSeed != 0)
+                return LastLoadedOrSavedSeed;
             return 0;
         }
 
@@ -536,6 +564,7 @@ namespace SeasonalBastion
             public WorldFile world;
             public BuildFile build;
             public CombatFile combat;
+            public RewardsFile rewards;
             public PopulationFile population;
             public List<CellPosI32> roads = new();
         }
@@ -634,6 +663,16 @@ namespace SeasonalBastion
         {
             public int currentWaveIndex;
             public bool isDefendActive;
+        }
+
+        [Serializable]
+        private sealed class RewardsFile
+        {
+            public List<string> pickedRewardDefIds = new();
+            public string offeredA;
+            public string offeredB;
+            public string offeredC;
+            public bool isSelectionActive;
         }
 
         [Serializable]

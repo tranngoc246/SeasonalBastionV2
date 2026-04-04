@@ -234,6 +234,7 @@ namespace SeasonalBastion
 
             OnWaveEnded?.Invoke(wave.DefId);
             _s.EventBus?.Publish(new WaveEndedEvent(wave.DefId, wave.Year, wave.Season, wave.Day, wave.IsBoss, wave.IsFinalWave));
+            _s.RewardService?.TriggerWaveEndReward(wave.DefId, wave.Year, wave.Season, wave.Day, wave.IsBoss, wave.IsFinalWave);
         }
 
         // Day33: called by SaveLoadApplier after clock snapshot restored.

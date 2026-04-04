@@ -233,9 +233,15 @@ namespace SeasonalBastion.Tests.EditMode
             world.Buildings.Set(buildingId, building);
             grid.SetBuilding(new CellPos(5, 5), buildingId);
 
-            var index = new WorldIndexService(new WorldState(), data);
+            bool ok = ConstructedBuildingInvariantValidator.Validate(world, grid, data, worldIndex: null, buildingId, out var error);
 
-            bool ok = ConstructedBuildingInvariantValidator.Validate(world, grid, data, index, buildingId, out var error);
+            Assert.That(ok, Is.True, "Null WorldIndex should skip index containment checks.");
+
+            var unrelatedWorld = new WorldState();
+            var index = new WorldIndexService(unrelatedWorld, data);
+            index.RebuildAll();
+
+            ok = ConstructedBuildingInvariantValidator.Validate(world, grid, data, index, buildingId, out error);
 
             Assert.That(ok, Is.False);
             Assert.That(error, Does.Contain($"WorldIndex is missing building {buildingId.Value}"));

@@ -31,11 +31,7 @@
             Application.targetFrameRate = 60;
 
             _services = GameServicesFactory.Create(_defsCatalog);
-            _services.ApplyRunStartConfig = (services, cfg) =>
-            {
-                bool ok = RunStartFacade.TryApply(services, cfg, out var error);
-                return (ok, error);
-            };
+            _services.ApplyRunStartConfig = ApplyRunStartConfigInternal;
             _loop = new GameLoop(_services);
 
             // Day 17: Validate data at boot (fail-fast)
@@ -60,6 +56,12 @@
                 // Apply app default speed (only if build phase)
                 ApplyAppDefaultSpeedIfAllowed();
             }
+        }
+
+        private (bool ok, string error) ApplyRunStartConfigInternal(GameServices services, string cfg)
+        {
+            bool ok = RunStartFacade.TryApply(services, cfg, out var error);
+            return (ok, error);
         }
 
         private void Update()

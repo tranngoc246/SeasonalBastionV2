@@ -15,6 +15,12 @@ namespace SeasonalBastion.DebugTools
 
         private void Update()
         {
+            if (_hub == null)
+            {
+                _hub = GetComponentInChildren<DebugHUDHub>(true);
+                if (_hub == null) _hub = FindObjectOfType<DebugHUDHub>(true);
+            }
+
             var kb = Keyboard.current;
             if (kb == null || _hub == null) return;
 

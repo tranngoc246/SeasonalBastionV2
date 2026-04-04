@@ -126,7 +126,7 @@ namespace SeasonalBastion.DebugTools
 
         private void Awake()
         {
-            DebugHubState.Enabled = true;
+            DebugHubState.Enabled = _showUi;
 
             if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
             _gs = _bootstrap != null ? _bootstrap.Services : null;
@@ -215,7 +215,10 @@ namespace SeasonalBastion.DebugTools
             }
 
             if (Pressed(kb, _toggleUiKey))
+            {
                 _showUi = !_showUi;
+                DebugHubState.Enabled = _showUi;
+            }
 
             if (Pressed(kb, _clearModeKey))
                 ApplyMode(DebugHubMode.None);

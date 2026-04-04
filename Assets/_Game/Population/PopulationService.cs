@@ -266,9 +266,10 @@ namespace SeasonalBastion
                 return false;
 
             var spawn = ResolveSpawnCellNearHq();
+            string npcDefId = ResolveDefaultPopulationNpcDefId();
             var st = new NpcState
             {
-                DefId = "npc_villager_t1",
+                DefId = npcDefId,
                 Cell = spawn,
                 Workplace = default,
                 CurrentJob = default,
@@ -319,6 +320,20 @@ namespace SeasonalBastion
             int x = bs.Anchor.X + Math.Max(0, def.SizeX / 2);
             int y = bs.Anchor.Y - 1;
             return new CellPos(x, y);
+        }
+
+        private string ResolveDefaultPopulationNpcDefId()
+        {
+            if (_s?.DataRegistry == null)
+                return "NPC_HQ_Worker";
+
+            if (_s.DataRegistry.TryGetNpc("NPC_HQ_Worker", out var _))
+                return "NPC_HQ_Worker";
+
+            if (_s.DataRegistry.TryGetNpc("npc_villager_t1", out var _))
+                return "npc_villager_t1";
+
+            return "NPC_HQ_Worker";
         }
 
         private CellPos ResolveSpawnCell(CellPos desired)

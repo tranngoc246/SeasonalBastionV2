@@ -21,9 +21,11 @@ namespace SeasonalBastion.RunStart
                 var desired = new CellPos(n.spawnCell.x, n.spawnCell.y);
                 var spawn = ResolveSpawnCell(s, desired);
 
+                string resolvedNpcDefId = ResolveNpcDefId(s, n.npcDefId);
+
                 var st = new NpcState
                 {
-                    DefId = n.npcDefId,
+                    DefId = resolvedNpcDefId,
                     Cell = spawn,
                     Workplace = workplace,
                     CurrentJob = default,
@@ -34,6 +36,24 @@ namespace SeasonalBastion.RunStart
                 st.Id = id;
                 s.WorldState.Npcs.Set(id, st);
             }
+        }
+
+        private static string ResolveNpcDefId(GameServices s, string requested)
+        {
+            if (s?.DataRegistry == null)
+                return string.IsNullOrWhiteSpace(requested) ? "NPC_HQ_Worker" : requested;
+
+            if (!string.IsNullOrWhiteSpace(requested) && s.DataRegistry.TryGetNpc(requested, out var _))
+                return requested;
+
+            if (string.Equals(requested, "npc_villager_t1", StringComparison.OrdinalIgnoreCase)
+                && s.DataRegistry.TryGetNpc("NPC_HQ_Worker", out var _))
+                return "NPC_HQ_Worker";
+
+            if (s.DataRegistry.TryGetNpc("NPC_HQ_Worker", out var _))
+                return "NPC_HQ_Worker";
+
+            return string.IsNullOrWhiteSpace(requested) ? "NPC_HQ_Worker" : requested;
         }
 
         private static CellPos ResolveSpawnCell(GameServices s, CellPos desired)

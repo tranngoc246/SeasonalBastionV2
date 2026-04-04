@@ -233,21 +233,21 @@
   ],
   "initialNpcs": [
     {
-      "npcDefId": "npc_villager_t1",
+      "npcDefId": "NPC_HQ_Worker",
       "spawnCell": { "x": 29, "y": 29 },
       "assignedWorkplaceDefId": "bld_hq_t1",
       "jobProfile": "HQ_Build_Repair_HaulBasic",
       "notes": "Spawn near HQ, not on road, not in footprint."
     },
     {
-      "npcDefId": "npc_villager_t1",
+      "npcDefId": "NPC_Farmer",
       "spawnCell": { "x": 37, "y": 35 },
       "assignedWorkplaceDefId": "bld_farmhouse_t1",
       "jobProfile": "Harvest_Food",
       "notes": "Spawn near farm, not on road."
     },
     {
-      "npcDefId": "npc_villager_t1",
+      "npcDefId": "NPC_Woodcutter",
       "spawnCell": { "x": 27, "y": 35 },
       "assignedWorkplaceDefId": "bld_lumbercamp_t1",
       "jobProfile": "Harvest_Wood",

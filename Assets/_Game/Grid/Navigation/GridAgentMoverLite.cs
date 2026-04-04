@@ -77,18 +77,15 @@ namespace SeasonalBastion
 
             if (_data != null && !string.IsNullOrEmpty(st.DefId))
             {
-                try
+                if (_data.TryGetNpc(st.DefId, out var def) && def != null)
                 {
-                    var def = _data.GetNpc(st.DefId);
-                    if (def != null)
-                    {
-                        if (def.BaseMoveSpeed > 0f) baseSpd = def.BaseMoveSpeed;
-                        if (def.RoadSpeedMultiplier > 0f) roadMul = def.RoadSpeedMultiplier;
-                    }
+                    if (def.BaseMoveSpeed > 0f) baseSpd = def.BaseMoveSpeed;
+                    if (def.RoadSpeedMultiplier > 0f) roadMul = def.RoadSpeedMultiplier;
                 }
-                catch (Exception ex)
+                else if (_data.TryGetNpc("NPC_HQ_Worker", out var fallbackDef) && fallbackDef != null)
                 {
-                    UnityEngine.Debug.LogWarning($"[GridAgentMoverLite] Failed to resolve NPC move stats for '{st.DefId}': {ex}");
+                    if (fallbackDef.BaseMoveSpeed > 0f) baseSpd = fallbackDef.BaseMoveSpeed;
+                    if (fallbackDef.RoadSpeedMultiplier > 0f) roadMul = fallbackDef.RoadSpeedMultiplier;
                 }
             }
 

@@ -91,14 +91,9 @@ namespace SeasonalBastion
         private string[] BuildDeterministicPlaceholderOffer(int seed, int dayIndex)
         {
             var ids = new List<string>();
-            if (_s?.DataRegistry != null)
-            {
-                foreach (var id in _s.DataRegistry.GetAllRewardIds())
-                {
-                    if (!string.IsNullOrWhiteSpace(id))
-                        ids.Add(id);
-                }
-            }
+            TryAddRewardId(ids, PlaceholderRewardId);
+            TryAddRewardId(ids, "Reward_RunComplete");
+            TryAddRewardId(ids, "Reward_WinterBossY1");
 
             if (ids.Count == 0)
                 ids.Add(PlaceholderRewardId);
@@ -111,6 +106,23 @@ namespace SeasonalBastion
             string b = ids[(baseIndex + 1) % count];
             string c = ids[(baseIndex + 2) % count];
             return new[] { a, b, c };
+        }
+
+        private void TryAddRewardId(List<string> ids, string rewardId)
+        {
+            if (ids == null || string.IsNullOrWhiteSpace(rewardId))
+                return;
+            if (ids.Contains(rewardId))
+                return;
+
+            if (_s?.DataRegistry == null)
+            {
+                ids.Add(rewardId);
+                return;
+            }
+
+            if (_s.DataRegistry.TryGetReward(rewardId, out var def) && def != null)
+                ids.Add(rewardId);
         }
 
         private void LogPlaceholderGate(string message)

@@ -131,21 +131,22 @@ namespace SeasonalBastion.Tests.EditMode
             world.Buildings.Set(wrongBuildingId, wrongBuilding);
             grid.SetBuilding(new CellPos(7, 7), wrongBuildingId);
 
-            var victimBuilding = MakeBuildingState("bld_tower_arrow_t1", 1, 1, true);
-            victimBuilding.Id = new BuildingId(100);
-            world.Buildings.CreateWithId(victimBuilding.Id, victimBuilding, overwriteIfExists: true);
-            world.Buildings.Set(victimBuilding.Id, victimBuilding);
-            grid.SetBuilding(new CellPos(1, 1), victimBuilding.Id);
+            var victimBuildingId = world.Buildings.Create(MakeBuildingState("bld_tower_arrow_t1", 1, 1, true));
+            var victimBuilding = world.Buildings.Get(victimBuildingId);
+            victimBuilding.Id = victimBuildingId;
+            world.Buildings.Set(victimBuildingId, victimBuilding);
+            grid.SetBuilding(new CellPos(1, 1), victimBuildingId);
 
-            var tower = MakeTower(200, 7, 7, 12, 12, 100, 100);
-            world.Towers.CreateWithId(tower.Id, tower, overwriteIfExists: true);
-            world.Towers.Set(tower.Id, tower);
+            var towerId = world.Towers.Create(MakeTower(0, 7, 7, 12, 12, 100, 100));
+            var tower = world.Towers.Get(towerId);
+            tower.Id = towerId;
+            world.Towers.Set(towerId, tower);
 
             var index = new WorldIndexService(world, data);
             index.RebuildAll();
 
             bool okWrong = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, wrongBuildingId, out var wrongError);
-            bool okVictim = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, victimBuilding.Id, out var victimError);
+            bool okVictim = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, victimBuildingId, out var victimError);
 
             Assert.That(okWrong, Is.True, wrongError);
             Assert.That(okVictim, Is.False);
@@ -161,31 +162,35 @@ namespace SeasonalBastion.Tests.EditMode
             var world = new WorldState();
             var grid = new GridMap(16, 16);
 
-            var buildingA = MakeBuilding(10, "bld_tower_large_t1", 0, 0, true);
-            var buildingB = MakeBuilding(11, "bld_tower_large_t1", 1, 1, true);
-            world.Buildings.CreateWithId(buildingA.Id, buildingA, overwriteIfExists: true);
-            world.Buildings.Set(buildingA.Id, buildingA);
-            world.Buildings.CreateWithId(buildingB.Id, buildingB, overwriteIfExists: true);
-            world.Buildings.Set(buildingB.Id, buildingB);
+            var buildingAId = world.Buildings.Create(MakeBuildingState("bld_tower_large_t1", 0, 0, true));
+            var buildingA = world.Buildings.Get(buildingAId);
+            buildingA.Id = buildingAId;
+            world.Buildings.Set(buildingAId, buildingA);
+
+            var buildingBId = world.Buildings.Create(MakeBuildingState("bld_tower_large_t1", 1, 1, true));
+            var buildingB = world.Buildings.Get(buildingBId);
+            buildingB.Id = buildingBId;
+            world.Buildings.Set(buildingBId, buildingB);
 
             for (int y = 0; y < 3; y++)
             for (int x = 0; x < 3; x++)
             {
-                grid.SetBuilding(new CellPos(buildingA.Anchor.X + x, buildingA.Anchor.Y + y), buildingA.Id);
-                grid.SetBuilding(new CellPos(buildingB.Anchor.X + x, buildingB.Anchor.Y + y), buildingB.Id);
+                grid.SetBuilding(new CellPos(buildingA.Anchor.X + x, buildingA.Anchor.Y + y), buildingAId);
+                grid.SetBuilding(new CellPos(buildingB.Anchor.X + x, buildingB.Anchor.Y + y), buildingBId);
             }
 
-            var tower = MakeTower(21, 2, 2, 12, 12, 100, 100);
-            world.Towers.CreateWithId(tower.Id, tower, overwriteIfExists: true);
-            world.Towers.Set(tower.Id, tower);
+            var towerId = world.Towers.Create(MakeTower(0, 2, 2, 12, 12, 100, 100));
+            var tower = world.Towers.Get(towerId);
+            tower.Id = towerId;
+            world.Towers.Set(towerId, tower);
 
             var index = new WorldIndexService(world, data);
             index.RebuildAll();
 
-            bool ok = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, buildingA.Id, out var error);
+            bool ok = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, buildingAId, out var error);
 
             Assert.That(ok, Is.False);
-            Assert.That(error, Does.Contain("belongs to building 11, not 10"));
+            Assert.That(error, Does.Contain($"belongs to building {buildingBId.Value}, not {buildingAId.Value}"));
         }
 
         [Test]

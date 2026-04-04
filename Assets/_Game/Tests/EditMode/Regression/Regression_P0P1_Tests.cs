@@ -1856,7 +1856,7 @@ namespace SeasonalBastion.Tests.EditMode
             var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = new StorageService(world, data, bus);
-            services.RunStartRuntime = new RunStart.RunStartRuntime();
+            services.RunStartRuntime = new RunStartRuntime();
 
             bool ok = SeasonalBastion.RunStart.RunStartFacade.TryApply(services, cfg.text, out var error);
 
@@ -3116,4 +3116,5 @@ namespace SeasonalBastion.Tests.EditMode
         }
     }
 }
+
 

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {

@@ -363,6 +363,7 @@ namespace SeasonalBastion
             if (_s.WorldState == null || _s.StorageService == null || _s.JobBoard == null || _s.WorldIndex == null || _s.DataRegistry == null)
                 return;
 
+            RebuildInFlightResupplyFromJobBoardAfterLoad();
             _simTime += dt;
 
             _topologyCache.CleanupDestroyedTowerCaches();

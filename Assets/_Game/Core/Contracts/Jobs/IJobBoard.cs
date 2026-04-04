@@ -16,5 +16,6 @@ namespace SeasonalBastion.Contracts
 
         int CountForWorkplace(BuildingId workplace);
         IEnumerable<Job> EnumerateAllJobs();
+        IEnumerable<KeyValuePair<int, IEnumerable<int>>> EnumerateQueueSnapshots();
     }
 }

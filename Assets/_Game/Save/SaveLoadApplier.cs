@@ -637,13 +637,13 @@ namespace SeasonalBastion
 
         private static void ValidateJobBoardRuntimeState(GameServices s, ref string error)
         {
-            if (s?.JobBoard is not JobBoard board)
+            if (s?.JobBoard == null)
                 return;
 
             try
             {
                 var jobsById = new Dictionary<int, Job>();
-                foreach (var job in board.EnumerateAllJobs())
+                foreach (var job in s.JobBoard.EnumerateAllJobs())
                 {
                     jobsById[job.Id.Value] = job;
 
@@ -690,7 +690,7 @@ namespace SeasonalBastion
                     }
                 }
 
-                foreach (var queueSnapshot in board.EnumerateQueueSnapshots())
+                foreach (var queueSnapshot in s.JobBoard.EnumerateQueueSnapshots())
                 {
                     int workplaceId = queueSnapshot.Key;
                     foreach (var jobId in queueSnapshot.Value)
@@ -720,12 +720,12 @@ namespace SeasonalBastion
 
         private static void ValidateClaimRuntimeState(GameServices s, ref string error)
         {
-            if (s?.ClaimService is not ClaimService claimService)
+            if (s?.ClaimService == null)
                 return;
 
             try
             {
-                foreach (var kv in claimService.EnumerateClaims())
+                foreach (var kv in s.ClaimService.EnumerateClaims())
                 {
                     var owner = kv.Value;
                     if (owner.Value == 0 || s.WorldState?.Npcs == null || !s.WorldState.Npcs.Exists(owner))

@@ -207,7 +207,7 @@ namespace SeasonalBastion
                 yield return kv.Value;
         }
 
-        internal IEnumerable<KeyValuePair<int, IEnumerable<int>>> EnumerateQueueSnapshots()
+        public IEnumerable<KeyValuePair<int, IEnumerable<int>>> EnumerateQueueSnapshots()
         {
             foreach (var kv in _queues)
                 yield return new KeyValuePair<int, IEnumerable<int>>(kv.Key, kv.Value);

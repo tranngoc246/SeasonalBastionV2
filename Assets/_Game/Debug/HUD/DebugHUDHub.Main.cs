@@ -402,6 +402,8 @@ namespace SeasonalBastion.DebugTools
             if (GUILayout.Button("Force Resolve Wave", GUILayout.Width(170))) _gs.CombatService?.ForceResolveWave();
             GUILayout.EndHorizontal();
 
+            DrawRewardQuickSection();
+
             GUILayout.Space(6);
             GUILayout.Label("Save / Load Quick");
             GUILayout.BeginHorizontal();
@@ -411,17 +413,14 @@ namespace SeasonalBastion.DebugTools
             if (GUILayout.Button("Delete Save", GUILayout.Width(110))) Quick_DeleteSave();
             GUILayout.EndHorizontal();
 
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Run SaveLoad Matrix", GUILayout.Width(180))) Quick_RunSaveLoadMatrix();
-            if (GUILayout.Button("Internal CI SaveLoad", GUILayout.Width(180))) Quick_RunInternalSaveLoadCi();
-            GUILayout.EndHorizontal();
-
             GUILayout.Space(6);
             GUILayout.Label("NPC Quick Spawn");
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Spawn Worker x1", GUILayout.Width(140))) Quick_SpawnNpc("Worker", 1);
-            if (GUILayout.Button("Spawn Worker x5", GUILayout.Width(140))) Quick_SpawnNpc("Worker", 5);
-            if (GUILayout.Button("Spawn NPC x10", GUILayout.Width(140))) Quick_SpawnNpc("Worker", 10);
+            if (GUILayout.Button("HQ x1", GUILayout.Width(90))) Quick_SpawnNpc("NPC_HQ_Worker", 1);
+            if (GUILayout.Button("HQ x5", GUILayout.Width(90))) Quick_SpawnNpc("NPC_HQ_Worker", 5);
+            if (GUILayout.Button("Farmer x1", GUILayout.Width(100))) Quick_SpawnNpc("NPC_Farmer", 1);
+            if (GUILayout.Button("Wood x1", GUILayout.Width(100))) Quick_SpawnNpc("NPC_Woodcutter", 1);
+            if (GUILayout.Button("Hauler x1", GUILayout.Width(100))) Quick_SpawnNpc("NPC_Hauler", 1);
             GUILayout.EndHorizontal();
         }
 

@@ -286,6 +286,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             var validate = typeof(SaveLoadApplier).GetMethod("ValidatePostApplyRuntime", BindingFlags.Static | BindingFlags.NonPublic);
             Assert.That(validate, Is.Not.Null);
+            LogAssert.Expect(UnityEngine.LogType.Error, "[SaveLoad] Post-apply validation failed: job 1 references missing tower 999.");
             object[] args = { services, new RunSaveDTO { world = new WorldDTO(), build = new BuildDTO(), combat = new CombatDTO(), population = new PopulationDTO() }, null };
             validate.Invoke(null, args);
             var validationError = args[2] as string;

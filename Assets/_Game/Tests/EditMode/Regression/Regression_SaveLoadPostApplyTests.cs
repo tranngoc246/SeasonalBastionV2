@@ -3,6 +3,7 @@ using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using UnityEngine.TestTools;
 
 namespace SeasonalBastion.Tests.EditMode
 {
@@ -76,6 +77,7 @@ namespace SeasonalBastion.Tests.EditMode
                 population = new PopulationDTO(),
             };
 
+            LogAssert.Expect(UnityEngine.LogType.Error, new System.Text.RegularExpressions.Regex(@"\[SaveLoad\] Post-apply validation failed for constructed building 10 \(bld_tower_arrow_t1\): WorldIndex is missing building 10 \(bld_tower_arrow_t1\)\..*"));
             bool ok = SaveLoadApplier.TryApply(services, dto, out var error, logErrors: false);
 
             Assert.That(ok, Is.False);

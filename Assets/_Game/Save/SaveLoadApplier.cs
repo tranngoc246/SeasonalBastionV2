@@ -537,12 +537,23 @@ namespace SeasonalBastion
 
         private static bool ContainsBuildingInWorldIndex(GameServices s, BuildingId buildingId, in BuildingState building, BuildingDef def)
         {
-            return ContainsBuildingId(s.WorldIndex?.Warehouses, buildingId)
+            if (ContainsBuildingId(s.WorldIndex?.Warehouses, buildingId)
                 || ContainsBuildingId(s.WorldIndex?.Producers, buildingId)
                 || ContainsBuildingId(s.WorldIndex?.Houses, buildingId)
                 || ContainsBuildingId(s.WorldIndex?.Forges, buildingId)
-                || ContainsBuildingId(s.WorldIndex?.Armories, buildingId)
-                || ContainsTowerBackingBuilding(s, buildingId, building, def);
+                || ContainsBuildingId(s.WorldIndex?.Armories, buildingId))
+            {
+                return true;
+            }
+
+            var towerValidation = TowerBackingValidator.TryValidateBuildingHasCorrectTower(s.WorldState, s.DataRegistry, s.WorldIndex, buildingId);
+            if (towerValidation.IsValid)
+                return true;
+
+            if (!string.IsNullOrEmpty(towerValidation.Error))
+                Debug.LogWarning("[SaveLoad] " + towerValidation.Error);
+
+            return false;
         }
 
         private static bool ContainsBuildingId(IReadOnlyList<BuildingId> ids, BuildingId buildingId)
@@ -554,65 +565,6 @@ namespace SeasonalBastion
             return false;
         }
 
-        private static bool ContainsTowerId(IReadOnlyList<TowerId> ids, TowerId towerId)
-        {
-            if (ids == null) return false;
-            for (int i = 0; i < ids.Count; i++)
-                if (ids[i].Value == towerId.Value)
-                    return true;
-            return false;
-        }
-
-        private static bool ContainsTowerBackingBuilding(GameServices s, BuildingId buildingId, in BuildingState building, BuildingDef def)
-        {
-            if (buildingId.Value == 0 || s?.WorldState?.Towers == null)
-                return false;
-
-            if (def == null)
-            {
-                Debug.LogWarning($"[SaveLoad] Cannot validate tower backing for building {buildingId.Value} because BuildingDef '{building.DefId}' could not be resolved.");
-                return false;
-            }
-
-            if (!def.IsTower)
-                return false;
-
-            int w = Math.Max(1, def.SizeX);
-            int h = Math.Max(1, def.SizeY);
-            var expectedTowerCell = new CellPos(building.Anchor.X + (w / 2), building.Anchor.Y + (h / 2));
-            var indexedTowers = s.WorldIndex?.Towers;
-            bool sawDifferentIndexedTower = false;
-
-            foreach (var towerId in s.WorldState.Towers.Ids)
-            {
-                if (!s.WorldState.Towers.Exists(towerId))
-                    continue;
-
-                var tower = s.WorldState.Towers.Get(towerId);
-                if (tower.Cell.X == expectedTowerCell.X && tower.Cell.Y == expectedTowerCell.Y)
-                {
-                    if (ContainsTowerId(indexedTowers, towerId))
-                        return true;
-
-                    Debug.LogWarning($"[SaveLoad] Tower backing mismatch for building {buildingId.Value} ({building.DefId}): found tower {towerId.Value} at expected cell ({expectedTowerCell.X},{expectedTowerCell.Y}) but WorldIndex.Towers is missing it.");
-                    return false;
-                }
-
-                if (ContainsTowerId(indexedTowers, towerId))
-                    sawDifferentIndexedTower = true;
-            }
-
-            if (sawDifferentIndexedTower)
-            {
-                Debug.LogWarning($"[SaveLoad] Tower backing missing for building {buildingId.Value} ({building.DefId}): WorldIndex has other tower entries, but none match expected cell ({expectedTowerCell.X},{expectedTowerCell.Y}).");
-            }
-            else
-            {
-                Debug.LogWarning($"[SaveLoad] Tower backing missing for building {buildingId.Value} ({building.DefId}): no tower found at expected cell ({expectedTowerCell.X},{expectedTowerCell.Y}).");
-            }
-
-            return false;
-        }
 
         private static void ValidateSitesAgainstBuildings(GameServices s, ref string error)
         {

@@ -77,6 +77,7 @@ namespace SeasonalBastion.Tests.EditMode
                 population = new PopulationDTO(),
             };
 
+            LogAssert.Expect(UnityEngine.LogType.Warning, new System.Text.RegularExpressions.Regex(@"\[SaveLoad\] Tower backing mismatch for building 10 \(bld_tower_arrow_t1\): indexed tower 21 at expected cell \(9,9\) belongs to building 11, not 10\..*"));
             LogAssert.Expect(UnityEngine.LogType.Warning, new System.Text.RegularExpressions.Regex(@"\[SaveLoad\] Post-apply validation failed for constructed building 10 \(bld_tower_arrow_t1\): WorldIndex is missing building 10 \(bld_tower_arrow_t1\)\..*"));
             bool ok = SaveLoadApplier.TryApply(services, dto, out var error, logErrors: false);
 
@@ -85,6 +86,106 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(world.Buildings.Exists(originalId), Is.True, "Failed apply must roll back to previous runtime snapshot.");
             Assert.That(world.Buildings.Count, Is.EqualTo(1));
             Assert.That(grid.Get(new CellPos(1, 1)).Building.Value, Is.EqualTo(originalId.Value));
+        }
+
+        [Test]
+        public void TowerBackingValidator_Passes_WhenTowerBelongsToExactBuilding()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_tower_arrow_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsTower = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var buildingId = world.Buildings.Create(MakeBuildingState("bld_tower_arrow_t1", 4, 4, true));
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+            grid.SetBuilding(new CellPos(4, 4), buildingId);
+
+            var towerId = world.Towers.Create(MakeTower(0, 4, 4, 12, 12, 100, 100));
+            var tower = world.Towers.Get(towerId);
+            tower.Id = towerId;
+            world.Towers.Set(towerId, tower);
+
+            var index = new WorldIndexService(world, data);
+            index.RebuildAll();
+
+            bool ok = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, buildingId, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(error, Is.Null.Or.Empty);
+        }
+
+        [Test]
+        public void TowerBackingValidator_Fails_WhenTowerAtExpectedCellBelongsToDifferentBuilding()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_tower_arrow_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsTower = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+
+            var wrongBuildingId = world.Buildings.Create(MakeBuildingState("bld_tower_arrow_t1", 7, 7, true));
+            var wrongBuilding = world.Buildings.Get(wrongBuildingId);
+            wrongBuilding.Id = wrongBuildingId;
+            world.Buildings.Set(wrongBuildingId, wrongBuilding);
+            grid.SetBuilding(new CellPos(7, 7), wrongBuildingId);
+
+            var victimBuilding = MakeBuildingState("bld_tower_arrow_t1", 1, 1, true);
+            victimBuilding.Id = new BuildingId(100);
+            world.Buildings.CreateWithId(victimBuilding.Id, victimBuilding, overwriteIfExists: true);
+            world.Buildings.Set(victimBuilding.Id, victimBuilding);
+            grid.SetBuilding(new CellPos(1, 1), victimBuilding.Id);
+
+            var tower = MakeTower(200, 7, 7, 12, 12, 100, 100);
+            world.Towers.CreateWithId(tower.Id, tower, overwriteIfExists: true);
+            world.Towers.Set(tower.Id, tower);
+
+            var index = new WorldIndexService(world, data);
+            index.RebuildAll();
+
+            bool okWrong = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, wrongBuildingId, out var wrongError);
+            bool okVictim = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, victimBuilding.Id, out var victimError);
+
+            Assert.That(okWrong, Is.True, wrongError);
+            Assert.That(okVictim, Is.False);
+            Assert.That(victimError, Does.Contain("no tower found at expected cell (1,1)"));
+        }
+
+        [Test]
+        public void TowerBackingValidator_Fails_WhenIndexedTowerAtBuildingCellBelongsToDifferentBuilding()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_tower_large_t1", SizeX = 3, SizeY = 3, BaseLevel = 1, MaxHp = 100, IsTower = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+
+            var buildingA = MakeBuilding(10, "bld_tower_large_t1", 0, 0, true);
+            var buildingB = MakeBuilding(11, "bld_tower_large_t1", 1, 1, true);
+            world.Buildings.CreateWithId(buildingA.Id, buildingA, overwriteIfExists: true);
+            world.Buildings.Set(buildingA.Id, buildingA);
+            world.Buildings.CreateWithId(buildingB.Id, buildingB, overwriteIfExists: true);
+            world.Buildings.Set(buildingB.Id, buildingB);
+
+            for (int y = 0; y < 3; y++)
+            for (int x = 0; x < 3; x++)
+            {
+                grid.SetBuilding(new CellPos(buildingA.Anchor.X + x, buildingA.Anchor.Y + y), buildingA.Id);
+                grid.SetBuilding(new CellPos(buildingB.Anchor.X + x, buildingB.Anchor.Y + y), buildingB.Id);
+            }
+
+            var tower = MakeTower(21, 2, 2, 12, 12, 100, 100);
+            world.Towers.CreateWithId(tower.Id, tower, overwriteIfExists: true);
+            world.Towers.Set(tower.Id, tower);
+
+            var index = new WorldIndexService(world, data);
+            index.RebuildAll();
+
+            bool ok = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, buildingA.Id, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain("belongs to building 11, not 10"));
         }
 
         [Test]

@@ -522,9 +522,8 @@ namespace SeasonalBastion
         private bool TryEstimateTravelCost(CellPos from, CellPos to, out int cost)
         {
             cost = 0;
-            if (_s?.GridMap == null) return false;
-            var pf = new NpcPathfinder(_s.GridMap);
-            return pf.TryEstimateCost(from, to, out cost);
+            if (_s?.Pathfinder == null) return false;
+            return _s.Pathfinder.TryEstimateCost(from, to, out cost);
         }
 
         private static int Manhattan(CellPos a, CellPos b)

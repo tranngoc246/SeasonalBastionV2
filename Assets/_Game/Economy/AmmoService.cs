@@ -390,6 +390,7 @@ namespace SeasonalBastion
 
         internal void LogPotentialResupplyDeadlock_Core() => _towerResupplyPlanner.LogPotentialResupplyDeadlock();
         internal void CleanupResupplyArmoryMappings_Core() => CleanupResupplyArmoryMappings();
+        internal void RemoveArmoryMappingByJob_Core(JobId jobId) => RemoveArmoryMappingByJob(jobId);
         internal int CountEligibleResupplyRequests() => CountEligibleRequests();
         internal int CountTrackedActiveResupplyJobs_Core() => CountTrackedActiveResupplyJobs();
         internal void PruneInvalidResupplyRequests() => _requestQueue.PruneInvalidRequests(_towerNoJobLogged, _towerDeadlockLogged);

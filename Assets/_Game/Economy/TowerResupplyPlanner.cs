@@ -35,7 +35,7 @@ namespace SeasonalBastion
                     if (j.Workplace.Value != 0)
                         _owner.ResupplyJobByArmory.Remove(j.Workplace.Value);
                     else
-                        RemoveArmoryMappingByJob(jid);
+                        _owner.RemoveArmoryMappingByJob_Core(jid);
 
                     if (_s.WorldState != null && _s.WorldState.Towers.Exists(new TowerId(tid)))
                         _owner.MaybeRequeueTowerAmmoRequest(new TowerId(tid));

@@ -77,7 +77,7 @@ namespace SeasonalBastion.Tests.EditMode
                 population = new PopulationDTO(),
             };
 
-            LogAssert.Expect(UnityEngine.LogType.Error, new System.Text.RegularExpressions.Regex(@"\[SaveLoad\] Post-apply validation failed for constructed building 10 \(bld_tower_arrow_t1\): WorldIndex is missing building 10 \(bld_tower_arrow_t1\)\..*"));
+            LogAssert.Expect(UnityEngine.LogType.Warning, new System.Text.RegularExpressions.Regex(@"\[SaveLoad\] Post-apply validation failed for constructed building 10 \(bld_tower_arrow_t1\): WorldIndex is missing building 10 \(bld_tower_arrow_t1\)\..*"));
             bool ok = SaveLoadApplier.TryApply(services, dto, out var error, logErrors: false);
 
             Assert.That(ok, Is.False);
@@ -286,7 +286,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             var validate = typeof(SaveLoadApplier).GetMethod("ValidatePostApplyRuntime", BindingFlags.Static | BindingFlags.NonPublic);
             Assert.That(validate, Is.Not.Null);
-            LogAssert.Expect(UnityEngine.LogType.Error, "[SaveLoad] Post-apply validation failed: job 1 references missing tower 999.");
+            LogAssert.Expect(UnityEngine.LogType.Warning, "[SaveLoad] Post-apply validation failed: job 1 references missing tower 999.");
             object[] args = { services, new RunSaveDTO { world = new WorldDTO(), build = new BuildDTO(), combat = new CombatDTO(), population = new PopulationDTO() }, null };
             validate.Invoke(null, args);
             var validationError = args[2] as string;

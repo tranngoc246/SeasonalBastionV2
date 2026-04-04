@@ -20,6 +20,7 @@
 
         private GameServices _services;
         private GameLoop _loop;
+        private RewardSelectionOverlay _rewardSelectionOverlay;
 
         // Cached start map config (json or markdown)
         private string _cfg;
@@ -33,6 +34,9 @@
             _services = GameServicesFactory.Create(_defsCatalog);
             _services.ApplyRunStartConfig = ApplyRunStartConfigInternal;
             _loop = new GameLoop(_services);
+            _rewardSelectionOverlay = gameObject.GetComponent<RewardSelectionOverlay>();
+            if (_rewardSelectionOverlay == null)
+                _rewardSelectionOverlay = gameObject.AddComponent<RewardSelectionOverlay>();
 
             // Day 17: Validate data at boot (fail-fast)
             if (!ValidateDataAtBoot())

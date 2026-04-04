@@ -7,6 +7,7 @@ namespace SeasonalBastion.DebugTools
 public sealed class DebugCombatLaneHUD : MonoBehaviour
 {
     [SerializeField] private GameBootstrap _bootstrap;
+    private DebugHUDHub _hub;
 
     [Header("Debug Spawn")]
     [SerializeField] private string _enemyDefId = "Swarmling";
@@ -20,6 +21,7 @@ public sealed class DebugCombatLaneHUD : MonoBehaviour
     private void Awake()
     {
         if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+        _hub = FindObjectOfType<DebugHUDHub>(true);
     }
 
     private void TryResolve()
@@ -120,7 +122,8 @@ public sealed class DebugCombatLaneHUD : MonoBehaviour
 
     private void OnGUI()
     {
-        if (SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
+        _hub ??= FindObjectOfType<DebugHUDHub>(true);
+        if (_hub != null || SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
 
         // Standalone fallback (rarely used)
         GUILayout.BeginArea(new Rect(10, 10, 520, 240), GUI.skin.box);

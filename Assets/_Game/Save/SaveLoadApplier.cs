@@ -1,4 +1,4 @@
-using SeasonalBastion.Contracts;
+﻿using SeasonalBastion.Contracts;
 using SeasonalBastion.RunStart;
 using System;
 using System.Collections.Generic;
@@ -42,6 +42,9 @@ namespace SeasonalBastion
                     RebuildRuntimeCachesAndIndices(s);
                     RestoreCombatAfterLoad(s, dto.combat);
                     RestorePopulationAfterLoad(s, dto.population);
+                    ValidatePostApplyRuntime(s, dto, out error);
+                    if (!string.IsNullOrEmpty(error))
+                        throw new InvalidOperationException(error);
                     transaction.Commit();
                     return true;
                 }
@@ -402,6 +405,355 @@ namespace SeasonalBastion
                 enemyStore.CreateWithId(e.Id, e, overwriteIfExists: true);
                 s.WorldState.Enemies.Set(e.Id, e);
             }
+        }
+
+
+        private static void ValidatePostApplyRuntime(GameServices s, RunSaveDTO dto, out string error)
+        {
+            error = null;
+            if (s == null)
+            {
+                error = "[SaveLoad] Post-apply validation failed: GameServices null.";
+                return;
+            }
+
+            try
+            {
+                ValidateConstructedBuildings(s, ref error);
+                if (error != null) return;
+
+                ValidateSitesAgainstBuildings(s, ref error);
+                if (error != null) return;
+
+                ValidateTowerBackingsAndIndices(s, ref error);
+                if (error != null) return;
+
+                ValidateNpcReferences(s, ref error);
+                if (error != null) return;
+
+                ValidateEnemyRecords(s, ref error);
+                if (error != null) return;
+
+                ValidateJobBoardRuntimeState(s, ref error);
+                if (error != null) return;
+
+                ValidateClaimRuntimeState(s, ref error);
+                if (error != null) return;
+            }
+            catch (Exception ex)
+            {
+                error = "[SaveLoad] Post-apply validation threw unexpectedly: " + ex.Message;
+                Debug.LogError("[SaveLoad] Post-apply validation threw: " + ex);
+                return;
+            }
+
+            Debug.Log($"[SaveLoad] Post-apply validation passed for {s.WorldState?.Buildings?.Count ?? 0} buildings, {s.WorldState?.Sites?.Count ?? 0} sites, {s.WorldState?.Towers?.Count ?? 0} towers, {s.WorldState?.Npcs?.Count ?? 0} npcs, {s.WorldState?.Enemies?.Count ?? 0} enemies.");
+        }
+
+        private static void ValidateConstructedBuildings(GameServices s, ref string error)
+        {
+            if (s?.WorldState?.Buildings == null) return;
+
+            var seenIds = new HashSet<int>();
+            foreach (var buildingId in s.WorldState.Buildings.Ids)
+            {
+                if (!s.WorldState.Buildings.Exists(buildingId))
+                    continue;
+
+                if (!seenIds.Add(buildingId.Value))
+                {
+                    error = $"[SaveLoad] Post-apply validation failed: duplicate runtime building id {buildingId.Value}.";
+                    Debug.LogError(error);
+                    return;
+                }
+
+                var building = s.WorldState.Buildings.Get(buildingId);
+                if (!building.IsConstructed)
+                    continue;
+
+                try
+                {
+                    BuildOrderInvariantHelper.AssertBuildInvariant(s.WorldState, s.GridMap, s.DataRegistry, s.WorldIndex, buildingId);
+                }
+                catch (Exception ex)
+                {
+                    error = $"[SaveLoad] Post-apply validation failed for constructed building {buildingId.Value} ({building.DefId}): {ex.Message}";
+                    Debug.LogError(error + " Exception=" + ex);
+                    return;
+                }
+            }
+        }
+
+        private static void ValidateSitesAgainstBuildings(GameServices s, ref string error)
+        {
+            if (s?.WorldState?.Sites == null) return;
+
+            var seenSiteIds = new HashSet<int>();
+            foreach (var siteId in s.WorldState.Sites.Ids)
+            {
+                if (!s.WorldState.Sites.Exists(siteId))
+                    continue;
+
+                if (!seenSiteIds.Add(siteId.Value))
+                {
+                    error = $"[SaveLoad] Post-apply validation failed: duplicate runtime site id {siteId.Value}.";
+                    Debug.LogError(error);
+                    return;
+                }
+
+                var site = s.WorldState.Sites.Get(siteId);
+                if (site.TargetBuilding.Value != 0)
+                {
+                    if (s.WorldState.Buildings == null || !s.WorldState.Buildings.Exists(site.TargetBuilding))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: site {siteId.Value} references missing target building {site.TargetBuilding.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+
+                    var target = s.WorldState.Buildings.Get(site.TargetBuilding);
+                    if (target.IsConstructed)
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: site {siteId.Value} still targets constructed building {site.TargetBuilding.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+                }
+            }
+        }
+
+        private static void ValidateTowerBackingsAndIndices(GameServices s, ref string error)
+        {
+            if (s?.WorldState?.Towers == null) return;
+
+            var seenTowerIds = new HashSet<int>();
+            var seenTowerCells = new HashSet<long>();
+            foreach (var towerId in s.WorldState.Towers.Ids)
+            {
+                if (!s.WorldState.Towers.Exists(towerId))
+                    continue;
+
+                if (!seenTowerIds.Add(towerId.Value))
+                {
+                    error = $"[SaveLoad] Post-apply validation failed: duplicate runtime tower id {towerId.Value}.";
+                    Debug.LogError(error);
+                    return;
+                }
+
+                var tower = s.WorldState.Towers.Get(towerId);
+                long key = PackCell(tower.Cell.X, tower.Cell.Y);
+                if (!seenTowerCells.Add(key))
+                {
+                    error = $"[SaveLoad] Post-apply validation failed: duplicate tower cell ({tower.Cell.X},{tower.Cell.Y}).";
+                    Debug.LogError(error);
+                    return;
+                }
+            }
+        }
+
+        private static void ValidateNpcReferences(GameServices s, ref string error)
+        {
+            if (s?.WorldState?.Npcs == null) return;
+
+            var seenNpcIds = new HashSet<int>();
+            foreach (var npcId in s.WorldState.Npcs.Ids)
+            {
+                if (!s.WorldState.Npcs.Exists(npcId))
+                    continue;
+
+                if (!seenNpcIds.Add(npcId.Value))
+                {
+                    error = $"[SaveLoad] Post-apply validation failed: duplicate runtime npc id {npcId.Value}.";
+                    Debug.LogError(error);
+                    return;
+                }
+
+                var npc = s.WorldState.Npcs.Get(npcId);
+                if (npc.Workplace.Value != 0 && (s.WorldState.Buildings == null || !s.WorldState.Buildings.Exists(npc.Workplace)))
+                {
+                    error = $"[SaveLoad] Post-apply validation failed: npc {npcId.Value} references missing workplace building {npc.Workplace.Value}.";
+                    Debug.LogError(error);
+                    return;
+                }
+
+                if (npc.CurrentJob.Value != 0)
+                {
+                    if (s.JobBoard == null || !s.JobBoard.TryGet(npc.CurrentJob, out var job))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: npc {npcId.Value} references missing job {npc.CurrentJob.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+
+                    if (job.ClaimedBy.Value != 0 && job.ClaimedBy.Value != npcId.Value)
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: npc {npcId.Value} current job {npc.CurrentJob.Value} is claimed by npc {job.ClaimedBy.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+                }
+            }
+        }
+
+        private static void ValidateEnemyRecords(GameServices s, ref string error)
+        {
+            if (s?.WorldState?.Enemies == null) return;
+
+            var seenEnemyIds = new HashSet<int>();
+            foreach (var enemyId in s.WorldState.Enemies.Ids)
+            {
+                if (!s.WorldState.Enemies.Exists(enemyId))
+                    continue;
+
+                if (!seenEnemyIds.Add(enemyId.Value))
+                {
+                    error = $"[SaveLoad] Post-apply validation failed: duplicate runtime enemy id {enemyId.Value}.";
+                    Debug.LogError(error);
+                    return;
+                }
+
+                var enemy = s.WorldState.Enemies.Get(enemyId);
+                if (string.IsNullOrWhiteSpace(enemy.DefId) || !s.DataRegistry.TryGetEnemy(enemy.DefId, out _))
+                {
+                    error = $"[SaveLoad] Post-apply validation failed: enemy {enemyId.Value} has invalid def '{enemy.DefId}'.";
+                    Debug.LogError(error);
+                    return;
+                }
+            }
+        }
+
+        private static void ValidateJobBoardRuntimeState(GameServices s, ref string error)
+        {
+            if (s?.JobBoard is not JobBoard board)
+                return;
+
+            try
+            {
+                var jobsField = typeof(JobBoard).GetField("_jobs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var queuesField = typeof(JobBoard).GetField("_queues", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (jobsField?.GetValue(board) is not Dictionary<int, Job> jobs)
+                    return;
+                if (queuesField?.GetValue(board) is not Dictionary<int, Queue<int>> queues)
+                    return;
+
+                foreach (var kv in jobs)
+                {
+                    var job = kv.Value;
+                    if (job.Workplace.Value != 0 && (s.WorldState?.Buildings == null || !s.WorldState.Buildings.Exists(job.Workplace)))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing workplace building {job.Workplace.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+
+                    if (job.SourceBuilding.Value != 0 && (s.WorldState?.Buildings == null || !s.WorldState.Buildings.Exists(job.SourceBuilding)))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing source building {job.SourceBuilding.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+
+                    if (job.DestBuilding.Value != 0 && (s.WorldState?.Buildings == null || !s.WorldState.Buildings.Exists(job.DestBuilding)))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing destination building {job.DestBuilding.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+
+                    if (job.Site.Value != 0 && (s.WorldState?.Sites == null || !s.WorldState.Sites.Exists(job.Site)))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing site {job.Site.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+
+                    if (job.Tower.Value != 0 && (s.WorldState?.Towers == null || !s.WorldState.Towers.Exists(job.Tower)))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing tower {job.Tower.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+
+                    if (job.ClaimedBy.Value != 0 && (s.WorldState?.Npcs == null || !s.WorldState.Npcs.Exists(job.ClaimedBy)))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} is claimed by missing npc {job.ClaimedBy.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+                }
+
+                foreach (var queueKvp in queues)
+                {
+                    int workplaceId = queueKvp.Key;
+                    foreach (var jobId in queueKvp.Value)
+                    {
+                        if (!jobs.TryGetValue(jobId, out var job))
+                        {
+                            error = $"[SaveLoad] Post-apply validation failed: job queue for workplace {workplaceId} references missing job {jobId}.";
+                            Debug.LogError(error);
+                            return;
+                        }
+
+                        if (job.Workplace.Value != workplaceId)
+                        {
+                            error = $"[SaveLoad] Post-apply validation failed: queued job {jobId} is stored under workplace {workplaceId} but targets workplace {job.Workplace.Value}.";
+                            Debug.LogError(error);
+                            return;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                error = "[SaveLoad] Post-apply validation failed while inspecting JobBoard: " + ex.Message;
+                Debug.LogError(error + " Exception=" + ex);
+            }
+        }
+
+        private static void ValidateClaimRuntimeState(GameServices s, ref string error)
+        {
+            if (s?.ClaimService is not ClaimService claimService)
+                return;
+
+            try
+            {
+                var mapField = typeof(ClaimService).GetField("_map", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (mapField?.GetValue(claimService) is not Dictionary<ClaimKey, NpcId> map)
+                    return;
+
+                foreach (var kv in map)
+                {
+                    var owner = kv.Value;
+                    if (owner.Value == 0 || s.WorldState?.Npcs == null || !s.WorldState.Npcs.Exists(owner))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: claim '{kv.Key.Kind}:{kv.Key.A}:{kv.Key.B}' references missing npc {owner.Value}.";
+                        Debug.LogError(error);
+                        return;
+                    }
+
+                    if (!IsValidClaimKeyTarget(s, kv.Key))
+                    {
+                        error = $"[SaveLoad] Post-apply validation failed: claim '{kv.Key.Kind}:{kv.Key.A}:{kv.Key.B}' targets missing runtime entity.";
+                        Debug.LogError(error);
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                error = "[SaveLoad] Post-apply validation failed while inspecting ClaimService: " + ex.Message;
+                Debug.LogError(error + " Exception=" + ex);
+            }
+        }
+
+        private static bool IsValidClaimKeyTarget(GameServices s, ClaimKey key)
+        {
+            return key.Kind switch
+            {
+                ClaimKind.SiteBuild => s.WorldState?.Sites != null && s.WorldState.Sites.Exists(new SiteId(key.A)),
+                ClaimKind.StorageSlot or ClaimKind.BuildSource or ClaimKind.Workplace => s.WorldState?.Buildings != null && s.WorldState.Buildings.Exists(new BuildingId(key.A)),
+                _ => true,
+            };
         }
 
         private static void RestoreBuildOrdersAfterLoad(GameServices s)

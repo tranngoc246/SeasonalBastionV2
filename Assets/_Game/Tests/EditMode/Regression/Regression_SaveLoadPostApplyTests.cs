@@ -194,6 +194,138 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void ConstructedBuildingInvariantValidator_Passes_ForValidConstructedBuilding()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHouse = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var buildingId = world.Buildings.Create(MakeBuildingState("bld_house_t1", 3, 4, true));
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+
+            for (int y = 0; y < 2; y++)
+            for (int x = 0; x < 2; x++)
+                grid.SetBuilding(new CellPos(3 + x, 4 + y), buildingId);
+
+            var index = new WorldIndexService(world, data);
+            index.RebuildAll();
+
+            bool ok = ConstructedBuildingInvariantValidator.Validate(world, grid, data, index, buildingId, out var error);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(error, Is.Null.Or.Empty);
+        }
+
+        [Test]
+        public void ConstructedBuildingInvariantValidator_Fails_WhenWorldIndexMissingBuilding()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsHouse = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var buildingId = world.Buildings.Create(MakeBuildingState("bld_house_t1", 5, 5, true));
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+            grid.SetBuilding(new CellPos(5, 5), buildingId);
+
+            var index = new WorldIndexService(new WorldState(), data);
+
+            bool ok = ConstructedBuildingInvariantValidator.Validate(world, grid, data, index, buildingId, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain($"WorldIndex is missing building {buildingId.Value}"));
+        }
+
+        [Test]
+        public void ConstructedBuildingInvariantValidator_Fails_WhenGridFootprintIsWrong()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHouse = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var buildingId = world.Buildings.Create(MakeBuildingState("bld_house_t1", 2, 2, true));
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+            grid.SetBuilding(new CellPos(2, 2), buildingId);
+            grid.SetBuilding(new CellPos(3, 2), buildingId);
+            grid.SetBuilding(new CellPos(2, 3), buildingId);
+
+            var index = new WorldIndexService(world, data);
+            index.RebuildAll();
+
+            bool ok = ConstructedBuildingInvariantValidator.Validate(world, grid, data, index, buildingId, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain("Grid mismatch"));
+            Assert.That(error, Does.Contain($"building {buildingId.Value}"));
+        }
+
+        [Test]
+        public void ConstructedBuildingInvariantValidator_Fails_WhenSiteStillReferencesConstructedBuilding()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsHouse = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var buildingId = world.Buildings.Create(MakeBuildingState("bld_house_t1", 6, 6, true));
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+            grid.SetBuilding(new CellPos(6, 6), buildingId);
+
+            var siteId = world.Sites.Create(new BuildSiteState
+            {
+                Anchor = new CellPos(6, 6),
+                TargetBuilding = buildingId,
+                IsActive = true,
+            });
+            var site = world.Sites.Get(siteId);
+            site.Id = siteId;
+            world.Sites.Set(siteId, site);
+
+            var index = new WorldIndexService(world, data);
+            index.RebuildAll();
+
+            bool ok = ConstructedBuildingInvariantValidator.Validate(world, grid, data, index, buildingId, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain($"Site {siteId.Value} still references constructed building {buildingId.Value}"));
+        }
+
+        [Test]
+        public void ConstructedBuildingInvariantValidator_Fails_WhenTowerBackingIsInvalid()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_tower_arrow_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsTower = true });
+            data.AddTower(new TowerDef { DefId = "bld_tower_arrow_t1", MaxHp = 100, AmmoMax = 12 });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var buildingId = world.Buildings.Create(MakeBuildingState("bld_tower_arrow_t1", 8, 8, true));
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+            grid.SetBuilding(new CellPos(8, 8), buildingId);
+
+            var index = new WorldIndexService(world, data);
+            index.RebuildAll();
+
+            bool ok = ConstructedBuildingInvariantValidator.Validate(world, grid, data, index, buildingId, out var error);
+
+            Assert.That(ok, Is.False);
+            Assert.That(error, Does.Contain("Tower backing missing"));
+            Assert.That(error, Does.Contain($"building {buildingId.Value}"));
+        }
+
+        [Test]
         public void TryApply_Succeeds_ForIntermediateConstructionState_WithPlaceholderAndSite()
         {
             var bus = new TestEventBus();

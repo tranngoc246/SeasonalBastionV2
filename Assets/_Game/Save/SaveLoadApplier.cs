@@ -487,84 +487,15 @@ namespace SeasonalBastion
         private static void AssertConstructedBuildingInvariant(GameServices s, BuildingId buildingId)
         {
             if (s == null) throw new InvalidOperationException("GameServices is null.");
-            if (s.WorldState == null) throw new InvalidOperationException("WorldState is null.");
-            if (buildingId.Value == 0) throw new InvalidOperationException("BuildingId is invalid.");
-            if (!s.WorldState.Buildings.Exists(buildingId)) throw new InvalidOperationException($"Building {buildingId.Value} is missing.");
 
-            var building = s.WorldState.Buildings.Get(buildingId);
-            if (!building.IsConstructed)
-                throw new InvalidOperationException($"Building {buildingId.Value} exists but IsConstructed == false.");
-
-            if (s.WorldState.Sites != null)
+            if (!ConstructedBuildingInvariantValidator.Validate(s.WorldState, s.GridMap, s.DataRegistry, s.WorldIndex, buildingId, out var error))
             {
-                foreach (var siteId in s.WorldState.Sites.Ids)
-                {
-                    if (!s.WorldState.Sites.Exists(siteId)) continue;
-                    var site = s.WorldState.Sites.Get(siteId);
-                    if (site.TargetBuilding.Value == buildingId.Value)
-                        throw new InvalidOperationException($"Site {siteId.Value} still references constructed building {buildingId.Value}.");
-                }
+                if (!string.IsNullOrEmpty(error) && error.StartsWith("Tower backing", StringComparison.Ordinal))
+                    Debug.LogWarning("[SaveLoad] " + error);
+
+                throw new InvalidOperationException(error);
             }
-
-            BuildingDef def = null;
-            if (s.DataRegistry != null && !string.IsNullOrWhiteSpace(building.DefId))
-            {
-                try { def = s.DataRegistry.GetBuilding(building.DefId); }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[SaveLoad] Failed to resolve BuildingDef '{building.DefId}' during post-load invariant check for building {buildingId.Value}: {ex}");
-                }
-            }
-
-            int w = Math.Max(1, def?.SizeX ?? 1);
-            int h = Math.Max(1, def?.SizeY ?? 1);
-
-            if (s.GridMap != null)
-            {
-                for (int dy = 0; dy < h; dy++)
-                for (int dx = 0; dx < w; dx++)
-                {
-                    var cell = new CellPos(building.Anchor.X + dx, building.Anchor.Y + dy);
-                    var occ = s.GridMap.Get(cell);
-                    if (occ.Kind != CellOccupancyKind.Building || occ.Building.Value != buildingId.Value)
-                        throw new InvalidOperationException($"Grid mismatch at ({cell.X},{cell.Y}) for building {buildingId.Value}: got {occ.Kind} / {occ.Building.Value}.");
-                }
-            }
-
-            if (s.WorldIndex != null && !ContainsBuildingInWorldIndex(s, buildingId, building, def))
-                throw new InvalidOperationException($"WorldIndex is missing building {buildingId.Value} ({building.DefId}).");
         }
-
-        private static bool ContainsBuildingInWorldIndex(GameServices s, BuildingId buildingId, in BuildingState building, BuildingDef def)
-        {
-            if (ContainsBuildingId(s.WorldIndex?.Warehouses, buildingId)
-                || ContainsBuildingId(s.WorldIndex?.Producers, buildingId)
-                || ContainsBuildingId(s.WorldIndex?.Houses, buildingId)
-                || ContainsBuildingId(s.WorldIndex?.Forges, buildingId)
-                || ContainsBuildingId(s.WorldIndex?.Armories, buildingId))
-            {
-                return true;
-            }
-
-            var towerValidation = TowerBackingValidator.TryValidateBuildingHasCorrectTower(s.WorldState, s.DataRegistry, s.WorldIndex, buildingId);
-            if (towerValidation.IsValid)
-                return true;
-
-            if (!string.IsNullOrEmpty(towerValidation.Error))
-                Debug.LogWarning("[SaveLoad] " + towerValidation.Error);
-
-            return false;
-        }
-
-        private static bool ContainsBuildingId(IReadOnlyList<BuildingId> ids, BuildingId buildingId)
-        {
-            if (ids == null) return false;
-            for (int i = 0; i < ids.Count; i++)
-                if (ids[i].Value == buildingId.Value)
-                    return true;
-            return false;
-        }
-
 
         private static void ValidateSitesAgainstBuildings(GameServices s, ref string error)
         {

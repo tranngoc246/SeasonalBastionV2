@@ -222,7 +222,7 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(ok, Is.True, error);
             Assert.That(world.Buildings.Exists(new BuildingId(300)), Is.True);
             Assert.That(world.Sites.Exists(new SiteId(301)), Is.True);
-            AssertIntermediateSiteState(services, new BuildingId(300), new SiteId(301), new CellPos(6, 6), 2, 2);
+            AssertUpgradeIntermediateState(services, new BuildingId(300), new SiteId(301), new CellPos(6, 6), 2, 2);
             Assert.That(buildOrders.TryGet(1, out var order), Is.True, "Upgrade site should rebuild one active order after load.");
             Assert.That(order.Site.Value, Is.EqualTo(301));
             Assert.That(order.TargetBuilding.Value, Is.EqualTo(300));
@@ -540,6 +540,7 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(site.TargetBuilding.Value, Is.EqualTo(buildingId.Value));
             Assert.That(site.Anchor.X, Is.EqualTo(anchor.X));
             Assert.That(site.Anchor.Y, Is.EqualTo(anchor.Y));
+            Assert.That(site.Kind, Is.EqualTo(0));
 
             for (int dy = 0; dy < height; dy++)
             for (int dx = 0; dx < width; dx++)
@@ -547,6 +548,28 @@ namespace SeasonalBastion.Tests.EditMode
                 var occ = services.GridMap.Get(new CellPos(anchor.X + dx, anchor.Y + dy));
                 Assert.That(occ.Kind, Is.EqualTo(CellOccupancyKind.Site));
                 Assert.That(occ.Site.Value, Is.EqualTo(siteId.Value));
+            }
+        }
+
+        private static void AssertUpgradeIntermediateState(GameServices services, BuildingId buildingId, SiteId siteId, CellPos anchor, int width, int height)
+        {
+            Assert.That(services.WorldState.Buildings.Exists(buildingId), Is.True);
+            Assert.That(services.WorldState.Sites.Exists(siteId), Is.True);
+
+            var building = services.WorldState.Buildings.Get(buildingId);
+            var site = services.WorldState.Sites.Get(siteId);
+
+            Assert.That(site.Kind, Is.EqualTo(1));
+            Assert.That(site.TargetBuilding.Value, Is.EqualTo(buildingId.Value));
+            Assert.That(building.Anchor.X, Is.EqualTo(anchor.X));
+            Assert.That(building.Anchor.Y, Is.EqualTo(anchor.Y));
+
+            for (int dy = 0; dy < height; dy++)
+            for (int dx = 0; dx < width; dx++)
+            {
+                var occ = services.GridMap.Get(new CellPos(anchor.X + dx, anchor.Y + dy));
+                Assert.That(occ.Kind, Is.EqualTo(CellOccupancyKind.Building));
+                Assert.That(occ.Building.Value, Is.EqualTo(buildingId.Value));
             }
         }
 

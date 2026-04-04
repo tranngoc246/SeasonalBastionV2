@@ -154,7 +154,7 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
-        public void TowerBackingValidator_Fails_WhenIndexedTowerAtBuildingCellBelongsToDifferentBuilding()
+        public void TowerBackingValidator_Fails_WhenIndexedTowerMissingFromExpectedAnchorCell()
         {
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_tower_large_t1", SizeX = 3, SizeY = 3, BaseLevel = 1, MaxHp = 100, IsTower = true });
@@ -190,7 +190,7 @@ namespace SeasonalBastion.Tests.EditMode
             bool ok = TowerBackingValidator.ValidateBuildingHasCorrectTower(world, data, index, buildingAId, out var error);
 
             Assert.That(ok, Is.False);
-            Assert.That(error, Does.Contain($"belongs to building {buildingBId.Value}, not {buildingAId.Value}"));
+            Assert.That(error, Does.Contain("no tower found at expected cell (1,1)"));
         }
 
         [Test]

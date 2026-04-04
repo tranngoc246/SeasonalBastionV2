@@ -42,18 +42,18 @@ namespace SeasonalBastion
                 }
             }
 
-            if (worldIndex != null && !Contains(worldIndex, buildingId))
+            if (worldIndex != null && !Contains(worldState, dataRegistry, worldIndex, buildingId, building, def))
                 throw new InvalidOperationException($"WorldIndex is missing building {buildingId.Value} ({building.DefId}).");
         }
 
-        private static bool Contains(IWorldIndex worldIndex, BuildingId buildingId)
+        private static bool Contains(IWorldState worldState, IDataRegistry dataRegistry, IWorldIndex worldIndex, BuildingId buildingId, in BuildingState building, BuildingDef def)
         {
             return Contains(worldIndex.Warehouses, buildingId)
                 || Contains(worldIndex.Producers, buildingId)
                 || Contains(worldIndex.Houses, buildingId)
                 || Contains(worldIndex.Forges, buildingId)
                 || Contains(worldIndex.Armories, buildingId)
-                || ContainsTowerBackingBuilding(worldIndex, buildingId);
+                || ContainsTowerBackingBuilding(worldState, dataRegistry, worldIndex, buildingId, building, def);
         }
 
         private static bool Contains(System.Collections.Generic.IReadOnlyList<BuildingId> ids, BuildingId buildingId)
@@ -65,10 +65,89 @@ namespace SeasonalBastion
             return false;
         }
 
-        private static bool ContainsTowerBackingBuilding(IWorldIndex worldIndex, BuildingId buildingId)
+        private static bool ContainsTowerBackingBuilding(IWorldState worldState, IDataRegistry dataRegistry, IWorldIndex worldIndex, BuildingId buildingId, in BuildingState building, BuildingDef def)
         {
-            var towers = worldIndex.Towers;
-            return towers != null && towers.Count > 0 && buildingId.Value != 0;
+            if (buildingId.Value == 0 || worldState?.Towers == null)
+                return false;
+
+            if (def == null)
+            {
+                LogInvariantMismatch($"Cannot validate tower backing for building {buildingId.Value} because BuildingDef '{building.DefId}' could not be resolved.");
+                return false;
+            }
+
+            if (!def.IsTower)
+                return false;
+
+            int w = Math.Max(1, def.SizeX);
+            int h = Math.Max(1, def.SizeY);
+            var expectedTowerCell = new CellPos(building.Anchor.X + (w / 2), building.Anchor.Y + (h / 2));
+
+            var towersInIndex = worldIndex?.Towers;
+            bool sawIndexedTowerForDifferentBuilding = false;
+            bool sawUnindexedTowerOnExpectedCell = false;
+
+            foreach (var towerId in worldState.Towers.Ids)
+            {
+                if (!worldState.Towers.Exists(towerId))
+                    continue;
+
+                var tower = worldState.Towers.Get(towerId);
+                if (tower.Cell.X != expectedTowerCell.X || tower.Cell.Y != expectedTowerCell.Y)
+                    continue;
+
+                bool indexed = Contains(towersInIndex, towerId);
+                if (indexed)
+                {
+                    return true;
+                }
+
+                sawUnindexedTowerOnExpectedCell = true;
+                LogInvariantMismatch($"Tower backing mismatch for building {buildingId.Value} ({building.DefId}): found tower {towerId.Value} at expected cell ({expectedTowerCell.X},{expectedTowerCell.Y}) but WorldIndex.Towers is missing it.");
+                return false;
+            }
+
+            if (towersInIndex != null)
+            {
+                for (int i = 0; i < towersInIndex.Count; i++)
+                {
+                    var towerId = towersInIndex[i];
+                    if (!worldState.Towers.Exists(towerId))
+                        continue;
+
+                    var tower = worldState.Towers.Get(towerId);
+                    if (tower.Cell.X == expectedTowerCell.X && tower.Cell.Y == expectedTowerCell.Y)
+                        continue;
+
+                    sawIndexedTowerForDifferentBuilding = true;
+                    break;
+                }
+            }
+
+            if (sawIndexedTowerForDifferentBuilding)
+            {
+                LogInvariantMismatch($"Tower backing missing for building {buildingId.Value} ({building.DefId}): WorldIndex has other tower entries, but none match expected cell ({expectedTowerCell.X},{expectedTowerCell.Y}).");
+            }
+            else if (!sawUnindexedTowerOnExpectedCell)
+            {
+                LogInvariantMismatch($"Tower backing missing for building {buildingId.Value} ({building.DefId}): no tower found at expected cell ({expectedTowerCell.X},{expectedTowerCell.Y}).");
+            }
+
+            return false;
+        }
+
+        private static bool Contains(System.Collections.Generic.IReadOnlyList<TowerId> ids, TowerId towerId)
+        {
+            if (ids == null) return false;
+            for (int i = 0; i < ids.Count; i++)
+                if (ids[i].Value == towerId.Value)
+                    return true;
+            return false;
+        }
+
+        private static void LogInvariantMismatch(string message)
+        {
+            UnityEngine.Debug.LogWarning($"[BuildOrderInvariantHelper] {message}");
         }
 
         private static BuildingDef SafeGetBuildingDef(IDataRegistry dataRegistry, string defId)

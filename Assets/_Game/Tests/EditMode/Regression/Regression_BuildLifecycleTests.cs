@@ -1,4 +1,4 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using SeasonalBastion.Contracts;
 using System.Collections.Generic;
 
@@ -210,6 +210,112 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(upgradedEvents, Is.EqualTo(1), "Upgrade finalize should emit BuildingUpgradedEvent exactly once.");
 
             BuildOrderInvariantHelper.AssertBuildInvariant(world, grid, data, services.WorldIndex, buildingId);
+        }
+
+
+        [Test]
+        public void BuildInvariant_TowerBuilding_FailsWhenOnlyUnrelatedTowerExists()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_arrowtower_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsTower = true });
+            data.AddTower(new TowerDef { DefId = "bld_arrowtower_t1", MaxHp = 100, AmmoMax = 12 });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var worldIndex = new WorldIndexService(world, data);
+
+            var targetBuildingId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_arrowtower_t1",
+                Anchor = new CellPos(3, 3),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var targetBuilding = world.Buildings.Get(targetBuildingId);
+            targetBuilding.Id = targetBuildingId;
+            world.Buildings.Set(targetBuildingId, targetBuilding);
+            grid.SetBuilding(new CellPos(3, 3), targetBuildingId);
+
+            var otherBuildingId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_arrowtower_t1",
+                Anchor = new CellPos(10, 10),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var otherBuilding = world.Buildings.Get(otherBuildingId);
+            otherBuilding.Id = otherBuildingId;
+            world.Buildings.Set(otherBuildingId, otherBuilding);
+            grid.SetBuilding(new CellPos(10, 10), otherBuildingId);
+
+            var unrelatedTowerId = world.Towers.Create(new TowerState
+            {
+                Cell = new CellPos(10, 10),
+                Hp = 100,
+                HpMax = 100,
+                Ammo = 12,
+                AmmoCap = 12,
+            });
+            var unrelatedTower = world.Towers.Get(unrelatedTowerId);
+            unrelatedTower.Id = unrelatedTowerId;
+            world.Towers.Set(unrelatedTowerId, unrelatedTower);
+
+            worldIndex.RebuildAll();
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                BuildOrderInvariantHelper.AssertBuildInvariant(world, grid, data, worldIndex, targetBuildingId));
+
+            Assert.That(ex.Message, Does.Contain("WorldIndex is missing building"));
+        }
+
+        [Test]
+        public void BuildInvariant_TowerBuilding_PassesOnlyWhenExactTowerBackingExists()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_arrowtower_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsTower = true });
+            data.AddTower(new TowerDef { DefId = "bld_arrowtower_t1", MaxHp = 100, AmmoMax = 12 });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var worldIndex = new WorldIndexService(world, data);
+
+            var buildingId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_arrowtower_t1",
+                Anchor = new CellPos(4, 5),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+            grid.SetBuilding(new CellPos(4, 5), buildingId);
+
+            var towerId = world.Towers.Create(new TowerState
+            {
+                Cell = new CellPos(4, 5),
+                Hp = 100,
+                HpMax = 100,
+                Ammo = 12,
+                AmmoCap = 12,
+            });
+            var tower = world.Towers.Get(towerId);
+            tower.Id = towerId;
+            world.Towers.Set(towerId, tower);
+
+            worldIndex.RebuildAll();
+
+            Assert.DoesNotThrow(() =>
+                BuildOrderInvariantHelper.AssertBuildInvariant(world, grid, data, worldIndex, buildingId));
         }
 
         [Test]

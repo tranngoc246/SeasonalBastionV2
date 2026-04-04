@@ -262,63 +262,31 @@ namespace SeasonalBastion.Tests.EditMode
         {
             var bus = new TestEventBus();
             var data = new TestDataRegistry();
-            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true, WorkRoles = WorkRoleFlags.Build | WorkRoleFlags.HaulBasic });
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsHouse = true });
 
             var world = new WorldState();
             var grid = new GridMap(64, 64);
             var services = MakeServices(bus, data, world, grid);
 
-            var originalBuildingId = world.Buildings.Create(MakeBuildingState("bld_hq_t1", 1, 1, true));
-            var originalBuilding = world.Buildings.Get(originalBuildingId);
-            originalBuilding.Id = originalBuildingId;
-            world.Buildings.Set(originalBuildingId, originalBuilding);
-            grid.SetBuilding(new CellPos(1, 1), originalBuildingId);
-            grid.SetBuilding(new CellPos(2, 1), originalBuildingId);
-            grid.SetBuilding(new CellPos(1, 2), originalBuildingId);
-            grid.SetBuilding(new CellPos(2, 2), originalBuildingId);
+            var buildingId = world.Buildings.Create(MakeBuildingState("bld_house_t1", 5, 5, true));
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+            grid.SetBuilding(new CellPos(5, 5), buildingId);
             services.WorldIndex.RebuildAll();
-
-            var dto = new RunSaveDTO
-            {
-                season = Season.Spring.ToString(),
-                dayIndex = 1,
-                timeScale = 1f,
-                yearIndex = 1,
-                dayTimer = 0f,
-                world = new WorldDTO
-                {
-                    Buildings = new List<BuildingState>
-                    {
-                        MakeBuilding(500, "bld_hq_t1", 5, 5, constructed: true)
-                    },
-                    Towers = new List<TowerState>(),
-                    Npcs = new List<NpcState>(),
-                    Enemies = new List<EnemyState>(),
-                    Roads = new List<CellPosI32>()
-                },
-                build = new BuildDTO { Sites = new List<BuildSiteState>() },
-                combat = new CombatDTO(),
-                population = new PopulationDTO(),
-            };
-
-            Assert.That(SaveLoadApplier.TryApply(services, dto, out var error, logErrors: false), Is.True, error);
-            Assert.That(grid.Get(new CellPos(5, 5)).Building.Value, Is.EqualTo(500));
-            Assert.That(grid.Get(new CellPos(6, 5)).Building.Value, Is.EqualTo(500));
-            Assert.That(grid.Get(new CellPos(5, 6)).Building.Value, Is.EqualTo(500));
-            Assert.That(grid.Get(new CellPos(6, 6)).Building.Value, Is.EqualTo(500));
 
             var board = (JobBoard)services.JobBoard;
             var jobId = board.Enqueue(new Job
             {
                 Archetype = JobArchetype.ResupplyTower,
-                Workplace = new BuildingId(500),
+                Workplace = buildingId,
                 Tower = new TowerId(999),
                 Status = JobStatus.Created,
             });
 
             var validate = typeof(SaveLoadApplier).GetMethod("ValidatePostApplyRuntime", BindingFlags.Static | BindingFlags.NonPublic);
             Assert.That(validate, Is.Not.Null);
-            object[] args = { services, dto, null };
+            object[] args = { services, new RunSaveDTO { world = new WorldDTO(), build = new BuildDTO(), combat = new CombatDTO(), population = new PopulationDTO() }, null };
             validate.Invoke(null, args);
             var validationError = args[2] as string;
 

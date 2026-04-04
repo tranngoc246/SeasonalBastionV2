@@ -193,7 +193,7 @@ namespace SeasonalBastion
                     return;
             }
 
-            if (!_owner.TryPickPreferredHaulerWorkplace_Core(forgeAnchor, out var workplace))
+            if (!_owner.TryPickPreferredHaulerWorkplace(forgeAnchor, out var workplace))
                 return;
 
             var j = new Job

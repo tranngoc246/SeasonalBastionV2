@@ -26,7 +26,7 @@ namespace SeasonalBastion
             if (!_recipeProvider.TryGetAmmoRecipe(out var recipe))
                 return false;
 
-            _owner.RebuildWorkplaceHasNpcSet_Core();
+            _owner.RebuildWorkplaceHasNpcSet();
             if (!_owner.WorkplacesWithNpc.Contains(forge.Value)) return false;
 
             int outCap = _s.StorageService.GetCap(forge, recipe.OutputType);

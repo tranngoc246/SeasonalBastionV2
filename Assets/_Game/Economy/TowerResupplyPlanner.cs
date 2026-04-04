@@ -34,14 +34,14 @@ namespace SeasonalBastion
                     if (j.Workplace.Value != 0)
                         _owner.ResupplyJobByArmory.Remove(j.Workplace.Value);
                     else
-                        _owner.RemoveArmoryMappingByJob_Core(jid);
+                        _owner.RemoveArmoryMappingByJob(jid);
 
                     if (_s.WorldState != null && _s.WorldState.Towers.Exists(new TowerId(tid)))
                         _owner.MaybeRequeueTowerAmmoRequest(new TowerId(tid));
                 }
             }
 
-            _owner.CleanupResupplyArmoryMappings_Core();
+            _owner.CleanupResupplyArmoryMappings();
         }
 
         internal void EnsureResupplyTowerJobs()

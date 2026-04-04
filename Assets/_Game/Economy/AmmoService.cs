@@ -223,29 +223,16 @@ namespace SeasonalBastion
             _metricsReporter.Clear();
         }
 
-        internal void UpdateDebugMetrics_Core() => _metricsReporter.UpdateDebugMetrics(_resupplyTracking.CountTrackedActiveJobs());
-        internal void LogPotentialResupplyDeadlock_Core() => _recoveryService.LogPotentialResupplyDeadlock();
-        internal void CleanupResupplyArmoryMappings_Core() => _resupplyTracking.CleanupArmoryMappings();
-        internal void RemoveArmoryMappingByJob_Core(JobId jobId) => _resupplyTracking.RemoveArmoryMappingByJob(jobId);
+        internal void CleanupResupplyArmoryMappings() => _resupplyTracking.CleanupArmoryMappings();
+        internal void RemoveArmoryMappingByJob(JobId jobId) => _resupplyTracking.RemoveArmoryMappingByJob(jobId);
         internal int CountEligibleResupplyRequests() => _requestQueue.CountEligibleRequests();
-        internal int CountTrackedActiveResupplyJobs_Core() => _resupplyTracking.CountTrackedActiveJobs();
         internal void PruneInvalidResupplyRequests() => _requestQueue.PruneInvalidRequests(TowerNoJobLogged, TowerDeadlockLogged);
-        internal bool ContainsRequestForTower_Core(List<AmmoRequest> list, TowerId tower) => _topologyCache.ContainsRequestForTower(list, tower);
-        internal bool TryGetAmmoRecipe_Core(out RecipeDef recipe) => _recipeProvider.TryGetAmmoRecipe(out recipe);
-        internal bool HasCapForForgeInputs_Core(BuildingId forge, RecipeDef recipe) => _armoryBufferPlanner.HasCapForForgeInputs(forge, recipe);
-        internal void EnsureForgeSupplyByRecipe_Core(BuildingId forge, CellPos forgeAnchor, RecipeDef recipe) => _armoryBufferPlanner.EnsureForgeSupplyByRecipe(forge, forgeAnchor, recipe);
-        internal void EnsureResupplyTowerJobs_Core() => _towerResupplyPlanner.EnsureResupplyTowerJobs();
-        internal void CleanupResupplyTowerInFlight_Core() => _towerResupplyPlanner.CleanupResupplyTowerInFlight();
         internal bool TryPickBestRequest(out List<AmmoRequest> list, out int index, out AmmoRequest req, out TowerState towerState)
             => _requestQueue.TryPickBestRequest(ResupplyJobByTower, out list, out index, out req, out towerState);
-        internal bool TryCreateNextResupplyTowerJob_Core() => _towerResupplyPlanner.TryCreateNextResupplyTowerJob();
-        internal bool TryPickBestResupplySource_Core(TowerState towerState, out BuildingId source, out BuildingState sourceState, out int availableAmmo) => _towerResupplyPlanner.TryPickBestResupplySource(towerState, out source, out sourceState, out availableAmmo);
-        internal void EvaluateResupplySources_Core(IReadOnlyList<BuildingId> candidates, CellPos targetCell, int rank, ref BuildingId bestSource, ref BuildingState bestState, ref int bestAmmo, ref int bestRank, ref int bestDist, ref int bestId) => _towerResupplyPlanner.EvaluateResupplySources(candidates, targetCell, rank, ref bestSource, ref bestState, ref bestAmmo, ref bestRank, ref bestDist, ref bestId);
         internal void ConsumeRequestAt(List<AmmoRequest> list, int index) => _requestQueue.ConsumeRequestAt(list, index);
         internal void RotateRequestToBack(List<AmmoRequest> list, int index, AmmoRequest req) => _requestQueue.RotateRequestToBack(list, index, req);
-        internal bool TryPickPreferredHaulerWorkplace_Core(CellPos forgeAnchor, out BuildingId workplace) => _topologyCache.TryPickPreferredHaulerWorkplace(forgeAnchor, out workplace);
-        internal bool TryPickNearestWorkplaceFromIndex_Core(IReadOnlyList<BuildingId> list, CellPos from, bool requireNpc, out BuildingId best) => _topologyCache.TryPickNearestWorkplaceFromIndex(list, from, requireNpc, out best);
-        internal void RebuildWorkplaceHasNpcSet_Core() => _topologyCache.RebuildWorkplaceHasNpcSet();
+        internal bool TryPickPreferredHaulerWorkplace(CellPos forgeAnchor, out BuildingId workplace) => _topologyCache.TryPickPreferredHaulerWorkplace(forgeAnchor, out workplace);
+        internal void RebuildWorkplaceHasNpcSet() => _topologyCache.RebuildWorkplaceHasNpcSet();
 
         internal static bool IsTerminal(JobStatus s)
         {
@@ -258,11 +245,6 @@ namespace SeasonalBastion
             int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
             return dx + dy;
         }
-
-        internal void EnsureArmoryAmmoBuffer_Core() => _armoryBufferPlanner.EnsureArmoryAmmoBuffer();
-        internal bool TryPickForgeAmmoSource_Core(CellPos refPos, out BuildingId bestForge, out int bestTakeable) => _armoryBufferPlanner.TryPickForgeAmmoSource(refPos, out bestForge, out bestTakeable);
-        internal void ReconcileOutstandingTowerNeeds_Core() => _topologyCache.ReconcileOutstandingTowerNeeds();
-        internal void CleanupDestroyedTowerCaches_Core() => _topologyCache.CleanupDestroyedTowerCaches();
 
         internal void RemoveTowerCacheState(int tid)
         {
@@ -296,9 +278,6 @@ namespace SeasonalBastion
             return thr;
         }
 
-        internal void ScanTowersAndNotify_Core() => _topologyCache.ScanTowersAndNotify();
-        internal void DevHookTick_Core(float dt) => _debugHooks.Tick(dt);
-        internal void EnsureTestTowerExistsIfNeeded_Core() => _debugHooks.EnsureTestTowerExistsIfNeeded();
         internal void RecordTowerSnapshot(TowerId towerId, int ammo, int cap) => _towerStateTracker.RecordSnapshot(towerId, ammo, cap);
         internal bool MatchesTowerSnapshot(TowerId towerId, int ammo, int cap) => _towerStateTracker.MatchesSnapshot(towerId, ammo, cap);
         internal void MaybeRequeueTowerAmmoRequest(TowerId tower) => _recoveryService.MaybeRequeueTowerAmmoRequest(tower);

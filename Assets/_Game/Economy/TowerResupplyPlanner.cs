@@ -42,15 +42,14 @@ namespace SeasonalBastion
                 }
             }
 
-            CleanupResupplyArmoryMappings();
+            _owner.CleanupResupplyArmoryMappings_Core();
         }
 
         internal void EnsureResupplyTowerJobs()
         {
-            PruneInvalidRequests(_owner.UrgentRequests);
-            PruneInvalidRequests(_owner.NormalRequests);
+            _owner.PruneInvalidResupplyRequests();
 
-            int guard = CountEligibleRequests() + 4;
+            int guard = _owner.CountEligibleResupplyRequests() + 4;
             while (guard-- > 0)
             {
                 if (!TryCreateNextResupplyTowerJob())
@@ -230,7 +229,7 @@ namespace SeasonalBastion
                 return;
             }
 
-            int eligibleRequests = CountEligibleRequests();
+            int eligibleRequests = _owner.CountEligibleResupplyRequests();
             if (eligibleRequests <= 0)
                 return;
 
@@ -243,7 +242,7 @@ namespace SeasonalBastion
             _owner.Debug_TotalTowers = 0;
             _owner.Debug_TowersWithoutAmmo = 0;
             _owner.Debug_ArmoryAvailableAmmo = 0;
-            _owner.Debug_ActiveResupplyJobs = CountTrackedActiveResupplyJobs();
+            _owner.Debug_ActiveResupplyJobs = _owner.CountTrackedActiveResupplyJobs_Core();
 
             var towers = _s.WorldIndex.Towers;
             if (towers != null)
@@ -273,75 +272,6 @@ namespace SeasonalBastion
             }
         }
 
-        private void CleanupResupplyArmoryMappings()
-        {
-            if (_owner.ResupplyJobByArmory.Count == 0) return;
-
-            _owner.TempTowerKeys.Clear();
-            foreach (var kv in _owner.ResupplyJobByArmory)
-                _owner.TempTowerKeys.Add(kv.Key);
-
-            for (int i = 0; i < _owner.TempTowerKeys.Count; i++)
-            {
-                int armoryId = _owner.TempTowerKeys[i];
-                var jid = _owner.ResupplyJobByArmory[armoryId];
-                if (!_s.JobBoard.TryGet(jid, out var j) || AmmoService.IsTerminal(j.Status))
-                    _owner.ResupplyJobByArmory.Remove(armoryId);
-            }
-        }
-
-        private void RemoveArmoryMappingByJob(JobId jobId)
-        {
-            if (_owner.ResupplyJobByArmory.Count == 0) return;
-
-            _owner.TempTowerKeys.Clear();
-            foreach (var kv in _owner.ResupplyJobByArmory)
-            {
-                if (kv.Value.Value == jobId.Value)
-                    _owner.TempTowerKeys.Add(kv.Key);
-            }
-
-            for (int i = 0; i < _owner.TempTowerKeys.Count; i++)
-                _owner.ResupplyJobByArmory.Remove(_owner.TempTowerKeys[i]);
-        }
-
-        private int CountEligibleRequests()
-        {
-            int count = 0;
-            count += CountEligibleRequests(_owner.UrgentRequests);
-            count += CountEligibleRequests(_owner.NormalRequests);
-            return count;
-        }
-
-        private int CountTrackedActiveResupplyJobs()
-        {
-            int count = 0;
-            foreach (var kv in _owner.ResupplyJobByTower)
-            {
-                if (!_s.JobBoard.TryGet(kv.Value, out var job))
-                    continue;
-                if (!AmmoService.IsTerminal(job.Status))
-                    count++;
-            }
-            return count;
-        }
-
-        private int CountEligibleRequests(List<AmmoRequest> list)
-        {
-            int count = 0;
-            for (int i = 0; i < list.Count; i++)
-            {
-                var req = list[i];
-                if (req.Tower.Value == 0) continue;
-                if (!_s.WorldState.Towers.Exists(req.Tower)) continue;
-                var tower = _s.WorldState.Towers.Get(req.Tower);
-                if (tower.AmmoCap <= 0) continue;
-                if (tower.Ammo >= tower.AmmoCap) continue;
-                count++;
-            }
-            return count;
-        }
-
         private void LogDeadlockForRequests(List<AmmoRequest> list)
         {
             if (list == null) return;
@@ -355,40 +285,5 @@ namespace SeasonalBastion
             }
         }
 
-        private void PruneInvalidRequests(List<AmmoRequest> list)
-        {
-            if (list == null || list.Count == 0) return;
-
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var r = list[i];
-                int tid = r.Tower.Value;
-                bool remove = false;
-
-                if (tid == 0) remove = true;
-                else if (!_s.WorldState.Towers.Exists(r.Tower)) remove = true;
-                else
-                {
-                    var ts = _s.WorldState.Towers.Get(r.Tower);
-                    if (ts.AmmoCap <= 0) remove = true;
-                    else
-                    {
-                        int need = ts.AmmoCap - ts.Ammo;
-                        if (need <= 0) remove = true;
-                    }
-                }
-
-                if (!remove) continue;
-
-                list.RemoveAt(i);
-                if (tid != 0)
-                {
-                    _owner.PendingReqTower.Remove(tid);
-                    _owner.PendingPriorityByTower.Remove(tid);
-                    _owner.TowerNoJobLogged.Remove(tid);
-                    _owner.TowerDeadlockLogged.Remove(tid);
-                }
-            }
-        }
     }
 }

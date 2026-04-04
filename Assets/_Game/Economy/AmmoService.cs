@@ -11,10 +11,10 @@ namespace SeasonalBastion
         private readonly ArmoryBufferPlanner _armoryBufferPlanner;
         private readonly TowerResupplyPlanner _towerResupplyPlanner;
         private readonly AmmoDebugHooks _debugHooks;
-        private readonly List<AmmoRequest> _urgent = new();
-        private readonly List<AmmoRequest> _normal = new();
-        internal List<AmmoRequest> UrgentRequests => _urgent;
-        internal List<AmmoRequest> NormalRequests => _normal;
+        private readonly AmmoRequestQueue _requestQueue;
+        private readonly AmmoResupplyTracking _resupplyTracking;
+        internal List<AmmoRequest> UrgentRequests => _requestQueue.UrgentRequests;
+        internal List<AmmoRequest> NormalRequests => _requestQueue.NormalRequests;
 
         // Deterministic sim-time (no Unity realtime)
         private float _simTime;
@@ -39,10 +39,8 @@ namespace SeasonalBastion
         private readonly Dictionary<int, float> _nextReqEmptyAt = new();
 
         // Anti-dup pending request per tower (supports promote low->empty)
-        private readonly HashSet<int> _pendingReqTower = new();
-        internal HashSet<int> PendingReqTower => _pendingReqTower;
-        private readonly Dictionary<int, AmmoRequestPriority> _pendingPriorityByTower = new();
-        internal Dictionary<int, AmmoRequestPriority> PendingPriorityByTower => _pendingPriorityByTower;
+        internal HashSet<int> PendingReqTower => _requestQueue.PendingReqTower;
+        internal Dictionary<int, AmmoRequestPriority> PendingPriorityByTower => _requestQueue.PendingPriorityByTower;
 
         // ----------------- Day25 DEV HOOK (no combat yet) -----------------
         // Toggle from Debug HUD. When enabled, ammo will be drained periodically from towers to simulate firing.
@@ -64,12 +62,9 @@ namespace SeasonalBastion
         internal Dictionary<int, JobId> HaulAmmoJobByArmory => _haulAmmoJobByArmory;
 
         // Day26: 1 pending ResupplyTower job per source/tower
-        private readonly Dictionary<int, JobId> _resupplyJobByArmory = new();
-        internal Dictionary<int, JobId> ResupplyJobByArmory => _resupplyJobByArmory;
-        private readonly Dictionary<int, JobId> _resupplyJobByTower = new();
-        internal Dictionary<int, JobId> ResupplyJobByTower => _resupplyJobByTower;
-        private readonly List<int> _tmpTowerKeys = new(64);
-        internal List<int> TempTowerKeys => _tmpTowerKeys;
+        internal Dictionary<int, JobId> ResupplyJobByArmory => _resupplyTracking.ResupplyJobByArmory;
+        internal Dictionary<int, JobId> ResupplyJobByTower => _resupplyTracking.ResupplyJobByTower;
+        internal List<int> TempTowerKeys => _resupplyTracking.TempKeys;
 
         // Reuse buffers
         private readonly List<NpcId> _npcIds = new(64);
@@ -83,10 +78,10 @@ namespace SeasonalBastion
         private string _cachedAmmoRecipeId = null;
         internal string CachedAmmoRecipeId { get => _cachedAmmoRecipeId; set => _cachedAmmoRecipeId = value; }
 
-        public int Debug_InFlightResupplyJobs => _resupplyJobByTower.Count;
+        public int Debug_InFlightResupplyJobs => _resupplyTracking.InFlightCount;
         public int Debug_InFlightHaulAmmoJobs => _haulAmmoJobByArmory.Count;
-        public int Debug_PendingUrgent => _urgent.Count;
-        public int Debug_PendingNormal => _normal.Count;
+        public int Debug_PendingUrgent => _requestQueue.UrgentRequests.Count;
+        public int Debug_PendingNormal => _requestQueue.NormalRequests.Count;
         public int Debug_TotalTowers { get; internal set; }
         public int Debug_TowersWithoutAmmo { get; internal set; }
         public int Debug_ActiveResupplyJobs { get; internal set; }
@@ -99,9 +94,11 @@ namespace SeasonalBastion
             _armoryBufferPlanner = new ArmoryBufferPlanner(this);
             _towerResupplyPlanner = new TowerResupplyPlanner(this);
             _debugHooks = new AmmoDebugHooks(this);
+            _requestQueue = new AmmoRequestQueue(s);
+            _resupplyTracking = new AmmoResupplyTracking(s);
         }
 
-        public int PendingRequests => _urgent.Count + _normal.Count;
+        public int PendingRequests => _requestQueue.PendingRequests;
         internal GameServices Services => _s;
 
         // ----------------- Tunables (prefer Balance json if present; fallback to defaults) -----------------
@@ -132,7 +129,7 @@ namespace SeasonalBastion
             int tid = tower.Value;
 
             // Day38: nếu tower đã có ResupplyTower job in-flight thì không enqueue request mới (anti-spam)
-            if (_resupplyJobByTower.TryGetValue(tid, out var inflight))
+            if (ResupplyJobByTower.TryGetValue(tid, out var inflight))
             {
                 if (_s.JobBoard != null && _s.JobBoard.TryGet(inflight, out var jj) && !IsTerminal(jj.Status))
                     return;
@@ -227,73 +224,9 @@ namespace SeasonalBastion
             EnqueueRequest(req);
         }
 
-        public void EnqueueRequest(AmmoRequest req)
-        {
-            int tid = req.Tower.Value;
-            if (tid == 0) return;
+        public void EnqueueRequest(AmmoRequest req) => _requestQueue.Enqueue(req);
 
-            if (_pendingReqTower.Contains(tid))
-            {
-                if (_pendingPriorityByTower.TryGetValue(tid, out var oldPri)
-                    && oldPri == AmmoRequestPriority.Normal
-                    && req.Priority == AmmoRequestPriority.Urgent)
-                {
-                    for (int i = 0; i < _normal.Count; i++)
-                    {
-                        if (_normal[i].Tower.Value == tid)
-                        {
-                            _normal.RemoveAt(i);
-                            break;
-                        }
-                    }
-
-                    _urgent.Add(req);
-                    _pendingPriorityByTower[tid] = AmmoRequestPriority.Urgent;
-                }
-
-                return;
-            }
-
-            _pendingReqTower.Add(tid);
-            _pendingPriorityByTower[tid] = req.Priority;
-
-            if (req.Priority == AmmoRequestPriority.Urgent) _urgent.Add(req);
-            else _normal.Add(req);
-        }
-
-        public bool TryDequeueNext(out AmmoRequest req)
-        {
-            if (_urgent.Count > 0)
-            {
-                req = _urgent[0];
-                _urgent.RemoveAt(0);
-
-                int tid = req.Tower.Value;
-                if (tid != 0)
-                {
-                    _pendingReqTower.Remove(tid);
-                    _pendingPriorityByTower.Remove(tid);
-                }
-                return true;
-            }
-
-            if (_normal.Count > 0)
-            {
-                req = _normal[0];
-                _normal.RemoveAt(0);
-
-                int tid = req.Tower.Value;
-                if (tid != 0)
-                {
-                    _pendingReqTower.Remove(tid);
-                    _pendingPriorityByTower.Remove(tid);
-                }
-                return true;
-            }
-
-            req = default;
-            return false;
-        }
+        public bool TryDequeueNext(out AmmoRequest req) => _requestQueue.TryDequeueNext(out req);
 
         public bool TryStartCraft(BuildingId forge) => TryStartCraft_Core(forge);
 
@@ -414,52 +347,13 @@ namespace SeasonalBastion
             _towerResupplyPlanner.LogPotentialResupplyDeadlock();
         }
 
-        public void RebuildInFlightResupplyFromJobBoardAfterLoad()
-        {
-            _resupplyJobByArmory.Clear();
-            _resupplyJobByTower.Clear();
-
-            var board = _s?.JobBoard;
-            if (board == null)
-                return;
-
-            try
-            {
-                var boardType = board.GetType();
-                var jobsField = boardType.GetField("_jobs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                if (jobsField?.GetValue(board) is not Dictionary<int, Job> jobs)
-                    return;
-
-                foreach (var kv in jobs)
-                {
-                    var job = kv.Value;
-                    if (job.Archetype != JobArchetype.ResupplyTower)
-                        continue;
-                    if (IsTerminal(job.Status))
-                        continue;
-                    if (job.Tower.Value == 0 || job.Workplace.Value == 0)
-                        continue;
-                    if (_s.WorldState?.Towers == null || !_s.WorldState.Towers.Exists(job.Tower))
-                        continue;
-                    if (_s.WorldState?.Buildings == null || !_s.WorldState.Buildings.Exists(job.Workplace))
-                        continue;
-
-                    _resupplyJobByTower[job.Tower.Value] = job.Id;
-                    _resupplyJobByArmory[job.Workplace.Value] = job.Id;
-                }
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to rebuild in-flight resupply jobs after load: {ex}");
-            }
-        }
+        public void RebuildInFlightResupplyFromJobBoardAfterLoad() => _resupplyTracking.RebuildFromJobBoard();
 
         public void ClearAll()
         {
             // IMPORTANT (VS3 hardening): clear ALL runtime caches.
 
-            _urgent.Clear();
-            _normal.Clear();
+            _requestQueue.Clear();
 
             _simTime = 0f;
             _devHookTimer = 0f;
@@ -475,16 +369,11 @@ namespace SeasonalBastion
             _nextReqLowAt.Clear();
             _nextReqEmptyAt.Clear();
 
-            _pendingReqTower.Clear();
-            _pendingPriorityByTower.Clear();
-
             _supplyJobByForgeAndType.Clear();
             _craftJobByForge.Clear();
             _haulAmmoJobByArmory.Clear();
-            _resupplyJobByArmory.Clear();
-            _resupplyJobByTower.Clear();
+            _resupplyTracking.Clear();
 
-            _tmpTowerKeys.Clear();
             _npcIds.Clear();
             _workplacesWithNpc.Clear();
 
@@ -500,27 +389,12 @@ namespace SeasonalBastion
         internal void UpdateDebugMetrics_Core() => _towerResupplyPlanner.UpdateDebugMetrics();
 
         internal void LogPotentialResupplyDeadlock_Core() => _towerResupplyPlanner.LogPotentialResupplyDeadlock();
+        internal void CleanupResupplyArmoryMappings_Core() => CleanupResupplyArmoryMappings();
+        internal int CountEligibleResupplyRequests() => CountEligibleRequests();
+        internal int CountTrackedActiveResupplyJobs_Core() => CountTrackedActiveResupplyJobs();
+        internal void PruneInvalidResupplyRequests() => _requestQueue.PruneInvalidRequests(_towerNoJobLogged, _towerDeadlockLogged);
 
-        private void LogDeadlockForRequests(List<AmmoRequest> list)
-        {
-            if (list == null) return;
-
-            for (int i = 0; i < list.Count; i++)
-            {
-                int tid = list[i].Tower.Value;
-                if (tid == 0) continue;
-                if (_towerDeadlockLogged.Add(tid))
-                    Log.E($"[Ammo] Armory has ammo but no job created. tower={tid} totalTowers={Debug_TotalTowers} emptyTowers={Debug_TowersWithoutAmmo} activeResupplyJobs={Debug_ActiveResupplyJobs} armoryAmmo={Debug_ArmoryAvailableAmmo} pending={PendingRequests}");
-            }
-        }
-
-        private int CountEligibleRequests()
-        {
-            int count = 0;
-            count += CountEligibleRequests(_urgent);
-            count += CountEligibleRequests(_normal);
-            return count;
-        }
+        private int CountEligibleRequests() => _requestQueue.CountEligibleRequests();
 
         private bool TryGetAmmoRecipe(out RecipeDef recipe) => TryGetAmmoRecipe_Core(out recipe);
         private void RebuildWorkplaceHasNpcSet() => RebuildWorkplaceHasNpcSet_Core();
@@ -532,35 +406,7 @@ namespace SeasonalBastion
         private bool TryPickForgeAmmoSource(CellPos refPos, out BuildingId bestForge, out int bestTakeable) => TryPickForgeAmmoSource_Core(refPos, out bestForge, out bestTakeable);
         private bool ContainsRequestForTower(List<AmmoRequest> list, TowerId tower) => ContainsRequestForTower_Core(list, tower);
 
-        private int CountTrackedActiveResupplyJobs()
-        {
-            int count = 0;
-            foreach (var kv in _resupplyJobByTower)
-            {
-                if (!_s.JobBoard.TryGet(kv.Value, out var job))
-                    continue;
-
-                if (!IsTerminal(job.Status))
-                    count++;
-            }
-            return count;
-        }
-
-        private int CountEligibleRequests(List<AmmoRequest> list)
-        {
-            int count = 0;
-            for (int i = 0; i < list.Count; i++)
-            {
-                var req = list[i];
-                if (req.Tower.Value == 0) continue;
-                if (!_s.WorldState.Towers.Exists(req.Tower)) continue;
-                var tower = _s.WorldState.Towers.Get(req.Tower);
-                if (tower.AmmoCap <= 0) continue;
-                if (tower.Ammo >= tower.AmmoCap) continue;
-                count++;
-            }
-            return count;
-        }
+        private int CountTrackedActiveResupplyJobs() => _resupplyTracking.CountTrackedActiveJobs();
 
         internal bool ContainsRequestForTower_Core(List<AmmoRequest> list, TowerId tower) => _topologyCache.ContainsRequestForTower(list, tower);
 
@@ -628,104 +474,12 @@ namespace SeasonalBastion
 
         internal void CleanupResupplyTowerInFlight_Core() => _towerResupplyPlanner.CleanupResupplyTowerInFlight();
 
-        private void CleanupResupplyArmoryMappings()
-        {
-            if (_resupplyJobByArmory.Count == 0) return;
+        private void CleanupResupplyArmoryMappings() => _resupplyTracking.CleanupArmoryMappings();
 
-            _tmpTowerKeys.Clear();
-            foreach (var kv in _resupplyJobByArmory)
-                _tmpTowerKeys.Add(kv.Key);
-
-            for (int i = 0; i < _tmpTowerKeys.Count; i++)
-            {
-                int armoryId = _tmpTowerKeys[i];
-                var jid = _resupplyJobByArmory[armoryId];
-                if (!_s.JobBoard.TryGet(jid, out var j) || IsTerminal(j.Status))
-                    _resupplyJobByArmory.Remove(armoryId);
-            }
-        }
-
-        private void RemoveArmoryMappingByJob(JobId jobId)
-        {
-            if (_resupplyJobByArmory.Count == 0) return;
-
-            _tmpTowerKeys.Clear();
-            foreach (var kv in _resupplyJobByArmory)
-            {
-                if (kv.Value.Value == jobId.Value)
-                    _tmpTowerKeys.Add(kv.Key);
-            }
-
-            for (int i = 0; i < _tmpTowerKeys.Count; i++)
-                _resupplyJobByArmory.Remove(_tmpTowerKeys[i]);
-        }
+        private void RemoveArmoryMappingByJob(JobId jobId) => _resupplyTracking.RemoveArmoryMappingByJob(jobId);
 
         internal bool TryPickBestRequest(out List<AmmoRequest> list, out int index, out AmmoRequest req, out TowerState towerState)
-        {
-            if (TryFindBestRequestIndex(_urgent, out index, out req, out towerState))
-            {
-                list = _urgent;
-                return true;
-            }
-
-            if (TryFindBestRequestIndex(_normal, out index, out req, out towerState))
-            {
-                list = _normal;
-                return true;
-            }
-
-            list = null;
-            index = -1;
-            req = default;
-            towerState = default;
-            return false;
-        }
-
-        private bool TryFindBestRequestIndex(List<AmmoRequest> src, out int bestIndex, out AmmoRequest bestReq, out TowerState bestTowerState)
-        {
-            bestIndex = -1;
-            bestReq = default;
-            bestTowerState = default;
-
-            int bestStateRank = int.MaxValue;
-            int bestAmmo = int.MaxValue;
-            int bestTid = int.MaxValue;
-
-            for (int i = 0; i < src.Count; i++)
-            {
-                var r = src[i];
-
-                int tid = r.Tower.Value;
-                if (tid == 0) continue;
-                if (!_s.WorldState.Towers.Exists(r.Tower)) continue;
-
-                if (_resupplyJobByTower.TryGetValue(tid, out var inFlightJob))
-                {
-                    if (_s.JobBoard.TryGet(inFlightJob, out var jj) && !IsTerminal(jj.Status))
-                        continue;
-
-                    _resupplyJobByTower.Remove(tid);
-                }
-
-                var ts = _s.WorldState.Towers.Get(r.Tower);
-                int need = ts.AmmoCap - ts.Ammo;
-                if (ts.AmmoCap <= 0 || need <= 0) continue;
-
-                int stateRank = ts.Ammo <= 0 ? 0 : 1;
-                int ammo = ts.Ammo;
-                if (stateRank < bestStateRank || (stateRank == bestStateRank && (ammo < bestAmmo || (ammo == bestAmmo && tid < bestTid))))
-                {
-                    bestStateRank = stateRank;
-                    bestAmmo = ammo;
-                    bestTid = tid;
-                    bestIndex = i;
-                    bestReq = r;
-                    bestTowerState = ts;
-                }
-            }
-
-            return bestIndex >= 0;
-        }
+            => _requestQueue.TryPickBestRequest(ResupplyJobByTower, out list, out index, out req, out towerState);
 
         internal bool TryCreateNextResupplyTowerJob_Core() => _towerResupplyPlanner.TryCreateNextResupplyTowerJob();
 
@@ -733,66 +487,9 @@ namespace SeasonalBastion
 
         internal void EvaluateResupplySources_Core(IReadOnlyList<BuildingId> candidates, CellPos targetCell, int rank, ref BuildingId bestSource, ref BuildingState bestState, ref int bestAmmo, ref int bestRank, ref int bestDist, ref int bestId) => _towerResupplyPlanner.EvaluateResupplySources(candidates, targetCell, rank, ref bestSource, ref bestState, ref bestAmmo, ref bestRank, ref bestDist, ref bestId);
 
-        internal void ConsumeRequestAt(List<AmmoRequest> list, int index)
-        {
-            if (list == null) return;
-            if (index < 0 || index >= list.Count) return;
+        internal void ConsumeRequestAt(List<AmmoRequest> list, int index) => _requestQueue.ConsumeRequestAt(list, index);
 
-            int tid = list[index].Tower.Value;
-            list.RemoveAt(index);
-
-            if (tid != 0)
-            {
-                _pendingReqTower.Remove(tid);
-                _pendingPriorityByTower.Remove(tid);
-            }
-        }
-
-        internal void RotateRequestToBack(List<AmmoRequest> list, int index, AmmoRequest req)
-        {
-            if (list == null) return;
-            if (index < 0 || index >= list.Count) return;
-
-            list.RemoveAt(index);
-            list.Add(req);
-        }
-
-        private void PruneInvalidRequests(List<AmmoRequest> list)
-        {
-            if (list == null || list.Count == 0) return;
-
-            for (int i = list.Count - 1; i >= 0; i--)
-            {
-                var r = list[i];
-                int tid = r.Tower.Value;
-
-                bool remove = false;
-
-                if (tid == 0) remove = true;
-                else if (!_s.WorldState.Towers.Exists(r.Tower)) remove = true;
-                else
-                {
-                    var ts = _s.WorldState.Towers.Get(r.Tower);
-                    if (ts.AmmoCap <= 0) remove = true;
-                    else
-                    {
-                        int need = ts.AmmoCap - ts.Ammo;
-                        if (need <= 0) remove = true;
-                    }
-                }
-
-                if (!remove) continue;
-
-                list.RemoveAt(i);
-                if (tid != 0)
-                {
-                    _pendingReqTower.Remove(tid);
-                    _pendingPriorityByTower.Remove(tid);
-                    _towerNoJobLogged.Remove(tid);
-                    _towerDeadlockLogged.Remove(tid);
-                }
-            }
-        }
+        internal void RotateRequestToBack(List<AmmoRequest> list, int index, AmmoRequest req) => _requestQueue.RotateRequestToBack(list, index, req);
 
         internal bool TryPickPreferredHaulerWorkplace_Core(CellPos forgeAnchor, out BuildingId workplace) => _topologyCache.TryPickPreferredHaulerWorkplace(forgeAnchor, out workplace);
 
@@ -836,9 +533,9 @@ namespace SeasonalBastion
             _towerDeadlockLogged.Remove(tid);
             _nextReqLowAt.Remove(tid);
             _nextReqEmptyAt.Remove(tid);
-            _pendingReqTower.Remove(tid);
-            _pendingPriorityByTower.Remove(tid);
-            _resupplyJobByTower.Remove(tid);
+            PendingReqTower.Remove(tid);
+            PendingPriorityByTower.Remove(tid);
+            _resupplyTracking.RemoveTower(tid);
         }
 
         internal int GetArmoryChunkByLevel_Value(int level) => GetArmoryChunkByLevel(level);
@@ -885,8 +582,8 @@ namespace SeasonalBastion
 
             _nextReqEmptyAt.Remove(tower.Value);
             _nextReqLowAt.Remove(tower.Value);
-            _pendingReqTower.Remove(tower.Value);
-            _pendingPriorityByTower.Remove(tower.Value);
+            PendingReqTower.Remove(tower.Value);
+            PendingPriorityByTower.Remove(tower.Value);
             _towerNoJobLogged.Remove(tower.Value);
             _towerDeadlockLogged.Remove(tower.Value);
 

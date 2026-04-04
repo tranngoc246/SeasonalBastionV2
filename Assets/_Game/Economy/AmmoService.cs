@@ -17,6 +17,8 @@ namespace SeasonalBastion
         private readonly AmmoRecoveryService _recoveryService;
         private readonly AmmoMetricsReporter _metricsReporter;
         private readonly AmmoConfigProvider _configProvider;
+        private readonly AmmoRecipeProvider _recipeProvider;
+        private readonly AmmoCraftService _craftService;
         internal List<AmmoRequest> UrgentRequests => _requestQueue.UrgentRequests;
         internal List<AmmoRequest> NormalRequests => _requestQueue.NormalRequests;
 
@@ -100,6 +102,8 @@ namespace SeasonalBastion
             _recoveryService = new AmmoRecoveryService(this);
             _metricsReporter = new AmmoMetricsReporter(this);
             _configProvider = new AmmoConfigProvider(s);
+            _recipeProvider = new AmmoRecipeProvider(this);
+            _craftService = new AmmoCraftService(this, _recipeProvider);
         }
 
         public int PendingRequests => _requestQueue.PendingRequests;
@@ -220,68 +224,7 @@ namespace SeasonalBastion
 
         public bool TryDequeueNext(out AmmoRequest req) => _requestQueue.TryDequeueNext(out req);
 
-        public bool TryStartCraft(BuildingId forge) => TryStartCraft_Core(forge);
-
-        internal bool TryStartCraft_Core(BuildingId forge)
-        {
-            if (_s.WorldState == null || _s.StorageService == null || _s.JobBoard == null || _s.DataRegistry == null) return false;
-            if (!_s.WorldState.Buildings.Exists(forge)) return false;
-
-            var bs = _s.WorldState.Buildings.Get(forge);
-            if (!bs.IsConstructed) return false;
-
-            if (!TryGetAmmoRecipe(out var recipe))
-                return false;
-
-            // Must have NPC at forge workplace, otherwise enqueue is pointless
-            RebuildWorkplaceHasNpcSet();
-            if (!_workplacesWithNpc.Contains(forge.Value)) return false;
-
-            // Check space for output
-            int outCap = _s.StorageService.GetCap(forge, recipe.OutputType);
-            int outCur = _s.StorageService.GetAmount(forge, recipe.OutputType);
-            if (outCap <= 0 || (outCap - outCur) < recipe.OutputAmount) return false;
-
-            // Check local inputs
-            int inCur = _s.StorageService.GetAmount(forge, recipe.InputType);
-            if (inCur < recipe.InputAmount) return false;
-
-            var extras = recipe.ExtraInputs;
-            if (extras != null && extras.Length > 0)
-            {
-                for (int i = 0; i < extras.Length; i++)
-                {
-                    var c = extras[i];
-                    if (c == null || c.Amount <= 0) continue;
-                    int cur = _s.StorageService.GetAmount(forge, c.Resource);
-                    if (cur < c.Amount) return false;
-                }
-            }
-
-            // 1 pending craft job per forge
-            if (_craftJobByForge.TryGetValue(forge.Value, out var oldId))
-            {
-                if (_s.JobBoard.TryGet(oldId, out var old) && !IsTerminal(old.Status))
-                    return false;
-            }
-
-            var j = new Job
-            {
-                Archetype = JobArchetype.CraftAmmo,
-                Status = JobStatus.Created,
-                Workplace = forge,
-                SourceBuilding = forge,
-                DestBuilding = default,
-                ResourceType = recipe.OutputType,
-                Amount = recipe.OutputAmount,
-                TargetCell = bs.Anchor,
-                CreatedAt = 0
-            };
-
-            var id = _s.JobBoard.Enqueue(j);
-            _craftJobByForge[forge.Value] = id;
-            return true;
-        }
+        public bool TryStartCraft(BuildingId forge) => _craftService.TryStartCraft(forge);
 
         public void Tick(float dt)
         {
@@ -345,7 +288,6 @@ namespace SeasonalBastion
 
         private int CountEligibleRequests() => _requestQueue.CountEligibleRequests();
 
-        private bool TryGetAmmoRecipe(out RecipeDef recipe) => TryGetAmmoRecipe_Core(out recipe);
         private void RebuildWorkplaceHasNpcSet() => RebuildWorkplaceHasNpcSet_Core();
         private bool TryPickPreferredHaulerWorkplace(CellPos forgeAnchor, out BuildingId workplace) => TryPickPreferredHaulerWorkplace_Core(forgeAnchor, out workplace);
         private bool TryCreateNextResupplyTowerJob() => TryCreateNextResupplyTowerJob_Core();
@@ -361,57 +303,7 @@ namespace SeasonalBastion
 
         // ----------------- Recipe-driven forge supply -----------------
 
-        internal bool TryGetAmmoRecipe_Core(out RecipeDef recipe)
-        {
-            recipe = null;
-
-            string rid = AmmoRecipeId;
-            if (string.IsNullOrEmpty(rid)) rid = "ForgeAmmo";
-
-            // If recipe id changed, drop cache
-            if (!string.Equals(_cachedAmmoRecipeId, rid, StringComparison.OrdinalIgnoreCase))
-            {
-                _cachedAmmoRecipeId = rid;
-                _cachedAmmoRecipe = null;
-            }
-
-            if (_cachedAmmoRecipe != null)
-            {
-                recipe = _cachedAmmoRecipe;
-                return true;
-            }
-
-            try
-            {
-                var r = _s.DataRegistry.GetRecipe(rid);
-                if (r == null) return false;
-                _cachedAmmoRecipe = r;
-                recipe = r;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to load ammo recipe '{rid}'. Attempting fallback recipe 'ForgeAmmo'. {ex}");
-                // fallback to default once
-                if (!string.Equals(rid, "ForgeAmmo", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        var r = _s.DataRegistry.GetRecipe("ForgeAmmo");
-                        if (r == null) return false;
-                        _cachedAmmoRecipeId = "ForgeAmmo";
-                        _cachedAmmoRecipe = r;
-                        recipe = r;
-                        return true;
-                    }
-                    catch (Exception fallbackEx)
-                    {
-                        UnityEngine.Debug.LogWarning($"[AmmoService] Failed to load fallback recipe 'ForgeAmmo' after recipe '{rid}' lookup failed: {fallbackEx}");
-                    }
-                }
-                return false;
-            }
-        }
+        internal bool TryGetAmmoRecipe_Core(out RecipeDef recipe) => _recipeProvider.TryGetAmmoRecipe(out recipe);
 
         internal bool HasCapForForgeInputs_Core(BuildingId forge, RecipeDef recipe) => _armoryBufferPlanner.HasCapForForgeInputs(forge, recipe);
 
@@ -547,7 +439,7 @@ namespace SeasonalBastion
 
         private void ExecuteAmmoFlow()
         {
-            bool hasRecipe = _armoryBufferPlanner.TryGetAmmoRecipe(out var recipe);
+            bool hasRecipe = _recipeProvider.TryGetAmmoRecipe(out var recipe);
 
             var forges = _s.WorldIndex.Forges;
             for (int i = 0; i < forges.Count; i++)

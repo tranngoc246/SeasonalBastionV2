@@ -1,4 +1,4 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
@@ -320,9 +320,12 @@ namespace SeasonalBastion.Tests.EditMode
 
         private sealed class FakeBuildOrderService : IBuildOrderService
         {
+            public event Action<int> OnOrderCompleted { add { } remove { } }
             public int CreatePlaceOrder(string buildingDefId, CellPos anchor, Dir4 rotation) => 0;
             public int CreateUpgradeOrder(BuildingId building) => 0;
             public int CreateRepairOrder(BuildingId building) => 0;
+            public bool TryGet(int orderId, out BuildOrder order) { order = default; return false; }
+            public void Cancel(int orderId) { }
             public bool CancelBySite(SiteId siteId) => false;
             public bool CancelByBuilding(BuildingId buildingId) => false;
             public void Tick(float dt) { }
@@ -331,27 +334,25 @@ namespace SeasonalBastion.Tests.EditMode
 
         private sealed class FakeCombatService : ICombatService
         {
-            public bool IsActive { get; set; }
-            public event Action<int> OnWaveStarted { add { } remove { } }
-            public event Action<int> OnWaveEnded { add { } remove { } }
-            public event Action OnDefendPhaseStarted { add { } remove { } }
-            public event Action OnDefendPhaseEnded { add { } remove { } }
-            public void StartWave(int waveIndex) { }
+            public bool IsActive { get; private set; }
+            public event Action<string> OnWaveStarted { add { } remove { } }
+            public event Action<string> OnWaveEnded { add { } remove { } }
+            public void OnDefendPhaseStarted() => IsActive = true;
+            public void OnDefendPhaseEnded() => IsActive = false;
             public void Tick(float dt) { }
+            public void SpawnWave(string waveDefId) { }
             public void KillAllEnemies() { }
+            public void ForceResolveWave() { }
             public void ResetAfterLoad(CombatDTO combat) => IsActive = combat != null && combat.IsDefendActive;
-#if UNITY_EDITOR
-            public void DebugSpawnWave(string waveDefId) { }
-#endif
         }
 
         private sealed class FakePopulationService : IPopulationService
         {
             public PopulationState State => new PopulationState();
-            public void Tick(float dt) { }
             public void Reset() { }
-            public void LoadState(float growthProgressDays, int starvationDays, bool starvedToday) { }
             public void RebuildDerivedState() { }
+            public void OnDayStarted() { }
+            public void LoadState(float growthProgressDays, int starvationDays, bool starvedToday) { }
         }
 
         private static BuildingState MakeBuilding(int id, string defId, int x, int y, bool constructed)

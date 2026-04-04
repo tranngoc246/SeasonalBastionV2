@@ -16,7 +16,7 @@ namespace SeasonalBastion
     ///   - Moving NPCs do not block each other.
     ///   - Final target stop cell is unique; if occupied by another NPC, wait/retry.
     /// </summary>
-    public sealed class GridAgentMoverLite
+    public sealed class GridAgentMoverLite : IAgentMoverRuntime
     {
         private sealed class RouteState
         {

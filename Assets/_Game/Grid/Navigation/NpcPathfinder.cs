@@ -13,7 +13,7 @@ namespace SeasonalBastion
     /// - Fallback mixed weighted path only when no usable road route exists.
     /// Deterministic by fixed neighbor order and tie-breaks.
     /// </summary>
-    public sealed class NpcPathfinder
+    public sealed class NpcPathfinder : IPathfinderRuntime
     {
         public const int RoadCost = 10;
         public const int GroundCost = 30;

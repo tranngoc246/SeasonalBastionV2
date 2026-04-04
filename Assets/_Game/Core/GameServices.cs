@@ -31,8 +31,8 @@ namespace SeasonalBastion
         public RunStartRuntime RunStartRuntime;
 
         // Day14: simple mover/pathfinding (runtime-only)
-        public GridAgentMoverLite AgentMover;
-        public NpcPathfinder Pathfinder;
+        public IAgentMoverRuntime AgentMover;
+        public IPathfinderRuntime Pathfinder;
 
         // Economy/Jobs
         public ITickable ProducerLoopService; // Day36: producer loop (enqueue Harvest)

@@ -6,26 +6,34 @@ namespace SeasonalBastion
     internal sealed class AmmoRecoveryService
     {
         private readonly AmmoService _owner;
+        private readonly HashSet<int> _towerNoSourceLogged = new();
+        private readonly HashSet<int> _towerNoJobLogged = new();
+        private readonly HashSet<int> _towerDeadlockLogged = new();
 
         internal AmmoRecoveryService(AmmoService owner)
         {
             _owner = owner;
         }
 
+        internal HashSet<int> TowerNoSourceLogged => _towerNoSourceLogged;
+        internal HashSet<int> TowerNoJobLogged => _towerNoJobLogged;
+        internal HashSet<int> TowerDeadlockLogged => _towerDeadlockLogged;
+
         internal void LogPotentialResupplyDeadlock()
         {
-            if (_owner.Debug_TowersWithoutAmmo <= 0)
+            var metrics = _owner.CurrentMetrics;
+            if (metrics.TowersWithoutAmmo <= 0)
             {
-                _owner.TowerDeadlockLogged.Clear();
+                _towerDeadlockLogged.Clear();
                 return;
             }
 
-            if (_owner.Debug_ArmoryAvailableAmmo <= 0)
+            if (metrics.ArmoryAvailableAmmo <= 0)
                 return;
 
-            if (_owner.Debug_ActiveResupplyJobs > 0)
+            if (metrics.ActiveResupplyJobs > 0)
             {
-                _owner.TowerDeadlockLogged.Clear();
+                _towerDeadlockLogged.Clear();
                 return;
             }
 
@@ -37,7 +45,7 @@ namespace SeasonalBastion
             LogDeadlockForRequests(_owner.NormalRequests);
         }
 
-        internal void MaybeRequeueTowerAmmoRequest(SeasonalBastion.Contracts.TowerId tower)
+        internal void MaybeRequeueTowerAmmoRequest(TowerId tower)
         {
             if (tower.Value == 0) return;
             if (_owner.Services.WorldState == null || !_owner.Services.WorldState.Towers.Exists(tower)) return;
@@ -50,7 +58,7 @@ namespace SeasonalBastion
             int need = cap - cur;
             if (need <= 0) return;
 
-            _owner.ResetRequestStateForTower(tower.Value);
+            ResetRequestStateForTower(tower.Value);
 
             int thr = _owner.GetLowAmmoThresholdValue(cap);
             AmmoRequestPriority pri = cur <= 0 ? AmmoRequestPriority.Urgent
@@ -69,16 +77,47 @@ namespace SeasonalBastion
                 Log.E($"[Ammo] resupply requeued tower={tower.Value} ammo={cur}/{cap} priority={pri}");
         }
 
+        internal void ResetRequestStateForTower(int towerId)
+        {
+            _owner.Cooldowns.ResetForTower(towerId);
+            _owner.Requests.RemovePendingForTower(towerId);
+            _towerNoJobLogged.Remove(towerId);
+            _towerDeadlockLogged.Remove(towerId);
+        }
+
+        internal void ClearTowerLogs(int towerId)
+        {
+            if (towerId == 0) return;
+            _towerNoSourceLogged.Remove(towerId);
+            _towerNoJobLogged.Remove(towerId);
+            _towerDeadlockLogged.Remove(towerId);
+        }
+
+        internal void ClearNeedLogs(int towerId)
+        {
+            if (towerId == 0) return;
+            _towerNoSourceLogged.Remove(towerId);
+            _towerNoJobLogged.Remove(towerId);
+        }
+
+        internal void ClearAll()
+        {
+            _towerNoSourceLogged.Clear();
+            _towerNoJobLogged.Clear();
+            _towerDeadlockLogged.Clear();
+        }
+
         private void LogDeadlockForRequests(List<AmmoRequest> list)
         {
             if (list == null) return;
 
+            var metrics = _owner.CurrentMetrics;
             for (int i = 0; i < list.Count; i++)
             {
                 int tid = list[i].Tower.Value;
                 if (tid == 0) continue;
-                if (_owner.TowerDeadlockLogged.Add(tid))
-                    Log.E($"[Ammo] Armory has ammo but no job created. tower={tid} totalTowers={_owner.Debug_TotalTowers} emptyTowers={_owner.Debug_TowersWithoutAmmo} activeResupplyJobs={_owner.Debug_ActiveResupplyJobs} armoryAmmo={_owner.Debug_ArmoryAvailableAmmo} pending={_owner.PendingRequests}");
+                if (_towerDeadlockLogged.Add(tid))
+                    Log.E($"[Ammo] Armory has ammo but no job created. tower={tid} totalTowers={metrics.TotalTowers} emptyTowers={metrics.TowersWithoutAmmo} activeResupplyJobs={metrics.ActiveResupplyJobs} armoryAmmo={metrics.ArmoryAvailableAmmo} pending={_owner.PendingRequests}");
             }
         }
     }

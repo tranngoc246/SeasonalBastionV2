@@ -133,6 +133,11 @@ namespace SeasonalBastion
             _pendingPriorityByTower.Clear();
         }
 
+        internal void RemovePendingForTower(int towerId)
+        {
+            RemovePending(towerId);
+        }
+
         private bool TryFindBestRequestIndex(List<AmmoRequest> src, IReadOnlyDictionary<int, JobId> resupplyJobByTower, out int bestIndex, out AmmoRequest bestReq, out TowerState bestTowerState)
         {
             bestIndex = -1;

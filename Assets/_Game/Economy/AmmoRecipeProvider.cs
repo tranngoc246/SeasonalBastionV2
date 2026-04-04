@@ -8,6 +8,8 @@ namespace SeasonalBastion
     {
         private readonly AmmoService _owner;
         private readonly GameServices _s;
+        private RecipeDef _cachedAmmoRecipe;
+        private string _cachedAmmoRecipeId;
 
         internal AmmoRecipeProvider(AmmoService owner)
         {
@@ -23,22 +25,22 @@ namespace SeasonalBastion
             if (string.IsNullOrEmpty(rid))
                 rid = "ForgeAmmo";
 
-            if (!string.Equals(_owner.CachedAmmoRecipeId, rid, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(_cachedAmmoRecipeId, rid, StringComparison.OrdinalIgnoreCase))
             {
-                _owner.CachedAmmoRecipeId = rid;
-                _owner.CachedAmmoRecipe = null;
+                _cachedAmmoRecipeId = rid;
+                _cachedAmmoRecipe = null;
             }
 
-            if (_owner.CachedAmmoRecipe != null)
+            if (_cachedAmmoRecipe != null)
             {
-                recipe = _owner.CachedAmmoRecipe;
+                recipe = _cachedAmmoRecipe;
                 return true;
             }
 
             if (TryLoadRecipe(rid, out recipe))
             {
-                _owner.CachedAmmoRecipeId = rid;
-                _owner.CachedAmmoRecipe = recipe;
+                _cachedAmmoRecipeId = rid;
+                _cachedAmmoRecipe = recipe;
                 return true;
             }
 
@@ -53,9 +55,15 @@ namespace SeasonalBastion
                 return false;
             }
 
-            _owner.CachedAmmoRecipeId = "ForgeAmmo";
-            _owner.CachedAmmoRecipe = recipe;
+            _cachedAmmoRecipeId = "ForgeAmmo";
+            _cachedAmmoRecipe = recipe;
             return true;
+        }
+
+        internal void Clear()
+        {
+            _cachedAmmoRecipe = null;
+            _cachedAmmoRecipeId = null;
         }
 
         private bool TryLoadRecipe(string recipeId, out RecipeDef recipe)

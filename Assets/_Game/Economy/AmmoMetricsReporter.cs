@@ -5,21 +5,21 @@ namespace SeasonalBastion
 {
     internal sealed class AmmoMetricsReporter
     {
-        private readonly AmmoService _owner;
         private readonly GameServices _s;
+        private AmmoMetricsSnapshot _lastSnapshot;
 
         internal AmmoMetricsReporter(AmmoService owner)
         {
-            _owner = owner;
             _s = owner.Services;
         }
 
-        internal void UpdateDebugMetrics()
+        internal AmmoMetricsSnapshot LastSnapshot => _lastSnapshot;
+
+        internal void UpdateDebugMetrics(int activeResupplyJobs)
         {
-            _owner.Debug_TotalTowers = 0;
-            _owner.Debug_TowersWithoutAmmo = 0;
-            _owner.Debug_ArmoryAvailableAmmo = 0;
-            _owner.Debug_ActiveResupplyJobs = _owner.CountTrackedActiveResupplyJobs_Core();
+            int totalTowers = 0;
+            int towersWithoutAmmo = 0;
+            int armoryAvailableAmmo = 0;
 
             var towers = _s.WorldIndex.Towers;
             if (towers != null)
@@ -28,10 +28,10 @@ namespace SeasonalBastion
                 {
                     var tid = towers[i];
                     if (!_s.WorldState.Towers.Exists(tid)) continue;
-                    _owner.Debug_TotalTowers++;
+                    totalTowers++;
                     var tower = _s.WorldState.Towers.Get(tid);
                     if (tower.Ammo <= 0)
-                        _owner.Debug_TowersWithoutAmmo++;
+                        towersWithoutAmmo++;
                 }
             }
 
@@ -44,9 +44,16 @@ namespace SeasonalBastion
                     if (!_s.WorldState.Buildings.Exists(armory)) continue;
                     var st = _s.WorldState.Buildings.Get(armory);
                     if (!st.IsConstructed) continue;
-                    _owner.Debug_ArmoryAvailableAmmo += Math.Max(0, _s.StorageService.GetAmount(armory, ResourceType.Ammo));
+                    armoryAvailableAmmo += Math.Max(0, _s.StorageService.GetAmount(armory, ResourceType.Ammo));
                 }
             }
+
+            _lastSnapshot = new AmmoMetricsSnapshot(totalTowers, towersWithoutAmmo, activeResupplyJobs, armoryAvailableAmmo);
+        }
+
+        internal void Clear()
+        {
+            _lastSnapshot = default;
         }
     }
 }

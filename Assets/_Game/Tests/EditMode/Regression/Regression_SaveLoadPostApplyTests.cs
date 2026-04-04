@@ -379,6 +379,7 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_armory_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsArmory = true, WorkRoles = WorkRoleFlags.Armory, CapAmmo = new StorageCapsByLevel { L1 = 200, L2 = 200, L3 = 200 } });
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true });
+            data.AddNpc(new NpcDef { DefId = "npc_test", BaseMoveSpeed = 1f, RoadSpeedMultiplier = 1.3f });
 
             var world = new WorldState();
             var grid = new GridMap(64, 64);
@@ -445,6 +446,7 @@ namespace SeasonalBastion.Tests.EditMode
             var bus = new TestEventBus();
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_armory_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsArmory = true, WorkRoles = WorkRoleFlags.Armory, CapAmmo = new StorageCapsByLevel { L1 = 200, L2 = 200, L3 = 200 } });
+            data.AddNpc(new NpcDef { DefId = "npc_test", BaseMoveSpeed = 1f, RoadSpeedMultiplier = 1.3f });
 
             var world = new WorldState();
             var grid = new GridMap(64, 64);

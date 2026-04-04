@@ -105,7 +105,7 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(pathfinder.TryEstimateCost(start, new CellPos(9, 1), out var roadCost), Is.True);
             Assert.That(roadCost, Is.LessThan(nearCost), "Fixture must guarantee far road destination is truly cheaper by path cost.");
 
-            var sut = new ResourceFlowService(world, index, storage, grid);
+            var sut = new ResourceFlowService(world, index, storage, pathfinder);
 
             bool ok = sut.TryPickDest(start, ResourceType.Wood, 1, out var pick);
 

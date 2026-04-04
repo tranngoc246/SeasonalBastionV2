@@ -22,15 +22,15 @@ namespace SeasonalBastion.Tests.EditMode
                 grid);
 
             services.WorldIndex = new WorldIndexService(world, data);
-            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            services.RunStartRuntime = new RunStartRuntime();
             services.WaveCalendarResolver = new FakeWaveCalendarResolver();
             return services;
         }
 
         private static void SeedBasicLane(GameServices services)
         {
-            services.RunStartRuntime.SpawnGates.Add(new SeasonalBastion.RunStart.SpawnGate(0, new CellPos(32, 63), Dir4.S));
-            services.RunStartRuntime.Lanes[0] = new SeasonalBastion.RunStart.LaneRuntime(0, new CellPos(32, 63), Dir4.S, new CellPos(32, 32));
+            services.RunStartRuntime.SpawnGates.Add(new SpawnGate(0, new CellPos(32, 63), Dir4.S));
+            services.RunStartRuntime.Lanes[0] = new LaneRuntime(0, new CellPos(32, 63), Dir4.S, new CellPos(32, 32));
         }
 
         private static void SeedHq(WorldState world)
@@ -250,7 +250,7 @@ namespace SeasonalBastion.Tests.EditMode
             var services = RegressionTestServiceFactory.MakeServices(bus, data, new NotificationService(bus), clock, outcome, world, grid, new PlacementService(grid, world, data, index: null, bus));
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = new StorageService(world, data, bus);
-            services.RunStartRuntime = new SeasonalBastion.RunStart.RunStartRuntime();
+            services.RunStartRuntime = new RunStartRuntime();
             services.JobBoard = new JobBoard();
             services.ClaimService = new ClaimService();
             services.BuildOrderService = new FakeBuildOrderService();
@@ -384,3 +384,4 @@ namespace SeasonalBastion.Tests.EditMode
         }
     }
 }
+

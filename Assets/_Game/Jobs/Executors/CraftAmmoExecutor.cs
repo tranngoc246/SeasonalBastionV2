@@ -208,38 +208,11 @@ namespace SeasonalBastion
 
         private string ResolveAmmoRecipeIdOrDefault()
         {
-            // Default
-            string rid = DefaultAmmoRecipeId;
+            var rid = _s?.Balance?.AmmoRecipeId;
+            if (!string.IsNullOrWhiteSpace(rid))
+                return rid.Trim();
 
-            // Optional: read from Balance.Config via reflection if exists:
-            // balance.crafting.ammoRecipeId
-            try
-            {
-                var bal = _s != null ? _s.Balance : null;
-                var cfg = bal != null ? bal.Config : null;
-                if (cfg == null) return rid;
-
-                var cfgType = cfg.GetType();
-                var craftingField = cfgType.GetField("crafting");
-                if (craftingField == null) return rid;
-
-                var craftingObj = craftingField.GetValue(cfg);
-                if (craftingObj == null) return rid;
-
-                var cType = craftingObj.GetType();
-                var idField = cType.GetField("ammoRecipeId");
-                if (idField == null) return rid;
-
-                var v = idField.GetValue(craftingObj) as string;
-                if (!string.IsNullOrWhiteSpace(v))
-                    rid = v.Trim();
-            }
-            catch
-            {
-                // ignore
-            }
-
-            return rid;
+            return DefaultAmmoRecipeId;
         }
     }
 }

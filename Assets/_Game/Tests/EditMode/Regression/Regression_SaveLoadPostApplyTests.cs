@@ -441,7 +441,7 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
-        public void TryApply_Succeeds_ForZeroAmmoTower_WithActiveClaimedResupply_WithoutCreatingDuplicateJobs()
+        public void TryApply_Succeeds_ForZeroAmmoTower_WithCreatedResupplyJob_DoesNotCreateDuplicateJobs()
         {
             var bus = new TestEventBus();
             var data = new TestDataRegistry();
@@ -493,30 +493,24 @@ namespace SeasonalBastion.Tests.EditMode
             storage.SetCap(new BuildingId(600), ResourceType.Ammo, 200);
             storage.SetAmount(new BuildingId(600), ResourceType.Ammo, 40);
 
-            var claimedJobId = board.Enqueue(new Job
+            var createdJobId = board.Enqueue(new Job
             {
                 Archetype = JobArchetype.ResupplyTower,
-                Status = JobStatus.Claimed,
+                Status = JobStatus.Created,
                 Workplace = new BuildingId(600),
                 SourceBuilding = new BuildingId(600),
                 Tower = new TowerId(610),
-                ClaimedBy = new NpcId(620),
                 Amount = 10,
                 TargetCell = new CellPos(10, 10),
             });
 
-            var npc = world.Npcs.Get(new NpcId(620));
-            npc.CurrentJob = claimedJobId;
-            npc.IsIdle = false;
-            world.Npcs.Set(new NpcId(620), npc);
-
             var ammo = (AmmoService)services.AmmoService;
             ammo.Tick(0.1f);
 
-            Assert.That(board.TryGet(claimedJobId, out var activeJob), Is.True);
-            Assert.That(activeJob.Status, Is.EqualTo(JobStatus.Claimed));
+            Assert.That(board.TryGet(createdJobId, out var activeJob), Is.True);
+            Assert.That(activeJob.Status, Is.EqualTo(JobStatus.Created));
             Assert.That(activeJob.Tower.Value, Is.EqualTo(610));
-            Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(1), "Active claimed resupply should survive load without duplicate recreation.");
+            Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(1), "Existing created resupply work should prevent duplicate recreation.");
             AssertNoDuplicateQueuedJobs(board);
         }
 

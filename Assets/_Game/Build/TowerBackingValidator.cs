@@ -4,9 +4,9 @@ using UnityEngine;
 
 namespace SeasonalBastion
 {
-    internal static class TowerBackingValidator
+    public static class TowerBackingValidator
     {
-        internal readonly struct Result
+        public readonly struct Result
         {
             public readonly bool IsValid;
             public readonly TowerId TowerId;

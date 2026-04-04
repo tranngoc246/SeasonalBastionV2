@@ -3,7 +3,7 @@ using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
-    internal static class ConstructedBuildingInvariantValidator
+    public static class ConstructedBuildingInvariantValidator
     {
         public static bool Validate(IWorldState worldState, IGridMap gridMap, IDataRegistry dataRegistry, IWorldIndex worldIndex, BuildingId buildingId, out string error)
         {

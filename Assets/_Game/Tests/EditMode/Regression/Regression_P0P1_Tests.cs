@@ -463,6 +463,7 @@ namespace SeasonalBastion.Tests.EditMode
             services.StorageService = new StorageService(world, data, bus);
             services.WorldIndex = new WorldIndexService(world, data);
             services.AgentMover = new GridAgentMoverLite(grid, data, null);
+            services.Pathfinder = new NpcPathfinder(grid);
             services.Balance = null;
 
             var workplace = world.Buildings.Create(new BuildingState
@@ -930,7 +931,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             var inbox = noti.GetInbox();
             Assert.That(inbox.Count, Is.EqualTo(1));
-            Assert.That(inbox[0].Title, Is.EqualTo("NPC không có vi?c d? làm"));
+            Assert.That(inbox[0].Title, Is.EqualTo("NPC khï¿½ng cï¿½ vi?c d? lï¿½m"));
         }
 
         [Test]
@@ -1006,7 +1007,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(WorkforceAssignmentRules.GetMaxAssignedFor(def, workplace.Level), Is.EqualTo(1));
             Assert.That(canAssignOther, Is.False);
-            Assert.That(reasonOther, Is.EqualTo("Ðã d? worker (1/1)."));
+            Assert.That(reasonOther, Is.EqualTo("ï¿½ï¿½ d? worker (1/1)."));
             Assert.That(canKeepCurrent, Is.True);
         }
 

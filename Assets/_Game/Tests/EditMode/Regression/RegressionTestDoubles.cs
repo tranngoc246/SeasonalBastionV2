@@ -16,7 +16,7 @@ namespace SeasonalBastion.Tests.EditMode
             IGridMap grid = null,
             IPlacementService placement = null)
         {
-            return new GameServices
+            var services = new GameServices
             {
                 EventBus = bus,
                 DataRegistry = data,
@@ -27,6 +27,11 @@ namespace SeasonalBastion.Tests.EditMode
                 GridMap = grid,
                 PlacementService = placement
             };
+
+            if (services.GridMap != null)
+                services.Pathfinder = new NpcPathfinder(services.GridMap);
+
+            return services;
         }
     }
 
@@ -146,7 +151,7 @@ namespace SeasonalBastion.Tests.EditMode
         public NpcDef GetNpc(string id)
         {
             if (_npcsById.TryGetValue(id, out var def)) return def;
-            throw new NotSupportedException();
+            return new NpcDef { DefId = id, BaseMoveSpeed = 1f, RoadSpeedMultiplier = 1.3f };
         }
         public bool TryGetNpc(string id, out NpcDef def) => _npcsById.TryGetValue(id, out def);
         public TowerDef GetTower(string id)

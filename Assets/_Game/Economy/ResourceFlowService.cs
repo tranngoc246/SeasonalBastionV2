@@ -17,14 +17,14 @@ namespace SeasonalBastion
         private readonly IWorldState _w;
         private readonly IWorldIndex _index;
         private readonly IStorageService _storage;
-        private readonly NpcPathfinder _pathfinder;
+        private readonly IPathfinderRuntime _pathfinder;
 
-        public ResourceFlowService(IWorldState w, IWorldIndex index, IStorageService storage, IGridMap grid = null)
+        public ResourceFlowService(IWorldState w, IWorldIndex index, IStorageService storage, IPathfinderRuntime pathfinder = null)
         {
             _w = w;
             _index = index;
             _storage = storage;
-            _pathfinder = grid != null ? new NpcPathfinder(grid) : null;
+            _pathfinder = pathfinder;
         }
 
         public bool TryPickSource(CellPos from, ResourceType type, int minAmount, out StoragePick pick)

@@ -1,7 +1,7 @@
 using SeasonalBastion.Contracts;
+using SeasonalBastion.RunStart;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using UnityEngine;
 
 namespace SeasonalBastion
@@ -444,29 +444,8 @@ namespace SeasonalBastion
                 var cfgText = ta != null ? ta.text : null;
                 if (string.IsNullOrWhiteSpace(cfgText)) return;
 
-                var asm = typeof(GameServices).Assembly;
-                var parserType = asm.GetType("SeasonalBastion.RunStart.RunStartInputParser");
-                var validatorType = asm.GetType("SeasonalBastion.RunStart.RunStartConfigValidator");
-                var cacheBuilderType = asm.GetType("SeasonalBastion.RunStart.RunStartRuntimeCacheBuilder");
-                var hqResolverType = asm.GetType("SeasonalBastion.RunStart.RunStartHqResolver");
-                if (parserType == null || validatorType == null || cacheBuilderType == null || hqResolverType == null) return;
-
-                object[] parseArgs = { cfgText, null, null };
-                var parse = parserType.GetMethod("TryParseConfig", BindingFlags.Static | BindingFlags.NonPublic);
-                if (parse == null) return;
-                var parseOk = parse.Invoke(null, parseArgs);
-                if (parseOk is not bool ok || !ok) return;
-                var cfg = parseArgs[1];
-                if (cfg == null) return;
-
-                object[] validateArgs = { s, cfg, null };
-                var validate = validatorType.GetMethod("ValidateConfig", BindingFlags.Static | BindingFlags.NonPublic);
-                if (validate == null) return;
-                var validateOk = validate.Invoke(null, validateArgs);
-                if (validateOk is not bool valid || !valid) return;
-
-                cacheBuilderType.GetMethod("ApplyRuntimeMetadata", BindingFlags.Static | BindingFlags.NonPublic)?.Invoke(null, new[] { s, cfg });
-                hqResolverType.GetMethod("BuildLanes", BindingFlags.Static | BindingFlags.NonPublic)?.Invoke(null, new[] { s, cfg });
+                if (!RunStartFacade.TryRebuildRuntimeCaches(s, cfgText, out var error))
+                    Debug.LogError("[SaveLoad] Rebuild runtime caches failed: " + error);
             }
             catch (Exception ex)
             {

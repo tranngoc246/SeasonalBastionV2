@@ -10,10 +10,7 @@ namespace SeasonalBastion.RunStart
             error = null;
             if (s == null) { error = "services=null"; return false; }
 
-            if (!RunStartInputParser.TryParseConfig(jsonOrMarkdown, out var cfg, out error))
-                return false;
-
-            if (!RunStartConfigValidator.ValidateConfig(s, cfg, out error))
+            if (!TryParseAndValidate(s, jsonOrMarkdown, out var cfg, out error))
                 return false;
 
             RunStartRuntimeCacheBuilder.ApplyRuntimeMetadata(s, cfg);
@@ -46,6 +43,34 @@ namespace SeasonalBastion.RunStart
                 error = "RunStartValidator exception: " + e.Message;
                 return false;
             }
+
+            return true;
+        }
+
+        public static bool TryRebuildRuntimeCaches(GameServices s, string jsonOrMarkdown, out string error)
+        {
+            error = null;
+            if (s == null) { error = "services=null"; return false; }
+
+            if (!TryParseAndValidate(s, jsonOrMarkdown, out var cfg, out error))
+                return false;
+
+            RunStartRuntimeCacheBuilder.ApplyRuntimeMetadata(s, cfg);
+            RunStartRuntimeCacheBuilder.ApplyRuntimeZonesFromWorld(s);
+            RunStartHqResolver.BuildLanes(s, cfg);
+            return true;
+        }
+
+        private static bool TryParseAndValidate(GameServices s, string jsonOrMarkdown, out StartMapConfigDto cfg, out string error)
+        {
+            cfg = null;
+            error = null;
+
+            if (!RunStartInputParser.TryParseConfig(jsonOrMarkdown, out cfg, out error))
+                return false;
+
+            if (!RunStartConfigValidator.ValidateConfig(s, cfg, out error))
+                return false;
 
             return true;
         }

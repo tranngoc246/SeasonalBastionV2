@@ -1018,7 +1018,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(WorkforceAssignmentRules.GetMaxAssignedFor(def, workplace.Level), Is.EqualTo(1));
             Assert.That(canAssignOther, Is.False);
-            Assert.That(reasonOther, Is.EqualTo("�� d? worker (1/1)."));
+            Assert.That(reasonOther, Is.EqualTo("Đã đủ worker (1/1)."));
             Assert.That(canKeepCurrent, Is.True);
         }
 

@@ -1,17 +1,10 @@
 {
-    "name": "Game.Save",
+    "name": "Game.Population",
     "rootNamespace": "SeasonalBastion",
     "references": [
         "Game.Contracts",
         "Game.Core",
-        "Game.RunStart",
-        "Game.World",
-        "Game.Grid",
-        "Game.Economy",
-        "Game.Jobs",
-        "Game.Build",
-        "Game.Combat",
-        "Game.Rewards"
+        "Game.World"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

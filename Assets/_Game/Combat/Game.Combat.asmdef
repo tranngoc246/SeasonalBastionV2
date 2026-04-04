@@ -4,6 +4,7 @@
     "references": [
         "Game.Contracts",
         "Game.Core",
+        "Game.RunStart",
         "Game.World",
         "Game.Grid",
         "Game.Economy",

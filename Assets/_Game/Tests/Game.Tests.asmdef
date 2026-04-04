@@ -4,6 +4,7 @@
     "references": [
         "Game.Contracts",
         "Game.Core",
+        "Game.RunStart",
         "Game.Grid",
         "Game.World",
         "Game.Build",
@@ -13,6 +14,7 @@
         "Game.Save",
         "Game.Combat",
         "Game.Economy",
+        "Game.Population",
         "Game.Rewards"
     ],
     "includePlatforms": [

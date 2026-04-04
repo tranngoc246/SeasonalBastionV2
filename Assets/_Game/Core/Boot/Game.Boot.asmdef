@@ -4,10 +4,12 @@
     "references": [
         "Game.Contracts",
         "Game.Core",
+        "Game.RunStart",
         "Game.Defs",
         "Game.World",
         "Game.Grid",
         "Game.Economy",
+        "Game.Population",
         "Game.Jobs",
         "Game.Build",
         "Game.Combat",

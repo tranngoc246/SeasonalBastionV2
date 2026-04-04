@@ -1,5 +1,4 @@
 using SeasonalBastion.Contracts;
-using SeasonalBastion.RunStart;
 using System;
 
 namespace SeasonalBastion
@@ -43,29 +42,8 @@ namespace SeasonalBastion
                 _s.RunClock.SetTimeScale(1f);
             }
 
-            // Apply StartMapConfig (if provided). If missing, keep empty world but deterministic.
-            if (!string.IsNullOrEmpty(startMapConfigJsonOrMarkdown))
-            {
-                if (!RunStartFacade.TryApply(_s, startMapConfigJsonOrMarkdown, out var err))
-                {
-                    if (_s.RunStartRuntime != null)
-                    {
-                        _s.RunStartRuntime.ResourceGenerationFailureReason = err;
-                        _s.RunStartRuntime.OpeningQualityBand = "RunStartApplyFailed";
-                    }
-
-                    // Fail-safe: notify + continue (empty world)
-                    _s.NotificationService?.Push(
-                        key: "RunStartApplyFailed",
-                        title: "Run Start",
-                        body: err,
-                        severity: NotificationSeverity.Error,
-                        payload: default,
-                        cooldownSeconds: 0f,
-                        dedupeByKey: true
-                    );
-                }
-            }
+            // StartMapConfig apply is owned by boot composition layer so Game.Core
+            // does not depend on Game.RunStart implementation.
 
             // rebuild derived world index lists (safe even if world is empty).
             _s.WorldIndex?.RebuildAll();

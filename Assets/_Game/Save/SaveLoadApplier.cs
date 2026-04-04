@@ -711,16 +711,11 @@ namespace SeasonalBastion
 
             try
             {
-                var jobsField = typeof(JobBoard).GetField("_jobs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                var queuesField = typeof(JobBoard).GetField("_queues", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                if (jobsField?.GetValue(board) is not Dictionary<int, Job> jobs)
-                    return;
-                if (queuesField?.GetValue(board) is not Dictionary<int, Queue<int>> queues)
-                    return;
-
-                foreach (var kv in jobs)
+                var jobsById = new Dictionary<int, Job>();
+                foreach (var job in board.EnumerateAllJobs())
                 {
-                    var job = kv.Value;
+                    jobsById[job.Id.Value] = job;
+
                     if (job.Workplace.Value != 0 && (s.WorldState?.Buildings == null || !s.WorldState.Buildings.Exists(job.Workplace)))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing workplace building {job.Workplace.Value}.";
@@ -764,12 +759,12 @@ namespace SeasonalBastion
                     }
                 }
 
-                foreach (var queueKvp in queues)
+                foreach (var queueSnapshot in board.EnumerateQueueSnapshots())
                 {
-                    int workplaceId = queueKvp.Key;
-                    foreach (var jobId in queueKvp.Value)
+                    int workplaceId = queueSnapshot.Key;
+                    foreach (var jobId in queueSnapshot.Value)
                     {
-                        if (!jobs.TryGetValue(jobId, out var job))
+                        if (!jobsById.TryGetValue(jobId, out var job))
                         {
                             error = $"[SaveLoad] Post-apply validation failed: job queue for workplace {workplaceId} references missing job {jobId}.";
                             Debug.LogWarning(error);
@@ -799,11 +794,7 @@ namespace SeasonalBastion
 
             try
             {
-                var mapField = typeof(ClaimService).GetField("_map", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                if (mapField?.GetValue(claimService) is not Dictionary<ClaimKey, NpcId> map)
-                    return;
-
-                foreach (var kv in map)
+                foreach (var kv in claimService.EnumerateClaims())
                 {
                     var owner = kv.Value;
                     if (owner.Value == 0 || s.WorldState?.Npcs == null || !s.WorldState.Npcs.Exists(owner))

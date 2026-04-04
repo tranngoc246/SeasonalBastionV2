@@ -200,5 +200,17 @@ namespace SeasonalBastion
             _scanBuf.Clear();
             _nextId = 1;
         }
+
+        internal IEnumerable<Job> EnumerateAllJobs()
+        {
+            foreach (var kv in _jobs)
+                yield return kv.Value;
+        }
+
+        internal IEnumerable<KeyValuePair<int, IEnumerable<int>>> EnumerateQueueSnapshots()
+        {
+            foreach (var kv in _queues)
+                yield return new KeyValuePair<int, IEnumerable<int>>(kv.Key, kv.Value);
+        }
     }
 }

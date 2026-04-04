@@ -15,12 +15,17 @@ namespace SeasonalBastion.Contracts
         int CurrentSchemaVersion { get; }
 
         SaveResult SaveRun(IWorldState world, IRunClock clock);
+        SaveResult SaveRunToSlot(IWorldState world, IRunClock clock, int slot, bool autosave = false);
         SaveResult LoadRun(out RunSaveDTO dto);
+        SaveResult LoadRunFromSlot(int slot, out RunSaveDTO dto, bool allowBackup = true);
 
         SaveResult SaveMeta(MetaSaveDTO dto);
         SaveResult LoadMeta(out MetaSaveDTO dto);
 
         bool HasRunSave();
+        bool HasAnyRunSave();
+        int GetLatestValidSlot();
+        System.Collections.Generic.IReadOnlyList<SaveSlotInfo> ListRunSaves();
         void DeleteRunSave();
     }
 }

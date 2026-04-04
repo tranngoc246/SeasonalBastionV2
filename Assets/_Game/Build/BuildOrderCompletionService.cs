@@ -110,6 +110,7 @@ namespace SeasonalBastion
                 dedupeByKey: true
             );
 
+            TryAutosaveOnMilestone();
             return true;
         }
 
@@ -162,6 +163,7 @@ namespace SeasonalBastion
                 );
             }
 
+            TryAutosaveOnMilestone();
             return true;
         }
 
@@ -374,6 +376,26 @@ namespace SeasonalBastion
 
         private static bool CanFinalize(in BuildSiteState site)
             => site.IsReadyToWork && site.WorkSecondsDone + 1e-4f >= site.WorkSecondsTotal;
+
+        private void TryAutosaveOnMilestone()
+        {
+            if (_s?.SaveService == null || _s?.WorldState == null || _s?.RunClock == null)
+                return;
+
+            int constructed = 0;
+            foreach (var id in _s.WorldState.Buildings.Ids)
+            {
+                if (!_s.WorldState.Buildings.Exists(id)) continue;
+                if (_s.WorldState.Buildings.Get(id).IsConstructed) constructed++;
+            }
+
+            if (constructed > 0 && constructed % 3 == 0)
+            {
+                var res = _s.SaveService.SaveRunToSlot(_s.WorldState, _s.RunClock, 1, autosave: true);
+                if (res.Code == SaveResultCode.Ok)
+                    _s.NotificationService?.Push("autosave.milestone", "Autosave", "Milestone autosave complete.", NotificationSeverity.Info, default, 3f, true);
+            }
+        }
 
         private BuildingDef SafeGetBuildingDef(string defId)
         {

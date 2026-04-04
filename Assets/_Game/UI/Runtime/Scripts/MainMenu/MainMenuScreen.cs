@@ -1,4 +1,6 @@
+using System;
 using System.IO;
+using SeasonalBastion.Contracts;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -20,6 +22,7 @@ namespace SeasonalBastion
         private Button _btnContinue;
         private Button _btnQuit;
         private Label _lblSaveHint;
+        private VisualElement _saveSlotsList;
 
         private VisualElement _root;
         private VisualElement _menuCard;
@@ -45,6 +48,7 @@ namespace SeasonalBastion
             _btnContinue = _root.Q<Button>("BtnContinue");
             _btnQuit = _root.Q<Button>("BtnQuit");
             _lblSaveHint = _root.Q<Label>("LblSaveHint");
+            _saveSlotsList = _root.Q<VisualElement>("SaveSlotsList");
             _menuCard = _root.Q<VisualElement>("MenuCard");
             _dragonEffectHost = _root.Q<VisualElement>("DragonEffectHost");
 
@@ -87,7 +91,8 @@ namespace SeasonalBastion
 
         private void RefreshState()
         {
-            bool hasSave = File.Exists(Path.Combine(Application.persistentDataPath, "run_save.json"));
+            var slots = ReadSaveSlots();
+            bool hasSave = slots != null && slots.Count > 0;
 
             if (_btnContinue != null)
                 _btnContinue.SetEnabled(hasSave);
@@ -95,9 +100,11 @@ namespace SeasonalBastion
             if (_lblSaveHint != null)
             {
                 _lblSaveHint.text = hasSave
-                    ? "Continue is available. A run_save.json was found."
-                    : "No run save found yet. Continue is disabled until you save a run.";
+                    ? "Continue selects the latest valid save. Choose any listed save below in the future UI flow."
+                    : "No valid save found yet. Continue is disabled until you save a run.";
             }
+
+            RenderSaveSlots(slots);
 
             Debug.Log($"[MainMenu] Bound UI. hasSave={hasSave}, newRunBtn={_btnNewRun != null}, continueBtn={_btnContinue != null}, quitBtn={_btnQuit != null}, dragonLayer={_dragonLayer != null}");
         }
@@ -124,6 +131,59 @@ namespace SeasonalBastion
             }
 
             app.RequestContinue();
+        }
+
+        private System.Collections.Generic.IReadOnlyList<SaveSlotInfo> ReadSaveSlots()
+        {
+            try
+            {
+                var services = FindObjectOfType<GameBootstrap>()?.Services;
+                if (services?.SaveService != null)
+                    return services.SaveService.ListRunSaves();
+            }
+            catch { }
+
+            var result = new System.Collections.Generic.List<SaveSlotInfo>();
+            for (int i = 1; i <= 3; i++)
+            {
+                string p = Path.Combine(Application.persistentDataPath, $"save_{i}.json");
+                if (File.Exists(p)) result.Add(new SaveSlotInfo { Slot = i, DisplayName = $"Save Slot {i}", FileName = Path.GetFileName(p), IsValid = true });
+            }
+            string ap = Path.Combine(Application.persistentDataPath, "save_autosave.json");
+            if (File.Exists(ap)) result.Add(new SaveSlotInfo { Slot = 0, DisplayName = "Autosave", FileName = Path.GetFileName(ap), IsAutosave = true, IsValid = true });
+            string lp = Path.Combine(Application.persistentDataPath, "run_save.json");
+            if (File.Exists(lp)) result.Add(new SaveSlotInfo { Slot = 0, DisplayName = "Legacy Continue", FileName = Path.GetFileName(lp), IsLegacy = true, IsValid = true });
+            return result;
+        }
+
+        private void RenderSaveSlots(System.Collections.Generic.IReadOnlyList<SaveSlotInfo> slots)
+        {
+            if (_saveSlotsList == null) return;
+            _saveSlotsList.Clear();
+            if (slots == null) return;
+
+            for (int i = 0; i < slots.Count; i++)
+            {
+                var slot = slots[i];
+                var item = new VisualElement();
+                item.AddToClassList("save-slot-item");
+
+                var title = new Label(slot.DisplayName ?? slot.FileName ?? "Save");
+                title.AddToClassList("save-slot-title");
+                item.Add(title);
+
+                string ts = slot.TimestampUtc;
+                if (DateTime.TryParse(slot.TimestampUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt))
+                    ts = dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+                var meta = new Label(slot.IsValid
+                    ? $"Y{slot.YearIndex} • {slot.Season} D{slot.DayIndex} • Wave {slot.WaveIndex} • {ts}"
+                    : $"Invalid save • {slot.Error}");
+                meta.AddToClassList("save-slot-meta");
+                item.Add(meta);
+
+                _saveSlotsList.Add(item);
+            }
         }
 
         private void OnQuitClicked()

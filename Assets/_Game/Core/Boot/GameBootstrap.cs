@@ -137,7 +137,7 @@
                 return false;
             }
 
-            if (!_services.SaveService.HasRunSave())
+            if (!_services.SaveService.HasAnyRunSave())
             {
                 error = "No run save found.";
                 return false;
@@ -146,7 +146,8 @@
             var res = _services.SaveService.LoadRun(out var dto);
             if (res.Code != SaveResultCode.Ok || dto == null)
             {
-                error = "LoadRun failed: " + res.Message;
+                error = "LoadRun failed: " + res.Message + " (retry or backup load available if present)";
+                _services.NotificationService?.Push("load.failed", "Load failed", error, NotificationSeverity.Warning, default, 2f, true);
                 return false;
             }
 

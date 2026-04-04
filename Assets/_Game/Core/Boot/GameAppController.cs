@@ -105,7 +105,7 @@ namespace SeasonalBastion
         {
             if (!HasRunSaveFile())
             {
-                Debug.LogWarning("[App] Continue requested but no run_save.json exists.");
+                Debug.LogWarning("[App] Continue requested but no valid save exists.");
                 _pending = PendingAction.None;
                 return;
             }
@@ -160,7 +160,16 @@ namespace SeasonalBastion
         {
             try
             {
-                return File.Exists(Path.Combine(Application.persistentDataPath, "run_save.json"));
+                if (File.Exists(Path.Combine(Application.persistentDataPath, "run_save.json")))
+                    return true;
+                for (int i = 1; i <= 3; i++)
+                {
+                    if (File.Exists(Path.Combine(Application.persistentDataPath, $"save_{i}.json")))
+                        return true;
+                }
+                if (File.Exists(Path.Combine(Application.persistentDataPath, "save_autosave.json")))
+                    return true;
+                return false;
             }
             catch (Exception ex)
             {

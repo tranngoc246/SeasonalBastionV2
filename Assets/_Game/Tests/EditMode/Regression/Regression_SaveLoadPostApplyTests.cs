@@ -92,11 +92,13 @@ namespace SeasonalBastion.Tests.EditMode
         {
             var bus = new TestEventBus();
             var data = new TestDataRegistry();
-            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 80 });
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 80, BuildChunksL1 = 2 });
 
             var world = new WorldState();
             var grid = new GridMap(64, 64);
             var services = MakeServices(bus, data, world, grid);
+            var buildOrders = new BuildOrderService(services);
+            services.BuildOrderService = buildOrders;
 
             var dto = new RunSaveDTO
             {
@@ -147,6 +149,12 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(world.Buildings.Exists(new BuildingId(100)), Is.True);
             Assert.That(world.Sites.Exists(new SiteId(200)), Is.True);
             Assert.That(world.Buildings.Get(new BuildingId(100)).IsConstructed, Is.False);
+            AssertIntermediateSiteState(services, new BuildingId(100), new SiteId(200), new CellPos(4, 4), 2, 2);
+            Assert.That(buildOrders.TryGet(1, out var order), Is.True, "Active construction site should rebuild exactly one active build order after load.");
+            Assert.That(order.Site.Value, Is.EqualTo(200));
+            Assert.That(order.TargetBuilding.Value, Is.EqualTo(100));
+            Assert.That(order.WorkSecondsDone, Is.EqualTo(2f));
+            AssertNoDuplicateQueuedJobs(services.JobBoard);
         }
 
         [Test]
@@ -156,10 +164,13 @@ namespace SeasonalBastion.Tests.EditMode
             var data = new TestDataRegistry();
             data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true });
             data.Add(new BuildingDef { DefId = "bld_hq_t2", SizeX = 2, SizeY = 2, BaseLevel = 2, MaxHp = 150, IsHQ = true });
+            data.AddUpgradeEdge(new UpgradeEdgeDef { Id = "hq_t1_to_t2", From = "bld_hq_t1", To = "bld_hq_t2" });
 
             var world = new WorldState();
             var grid = new GridMap(64, 64);
             var services = MakeServices(bus, data, world, grid);
+            var buildOrders = new BuildOrderService(services);
+            services.BuildOrderService = buildOrders;
 
             var dto = new RunSaveDTO
             {
@@ -211,6 +222,11 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(ok, Is.True, error);
             Assert.That(world.Buildings.Exists(new BuildingId(300)), Is.True);
             Assert.That(world.Sites.Exists(new SiteId(301)), Is.True);
+            AssertIntermediateSiteState(services, new BuildingId(300), new SiteId(301), new CellPos(6, 6), 2, 2);
+            Assert.That(buildOrders.TryGet(1, out var order), Is.True, "Upgrade site should rebuild one active order after load.");
+            Assert.That(order.Site.Value, Is.EqualTo(301));
+            Assert.That(order.TargetBuilding.Value, Is.EqualTo(300));
+            AssertNoDuplicateQueuedJobs(services.JobBoard);
         }
 
         [Test]
@@ -255,6 +271,8 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(ok, Is.True, error);
             Assert.That(world.Enemies.Count, Is.EqualTo(1));
+            AssertConstructedBuildingOccupancy(services, new BuildingId(400), 2, 2);
+            AssertNoDuplicateQueuedJobs(services.JobBoard);
         }
 
         [Test]
@@ -351,6 +369,234 @@ namespace SeasonalBastion.Tests.EditMode
                 IsConstructed = constructed,
                 HP = 100,
                 MaxHP = 100,
+            };
+        }
+
+        [Test]
+        public void TryApply_Succeeds_ForZeroAmmoTower_WithPendingResupply_AndResupplyCanContinue()
+        {
+            var bus = new TestEventBus();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_armory_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsArmory = true, WorkRoles = WorkRoleFlags.Armory, CapAmmo = new StorageCapsByLevel { L1 = 200, L2 = 200, L3 = 200 } });
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(64, 64);
+            var services = MakeServices(bus, data, world, grid);
+            var storage = new FakeStorageService();
+            services.StorageService = storage;
+            services.JobBoard = new JobBoard();
+            services.ClaimService = new ClaimService();
+            services.AmmoService = new AmmoService(services);
+
+            var dto = new RunSaveDTO
+            {
+                season = Season.Autumn.ToString(),
+                dayIndex = 2,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 0f,
+                world = new WorldDTO
+                {
+                    Buildings = new List<BuildingState>
+                    {
+                        MakeBuilding(500, "bld_armory_t1", 2, 2, constructed: true),
+                        MakeBuilding(501, "bld_hq_t1", 8, 8, constructed: true),
+                    },
+                    Towers = new List<TowerState>
+                    {
+                        MakeTower(510, 12, 12, 0, 20, 100, 100)
+                    },
+                    Npcs = new List<NpcState>
+                    {
+                        MakeNpc(520, "npc_test", new CellPos(2, 3), new BuildingId(500))
+                    },
+                    Enemies = new List<EnemyState>(),
+                    Roads = new List<CellPosI32>()
+                },
+                build = new BuildDTO { Sites = new List<BuildSiteState>() },
+                combat = new CombatDTO { IsDefendActive = true, CurrentWaveIndex = 0 },
+                population = new PopulationDTO(),
+            };
+
+            bool ok = SaveLoadApplier.TryApply(services, dto, out var error, logErrors: false);
+
+            Assert.That(ok, Is.True, error);
+            storage.SetCap(new BuildingId(500), ResourceType.Ammo, 200);
+            storage.SetAmount(new BuildingId(500), ResourceType.Ammo, 40);
+
+            var ammo = (AmmoService)services.AmmoService;
+            ammo.Tick(0.1f);
+
+            AssertConstructedBuildingOccupancy(services, new BuildingId(500), 1, 1);
+            AssertConstructedBuildingOccupancy(services, new BuildingId(501), 2, 2);
+            Assert.That(world.Towers.Exists(new TowerId(510)), Is.True);
+            Assert.That(world.Towers.Get(new TowerId(510)).Ammo, Is.EqualTo(0));
+            Assert.That(services.JobBoard.TryPeekForWorkplace(new BuildingId(500), out var job), Is.True, "Tower resupply should resume after load for a zero-ammo tower.");
+            Assert.That(job.Archetype, Is.EqualTo(JobArchetype.ResupplyTower));
+            Assert.That(job.Tower.Value, Is.EqualTo(510));
+            Assert.That(job.SourceBuilding.Value, Is.EqualTo(500));
+            AssertNoDuplicateQueuedJobs(services.JobBoard);
+        }
+
+        [Test]
+        public void TryApply_Succeeds_ForZeroAmmoTower_WithActiveClaimedResupply_WithoutCreatingDuplicateJobs()
+        {
+            var bus = new TestEventBus();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_armory_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsArmory = true, WorkRoles = WorkRoleFlags.Armory, CapAmmo = new StorageCapsByLevel { L1 = 200, L2 = 200, L3 = 200 } });
+
+            var world = new WorldState();
+            var grid = new GridMap(64, 64);
+            var services = MakeServices(bus, data, world, grid);
+            var storage = new FakeStorageService();
+            var board = new JobBoard();
+            services.StorageService = storage;
+            services.JobBoard = board;
+            services.ClaimService = new ClaimService();
+            services.AmmoService = new AmmoService(services);
+
+            var dto = new RunSaveDTO
+            {
+                season = Season.Autumn.ToString(),
+                dayIndex = 2,
+                timeScale = 1f,
+                yearIndex = 1,
+                dayTimer = 0f,
+                world = new WorldDTO
+                {
+                    Buildings = new List<BuildingState>
+                    {
+                        MakeBuilding(600, "bld_armory_t1", 2, 2, constructed: true)
+                    },
+                    Towers = new List<TowerState>
+                    {
+                        MakeTower(610, 10, 10, 0, 20, 100, 100)
+                    },
+                    Npcs = new List<NpcState>
+                    {
+                        MakeNpc(620, "npc_test", new CellPos(2, 3), new BuildingId(600))
+                    },
+                    Enemies = new List<EnemyState>(),
+                    Roads = new List<CellPosI32>()
+                },
+                build = new BuildDTO { Sites = new List<BuildSiteState>() },
+                combat = new CombatDTO(),
+                population = new PopulationDTO(),
+            };
+
+            bool ok = SaveLoadApplier.TryApply(services, dto, out var error, logErrors: false);
+
+            Assert.That(ok, Is.True, error);
+            storage.SetCap(new BuildingId(600), ResourceType.Ammo, 200);
+            storage.SetAmount(new BuildingId(600), ResourceType.Ammo, 40);
+
+            var claimedJobId = board.Enqueue(new Job
+            {
+                Archetype = JobArchetype.ResupplyTower,
+                Status = JobStatus.Claimed,
+                Workplace = new BuildingId(600),
+                SourceBuilding = new BuildingId(600),
+                Tower = new TowerId(610),
+                ClaimedBy = new NpcId(620),
+                Amount = 10,
+                TargetCell = new CellPos(10, 10),
+            });
+
+            var npc = world.Npcs.Get(new NpcId(620));
+            npc.CurrentJob = claimedJobId;
+            npc.IsIdle = false;
+            world.Npcs.Set(new NpcId(620), npc);
+
+            var ammo = (AmmoService)services.AmmoService;
+            ammo.Tick(0.1f);
+
+            Assert.That(board.TryGet(claimedJobId, out var activeJob), Is.True);
+            Assert.That(activeJob.Status, Is.EqualTo(JobStatus.Claimed));
+            Assert.That(activeJob.Tower.Value, Is.EqualTo(610));
+            Assert.That(board.CountActiveJobs(JobArchetype.ResupplyTower), Is.EqualTo(1), "Active claimed resupply should survive load without duplicate recreation.");
+            AssertNoDuplicateQueuedJobs(board);
+        }
+
+        private static void AssertConstructedBuildingOccupancy(GameServices services, BuildingId buildingId, int width, int height)
+        {
+            Assert.That(services.WorldState.Buildings.Exists(buildingId), Is.True);
+            var building = services.WorldState.Buildings.Get(buildingId);
+            Assert.That(building.IsConstructed, Is.True);
+            for (int dy = 0; dy < height; dy++)
+            for (int dx = 0; dx < width; dx++)
+            {
+                var occ = services.GridMap.Get(new CellPos(building.Anchor.X + dx, building.Anchor.Y + dy));
+                Assert.That(occ.Kind, Is.EqualTo(CellOccupancyKind.Building));
+                Assert.That(occ.Building.Value, Is.EqualTo(buildingId.Value));
+            }
+        }
+
+        private static void AssertIntermediateSiteState(GameServices services, BuildingId buildingId, SiteId siteId, CellPos anchor, int width, int height)
+        {
+            Assert.That(services.WorldState.Buildings.Exists(buildingId), Is.True);
+            Assert.That(services.WorldState.Sites.Exists(siteId), Is.True);
+
+            var building = services.WorldState.Buildings.Get(buildingId);
+            var site = services.WorldState.Sites.Get(siteId);
+
+            Assert.That(building.IsConstructed, Is.False);
+            Assert.That(site.TargetBuilding.Value, Is.EqualTo(buildingId.Value));
+            Assert.That(site.Anchor.X, Is.EqualTo(anchor.X));
+            Assert.That(site.Anchor.Y, Is.EqualTo(anchor.Y));
+
+            for (int dy = 0; dy < height; dy++)
+            for (int dx = 0; dx < width; dx++)
+            {
+                var occ = services.GridMap.Get(new CellPos(anchor.X + dx, anchor.Y + dy));
+                Assert.That(occ.Kind, Is.EqualTo(CellOccupancyKind.Site));
+                Assert.That(occ.Site.Value, Is.EqualTo(siteId.Value));
+            }
+        }
+
+        private static void AssertNoDuplicateQueuedJobs(IJobBoard board)
+        {
+            if (board is not JobBoard concrete)
+                return;
+
+            var jobsField = typeof(JobBoard).GetField("_jobs", BindingFlags.Instance | BindingFlags.NonPublic);
+            var queuesField = typeof(JobBoard).GetField("_queues", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(jobsField?.GetValue(concrete), Is.TypeOf<Dictionary<int, Job>>());
+            Assert.That(queuesField?.GetValue(concrete), Is.TypeOf<Dictionary<int, Queue<int>>>());
+
+            var jobs = (Dictionary<int, Job>)jobsField.GetValue(concrete);
+            var queues = (Dictionary<int, Queue<int>>)queuesField.GetValue(concrete);
+            var seenJobs = new HashSet<int>();
+
+            foreach (var pair in queues)
+            {
+                var seenPerQueue = new HashSet<int>();
+                foreach (var jobId in pair.Value)
+                {
+                    Assert.That(seenPerQueue.Add(jobId), Is.True, $"Duplicate queued job {jobId} under workplace {pair.Key}.");
+                    Assert.That(jobs.ContainsKey(jobId), Is.True, $"Queue references missing job {jobId}.");
+                    Assert.That(jobs[jobId].Workplace.Value, Is.EqualTo(pair.Key));
+                    seenJobs.Add(jobId);
+                }
+            }
+
+            foreach (var pair in jobs)
+            {
+                if (pair.Value.Status == JobStatus.Created)
+                    Assert.That(seenJobs.Contains(pair.Key), Is.True, $"Created job {pair.Key} should appear in a workplace queue.");
+            }
+        }
+
+        private static NpcState MakeNpc(int id, string defId, CellPos cell, BuildingId workplace, JobId currentJob = default)
+        {
+            return new NpcState
+            {
+                Id = new NpcId(id),
+                DefId = defId,
+                Cell = cell,
+                Workplace = workplace,
+                CurrentJob = currentJob,
+                IsIdle = currentJob.Value == 0,
             };
         }
 

@@ -68,7 +68,17 @@ namespace SeasonalBastion
                 if (!TryPickBestResupplySource(towerState, out var source, out var sourceState, out var availableAmmo))
                 {
                     if (_owner.TowerNoSourceLogged.Add(req.Tower.Value))
+                    {
                         Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: no ammo source totalTowers={_owner.Debug_TotalTowers} emptyTowers={_owner.Debug_TowersWithoutAmmo} activeResupplyJobs={_owner.Debug_ActiveResupplyJobs} armoryAmmo={_owner.Debug_ArmoryAvailableAmmo}");
+                        _s.NotificationService?.Push(
+                            key: $"ammo.no_source.{req.Tower.Value}",
+                            title: "No ammo source available",
+                            body: $"Tower {req.Tower.Value} needs ammo but no armory/warehouse source is available.",
+                            severity: NotificationSeverity.Warning,
+                            payload: default,
+                            cooldownSeconds: 6f,
+                            dedupeByKey: true);
+                    }
                     return false;
                 }
 
@@ -153,6 +163,14 @@ namespace SeasonalBastion
                 _owner.TowerNoSourceLogged.Remove(req.Tower.Value);
                 _owner.TowerNoJobLogged.Remove(req.Tower.Value);
                 _owner.TowerDeadlockLogged.Remove(req.Tower.Value);
+                _s.NotificationService?.Push(
+                    key: $"ammo.resupply.queued.{req.Tower.Value}",
+                    title: "Resupply job queued",
+                    body: $"Tower {req.Tower.Value} waiting for ammo from armory {source.Value}",
+                    severity: NotificationSeverity.Info,
+                    payload: default,
+                    cooldownSeconds: 5f,
+                    dedupeByKey: true);
                 if (_owner.DebugAmmoLogsValue)
                     Log.E($"[Ammo] resupply created source={source.Value} tower={req.Tower.Value} amount={amount} priority={req.Priority}");
                 return true;

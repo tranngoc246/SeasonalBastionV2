@@ -381,6 +381,12 @@ namespace SeasonalBastion.Tests.EditMode
     {
         public int TickCalls { get; private set; }
         public int PendingRequests => 0;
+        public int Debug_TotalTowers => 0;
+        public int Debug_TowersWithoutAmmo => 0;
+        public int Debug_ActiveResupplyJobs => 0;
+        public int Debug_ArmoryAvailableAmmo => 0;
+        public string Debug_ArmoryStatus => "Unknown";
+        public string Debug_ResupplyStatus => "Stable";
         public void NotifyTowerAmmoChanged(TowerId tower, int current, int max) { }
         public void EnqueueRequest(AmmoRequest req) { }
         public bool TryDequeueNext(out AmmoRequest req) { req = default; return false; }

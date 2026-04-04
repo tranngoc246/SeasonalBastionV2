@@ -117,7 +117,17 @@ namespace SeasonalBastion
                 int tid = list[i].Tower.Value;
                 if (tid == 0) continue;
                 if (_towerDeadlockLogged.Add(tid))
+                {
                     Log.E($"[Ammo] Armory has ammo but no job created. tower={tid} totalTowers={metrics.TotalTowers} emptyTowers={metrics.TowersWithoutAmmo} activeResupplyJobs={metrics.ActiveResupplyJobs} armoryAmmo={metrics.ArmoryAvailableAmmo} pending={_owner.PendingRequests}");
+                    _owner.Services.NotificationService?.Push(
+                        key: $"ammo.resupply.blocked.{tid}",
+                        title: "Resupply blocked",
+                        body: $"Tower {tid} needs ammo but no active resupply could start.",
+                        severity: NotificationSeverity.Warning,
+                        payload: default,
+                        cooldownSeconds: 6f,
+                        dedupeByKey: true);
+                }
             }
         }
     }

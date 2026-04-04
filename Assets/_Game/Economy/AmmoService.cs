@@ -21,6 +21,7 @@ namespace SeasonalBastion
         private readonly AmmoCraftService _craftService;
         private readonly AmmoRuntimeState _runtimeState = new();
         private readonly AmmoTowerStateTracker _towerStateTracker = new();
+        private readonly AmmoObservabilityState _observability = new();
         internal List<AmmoRequest> UrgentRequests => _requestQueue.UrgentRequests;
         internal List<AmmoRequest> NormalRequests => _requestQueue.NormalRequests;
         internal AmmoRequestQueue Requests => _requestQueue;
@@ -65,6 +66,8 @@ namespace SeasonalBastion
         public int Debug_TowersWithoutAmmo => _metricsReporter.LastSnapshot.TowersWithoutAmmo;
         public int Debug_ActiveResupplyJobs => _metricsReporter.LastSnapshot.ActiveResupplyJobs;
         public int Debug_ArmoryAvailableAmmo => _metricsReporter.LastSnapshot.ArmoryAvailableAmmo;
+        public string Debug_ArmoryStatus => _observability.ArmoryStatus;
+        public string Debug_ResupplyStatus => _observability.ResupplyStatus;
         internal AmmoMetricsSnapshot CurrentMetrics => _metricsReporter.LastSnapshot;
 
         public AmmoService(GameServices s)
@@ -135,8 +138,8 @@ namespace SeasonalBastion
                 {
                     _s.NotificationService.Push(
                         key: $"TowerAmmo_Empty_{tid}",
-                        title: "Tháp hết đạn",
-                        body: $"Tower {tid}: Ammo {current}/{max}",
+                        title: "Tower out of ammo",
+                        body: $"Tower {tid} out of ammo ({current}/{max})",
                         severity: combatActive ? NotificationSeverity.Error : NotificationSeverity.Warning,
                         payload: default,
                         cooldownSeconds: NotifyCooldownEmpty,
@@ -147,8 +150,8 @@ namespace SeasonalBastion
                 {
                     _s.NotificationService.Push(
                         key: $"TowerAmmo_Low_{tid}",
-                        title: "Tháp cần tiếp đạn",
-                        body: $"Tower {tid}: Ammo {current}/{max}",
+                        title: "Tower low on ammo",
+                        body: $"Tower {tid} low ammo ({current}/{max})",
                         severity: combatActive ? NotificationSeverity.Warning : NotificationSeverity.Info,
                         payload: default,
                         cooldownSeconds: NotifyCooldownLow,
@@ -328,7 +331,29 @@ namespace SeasonalBastion
 
             _armoryBufferPlanner.EnsureArmoryAmmoBuffer();
             _metricsReporter.UpdateDebugMetrics(_resupplyTracking.CountTrackedActiveJobs());
+            UpdateObservabilityStatus();
             _recoveryService.LogPotentialResupplyDeadlock();
+        }
+
+        private void UpdateObservabilityStatus()
+        {
+            var m = CurrentMetrics;
+
+            _observability.ArmoryStatus = m.ArmoryAvailableAmmo switch
+            {
+                <= 0 => "Empty",
+                >= 200 => "Full",
+                _ => "Available"
+            };
+
+            if (m.TowersWithoutAmmo > 0 && m.ActiveResupplyJobs <= 0 && m.ArmoryAvailableAmmo <= 0)
+                _observability.ResupplyStatus = "No ammo source available";
+            else if (m.TowersWithoutAmmo > 0 && m.ActiveResupplyJobs > 0)
+                _observability.ResupplyStatus = "Resupply job pending";
+            else if (m.TowersWithoutAmmo > 0 && PendingRequests > 0 && m.ActiveResupplyJobs <= 0 && m.ArmoryAvailableAmmo > 0)
+                _observability.ResupplyStatus = "Resupply blocked";
+            else
+                _observability.ResupplyStatus = "Stable";
         }
     }
 }

@@ -28,9 +28,10 @@
                     <ui:Label name="LblResIron" text="0" class="res-val" />
                 </ui:VisualElement>
 
-                <ui:VisualElement class="res-chip">
+                <ui:VisualElement class="res-chip res-chip-ammo">
                     <ui:Label text="Ammo" class="res-key" />
                     <ui:Label name="LblResAmmo" text="0" class="res-val" />
+                    <ui:Label name="LblAmmoState" text="Stable" class="res-subval" />
                 </ui:VisualElement>
             </ui:VisualElement>
 
@@ -55,6 +56,12 @@
 
         <!-- Notifications: non-blocking -->
         <ui:VisualElement name="NotiStack" class="noti-stack" picking-mode="Ignore" />
+
+        <ui:VisualElement name="AmmoDiagOverlay" class="ammo-diag-overlay" picking-mode="Ignore">
+            <ui:Label name="LblAmmoDiagTowers" text="Towers: 0" class="ammo-diag-line" />
+            <ui:Label name="LblAmmoDiagArmory" text="Armory: Unknown" class="ammo-diag-line" />
+            <ui:Label name="LblAmmoDiagResupply" text="Resupply: Stable" class="ammo-diag-line" />
+        </ui:VisualElement>
 
         <!-- BOTTOM BAR (block world input) -->
         <ui:VisualElement name="BottomBar" class="bottombar ui-block-world" picking-mode="Position">

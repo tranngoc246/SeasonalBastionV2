@@ -1,5 +1,6 @@
 using SeasonalBastion.Contracts;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace SeasonalBastion.DebugTools
 {

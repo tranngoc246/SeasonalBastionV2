@@ -418,12 +418,14 @@ namespace SeasonalBastion
             _resupplyJobByArmory.Clear();
             _resupplyJobByTower.Clear();
 
-            if (_s?.JobBoard is not JobBoard board)
+            var board = _s?.JobBoard;
+            if (board == null)
                 return;
 
             try
             {
-                var jobsField = typeof(JobBoard).GetField("_jobs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var boardType = board.GetType();
+                var jobsField = boardType.GetField("_jobs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
                 if (jobsField?.GetValue(board) is not Dictionary<int, Job> jobs)
                     return;
 

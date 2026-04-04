@@ -9,11 +9,12 @@ namespace SeasonalBastion.DebugTools
 {
     public enum DebugHubTab
     {
-        Home = 0,
-        Notifications = 1,
-        WorldIndex = 2,
-        Npc = 3,
-        Storage = 4
+        MainTools = 0,
+        Home = 1,
+        Notifications = 2,
+        WorldIndex = 3,
+        Npc = 4,
+        Storage = 5
     }
 
     public enum DebugHubMode
@@ -67,10 +68,7 @@ namespace SeasonalBastion.DebugTools
         [Header("State")]
         [SerializeField] private bool _showUi = true;
         [SerializeField] private DebugHubMode _mode = DebugHubMode.None;
-        [SerializeField] private DebugHubTab _tab = DebugHubTab.Home;
-
-        // VS3 QA: Quick Debug always visible + optional Advanced.
-        [SerializeField] private bool _showAdvanced = false;
+        [SerializeField] private DebugHubTab _tab = DebugHubTab.MainTools;
 
         // Quick spawn enemy
         [SerializeField] private string _quickEnemyDefId = "Swarmling";
@@ -225,8 +223,8 @@ namespace SeasonalBastion.DebugTools
             if (Pressed(kb, _clearModeKey))
                 ApplyMode(DebugHubMode.None);
 
-            if (Pressed(kb, _modeBuildKey)) { ApplyMode(DebugHubMode.Build); _tab = DebugHubTab.Home; }
-            if (Pressed(kb, _modeRoadKey)) { ApplyMode(DebugHubMode.Road); _tab = DebugHubTab.Home; }
+            if (Pressed(kb, _modeBuildKey)) { ApplyMode(DebugHubMode.Build); _tab = DebugHubTab.MainTools; }
+            if (Pressed(kb, _modeRoadKey)) { ApplyMode(DebugHubMode.Road); _tab = DebugHubTab.MainTools; }
             if (Pressed(kb, _modeNpcKey)) { ApplyMode(DebugHubMode.Npc); _tab = DebugHubTab.Npc; }
             if (Pressed(kb, _modeStorageKey)) { ApplyMode(DebugHubMode.Storage); _tab = DebugHubTab.Storage; }
 
@@ -270,19 +268,17 @@ namespace SeasonalBastion.DebugTools
             GUILayout.Label("[DebugHUDHub] VS3 QA QUICK | F1 UI | F2 Build | F3 Road | F4 NPC | F5 Storage | F6 Noti | F7 Index | Esc None");
 
             GUILayout.BeginHorizontal();
-            _showAdvanced = GUILayout.Toggle(_showAdvanced, "Advanced", GUILayout.Width(110));
-            GUILayout.Label($"Mode: {_mode}");
+            if (GUILayout.Button("Main Tools", GUILayout.Width(120))) _tab = DebugHubTab.MainTools;
+            if (GUILayout.Button("Advanced", GUILayout.Width(120))) _tab = DebugHubTab.Home;
+            GUILayout.Label($"Mode: {_mode} | Tab: {_tab}");
             GUILayout.EndHorizontal();
 
             GUILayout.Space(8);
 
-            DrawQuick(); 
-
-            if (_showAdvanced)
-            {
-                GUILayout.Space(10);
+            if (_tab == DebugHubTab.MainTools)
+                DrawQuick();
+            else
                 DrawAdvancedTabs();
-            }
 
             GUILayout.EndArea();
         }
@@ -428,13 +424,17 @@ namespace SeasonalBastion.DebugTools
 
         private void DrawAdvancedTabs()
         {
-            GUILayout.Label($"Tab: {_tab}");
+            GUILayout.Label("ADVANCED");
             GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Back to Main", GUILayout.Width(120))) _tab = DebugHubTab.MainTools;
             if (GUILayout.Button("Home", GUILayout.Width(90))) _tab = DebugHubTab.Home;
             if (GUILayout.Button("Noti (F6)", GUILayout.Width(120))) _tab = DebugHubTab.Notifications;
             if (GUILayout.Button("Index (F7)", GUILayout.Width(120))) _tab = DebugHubTab.WorldIndex;
             if (GUILayout.Button("NPC", GUILayout.Width(90))) _tab = DebugHubTab.Npc;
             if (GUILayout.Button("Storage", GUILayout.Width(110))) _tab = DebugHubTab.Storage;
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
             _homeShowRewards = GUILayout.Toggle(_homeShowRewards, "Rewards", GUILayout.Width(90));
             _homeShowHints = GUILayout.Toggle(_homeShowHints, "Hints", GUILayout.Width(70));
             GUILayout.EndHorizontal();

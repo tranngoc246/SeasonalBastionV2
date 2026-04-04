@@ -568,9 +568,9 @@ namespace SeasonalBastion
                         recipe = r;
                         return true;
                     }
-                    catch (Exception ex)
+                    catch (Exception fallbackEx)
                     {
-                        UnityEngine.Debug.LogWarning($"[AmmoService] Failed to load fallback recipe 'ForgeAmmo' after recipe '{rid}' lookup failed: {ex}");
+                        UnityEngine.Debug.LogWarning($"[AmmoService] Failed to load fallback recipe 'ForgeAmmo' after recipe '{rid}' lookup failed: {fallbackEx}");
                     }
                 }
                 return false;

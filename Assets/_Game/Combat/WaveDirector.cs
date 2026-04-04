@@ -366,7 +366,10 @@ namespace SeasonalBastion
 
                 hp = Math.Max(1, Mathf.RoundToInt(baseHp * mul));
             }
-            catch { /* keep hp=1 */ }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[WaveDirector] Failed to resolve HP for enemy '{enemyDefId}' in wave '{_active.DefId}'. Using fallback hp=1. {ex}");
+            }
 
             var st = new EnemyState
             {

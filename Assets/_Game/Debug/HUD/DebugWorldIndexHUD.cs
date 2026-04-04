@@ -1,4 +1,4 @@
-using SeasonalBastion;
+﻿using SeasonalBastion;
 using SeasonalBastion.Contracts;
 using UnityEngine;
 
@@ -62,9 +62,9 @@ public sealed class DebugWorldIndexHUD : MonoBehaviour
                 }
                 if (_world.Sites.Count > 10) GUILayout.Label("  ...");
             }
-            catch
+            catch (System.Exception ex)
             {
-                // If current IEntityStore doesn't expose Ids, we still show count.
+                Debug.LogWarning($"[DebugWorldIndexHUD] Failed to enumerate build sites for debug HUD. Showing site count only. {ex}");
             }
         }
     }

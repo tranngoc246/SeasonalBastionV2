@@ -323,7 +323,11 @@ namespace SeasonalBastion.UI.Presenters
         {
             if (s?.DataRegistry == null || string.IsNullOrEmpty(defId)) return null;
             try { return s.DataRegistry.GetBuilding(defId); }
-            catch { return null; }
+            catch (System.Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[InspectPanelPresenter] Failed to resolve BuildingDef '{defId}' while rendering inspect panel. {ex}");
+                return null;
+            }
         }
 
         private static bool IsUpgradeInProgress(GameServices s, BuildingId bid, out BuildSiteState site)
@@ -371,7 +375,11 @@ namespace SeasonalBastion.UI.Presenters
 
             IReadOnlyList<UpgradeEdgeDef> edges = null;
             try { edges = s.DataRegistry.GetUpgradeEdgesFrom(fromDefId); }
-            catch { edges = null; }
+            catch (System.Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[InspectPanelPresenter] Failed to get upgrade edges from '{fromDefId}'. Treating as no upgrade available. {ex}");
+                edges = null;
+            }
 
             if (edges == null || edges.Count == 0)
             {

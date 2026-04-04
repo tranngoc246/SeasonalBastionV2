@@ -52,8 +52,9 @@ namespace SeasonalBastion
                         string.Equals(a, "-runEditorTests", StringComparison.OrdinalIgnoreCase)
                         || string.Equals(a, "-runTests", StringComparison.OrdinalIgnoreCase));
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.LogWarning($"[GameAppController] Failed while detecting editor test mode. Defaulting to normal startup path. {ex}");
                 return false;
             }
         }
@@ -161,8 +162,9 @@ namespace SeasonalBastion
             {
                 return File.Exists(Path.Combine(Application.persistentDataPath, "run_save.json"));
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.LogWarning($"[GameAppController] Failed to check for run_save.json in persistentDataPath. Treating save as missing. {ex}");
                 return false;
             }
         }

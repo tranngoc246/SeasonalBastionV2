@@ -183,7 +183,10 @@ namespace SeasonalBastion.View2D
                     var v = prop.GetValue(mb);
                     if (v != null) return v;
                 }
-                catch { /* ignore */ }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[WorldViewRoot2D] Failed to read Services property from {t.Name}: {ex}");
+                }
             }
 
             // (B) method GetServices()
@@ -195,7 +198,10 @@ namespace SeasonalBastion.View2D
                     var v = m.Invoke(mb, null);
                     if (v != null) return v;
                 }
-                catch { /* ignore */ }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[WorldViewRoot2D] Failed to invoke GetServices on {t.Name}: {ex}");
+                }
             }
 
             return null;

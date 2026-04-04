@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
@@ -77,7 +77,11 @@ namespace SeasonalBastion
                 return null;
 
             try { return dataRegistry.GetBuilding(defId); }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BuildOrderInvariantHelper] Failed to resolve BuildingDef '{defId}' while asserting build invariant: {ex}");
+                return null;
+            }
         }
     }
 }

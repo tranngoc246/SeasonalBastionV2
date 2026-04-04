@@ -1,4 +1,4 @@
-using SeasonalBastion.Contracts;
+﻿using SeasonalBastion.Contracts;
 using System;
 using System.Collections.Generic;
 
@@ -553,8 +553,9 @@ namespace SeasonalBastion
                 recipe = r;
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to load ammo recipe '{rid}'. Attempting fallback recipe 'ForgeAmmo'. {ex}");
                 // fallback to default once
                 if (!string.Equals(rid, "ForgeAmmo", StringComparison.OrdinalIgnoreCase))
                 {
@@ -894,7 +895,11 @@ namespace SeasonalBastion
 
                 return null;
             }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[AmmoService] Failed to access GameServices.Balance.Config via reflection. Using fallback balance values. {ex}");
+                return null;
+            }
         }
 
         private int GetBalInt(string section, string key, int fallback)

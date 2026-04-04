@@ -177,7 +177,10 @@ namespace SeasonalBastion
                 IsActive = true; // ensure combat ticking
                 _waves.DebugStartSingleWave(def);
             }
-            catch { /* ignore */ }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogError($"[CombatService] Failed to spawn debug wave '{waveDefId}': {ex}");
+            }
 #endif
         }
 
@@ -262,7 +265,7 @@ namespace SeasonalBastion
             {
                 alive = _s.WorldState?.Enemies?.Count ?? 0;
             }
-            catch { alive = 0; }
+            catch (Exception ex) { UnityEngine.Debug.LogWarning($"[CombatService] Failed to count restored enemies after load. Defaulting alive=0: {ex}"); alive = 0; }
 
             if (alive > 0)
             {

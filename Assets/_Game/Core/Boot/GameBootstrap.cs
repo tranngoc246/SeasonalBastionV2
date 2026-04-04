@@ -243,9 +243,9 @@
                     dedupeByKey: true
                 );
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore - boot should not crash
+                Debug.LogWarning($"[GameBootstrap] Failed to push boot error notification. Boot continues with logged error only: {ex}");
             }
         }
     }

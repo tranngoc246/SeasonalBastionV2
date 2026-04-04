@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -493,7 +493,11 @@ namespace SeasonalBastion
                 return null;
 
             try { return _s.DataRegistry.GetBuilding(defId); }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                UnityEngine.Debug.LogWarning($"[BuildOrderCreationService] Failed to resolve BuildingDef '{defId}' while cleaning orphan build sites. Using 1x1 fallback footprint. {ex}");
+                return null;
+            }
         }
     }
 }

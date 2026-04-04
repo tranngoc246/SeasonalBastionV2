@@ -223,11 +223,12 @@ namespace SeasonalBastion.Tests.EditMode
         public void ConstructedBuildingInvariantValidator_Fails_WhenWorldIndexMissingBuilding()
         {
             var data = new TestDataRegistry();
-            data.Add(new BuildingDef { DefId = "bld_custom_misc_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100 });
+            data.Add(new BuildingDef { DefId = "bld_arrowtower_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsTower = true });
+            data.AddTower(new TowerDef { DefId = "bld_arrowtower_t1", MaxHp = 100, AmmoMax = 12 });
 
             var world = new WorldState();
             var grid = new GridMap(16, 16);
-            var buildingId = world.Buildings.Create(MakeBuildingState("bld_custom_misc_t1", 5, 5, true));
+            var buildingId = world.Buildings.Create(MakeBuildingState("bld_arrowtower_t1", 5, 5, true));
             var building = world.Buildings.Get(buildingId);
             building.Id = buildingId;
             world.Buildings.Set(buildingId, building);
@@ -237,14 +238,14 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(ok, Is.True, "Null WorldIndex should skip index containment checks.");
 
-            var unrelatedWorld = new WorldState();
-            var index = new WorldIndexService(unrelatedWorld, data);
+            var index = new WorldIndexService(world, data);
             index.RebuildAll();
 
             ok = ConstructedBuildingInvariantValidator.Validate(world, grid, data, index, buildingId, out error);
 
             Assert.That(ok, Is.False);
-            Assert.That(error, Does.Contain($"WorldIndex is missing building {buildingId.Value}"));
+            Assert.That(error, Does.Contain("Tower backing missing"));
+            Assert.That(error, Does.Contain($"building {buildingId.Value}"));
         }
 
         [Test]

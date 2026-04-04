@@ -942,7 +942,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             var inbox = noti.GetInbox();
             Assert.That(inbox.Count, Is.EqualTo(1));
-            Assert.That(inbox[0].Title, Is.EqualTo("NPC kh�ng c� vi?c d? l�m"));
+            Assert.That(inbox[0].Title, Is.EqualTo("NPC không có việc để làm"));
         }
 
         [Test]

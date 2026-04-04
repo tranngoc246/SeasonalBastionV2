@@ -32,10 +32,7 @@ namespace SeasonalBastion
 
             try
             {
-                if (board is not JobBoard concreteBoard)
-                    return;
-
-                foreach (var job in concreteBoard.EnumerateAllJobs())
+                foreach (var job in board.EnumerateAllJobs())
                 {
                     if (job.Archetype != JobArchetype.ResupplyTower) continue;
                     if (AmmoService.IsTerminal(job.Status)) continue;

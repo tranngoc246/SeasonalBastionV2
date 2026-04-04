@@ -201,7 +201,7 @@ namespace SeasonalBastion
             _nextId = 1;
         }
 
-        internal IEnumerable<Job> EnumerateAllJobs()
+        public IEnumerable<Job> EnumerateAllJobs()
         {
             foreach (var kv in _jobs)
                 yield return kv.Value;

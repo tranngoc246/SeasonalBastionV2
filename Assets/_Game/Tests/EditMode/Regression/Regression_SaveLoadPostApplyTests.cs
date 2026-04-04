@@ -77,7 +77,7 @@ namespace SeasonalBastion.Tests.EditMode
                 population = new PopulationDTO(),
             };
 
-            LogAssert.Expect(UnityEngine.LogType.Warning, new System.Text.RegularExpressions.Regex(@"\[SaveLoad\] Tower backing mismatch for building 10 \(bld_tower_arrow_t1\): indexed tower 21 at expected cell \(9,9\) belongs to building 11, not 10\..*"));
+            LogAssert.Expect(UnityEngine.LogType.Warning, new System.Text.RegularExpressions.Regex(@"\[SaveLoad\] Tower backing missing for building 10 \(bld_tower_arrow_t1\): no tower found at expected cell \(3,3\)\..*"));
             LogAssert.Expect(UnityEngine.LogType.Warning, new System.Text.RegularExpressions.Regex(@"\[SaveLoad\] Post-apply validation failed for constructed building 10 \(bld_tower_arrow_t1\): WorldIndex is missing building 10 \(bld_tower_arrow_t1\)\..*"));
             bool ok = SaveLoadApplier.TryApply(services, dto, out var error, logErrors: false);
 

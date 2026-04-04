@@ -262,17 +262,20 @@ namespace SeasonalBastion.Tests.EditMode
         {
             var bus = new TestEventBus();
             var data = new TestDataRegistry();
-            data.Add(new BuildingDef { DefId = "bld_armory_t1", SizeX = 1, SizeY = 1, BaseLevel = 1, MaxHp = 100, IsArmory = true, WorkRoles = WorkRoleFlags.Armory });
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true, WorkRoles = WorkRoleFlags.Build | WorkRoleFlags.HaulBasic });
 
             var world = new WorldState();
             var grid = new GridMap(64, 64);
             var services = MakeServices(bus, data, world, grid);
 
-            var originalBuildingId = world.Buildings.Create(MakeBuildingState("bld_armory_t1", 1, 1, true));
+            var originalBuildingId = world.Buildings.Create(MakeBuildingState("bld_hq_t1", 1, 1, true));
             var originalBuilding = world.Buildings.Get(originalBuildingId);
             originalBuilding.Id = originalBuildingId;
             world.Buildings.Set(originalBuildingId, originalBuilding);
             grid.SetBuilding(new CellPos(1, 1), originalBuildingId);
+            grid.SetBuilding(new CellPos(2, 1), originalBuildingId);
+            grid.SetBuilding(new CellPos(1, 2), originalBuildingId);
+            grid.SetBuilding(new CellPos(2, 2), originalBuildingId);
             services.WorldIndex.RebuildAll();
 
             var dto = new RunSaveDTO
@@ -286,7 +289,7 @@ namespace SeasonalBastion.Tests.EditMode
                 {
                     Buildings = new List<BuildingState>
                     {
-                        MakeBuilding(500, "bld_armory_t1", 5, 5, constructed: true)
+                        MakeBuilding(500, "bld_hq_t1", 5, 5, constructed: true)
                     },
                     Towers = new List<TowerState>(),
                     Npcs = new List<NpcState>(),
@@ -299,6 +302,10 @@ namespace SeasonalBastion.Tests.EditMode
             };
 
             Assert.That(SaveLoadApplier.TryApply(services, dto, out var error, logErrors: false), Is.True, error);
+            Assert.That(grid.Get(new CellPos(5, 5)).Building.Value, Is.EqualTo(500));
+            Assert.That(grid.Get(new CellPos(6, 5)).Building.Value, Is.EqualTo(500));
+            Assert.That(grid.Get(new CellPos(5, 6)).Building.Value, Is.EqualTo(500));
+            Assert.That(grid.Get(new CellPos(6, 6)).Building.Value, Is.EqualTo(500));
 
             var board = (JobBoard)services.JobBoard;
             var jobId = board.Enqueue(new Job

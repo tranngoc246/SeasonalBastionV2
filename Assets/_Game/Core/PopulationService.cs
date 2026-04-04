@@ -21,8 +21,8 @@ namespace SeasonalBastion
         {
             _s = s;
             _s?.EventBus?.Subscribe<DayStartedEvent>(OnDayStartedEvent);
-            _s?.EventBus?.Subscribe<BuildingPlacedEvent>(OnBuildingChanged);
-            _s?.EventBus?.Subscribe<BuildingUpgradedEvent>(OnBuildingChanged);
+            _s?.EventBus?.Subscribe<BuildingPlacedEvent>(OnBuildingPlaced);
+            _s?.EventBus?.Subscribe<BuildingUpgradedEvent>(OnBuildingUpgraded);
             Reset();
         }
 
@@ -125,12 +125,12 @@ namespace SeasonalBastion
             OnDayStarted();
         }
 
-        private void OnBuildingChanged(BuildingPlacedEvent ev)
+        private void OnBuildingPlaced(BuildingPlacedEvent ev)
         {
             RebuildDerivedState();
         }
 
-        private void OnBuildingChanged(BuildingUpgradedEvent ev)
+        private void OnBuildingUpgraded(BuildingUpgradedEvent ev)
         {
             RebuildDerivedState();
         }

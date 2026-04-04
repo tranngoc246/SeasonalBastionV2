@@ -213,6 +213,93 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void UpgradeFlowCompletion_PublishesOnlyUpgradeEvent_WithoutDuplicateBuildingReaction()
+        {
+            var bus = new TestEventBus();
+            int buildingReactionCount = 0;
+            bus.Subscribe<BuildingPlacedEvent>(_ => buildingReactionCount++);
+            bus.Subscribe<BuildingUpgradedEvent>(_ => buildingReactionCount++);
+
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true });
+            data.Add(new BuildingDef { DefId = "bld_hq_t2", SizeX = 2, SizeY = 2, BaseLevel = 2, MaxHp = 160, IsHQ = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(16, 16);
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world, grid, new FakePlacementService());
+            services.JobBoard = new JobBoard();
+            services.WorldIndex = new WorldIndexService(world, data);
+
+            var buildingId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(3, 3),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var building = world.Buildings.Get(buildingId);
+            building.Id = buildingId;
+            world.Buildings.Set(buildingId, building);
+            grid.SetBuilding(new CellPos(3, 3), buildingId);
+            grid.SetBuilding(new CellPos(4, 3), buildingId);
+            grid.SetBuilding(new CellPos(3, 4), buildingId);
+            grid.SetBuilding(new CellPos(4, 4), buildingId);
+            services.WorldIndex.RebuildAll();
+
+            var siteId = world.Sites.Create(new BuildSiteState
+            {
+                BuildingDefId = "bld_hq_t2",
+                TargetLevel = 2,
+                Anchor = new CellPos(3, 3),
+                Rotation = Dir4.N,
+                IsActive = true,
+                WorkSecondsDone = 6f,
+                WorkSecondsTotal = 6f,
+                DeliveredSoFar = new List<CostDef>(),
+                RemainingCosts = new List<CostDef>(),
+                Kind = 1,
+                TargetBuilding = buildingId,
+                FromDefId = "bld_hq_t1",
+                EdgeId = "hq_t1_to_t2"
+            });
+            var site = world.Sites.Get(siteId);
+            site.Id = siteId;
+            world.Sites.Set(siteId, site);
+            grid.SetSite(new CellPos(3, 3), siteId);
+            grid.SetSite(new CellPos(4, 3), siteId);
+            grid.SetSite(new CellPos(3, 4), siteId);
+            grid.SetSite(new CellPos(4, 4), siteId);
+
+            var completion = new BuildOrderCompletionService(services, _ => { }, _ => { });
+            var order = new BuildOrder
+            {
+                OrderId = 3,
+                Kind = BuildOrderKind.Upgrade,
+                BuildingDefId = "bld_hq_t2",
+                TargetBuilding = buildingId,
+                Site = siteId,
+                Completed = false
+            };
+
+            completion.CompleteUpgrade(ref order);
+
+            int placedPublished = 0;
+            int upgradedPublished = 0;
+            for (int i = 0; i < bus.Published.Count; i++)
+            {
+                if (bus.Published[i] is BuildingPlacedEvent) placedPublished++;
+                if (bus.Published[i] is BuildingUpgradedEvent) upgradedPublished++;
+            }
+
+            Assert.That(placedPublished, Is.EqualTo(0), "Upgrade finalize must not publish BuildingPlacedEvent.");
+            Assert.That(upgradedPublished, Is.EqualTo(1), "Upgrade finalize must publish BuildingUpgradedEvent exactly once.");
+            Assert.That(buildingReactionCount, Is.EqualTo(1), "A listener subscribed to both placement and upgrade events should react exactly once for an upgrade.");
+        }
+
+        [Test]
         public void PlaceCancellationRollback_RemovesPlaceholderSiteAndTrackedRoad_RefundsResources_AndIsIdempotent()
         {
             var bus = new TestEventBus();

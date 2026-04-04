@@ -99,7 +99,7 @@ namespace SeasonalBastion.UI.Presenters
 
                 _s.EventBus.Subscribe<ResourceDeliveredEvent>(OnResourceChanged);
                 _s.EventBus.Subscribe<ResourceSpentEvent>(OnResourceChanged);
-                _s.EventBus.Subscribe<BuildingPlacedEvent>(OnBuildingChanged);
+                _s.EventBus.Subscribe<BuildingPlacedEvent>(OnBuildingPlaced);
                 _s.EventBus.Subscribe<BuildingUpgradedEvent>(OnBuildingUpgraded);
             }
 
@@ -137,7 +137,7 @@ namespace SeasonalBastion.UI.Presenters
 
                 _s.EventBus.Unsubscribe<ResourceDeliveredEvent>(OnResourceChanged);
                 _s.EventBus.Unsubscribe<ResourceSpentEvent>(OnResourceChanged);
-                _s.EventBus.Unsubscribe<BuildingPlacedEvent>(OnBuildingChanged);
+                _s.EventBus.Unsubscribe<BuildingPlacedEvent>(OnBuildingPlaced);
                 _s.EventBus.Unsubscribe<BuildingUpgradedEvent>(OnBuildingUpgraded);
             }
 
@@ -410,13 +410,17 @@ namespace SeasonalBastion.UI.Presenters
             RefreshPopulationSummary();
         }
 
-        private void OnBuildingChanged(BuildingPlacedEvent _)
+        private void OnBuildingPlaced(BuildingPlacedEvent _)
         {
-            RefreshResources();
-            RefreshPopulationSummary();
+            RefreshBuildingDrivenUi();
         }
 
         private void OnBuildingUpgraded(BuildingUpgradedEvent _)
+        {
+            RefreshBuildingDrivenUi();
+        }
+
+        private void RefreshBuildingDrivenUi()
         {
             RefreshResources();
             RefreshPopulationSummary();

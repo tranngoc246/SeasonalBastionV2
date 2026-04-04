@@ -270,8 +270,8 @@ namespace SeasonalBastion.View2D
             _bus.Subscribe<RoadPlacedEvent>(OnRoadPlaced);
             _bus.Subscribe<RoadsDirtyEvent>(OnRoadsDirty);
 
-            _bus.Subscribe<BuildingPlacedEvent>(OnBuildingsChanged);
-            _bus.Subscribe<BuildingUpgradedEvent>(OnBuildingsChanged);
+            _bus.Subscribe<BuildingPlacedEvent>(OnBuildingPlaced);
+            _bus.Subscribe<BuildingUpgradedEvent>(OnBuildingUpgraded);
         }
 
         private void Unsubscribe()
@@ -281,8 +281,8 @@ namespace SeasonalBastion.View2D
             _bus.Unsubscribe<RoadPlacedEvent>(OnRoadPlaced);
             _bus.Unsubscribe<RoadsDirtyEvent>(OnRoadsDirty);
 
-            _bus.Unsubscribe<BuildingPlacedEvent>(OnBuildingsChanged);
-            _bus.Unsubscribe<BuildingUpgradedEvent>(OnBuildingsChanged);
+            _bus.Unsubscribe<BuildingPlacedEvent>(OnBuildingPlaced);
+            _bus.Unsubscribe<BuildingUpgradedEvent>(OnBuildingUpgraded);
         }
 
         private void OnRoadPlaced(RoadPlacedEvent ev)
@@ -300,12 +300,12 @@ namespace SeasonalBastion.View2D
             RebuildRoad();
         }
 
-        private void OnBuildingsChanged(BuildingPlacedEvent _)
+        private void OnBuildingPlaced(BuildingPlacedEvent _)
         {
             SyncBuildings();
         }
 
-        private void OnBuildingsChanged(BuildingUpgradedEvent _)
+        private void OnBuildingUpgraded(BuildingUpgradedEvent _)
         {
             SyncBuildings();
         }

@@ -33,9 +33,12 @@ namespace SeasonalBastion.Tests.EditMode
     internal sealed class TestEventBus : IEventBus
     {
         private readonly Dictionary<Type, List<Delegate>> _subs = new();
+        public readonly List<object> Published = new();
 
         public void Publish<T>(T evt) where T : struct
         {
+            Published.Add(evt);
+
             if (_subs.TryGetValue(typeof(T), out var list))
             {
                 for (int i = 0; i < list.Count; i++)

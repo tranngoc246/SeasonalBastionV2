@@ -2,8 +2,7 @@
     "name": "Game.Core",
     "rootNamespace": "SeasonalBastion",
     "references": [
-        "Game.Contracts",
-        "Game.RunStart"
+        "Game.Contracts"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -1,5 +1,4 @@
 using SeasonalBastion.Contracts;
-using SeasonalBastion.RunStart;
 
 namespace SeasonalBastion
 {

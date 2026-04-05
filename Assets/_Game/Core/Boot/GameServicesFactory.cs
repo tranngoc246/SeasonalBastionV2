@@ -79,6 +79,7 @@ namespace SeasonalBastion
             // Save
             var saveMigrator = new SaveMigrator();
             services.SaveService = new SaveService(new SaveMigrator(), services.DataRegistry, services.GridMap, services.PopulationService, services);
+            _ = new SaveAutosaveService(services);
 
             return services;
         }

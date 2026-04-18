@@ -55,11 +55,11 @@ namespace SeasonalBastion
 
                     _s.NotificationService?.Push(
                         key: "RunStartApplyFailed",
-                        title: "Run Start",
-                        body: result.error,
+                        title: "Không thể bắt đầu run",
+                        body: "Không thể áp dụng dữ liệu khởi đầu của run. Hãy kiểm tra Console để biết thêm chi tiết.",
                         severity: NotificationSeverity.Error,
                         payload: default,
-                        cooldownSeconds: 0f,
+                        cooldownSeconds: 2f,
                         dedupeByKey: true
                     );
                 }

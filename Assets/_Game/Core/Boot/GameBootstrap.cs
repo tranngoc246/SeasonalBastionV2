@@ -147,7 +147,7 @@
             if (res.Code != SaveResultCode.Ok || dto == null)
             {
                 error = "LoadRun failed: " + res.Message + " (retry or backup load available if present)";
-                _services.NotificationService?.Push("load.failed", "Load failed", error, NotificationSeverity.Warning, default, 2f, true);
+                _services.NotificationService?.Push("load.failed", "Tải tiến trình thất bại", "Không thể tải tiến trình đã lưu. Hãy thử lại hoặc dùng bản lưu khác nếu có.", NotificationSeverity.Warning, default, 5f, true);
                 return false;
             }
 
@@ -238,11 +238,11 @@
             {
                 _services?.NotificationService?.Push(
                     key: "BOOT_ERROR",
-                    title: "BOOT ERROR",
-                    body: msg,
+                    title: "Lỗi khởi tạo",
+                    body: "Game gặp lỗi trong lúc khởi tạo. Hãy kiểm tra Console để biết thêm chi tiết.",
                     severity: NotificationSeverity.Error,
                     payload: default,
-                    cooldownSeconds: 0f,
+                    cooldownSeconds: 2f,
                     dedupeByKey: true
                 );
             }

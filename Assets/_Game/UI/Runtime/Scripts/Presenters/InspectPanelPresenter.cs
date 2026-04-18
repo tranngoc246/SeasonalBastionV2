@@ -263,11 +263,11 @@ namespace SeasonalBastion.UI.Presenters
             {
                 s.NotificationService?.Push(
                     key: $"UiCancelConstruction_{id}",
-                    title: "Construction",
-                    body: $"Cancelled construction for building #{id}",
+                    title: "Đã hủy xây dựng",
+                    body: "Lệnh xây dựng của công trình này đã được hủy.",
                     severity: NotificationSeverity.Info,
                     payload: new NotificationPayload(new BuildingId(id), default, "cancel"),
-                    cooldownSeconds: 0.15f,
+                    cooldownSeconds: 0.75f,
                     dedupeByKey: true);
                 Refresh();
                 return;
@@ -275,11 +275,11 @@ namespace SeasonalBastion.UI.Presenters
 
             s.NotificationService?.Push(
                 key: $"UiCancelConstructionMissing_{id}",
-                title: "Construction",
-                body: "No active construction order found.",
-                severity: NotificationSeverity.Warning,
+                title: "Không thể hủy",
+                body: "Công trình này hiện không có lệnh xây dựng đang hoạt động.",
+                severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(new BuildingId(id), default, "cancel"),
-                cooldownSeconds: 0.25f,
+                cooldownSeconds: 1.5f,
                 dedupeByKey: true);
             Refresh();
         }

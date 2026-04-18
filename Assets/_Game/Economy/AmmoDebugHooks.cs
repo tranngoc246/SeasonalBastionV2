@@ -126,11 +126,11 @@ namespace SeasonalBastion
 
             _s.NotificationService?.Push(
                 key: $"Dev_TowerSpawn_{tid.Value}",
-                title: "DEV",
-                body: $"Spawn test tower {tid.Value} at ({spawn.X},{spawn.Y}) ammo {ammoCap}/{ammoCap}",
+                title: "Debug",
+                body: "Đã tạo một tower thử nghiệm để kiểm tra flow ammo debug.",
                 severity: NotificationSeverity.Info,
                 payload: default,
-                cooldownSeconds: 0.5f,
+                cooldownSeconds: 5f,
                 dedupeByKey: true
             );
         }

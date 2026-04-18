@@ -383,11 +383,11 @@ namespace SeasonalBastion.UI.Presenters
             {
                 _s?.NotificationService?.Push(
                     key: "ui.speed.locked",
-                    title: "Speed locked",
-                    body: "Defend speed >1x is locked.",
+                    title: "Tốc độ bị khóa",
+                    body: "Trong pha phòng thủ, tốc độ hiện chỉ có thể giữ ở 1x.",
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(default, default, ""),
-                    cooldownSeconds: 1.0f,
+                    cooldownSeconds: 3f,
                     dedupeByKey: true);
                 c.SetTimeScale(1f);
                 return;

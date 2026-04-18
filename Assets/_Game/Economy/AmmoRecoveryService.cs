@@ -121,11 +121,11 @@ namespace SeasonalBastion
                     Log.E($"[Ammo] Armory has ammo but no job created. tower={tid} totalTowers={metrics.TotalTowers} emptyTowers={metrics.TowersWithoutAmmo} activeResupplyJobs={metrics.ActiveResupplyJobs} armoryAmmo={metrics.ArmoryAvailableAmmo} pending={_owner.PendingRequests}");
                     _owner.Services.NotificationService?.Push(
                         key: $"ammo.resupply.blocked.{tid}",
-                        title: "Resupply blocked",
-                        body: $"Tower {tid} needs ammo but no active resupply could start.",
+                        title: "Tiếp tế ammo đang bị kẹt",
+                        body: "Một tower cần ammo nhưng lệnh tiếp tế vẫn chưa thể bắt đầu.",
                         severity: NotificationSeverity.Warning,
                         payload: default,
-                        cooldownSeconds: 6f,
+                        cooldownSeconds: 12f,
                         dedupeByKey: true);
                 }
             }

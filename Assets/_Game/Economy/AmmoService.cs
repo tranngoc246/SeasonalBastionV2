@@ -138,8 +138,10 @@ namespace SeasonalBastion
                 {
                     _s.NotificationService.Push(
                         key: $"TowerAmmo_Empty_{tid}",
-                        title: "Tower out of ammo",
-                        body: $"Tower {tid} out of ammo ({current}/{max})",
+                        title: "Tower hết ammo",
+                        body: combatActive
+                            ? "Một tower đã hết ammo trong lúc đang phòng thủ. Cần tiếp tế ngay."
+                            : "Một tower đã hết ammo. Hãy chuẩn bị tiếp tế trước đợt tiếp theo.",
                         severity: combatActive ? NotificationSeverity.Error : NotificationSeverity.Warning,
                         payload: default,
                         cooldownSeconds: NotifyCooldownEmpty,
@@ -150,8 +152,10 @@ namespace SeasonalBastion
                 {
                     _s.NotificationService.Push(
                         key: $"TowerAmmo_Low_{tid}",
-                        title: "Tower low on ammo",
-                        body: $"Tower {tid} low ammo ({current}/{max})",
+                        title: "Tower sắp cạn ammo",
+                        body: combatActive
+                            ? "Một tower đang gần hết ammo trong lúc phòng thủ. Hãy chuẩn bị tiếp tế."
+                            : "Một tower đang gần hết ammo. Nên bổ sung trước khi wave tới.",
                         severity: combatActive ? NotificationSeverity.Warning : NotificationSeverity.Info,
                         payload: default,
                         cooldownSeconds: NotifyCooldownLow,

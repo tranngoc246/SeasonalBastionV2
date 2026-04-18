@@ -102,11 +102,11 @@ namespace SeasonalBastion
 
             _s.NotificationService?.Push(
                 key: $"BuildComplete_{o.TargetBuilding.Value}",
-                title: "Construction",
-                body: $"Completed: {o.BuildingDefId} (Lv {b.Level}) @ ({b.Anchor.X},{b.Anchor.Y})",
+                title: "Hoàn thành xây dựng",
+                body: "Một công trình đã hoàn tất và sẵn sàng hoạt động.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
-                cooldownSeconds: 0.25f,
+                cooldownSeconds: 0.75f,
                 dedupeByKey: true
             );
 
@@ -154,11 +154,11 @@ namespace SeasonalBastion
 
                 _s.NotificationService?.Push(
                     key: $"UpgradeComplete_{o.TargetBuilding.Value}",
-                    title: "Construction",
-                    body: $"Upgraded: {fromId} -> {toId} (Lv {b.Level})",
+                    title: "Nâng cấp hoàn tất",
+                    body: "Công trình đã được nâng cấp thành công.",
                     severity: NotificationSeverity.Info,
                     payload: new NotificationPayload(o.TargetBuilding, default, toId),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 0.75f,
                     dedupeByKey: true
                 );
             }
@@ -393,7 +393,7 @@ namespace SeasonalBastion
             {
                 var res = _s.SaveService.SaveRunToSlot(_s.WorldState, _s.RunClock, 1, autosave: true);
                 if (res.Code == SaveResultCode.Ok)
-                    _s.NotificationService?.Push("autosave.milestone", "Autosave", "Milestone autosave complete.", NotificationSeverity.Info, default, 3f, true);
+                    _s.NotificationService?.Push("autosave.milestone", "Tự động lưu", "Đã tự động lưu tại một mốc tiến trình quan trọng.", NotificationSeverity.Info, default, 30f, true);
             }
         }
 

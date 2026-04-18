@@ -72,11 +72,11 @@ namespace SeasonalBastion
                         Log.E($"[Ammo] resupply skipped tower {req.Tower.Value}: no ammo source totalTowers={_owner.Debug_TotalTowers} emptyTowers={_owner.Debug_TowersWithoutAmmo} activeResupplyJobs={_owner.Debug_ActiveResupplyJobs} armoryAmmo={_owner.Debug_ArmoryAvailableAmmo}");
                         _s.NotificationService?.Push(
                             key: $"ammo.no_source.{req.Tower.Value}",
-                            title: "No ammo source available",
-                            body: $"Tower {req.Tower.Value} needs ammo but no armory/warehouse source is available.",
+                            title: "Không có nguồn tiếp tế ammo",
+                            body: "Tower cần ammo nhưng hiện chưa có armory hoặc kho phù hợp để cấp đạn.",
                             severity: NotificationSeverity.Warning,
                             payload: default,
-                            cooldownSeconds: 6f,
+                            cooldownSeconds: 12f,
                             dedupeByKey: true);
                     }
                     return false;
@@ -165,11 +165,11 @@ namespace SeasonalBastion
                 _owner.TowerDeadlockLogged.Remove(req.Tower.Value);
                 _s.NotificationService?.Push(
                     key: $"ammo.resupply.queued.{req.Tower.Value}",
-                    title: "Resupply job queued",
-                    body: $"Tower {req.Tower.Value} waiting for ammo from armory {source.Value}",
+                    title: "Đã tạo lệnh tiếp tế",
+                    body: "Một tower đang chờ được tiếp tế ammo từ armory hoặc kho.",
                     severity: NotificationSeverity.Info,
                     payload: default,
-                    cooldownSeconds: 5f,
+                    cooldownSeconds: 12f,
                     dedupeByKey: true);
                 if (_owner.DebugAmmoLogsValue)
                     Log.E($"[Ammo] resupply created source={source.Value} tower={req.Tower.Value} amount={amount} priority={req.Priority}");

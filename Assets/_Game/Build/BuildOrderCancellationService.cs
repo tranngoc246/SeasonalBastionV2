@@ -73,11 +73,11 @@ namespace SeasonalBastion
 
             _s.NotificationService?.Push(
                 key: $"BuildCancel_{o.TargetBuilding.Value}",
-                title: "Construction",
-                body: $"Cancelled: {o.BuildingDefId}",
+                title: "Đã hủy xây dựng",
+                body: "Lệnh xây công trình đã được hủy.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
-                cooldownSeconds: 0.25f,
+                cooldownSeconds: 0.75f,
                 dedupeByKey: true);
         }
 
@@ -95,11 +95,11 @@ namespace SeasonalBastion
 
             _s.NotificationService?.Push(
                 key: $"UpgradeCancel_{o.TargetBuilding.Value}",
-                title: "Construction",
-                body: $"Upgrade cancelled: {o.BuildingDefId}",
+                title: "Đã hủy nâng cấp",
+                body: "Lệnh nâng cấp công trình đã được hủy.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
-                cooldownSeconds: 0.25f,
+                cooldownSeconds: 0.75f,
                 dedupeByKey: true);
         }
 
@@ -109,11 +109,11 @@ namespace SeasonalBastion
 
             _s.NotificationService?.Push(
                 key: $"RepairCancel_{o.TargetBuilding.Value}",
-                title: "Construction",
-                body: $"Repair cancelled: {o.BuildingDefId}",
+                title: "Đã hủy sửa chữa",
+                body: "Lệnh sửa chữa công trình đã được hủy.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
-                cooldownSeconds: 0.25f,
+                cooldownSeconds: 0.75f,
                 dedupeByKey: true);
         }
 

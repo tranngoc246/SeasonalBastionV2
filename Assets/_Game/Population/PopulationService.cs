@@ -66,10 +66,10 @@ namespace SeasonalBastion
                 _s?.NotificationService?.Push(
                     key: "population.food.shortage",
                     title: "Thiếu lương thực",
-                    body: $"Cần {need} Food nhưng chỉ tiêu được {consumed}. Dân số sẽ không tăng hôm nay.",
+                    body: $"Hôm nay cần {need} Food nhưng chỉ tiêu thụ được {consumed}. Dân số sẽ chưa thể tăng.",
                     severity: NotificationSeverity.Warning,
                     payload: default,
-                    cooldownSeconds: 0.5f,
+                    cooldownSeconds: 10f,
                     dedupeByKey: true);
             }
             else
@@ -93,11 +93,11 @@ namespace SeasonalBastion
 
                 _s?.NotificationService?.Push(
                     key: $"population.new.npc.{_state.PopulationCurrent}",
-                    title: "Có NPC mới!",
-                    body: $"Dân số tăng lên {_state.PopulationCurrent}/{_state.PopulationCap}. Hãy gán NPC mới vào công trình phù hợp.",
+                    title: "Có NPC mới",
+                    body: $"Dân số đã tăng lên {_state.PopulationCurrent}/{_state.PopulationCap}. Hãy giao việc cho NPC mới khi phù hợp.",
                     severity: NotificationSeverity.Info,
                     payload: default,
-                    cooldownSeconds: 0.1f,
+                    cooldownSeconds: 5f,
                     dedupeByKey: true);
 
                 if (!CanGrowToday(_s?.StorageService?.GetTotal(ResourceType.Food) ?? 0))

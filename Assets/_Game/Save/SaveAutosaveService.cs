@@ -22,11 +22,11 @@ namespace SeasonalBastion
             {
                 _s.NotificationService?.Push(
                     key: "autosave.season",
-                    title: "Autosave",
-                    body: $"Autosaved after season change: {ev.From} -> {ev.To}",
+                    title: "Tự động lưu",
+                    body: "Đã tự động lưu khi sang mùa mới.",
                     severity: NotificationSeverity.Info,
                     payload: default,
-                    cooldownSeconds: 3f,
+                    cooldownSeconds: 45f,
                     dedupeByKey: true);
             }
         }

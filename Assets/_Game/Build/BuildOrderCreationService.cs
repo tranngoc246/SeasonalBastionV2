@@ -49,11 +49,11 @@ namespace SeasonalBastion
             {
                 _s.NotificationService?.Push(
                     key: $"LockedBuild_{buildingDefId}",
-                    title: "Locked",
-                    body: $"Not unlocked yet: {buildingDefId}",
+                    title: "Chưa mở khóa",
+                    body: "Công trình này chưa thể xây ở thời điểm hiện tại.",
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(default, default, buildingDefId),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 2f,
                     dedupeByKey: true
                 );
                 return 0;
@@ -65,19 +65,19 @@ namespace SeasonalBastion
             {
                 _s.NotificationService?.Push(
                     key: "CantPlace",
-                    title: "Can't place",
+                    title: "Không thể đặt công trình",
                     body: vr.FailReason switch
                     {
-                        PlacementFailReason.Overlap => "Overlaps road/building.",
-                        PlacementFailReason.BlockedBySite => "Blocked by site.",
-                        PlacementFailReason.NoRoadConnection => "No road connection.",
-                        PlacementFailReason.OutOfBounds => "Out of bounds.",
-                        PlacementFailReason.InvalidRotation => "Invalid rotation.",
-                        _ => "Invalid placement."
+                        PlacementFailReason.Overlap => "Vị trí này đang chồng lên đường hoặc công trình khác.",
+                        PlacementFailReason.BlockedBySite => "Vị trí này đang bị một site xây dựng chiếm chỗ.",
+                        PlacementFailReason.NoRoadConnection => "Công trình cần kết nối với đường.",
+                        PlacementFailReason.OutOfBounds => "Vị trí này nằm ngoài bản đồ.",
+                        PlacementFailReason.InvalidRotation => "Hướng đặt công trình không hợp lệ.",
+                        _ => "Vị trí đặt công trình không hợp lệ."
                     },
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(default, default, "placement"),
-                    cooldownSeconds: 0.35f,
+                    cooldownSeconds: 1.5f,
                     dedupeByKey: true
                 );
 
@@ -98,11 +98,11 @@ namespace SeasonalBastion
                     {
                         _s.NotificationService?.Push(
                             key: $"NoRes_{buildingDefId}_{c.Resource}",
-                            title: "Not enough resources",
-                            body: $"Need {c.Amount} {c.Resource} (have {total})",
+                            title: "Thiếu tài nguyên",
+                            body: $"Cần {c.Amount} {c.Resource}, hiện chỉ có {total}.",
                             severity: NotificationSeverity.Warning,
                             payload: new NotificationPayload(default, default, buildingDefId),
-                            cooldownSeconds: 0.25f,
+                            cooldownSeconds: 2f,
                             dedupeByKey: true
                         );
                         return 0;
@@ -176,11 +176,11 @@ namespace SeasonalBastion
 
             _s.NotificationService?.Push(
                 key: $"BuildStart_{buildingId.Value}",
-                title: "Construction",
-                body: $"Started: {buildingDefId}",
+                title: "Khởi công",
+                body: "Đã tạo site xây dựng mới.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(buildingId, default, buildingDefId),
-                cooldownSeconds: 0.25f,
+                cooldownSeconds: 0.75f,
                 dedupeByKey: true
             );
 
@@ -200,11 +200,11 @@ namespace SeasonalBastion
             {
                 _s.NotificationService?.Push(
                     key: $"UpgradeNotConstructed_{building.Value}",
-                    title: "Construction",
-                    body: "Can't upgrade while under construction. Finish building first.",
+                    title: "Không thể nâng cấp",
+                    body: "Hãy hoàn thành công trình hiện tại trước khi nâng cấp.",
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(building, default, bs.DefId),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 1.5f,
                     dedupeByKey: true
                 );
                 return 0;
@@ -220,11 +220,11 @@ namespace SeasonalBastion
 
                 _s.NotificationService?.Push(
                     key: $"UpgradeAlready_{building.Value}",
-                    title: "Construction",
-                    body: "Công trình đang nâng cấp rồi.",
+                    title: "Đang nâng cấp",
+                    body: "Công trình này đã có lệnh nâng cấp rồi.",
                     severity: NotificationSeverity.Info,
                     payload: new NotificationPayload(building, default, "upgrade"),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 1.5f,
                     dedupeByKey: true
                 );
 
@@ -236,11 +236,11 @@ namespace SeasonalBastion
             {
                 _s.NotificationService?.Push(
                     key: $"UpgradeNoGraph_{building.Value}",
-                    title: "Construction",
-                    body: "Upgrade graph not loaded.",
+                    title: "Không thể nâng cấp",
+                    body: "Dữ liệu nâng cấp chưa được nạp đúng.",
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(building, default, "upgrade"),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 2f,
                     dedupeByKey: true
                 );
                 return 0;
@@ -251,11 +251,11 @@ namespace SeasonalBastion
             {
                 _s.NotificationService?.Push(
                     key: $"UpgradeNoEdge_{building.Value}",
-                    title: "Construction",
-                    body: $"No upgrade available for: {bs.DefId}",
+                    title: "Không có nâng cấp",
+                    body: "Công trình này hiện chưa có cấp nâng cấp tiếp theo.",
                     severity: NotificationSeverity.Info,
                     payload: new NotificationPayload(building, default, bs.DefId),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 2f,
                     dedupeByKey: true
                 );
                 return 0;
@@ -267,11 +267,11 @@ namespace SeasonalBastion
             {
                 _s.NotificationService?.Push(
                     key: $"UpgradeLocked_{building.Value}_{edge.RequiresUnlocked}",
-                    title: "Locked",
-                    body: $"Not unlocked yet: {edge.RequiresUnlocked}",
+                    title: "Chưa mở khóa",
+                    body: "Nâng cấp này chưa khả dụng ở thời điểm hiện tại.",
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(building, default, edge.RequiresUnlocked),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 2f,
                     dedupeByKey: true
                 );
                 return 0;
@@ -281,11 +281,11 @@ namespace SeasonalBastion
             {
                 _s.NotificationService?.Push(
                     key: $"UpgradeMissingDef_{building.Value}",
-                    title: "Construction",
-                    body: $"Upgrade target def missing: {edge.To}",
+                    title: "Không thể nâng cấp",
+                    body: "Không tìm thấy dữ liệu của cấp nâng cấp tiếp theo.",
                     severity: NotificationSeverity.Error,
                     payload: new NotificationPayload(building, default, edge.To),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 2f,
                     dedupeByKey: true
                 );
                 return 0;
@@ -298,11 +298,11 @@ namespace SeasonalBastion
                 {
                     _s.NotificationService?.Push(
                         key: $"UpgradeFootprintMismatch_{building.Value}",
-                        title: "Construction",
-                        body: "Upgrade footprint mismatch (not supported).",
+                        title: "Không thể nâng cấp",
+                        body: "Cấp nâng cấp này đổi footprint công trình nên hiện chưa được hỗ trợ.",
                         severity: NotificationSeverity.Warning,
                         payload: new NotificationPayload(building, default, edge.To),
-                        cooldownSeconds: 0.25f,
+                        cooldownSeconds: 2f,
                         dedupeByKey: true
                     );
                     return 0;

@@ -4,11 +4,9 @@
   bottom: 80px;
   align-items: center;
   justify-content: flex-end;
-  pointer-events: none;
 }
 
 .tooltip-host {
   position: absolute;
   left: 0; right: 0; top: 0; bottom: 0;
-  pointer-events: none;
 }

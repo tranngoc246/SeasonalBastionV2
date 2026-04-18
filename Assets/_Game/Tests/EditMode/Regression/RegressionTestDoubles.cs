@@ -25,7 +25,8 @@ namespace SeasonalBastion.Tests.EditMode
                 RunOutcomeService = outcome,
                 WorldState = world,
                 GridMap = grid,
-                PlacementService = placement
+                PlacementService = placement,
+                Balance = new BalanceService(null, new BalanceConfig())
             };
 
             if (services.GridMap != null)
@@ -85,6 +86,7 @@ namespace SeasonalBastion.Tests.EditMode
         private readonly Dictionary<string, TowerDef> _towersById = new(StringComparer.Ordinal);
         private readonly Dictionary<string, EnemyDef> _enemiesById = new(StringComparer.Ordinal);
         private readonly Dictionary<string, NpcDef> _npcsById = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, RecipeDef> _recipesById = new(StringComparer.Ordinal);
 
         public void Add(BuildingDef def) => _b[def.DefId] = def;
         public void AddWave(WaveDef def) => _waves[def.DefId] = def;
@@ -104,6 +106,12 @@ namespace SeasonalBastion.Tests.EditMode
         {
             if (def == null || string.IsNullOrWhiteSpace(def.DefId)) return;
             _towersById[def.DefId] = def;
+        }
+
+        public void AddRecipe(RecipeDef def)
+        {
+            if (def == null || string.IsNullOrWhiteSpace(def.DefId)) return;
+            _recipesById[def.DefId] = def;
         }
 
         public void AddNode(BuildableNodeDef node)
@@ -141,7 +149,7 @@ namespace SeasonalBastion.Tests.EditMode
         public EnemyDef GetEnemy(string id)
         {
             if (_enemiesById.TryGetValue(id, out var def)) return def;
-            throw new NotSupportedException();
+            return new EnemyDef { DefId = id, MaxHp = 1 };
         }
         public bool TryGetEnemy(string id, out EnemyDef def) => _enemiesById.TryGetValue(id, out def);
         public WaveDef GetWave(string id)
@@ -152,8 +160,17 @@ namespace SeasonalBastion.Tests.EditMode
         public bool TryGetWave(string id, out WaveDef def) => _waves.TryGetValue(id, out def);
         public RewardDef GetReward(string id) => throw new NotSupportedException();
         public bool TryGetReward(string id, out RewardDef def) { def = default; return false; }
-        public RecipeDef GetRecipe(string id) => throw new NotSupportedException();
-        public bool TryGetRecipe(string id, out RecipeDef def) { def = default; return false; }
+        public RecipeDef GetRecipe(string id)
+        {
+            if (_recipesById.TryGetValue(id, out var def)) return def;
+            return new RecipeDef { DefId = id };
+        }
+        public bool TryGetRecipe(string id, out RecipeDef def)
+        {
+            if (_recipesById.TryGetValue(id, out def)) return true;
+            def = new RecipeDef { DefId = id };
+            return true;
+        }
         public NpcDef GetNpc(string id)
         {
             if (_npcsById.TryGetValue(id, out var def)) return def;

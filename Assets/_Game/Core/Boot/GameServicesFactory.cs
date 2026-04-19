@@ -44,7 +44,7 @@ namespace SeasonalBastion
             services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance);
             services.EventBus.Subscribe<RoadsDirtyEvent>(_ => services.AgentMover?.NotifyRoadsDirty());
 
-            services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus);
+            services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus, services.TerrainMap);
             ((PlacementService)services.PlacementService).BindRunStart(services.RunStartRuntime);
 
             // Economy

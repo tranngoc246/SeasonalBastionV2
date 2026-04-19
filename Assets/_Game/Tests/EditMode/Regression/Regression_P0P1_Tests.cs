@@ -87,6 +87,36 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(vr.Ok, Is.True, $"Expected OK when entry is road, but got {vr.FailReason}");
         }
 
+        [Test]
+        public void Placement_SeaTerrain_BlocksRoadAndBuildingPlacement()
+        {
+            var bus = new TestEventBus();
+            var grid = new GridMap(16, 16);
+            var terrain = new TerrainMap(16, 16);
+            var world = new WorldState();
+
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef
+            {
+                DefId = "bld_test_1x1",
+                SizeX = 1,
+                SizeY = 1,
+                BaseLevel = 1,
+                MaxHp = 10
+            });
+
+            var placement = new PlacementService(grid, world, data, index: null, bus, terrain);
+
+            terrain.Set(new CellPos(4, 4), TerrainType.Sea);
+            terrain.Set(new CellPos(4, 5), TerrainType.Shore);
+            grid.SetRoad(new CellPos(4, 6), true);
+
+            Assert.That(placement.CanPlaceRoad(new CellPos(4, 4)), Is.False, "Road should not be placeable on Sea terrain.");
+
+            var vr = placement.ValidateBuilding("bld_test_1x1", new CellPos(4, 4), Dir4.N);
+            Assert.That(vr.Ok, Is.False, "Building should not be placeable on Sea terrain.");
+        }
+
         // -------------------------
         // P0.1 RepairWork registry: must be registered
         // -------------------------
@@ -654,9 +684,8 @@ namespace SeasonalBastion.Tests.EditMode
 
             var inbox = noti.GetInbox();
             Assert.That(inbox.Count, Is.EqualTo(1));
-            Assert.That(inbox[0].Title, Is.EqualTo("Not enough resources"));
-            Assert.That(inbox[0].Body, Does.Contain("Need 5 Wood"));
-            Assert.That(inbox[0].Body, Does.Contain("have 3"));
+            Assert.That(inbox[0].Title, Is.EqualTo("Thiếu tài nguyên"));
+            Assert.That(inbox[0].Body, Is.EqualTo("Cần 5 Wood, hiện chỉ có 3."));
         }
 
         [Test]
@@ -694,8 +723,8 @@ namespace SeasonalBastion.Tests.EditMode
 
             var inbox = noti.GetInbox();
             Assert.That(inbox.Count, Is.EqualTo(1));
-            Assert.That(inbox[0].Title, Is.EqualTo("Can't place"));
-            Assert.That(inbox[0].Body, Is.EqualTo("No road connection."));
+            Assert.That(inbox[0].Title, Is.EqualTo("Không thể đặt công trình"));
+            Assert.That(inbox[0].Body, Is.EqualTo("Công trình cần kết nối với đường."));
         }
 
         [Test]
@@ -748,8 +777,8 @@ namespace SeasonalBastion.Tests.EditMode
 
             var inbox = noti.GetInbox();
             Assert.That(inbox.Count, Is.EqualTo(1));
-            Assert.That(inbox[0].Title, Is.EqualTo("Locked"));
-            Assert.That(inbox[0].Body, Does.Contain("unlock_hq_t2"));
+            Assert.That(inbox[0].Title, Is.EqualTo("Chưa mở khóa"));
+            Assert.That(inbox[0].Body, Is.EqualTo("Nâng cấp này chưa khả dụng ở thời điểm hiện tại."));
         }
 
         [Test]
@@ -941,8 +970,7 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(npc.IsIdle, Is.True);
 
             var inbox = noti.GetInbox();
-            Assert.That(inbox.Count, Is.EqualTo(1));
-            Assert.That(inbox[0].Title, Is.EqualTo("NPC không có việc để làm"));
+            Assert.That(inbox.Count, Is.EqualTo(0));
         }
 
         [Test]

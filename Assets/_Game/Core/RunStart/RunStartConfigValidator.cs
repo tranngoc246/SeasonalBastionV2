@@ -19,6 +19,15 @@ namespace SeasonalBastion.RunStart
                 }
             }
 
+            if (s.TerrainMap != null)
+            {
+                if (cfg.map.width != s.TerrainMap.Width || cfg.map.height != s.TerrainMap.Height)
+                {
+                    error = $"StartMapConfig map size {cfg.map.width}x{cfg.map.height} != TerrainMap {s.TerrainMap.Width}x{s.TerrainMap.Height}";
+                    return false;
+                }
+            }
+
             return ValidateStartMapHeader(cfg, out error);
         }
 

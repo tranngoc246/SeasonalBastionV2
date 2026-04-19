@@ -26,6 +26,7 @@ namespace SeasonalBastion.Tests.EditMode
                 WorldState = world,
                 GridMap = grid,
                 TerrainMap = grid != null ? new TerrainMap(grid.Width, grid.Height) : null,
+                RuntimeMapSize = grid != null ? new MapSize(grid.Width, grid.Height) : default,
                 PlacementService = placement,
                 Balance = new BalanceService(null, new BalanceConfig())
             };

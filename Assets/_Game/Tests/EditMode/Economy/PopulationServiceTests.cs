@@ -70,7 +70,8 @@ namespace SeasonalBastion.Tests.EditMode
                 RunOutcomeService = new RunOutcomeService(bus, actualWorld, data),
                 WorldState = actualWorld,
                 GridMap = actualGrid,
-                TerrainMap = new TerrainMap(actualGrid.Width, actualGrid.Height)
+                TerrainMap = new TerrainMap(actualGrid.Width, actualGrid.Height),
+                RuntimeMapSize = new MapSize(actualGrid.Width, actualGrid.Height)
             };
 
             services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);

@@ -4,9 +4,10 @@ namespace SeasonalBastion
 {
     public static class GameServicesFactory
     {
-        public static GameServices Create(DefsCatalog catalog)
+        public static GameServices Create(DefsCatalog catalog, MapSize? runtimeMapSize = null)
         {
             var services = new GameServices();
+            var mapSize = runtimeMapSize ?? MapSize.Default;
 
             // Core
             services.EventBus = new EventBus();
@@ -33,8 +34,9 @@ namespace SeasonalBastion
             services.WorldIndex.RebuildAll();
 
             // Grid
-            services.GridMap = new GridMap(width: 64, height: 64);
-            services.TerrainMap = new TerrainMap(width: 64, height: 64);
+            services.RuntimeMapSize = mapSize;
+            services.GridMap = new GridMap(width: mapSize.Width, height: mapSize.Height);
+            services.TerrainMap = new TerrainMap(width: mapSize.Width, height: mapSize.Height);
             services.ResourcePatchService = new ResourcePatchService();
 
             // Day14: simple mover/pathfinding (cell-by-cell)

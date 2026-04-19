@@ -65,8 +65,45 @@ namespace SeasonalBastion.RunStart
                 return false;
             }
 
+            if (!ValidateTerrainRects(cfg.terrainRects, cfg.map, out error))
+                return false;
+
             if (!ValidateResourceGeneration(cfg.resourceGeneration, out error))
                 return false;
+
+            return true;
+        }
+
+        private static bool ValidateTerrainRects(TerrainRectDto[] terrainRects, MapDto map, out string error)
+        {
+            error = null;
+            if (terrainRects == null)
+                return true;
+
+            for (int i = 0; i < terrainRects.Length; i++)
+            {
+                var tr = terrainRects[i];
+                if (tr == null || tr.rect == null || string.IsNullOrWhiteSpace(tr.terrain))
+                    continue;
+
+                if (!System.Enum.TryParse<TerrainType>(tr.terrain, ignoreCase: true, out _))
+                {
+                    error = $"terrainRects[{i}].terrain='{tr.terrain}' unsupported (expect Sea | Shore | Land).";
+                    return false;
+                }
+
+                if (tr.rect.xMin > tr.rect.xMax || tr.rect.yMin > tr.rect.yMax)
+                {
+                    error = $"terrainRects[{i}] invalid rect min/max.";
+                    return false;
+                }
+
+                if (tr.rect.xMin < 0 || tr.rect.yMin < 0 || tr.rect.xMax >= map.width || tr.rect.yMax >= map.height)
+                {
+                    error = $"terrainRects[{i}] out of bounds for map {map.width}x{map.height}.";
+                    return false;
+                }
+            }
 
             return true;
         }

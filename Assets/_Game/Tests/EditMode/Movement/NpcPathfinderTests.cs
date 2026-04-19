@@ -197,10 +197,10 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(ok, Is.True);
             Assert.That(path, Is.Not.Null);
-            Assert.That(path, Does.Not.Contain(new CellPos(2, 1)));
-            Assert.That(path, Does.Not.Contain(new CellPos(2, 2)));
-            Assert.That(path, Does.Not.Contain(new CellPos(2, 3)));
-            Assert.That(path, Does.Contain(new CellPos(1, 2)), "Path should be allowed to traverse Shore.");
+            Assert.That(path, Has.No.Member(new CellPos(2, 1)));
+            Assert.That(path, Has.No.Member(new CellPos(2, 2)));
+            Assert.That(path, Has.No.Member(new CellPos(2, 3)));
+            Assert.That(path, Has.Member(new CellPos(1, 2)), "Path should be allowed to traverse Shore.");
         }
 
         [Test]

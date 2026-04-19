@@ -656,14 +656,15 @@ namespace SeasonalBastion.Tests.EditMode
                 Status = JobStatus.InProgress,
             };
 
-            typeof(BuildWorkExecutor).GetField("_phase", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                ?.GetValue(exec) is Dictionary<int, byte> phases1
-                ? phases1[job.Id.Value] = 1
-                : throw new Exception("phase field missing");
-            typeof(BuildWorkExecutor).GetField("_carry", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                ?.GetValue(exec) is Dictionary<int, int> carry1
-                ? carry1[job.Id.Value] = 5
-                : throw new Exception("carry field missing");
+            var phaseField = typeof(BuildWorkExecutor).GetField("_phase", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (phaseField?.GetValue(exec) is not Dictionary<int, byte> phases1)
+                throw new Exception("phase field missing");
+            phases1[job.Id.Value] = 1;
+
+            var carryField = typeof(BuildWorkExecutor).GetField("_carry", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (carryField?.GetValue(exec) is not Dictionary<int, int> carry1)
+                throw new Exception("carry field missing");
+            carry1[job.Id.Value] = 5;
 
             exec.Tick(npcId, ref npc, ref job, 0.1f);
 

@@ -177,6 +177,50 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(cost, Is.EqualTo((NpcPathfinder.RoadCost * 4) + NpcPathfinder.GroundCost));
         }
 
+        [Test]
+        public void TryFindPath_AvoidsSea_AndCanUseShore()
+        {
+            var grid = new GridMap(5, 5);
+            var terrain = new TerrainMap(5, 5);
+
+            for (int y = 0; y < 5; y++)
+                for (int x = 0; x < 5; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+
+            terrain.Set(new CellPos(2, 1), TerrainType.Sea);
+            terrain.Set(new CellPos(2, 2), TerrainType.Sea);
+            terrain.Set(new CellPos(2, 3), TerrainType.Sea);
+            terrain.Set(new CellPos(1, 2), TerrainType.Shore);
+
+            var sut = new NpcPathfinder(grid, terrain);
+            bool ok = sut.TryFindPath(new CellPos(0, 2), new CellPos(4, 2), out var path);
+
+            Assert.That(ok, Is.True);
+            Assert.That(path, Is.Not.Null);
+            Assert.That(path, Does.Not.Contain(new CellPos(2, 1)));
+            Assert.That(path, Does.Not.Contain(new CellPos(2, 2)));
+            Assert.That(path, Does.Not.Contain(new CellPos(2, 3)));
+            Assert.That(path, Does.Contain(new CellPos(1, 2)), "Path should be allowed to traverse Shore.");
+        }
+
+        [Test]
+        public void TryFindPath_ReturnsFalse_WhenTargetTerrainIsSea()
+        {
+            var grid = new GridMap(4, 4);
+            var terrain = new TerrainMap(4, 4);
+            for (int y = 0; y < 4; y++)
+                for (int x = 0; x < 4; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+
+            terrain.Set(new CellPos(3, 3), TerrainType.Sea);
+
+            var sut = new NpcPathfinder(grid, terrain);
+            bool ok = sut.TryFindPath(new CellPos(0, 0), new CellPos(3, 3), out var path);
+
+            Assert.That(ok, Is.False);
+            Assert.That(path, Is.Null);
+        }
+
         private static void AssertRoadFirstShape(GridMap grid, List<CellPos> path)
         {
             bool touchedRoad = false;

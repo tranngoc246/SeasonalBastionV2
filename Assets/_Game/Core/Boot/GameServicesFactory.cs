@@ -40,8 +40,8 @@ namespace SeasonalBastion
             services.ResourcePatchService = new ResourcePatchService();
 
             // Day14: simple mover/pathfinding (cell-by-cell)
-            services.Pathfinder = new NpcPathfinder(services.GridMap);
-            services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance);
+            services.Pathfinder = new NpcPathfinder(services.GridMap, services.TerrainMap);
+            services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance, services.TerrainMap);
             services.EventBus.Subscribe<RoadsDirtyEvent>(_ => services.AgentMover?.NotifyRoadsDirty());
 
             services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus, services.TerrainMap);

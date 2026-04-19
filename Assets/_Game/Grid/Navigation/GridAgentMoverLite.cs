@@ -32,6 +32,7 @@ namespace SeasonalBastion
         private readonly IGridMap _grid;
         private readonly IDataRegistry _data;
         private readonly BalanceService _bal;
+        private readonly ITerrainMap _terrain;
         private readonly NpcPathfinder _pathfinder;
 
         private readonly float _fallbackBase;
@@ -43,12 +44,13 @@ namespace SeasonalBastion
         private readonly Dictionary<int, CellPos> _reservedStopByNpc = new();
         private int _roadsVersion;
 
-        public GridAgentMoverLite(IGridMap grid, IDataRegistry data, BalanceService bal)
+        public GridAgentMoverLite(IGridMap grid, IDataRegistry data, BalanceService bal, ITerrainMap terrain = null)
         {
             _grid = grid;
             _data = data;
             _bal = bal;
-            _pathfinder = new NpcPathfinder(grid);
+            _terrain = terrain;
+            _pathfinder = new NpcPathfinder(grid, terrain);
 
             _fallbackBase = bal != null ? bal.DefaultMoveSpeed : 1f;
             _fallbackRoadMul = bal != null ? bal.DefaultRoadMult : 1.3f;
@@ -67,6 +69,12 @@ namespace SeasonalBastion
 
             if (_grid == null || !_grid.IsInside(cur) || !_grid.IsInside(target))
                 return false;
+
+            if (_terrain != null)
+            {
+                if (!TerrainRules.IsWalkableTerrain(_terrain.Get(cur)) || !TerrainRules.IsWalkableTerrain(_terrain.Get(target)))
+                    return false;
+            }
 
             ReleaseStopIfNpcMovedAway(key, cur);
 
@@ -275,6 +283,9 @@ namespace SeasonalBastion
             if (!_grid.IsInside(next) || _grid.IsBlocked(next))
                 return false;
 
+            if (_terrain != null && !TerrainRules.IsWalkableTerrain(_terrain.Get(next)))
+                return false;
+
             st.Cell = next;
             route.PathIndex++;
             return true;
@@ -374,6 +385,9 @@ namespace SeasonalBastion
 
                     var c = new CellPos(target.X + dx, target.Y + dy);
                     if (!_grid.IsInside(c) || _grid.IsBlocked(c))
+                        continue;
+
+                    if (_terrain != null && !TerrainRules.IsWalkableTerrain(_terrain.Get(c)))
                         continue;
 
                     if (c.X == blockedFinalCell.X && c.Y == blockedFinalCell.Y)

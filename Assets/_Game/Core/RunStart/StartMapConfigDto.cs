@@ -9,8 +9,11 @@ namespace SeasonalBastion.RunStart
         public CoordSystemDto coordSystem;
         public MapDto map;
 
+        public TerrainRectDto[] terrainRects;
+
         public RoadCellDto[] roads;
         public SpawnGateDto[] spawnGates;
+        public LandingGateDto[] landingGates;
         public ZoneDto[] zones;
         public ResourceGenerationDto resourceGeneration;
 
@@ -54,6 +57,14 @@ namespace SeasonalBastion.RunStart
     }
 
     [Serializable]
+    internal sealed class TerrainRectDto
+    {
+        public string terrain;
+        public RectMinMaxDto rect;
+        public string notes;
+    }
+
+    [Serializable]
     internal sealed class RoadCellDto
     {
         public int x;
@@ -66,6 +77,15 @@ namespace SeasonalBastion.RunStart
         public int lane;
         public CellDto cell;
         public string dirToHQ;
+    }
+
+    [Serializable]
+    internal sealed class LandingGateDto
+    {
+        public int lane;
+        public CellDto cell;
+        public string dirToHQ;
+        public string notes;
     }
 
     [Serializable]

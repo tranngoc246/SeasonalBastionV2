@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "coordSystem": {
+    "origin": "bottom-left",
+    "indexing": "0-based",
+    "notes": "All gameplay uses CellPos. World position is derived from cell. Island terrainRects are applied in file order, later rects override earlier rects."
+  },
+  "map": {
+    "width": 96,
+    "height": 96,
+    "buildableRect": {
+      "xMin": 20,
+      "yMin": 20,
+      "xMax": 75,
+      "yMax": 75
+    }
+  },
+  "terrainRects": [
+    {
+      "terrain": "Sea",
+      "rect": { "xMin": 0, "yMin": 0, "xMax": 95, "yMax": 95 },
+      "notes": "Default full-map sea fill for island auth order."
+    },
+    {
+      "terrain": "Shore",
+      "rect": { "xMin": 10, "yMin": 10, "xMax": 85, "yMax": 85 },
+      "notes": "Outer island belt placeholder, to be sculpted more naturally later."
+    },
+    {
+      "terrain": "Land",
+      "rect": { "xMin": 18, "yMin": 18, "xMax": 77, "yMax": 77 },
+      "notes": "Main playable island body for v1 draft."
+    },
+    {
+      "terrain": "Shore",
+      "rect": { "xMin": 18, "yMin": 18, "xMax": 22, "yMax": 77 },
+      "notes": "West shore strip."
+    },
+    {
+      "terrain": "Shore",
+      "rect": { "xMin": 73, "yMin": 18, "xMax": 77, "yMax": 77 },
+      "notes": "East shore strip."
+    },
+    {
+      "terrain": "Shore",
+      "rect": { "xMin": 18, "yMin": 18, "xMax": 77, "yMax": 22 },
+      "notes": "South shore strip."
+    },
+    {
+      "terrain": "Shore",
+      "rect": { "xMin": 18, "yMin": 73, "xMax": 77, "yMax": 77 },
+      "notes": "North shore strip."
+    }
+  ],
+  "roads": [
+    { "x": 48, "y": 28 },
+    { "x": 48, "y": 29 },
+    { "x": 48, "y": 30 },
+    { "x": 48, "y": 31 },
+    { "x": 48, "y": 32 },
+    { "x": 48, "y": 33 },
+    { "x": 48, "y": 34 },
+    { "x": 48, "y": 35 },
+    { "x": 48, "y": 36 },
+    { "x": 48, "y": 37 },
+    { "x": 48, "y": 38 },
+    { "x": 48, "y": 39 },
+    { "x": 48, "y": 40 },
+    { "x": 48, "y": 41 },
+    { "x": 48, "y": 42 },
+    { "x": 48, "y": 43 },
+    { "x": 48, "y": 44 },
+    { "x": 48, "y": 45 },
+    { "x": 48, "y": 46 },
+    { "x": 48, "y": 47 },
+    { "x": 48, "y": 48 },
+    { "x": 48, "y": 49 },
+    { "x": 48, "y": 50 },
+    { "x": 48, "y": 51 },
+    { "x": 48, "y": 52 },
+    { "x": 48, "y": 53 },
+    { "x": 48, "y": 54 },
+    { "x": 48, "y": 55 },
+    { "x": 48, "y": 56 },
+    { "x": 48, "y": 57 },
+    { "x": 48, "y": 58 },
+    { "x": 48, "y": 59 },
+    { "x": 48, "y": 60 },
+    { "x": 48, "y": 61 },
+    { "x": 48, "y": 62 },
+    { "x": 48, "y": 63 },
+    { "x": 48, "y": 64 },
+    { "x": 48, "y": 65 },
+    { "x": 48, "y": 66 },
+    { "x": 48, "y": 67 },
+    { "x": 48, "y": 68 },
+
+    { "x": 28, "y": 48 },
+    { "x": 29, "y": 48 },
+    { "x": 30, "y": 48 },
+    { "x": 31, "y": 48 },
+    { "x": 32, "y": 48 },
+    { "x": 33, "y": 48 },
+    { "x": 34, "y": 48 },
+    { "x": 35, "y": 48 },
+    { "x": 36, "y": 48 },
+    { "x": 37, "y": 48 },
+    { "x": 38, "y": 48 },
+    { "x": 39, "y": 48 },
+    { "x": 40, "y": 48 },
+    { "x": 41, "y": 48 },
+    { "x": 42, "y": 48 },
+    { "x": 43, "y": 48 },
+    { "x": 44, "y": 48 },
+    { "x": 45, "y": 48 },
+    { "x": 46, "y": 48 },
+    { "x": 47, "y": 48 },
+    { "x": 48, "y": 48 },
+    { "x": 49, "y": 48 },
+    { "x": 50, "y": 48 },
+    { "x": 51, "y": 48 },
+    { "x": 52, "y": 48 },
+    { "x": 53, "y": 48 },
+    { "x": 54, "y": 48 },
+    { "x": 55, "y": 48 },
+    { "x": 56, "y": 48 },
+    { "x": 57, "y": 48 },
+    { "x": 58, "y": 48 },
+    { "x": 59, "y": 48 },
+    { "x": 60, "y": 48 },
+    { "x": 61, "y": 48 },
+    { "x": 62, "y": 48 },
+    { "x": 63, "y": 48 },
+    { "x": 64, "y": 48 },
+    { "x": 65, "y": 48 },
+    { "x": 66, "y": 48 },
+    { "x": 67, "y": 48 },
+    { "x": 68, "y": 48 }
+  ],
+  "spawnGates": [
+    { "lane": 0, "cell": { "x": 48, "y": 68 }, "dirToHQ": "S" },
+    { "lane": 1, "cell": { "x": 68, "y": 48 }, "dirToHQ": "W" },
+    { "lane": 2, "cell": { "x": 28, "y": 48 }, "dirToHQ": "E" }
+  ],
+  "landingGates": [
+    { "lane": 0, "cell": { "x": 48, "y": 77 }, "dirToHQ": "S", "notes": "North beach landing draft" },
+    { "lane": 1, "cell": { "x": 77, "y": 48 }, "dirToHQ": "W", "notes": "East beach landing draft" },
+    { "lane": 2, "cell": { "x": 18, "y": 48 }, "dirToHQ": "E", "notes": "West beach landing draft" }
+  ],
+  "zones": [
+    {
+      "zoneId": "zone_farm_start",
+      "type": "FarmPlots",
+      "ownerBuildingHint": "bld_farmhouse_t1",
+      "cellsRect": { "xMin": 58, "yMin": 50, "xMax": 63, "yMax": 53 },
+      "cellCount": 24
+    },
+    {
+      "zoneId": "zone_forest_start",
+      "type": "ForestTiles",
+      "ownerBuildingHint": "bld_lumbercamp_t1",
+      "cellsRect": { "xMin": 31, "yMin": 55, "xMax": 35, "yMax": 60 },
+      "cellCount": 30
+    },
+    {
+      "zoneId": "zone_quarry_start",
+      "type": "QuarryTiles",
+      "ownerBuildingHint": "bld_quarry_t1",
+      "cellsRect": { "xMin": 31, "yMin": 31, "xMax": 35, "yMax": 35 },
+      "cellCount": 25
+    }
+  ],
+  "resourceGeneration": {
+    "mode": "AuthoredOnly",
+    "seedOffset": 0,
+    "starterRules": [],
+    "bonusRules": []
+  },
+  "initialBuildings": [
+    {
+      "defId": "bld_hq_t1",
+      "anchor": { "x": 46, "y": 46 },
+      "rotation": "N",
+      "notes": "HQ centered on the island core."
+    },
+    {
+      "defId": "bld_house_t1",
+      "anchor": { "x": 42, "y": 58 },
+      "rotation": "S",
+      "notes": "Starter housing north-west of HQ."
+    },
+    {
+      "defId": "bld_house_t1",
+      "anchor": { "x": 50, "y": 37 },
+      "rotation": "N",
+      "notes": "Starter housing south-east of HQ."
+    },
+    {
+      "defId": "bld_farmhouse_t1",
+      "anchor": { "x": 54, "y": 52 },
+      "rotation": "W",
+      "notes": "Starter farm on east side of core road."
+    },
+    {
+      "defId": "bld_lumbercamp_t1",
+      "anchor": { "x": 37, "y": 55 },
+      "rotation": "E",
+      "notes": "Starter lumbercamp on west side of core road."
+    }
+  ],
+  "initialNpcs": [
+    {
+      "npcDefId": "NPC_HQ_Worker",
+      "spawnCell": { "x": 45, "y": 45 },
+      "assignedWorkplaceDefId": "bld_hq_t1",
+      "jobProfile": "HQ_Build_Repair_HaulBasic",
+      "notes": "Spawn near HQ core."
+    },
+    {
+      "npcDefId": "NPC_Farmer",
+      "spawnCell": { "x": 53, "y": 51 },
+      "assignedWorkplaceDefId": "bld_farmhouse_t1",
+      "jobProfile": "Harvest_Food",
+      "notes": "Spawn near farmhouse."
+    },
+    {
+      "npcDefId": "NPC_Woodcutter",
+      "spawnCell": { "x": 36, "y": 54 },
+      "assignedWorkplaceDefId": "bld_lumbercamp_t1",
+      "jobProfile": "Harvest_Wood",
+      "notes": "Spawn near lumbercamp."
+    }
+  ],
+  "startHints": [
+    {
+      "hintId": "hint_island_assign_npc",
+      "trigger": "OnNpcSpawned_AndCapacityAvailable",
+      "title": "Có NPC mới!",
+      "body": "Hãy gán NPC vào công trình trên đảo để bắt đầu vận hành chuỗi sản xuất.",
+      "notificationKey": "npc.new"
+    }
+  ],
+  "lockedInvariants": [
+    "Island terrainRects are authored in override order",
+    "Sea surrounds the playable island",
+    "Starter roads remain inside island land mass",
+    "HQ starts near island center",
+    "Wave v1 still uses spawnGates until landing gates replace combat runtime"
+  ]
+}

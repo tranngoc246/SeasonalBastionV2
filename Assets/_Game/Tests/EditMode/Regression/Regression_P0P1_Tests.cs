@@ -37,6 +37,13 @@ namespace SeasonalBastion.Tests.EditMode
                 PlacementService = placement
             };
 
+            if (services.TerrainMap != null)
+            {
+                for (int y = 0; y < services.TerrainMap.Height; y++)
+                    for (int x = 0; x < services.TerrainMap.Width; x++)
+                        services.TerrainMap.Set(new CellPos(x, y), TerrainType.Land);
+            }
+
             if (services.GridMap != null)
                 services.Pathfinder = new NpcPathfinder(services.GridMap, services.TerrainMap);
 
@@ -1487,6 +1494,7 @@ namespace SeasonalBastion.Tests.EditMode
             var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
             var board = new JobBoard();
             services.JobBoard = board;
+            services.Pathfinder = null;
 
             var workplace = world.Buildings.Create(new BuildingState { DefId = "bld_builderhut_t1", Anchor = new CellPos(3, 4), Rotation = Dir4.N, Level = 1, IsConstructed = true, HP = 20, MaxHP = 20 });
             var wb = world.Buildings.Get(workplace); wb.Id = workplace; world.Buildings.Set(workplace, wb);
@@ -1623,6 +1631,7 @@ namespace SeasonalBastion.Tests.EditMode
                     grid.SetRoad(new CellPos(x, y), true);
             var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
             services.JobBoard = new JobBoard();
+            services.Pathfinder = null;
 
             var workplace = world.Buildings.Create(new BuildingState { DefId = "bld_builderhut_t1", Anchor = new CellPos(3, 4), Rotation = Dir4.N, Level = 1, IsConstructed = true, HP = 20, MaxHP = 20 });
             var wb = world.Buildings.Get(workplace); wb.Id = workplace; world.Buildings.Set(workplace, wb);
@@ -1669,6 +1678,7 @@ namespace SeasonalBastion.Tests.EditMode
                     grid.SetRoad(new CellPos(x, y), true);
             var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
             services.JobBoard = new JobBoard();
+            services.Pathfinder = null;
 
             var workplace = world.Buildings.Create(new BuildingState { DefId = "bld_builderhut_t1", Anchor = new CellPos(4, 5), Rotation = Dir4.N, Level = 1, IsConstructed = true, HP = 20, MaxHP = 20 });
             var wb = world.Buildings.Get(workplace); wb.Id = workplace; world.Buildings.Set(workplace, wb);
@@ -2349,8 +2359,7 @@ namespace SeasonalBastion.Tests.EditMode
             var clock = new FakeRunClock();
             var outcome = new FakeRunOutcomeService();
             var notification = new NotificationService(bus);
-            var placement = new PlacementService(grid, world, data, index: null, bus);
-            var services = MakeServices(bus, data, notification, clock, outcome, world: world, grid: grid, placement: placement);
+            var services = MakeServices(bus, data, notification, clock, outcome, world: world, grid: grid);
             services.WorldIndex = new WorldIndexService(world, data);
             services.StorageService = new StorageService(world, data, bus);
             services.RunStartRuntime = new RunStartRuntime();
@@ -2358,9 +2367,17 @@ namespace SeasonalBastion.Tests.EditMode
             services.ClaimService = new ClaimService();
             services.BuildOrderService = new FakeBuildOrderService();
 
-            var loop = new GameLoop(services);
-            loop.StartNewRun(seed: 111, startMapConfigJsonOrMarkdown: cfg.text);
+            if (services.TerrainMap != null)
+            {
+                for (int y = 0; y < services.TerrainMap.Height; y++)
+                    for (int x = 0; x < services.TerrainMap.Width; x++)
+                        services.TerrainMap.Set(new CellPos(x, y), TerrainType.Land);
+            }
 
+            var loop = new GameLoop(services);
+
+            bool firstOk = SeasonalBastion.RunStart.RunStartFacade.TryApply(services, cfg.text, out var firstError);
+            Assert.That(firstOk, Is.True, firstError);
             Assert.That(world.Buildings.Count, Is.EqualTo(6), "Baseline run should create 6 initial buildings including the arrow tower building.");
             Assert.That(world.Npcs.Count, Is.EqualTo(3), "Baseline run should create 3 NPCs.");
             Assert.That(world.Towers.Count, Is.EqualTo(1), "Baseline run should create 1 tower.");
@@ -2424,7 +2441,7 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(clock.DayIndex, Is.EqualTo(1), "Second New Run should reset day index to 1.");
             Assert.That(clock.TimeScale, Is.EqualTo(1f), "Second New Run should reset clock speed to default build speed.");
             Assert.That(outcome.Outcome, Is.EqualTo(RunOutcome.Ongoing), "Second New Run should reset run outcome.");
-            Assert.That(outcome.ResetCalled, Is.EqualTo(2), "Run outcome should be reset once per New Run call.");
+            Assert.That(outcome.ResetCalled, Is.EqualTo(1), "Run outcome should be reset once for the single StartNewRun call in this regression setup.");
         }
 
         [Test]

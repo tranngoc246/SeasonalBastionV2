@@ -16,6 +16,12 @@ namespace SeasonalBastion.RunStart
 
             s.TerrainMap.ClearAll();
 
+            for (int y = 0; y < s.TerrainMap.Height; y++)
+            {
+                for (int x = 0; x < s.TerrainMap.Width; x++)
+                    s.TerrainMap.Set(new CellPos(x, y), TerrainType.Land);
+            }
+
             if (cfg.terrainRects == null || cfg.terrainRects.Length == 0)
                 return true;
 

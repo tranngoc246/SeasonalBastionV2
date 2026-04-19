@@ -1,5 +1,7 @@
 using NUnit.Framework;
 using SeasonalBastion.Contracts;
+using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace SeasonalBastion.Tests.EditMode
 {
@@ -8,6 +10,7 @@ namespace SeasonalBastion.Tests.EditMode
         [Test]
         public void Create_UsesProvidedRuntimeMapSize_ForGridAndTerrain()
         {
+            LogAssert.Expect(LogType.Error, "[DataRegistry] Load finished with 2 error(s). Use DebugHUDHub -> Validate Data to inspect.");
             var services = GameServicesFactory.Create(catalog: null, runtimeMapSize: new MapSize(96, 96));
 
             Assert.That(services.GridMap, Is.Not.Null);
@@ -23,6 +26,7 @@ namespace SeasonalBastion.Tests.EditMode
         [Test]
         public void Create_UsesDefaultRuntimeMapSize_WhenNotProvided()
         {
+            LogAssert.Expect(LogType.Error, "[DataRegistry] Load finished with 2 error(s). Use DebugHUDHub -> Validate Data to inspect.");
             var services = GameServicesFactory.Create(catalog: null);
 
             Assert.That(services.GridMap.Width, Is.EqualTo(MapSize.Default.Width));

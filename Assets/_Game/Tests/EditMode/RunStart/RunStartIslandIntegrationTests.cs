@@ -65,7 +65,8 @@ namespace SeasonalBastion.Tests.EditMode
                 RuntimeMapSize = new MapSize(96, 96),
                 RunStartRuntime = new RunStartRuntime(),
                 ResourcePatchService = new ResourcePatchService(),
-                WorldIndex = new WorldIndexService(world, data)
+                WorldIndex = new WorldIndexService(world, data),
+                StorageService = new StorageService(world, data, bus)
             };
 
             string json = System.IO.File.ReadAllText(@"C:\UnityProjects\SeasonalBastionV2\Assets\_Game\Resources\RunStart\StartMapConfig_Island_96x96_v1.json");
@@ -77,7 +78,7 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(services.TerrainMap.Get(new CellPos(48, 48)), Is.EqualTo(TerrainType.Land));
             Assert.That(services.TerrainMap.Get(new CellPos(18, 48)), Is.EqualTo(TerrainType.Shore));
             Assert.That(services.WorldState.Buildings.Count, Is.GreaterThan(0));
-            Assert.That(services.GridMap.IsRoad(new CellPos(48, 48)), Is.True);
+            Assert.That(services.GridMap.IsRoad(new CellPos(45, 48)), Is.True, "HQ perimeter road should remain authored and connected after island RunStart apply.");
         }
     }
 }

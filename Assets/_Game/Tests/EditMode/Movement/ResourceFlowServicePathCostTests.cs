@@ -137,5 +137,80 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(ok, Is.True);
             Assert.That(pick.Building.Value, Is.EqualTo(srcNear.Value));
         }
+
+        [Test]
+        public void TryPickDest_SkipsUnreachableIslandCandidate_WhenPathfinderExists()
+        {
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var index = new WorldIndexService(world, data);
+            var storage = new StorageService(world, data, null);
+            var grid = new GridMap(8, 5);
+            var terrain = new TerrainMap(8, 5);
+
+            for (int y = 0; y < 5; y++)
+                for (int x = 0; x < 8; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+
+            var start = new CellPos(0, 2);
+            var unreachable = world.Buildings.Create(MakeConstructedStorage(default, new CellPos(2, 2), "bld_warehouse_t1"));
+            var reachable = world.Buildings.Create(MakeConstructedStorage(default, new CellPos(6, 2), "bld_warehouse_t1"));
+            index.RebuildAll();
+
+            terrain.Set(new CellPos(1, 1), TerrainType.Sea);
+            terrain.Set(new CellPos(1, 2), TerrainType.Sea);
+            terrain.Set(new CellPos(1, 3), TerrainType.Sea);
+            terrain.Set(new CellPos(2, 1), TerrainType.Sea);
+            terrain.Set(new CellPos(2, 3), TerrainType.Sea);
+            terrain.Set(new CellPos(3, 1), TerrainType.Sea);
+            terrain.Set(new CellPos(3, 2), TerrainType.Sea);
+            terrain.Set(new CellPos(3, 3), TerrainType.Sea);
+
+            var pathfinder = new NpcPathfinder(grid, terrain);
+            var sut = new ResourceFlowService(world, index, storage, pathfinder);
+
+            bool ok = sut.TryPickDest(start, ResourceType.Wood, 1, out var pick);
+
+            Assert.That(ok, Is.True);
+            Assert.That(pick.Building.Value, Is.EqualTo(reachable.Value));
+            Assert.That(pick.Building.Value, Is.Not.EqualTo(unreachable.Value));
+        }
+
+        [Test]
+        public void TryPickSource_ReturnsFalse_WhenAllCandidatesAreSeaIsolated()
+        {
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var index = new WorldIndexService(world, data);
+            var storage = new StorageService(world, data, null);
+            var grid = new GridMap(6, 5);
+            var terrain = new TerrainMap(6, 5);
+
+            for (int y = 0; y < 5; y++)
+                for (int x = 0; x < 6; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+
+            var isolated = MakeConstructedStorage(default, new CellPos(4, 2), "bld_warehouse_t1");
+            isolated.Wood = 20;
+            world.Buildings.Create(isolated);
+            index.RebuildAll();
+
+            terrain.Set(new CellPos(3, 1), TerrainType.Sea);
+            terrain.Set(new CellPos(3, 2), TerrainType.Sea);
+            terrain.Set(new CellPos(3, 3), TerrainType.Sea);
+            terrain.Set(new CellPos(4, 1), TerrainType.Sea);
+            terrain.Set(new CellPos(4, 3), TerrainType.Sea);
+            terrain.Set(new CellPos(5, 1), TerrainType.Sea);
+            terrain.Set(new CellPos(5, 2), TerrainType.Sea);
+            terrain.Set(new CellPos(5, 3), TerrainType.Sea);
+
+            var pathfinder = new NpcPathfinder(grid, terrain);
+            var sut = new ResourceFlowService(world, index, storage, pathfinder);
+
+            bool ok = sut.TryPickSource(new CellPos(0, 2), ResourceType.Wood, 1, out var pick);
+
+            Assert.That(ok, Is.False);
+            Assert.That(pick.Building.Value, Is.EqualTo(0));
+        }
     }
 }

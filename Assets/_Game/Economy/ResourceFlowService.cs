@@ -55,7 +55,8 @@ namespace SeasonalBastion
                 if (amt < need) continue;
 
                 int d = Manhattan(from, bst.Anchor);
-                int cost = TryEstimateTravelCost(from, bst.Anchor, out var c) ? c : d;
+                if (!TryGetCandidateTravelCost(from, bst.Anchor, d, out var cost))
+                    continue;
                 int idv = bid.Value;
 
                 if (cost < bestCost
@@ -105,7 +106,8 @@ namespace SeasonalBastion
                 if (space < needSpace) continue;
 
                 int d = Manhattan(from, bst.Anchor);
-                int cost = TryEstimateTravelCost(from, bst.Anchor, out var c) ? c : d;
+                if (!TryGetCandidateTravelCost(from, bst.Anchor, d, out var cost))
+                    continue;
                 int idv = bid.Value;
 
                 if (cost < bestCost
@@ -179,6 +181,17 @@ namespace SeasonalBastion
             cost = 0;
             if (_pathfinder == null) return false;
             return _pathfinder.TryEstimateCost(from, to, out cost);
+        }
+
+        private bool TryGetCandidateTravelCost(CellPos from, CellPos to, int fallbackManhattan, out int cost)
+        {
+            cost = 0;
+
+            if (_pathfinder != null)
+                return _pathfinder.TryEstimateCost(from, to, out cost);
+
+            cost = fallbackManhattan;
+            return true;
         }
 
         private static int Manhattan(CellPos a, CellPos b)

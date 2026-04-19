@@ -34,6 +34,7 @@ namespace SeasonalBastion
 
             // Grid
             services.GridMap = new GridMap(width: 64, height: 64);
+            services.TerrainMap = new TerrainMap(width: 64, height: 64);
             services.ResourcePatchService = new ResourcePatchService();
 
             // Day14: simple mover/pathfinding (cell-by-cell)

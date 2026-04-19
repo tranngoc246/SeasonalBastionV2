@@ -25,6 +25,7 @@ namespace SeasonalBastion.Tests.EditMode
                 RunOutcomeService = outcome,
                 WorldState = world,
                 GridMap = grid,
+                TerrainMap = grid != null ? new TerrainMap(grid.Width, grid.Height) : null,
                 PlacementService = placement,
                 Balance = new BalanceService(null, new BalanceConfig())
             };

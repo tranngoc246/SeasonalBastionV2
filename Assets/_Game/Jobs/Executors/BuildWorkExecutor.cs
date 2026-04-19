@@ -202,6 +202,18 @@ namespace SeasonalBastion
                     }
 
                     var entry = siteEntry;
+                    if (!IsReachable(npcState.Cell, entry))
+                    {
+                        if (job.SourceBuilding.Value != 0 && _carry.TryGetValue(jid, out var blockedCarry) && blockedCarry > 0)
+                            _s.StorageService.Add(job.SourceBuilding, job.ResourceType, blockedCarry);
+
+                        _carry.Remove(jid);
+                        job.Amount = 0;
+                        job.Status = JobStatus.Cancelled;
+                        Cleanup(jid, npc);
+                        return true;
+                    }
+
                     job.TargetCell = entry;
                     job.Status = JobStatus.InProgress;
 
@@ -524,6 +536,14 @@ namespace SeasonalBastion
             cost = 0;
             if (_s?.Pathfinder == null) return false;
             return _s.Pathfinder.TryEstimateCost(from, to, out cost);
+        }
+
+        private bool IsReachable(CellPos from, CellPos to)
+        {
+            if (_s?.Pathfinder == null)
+                return true;
+
+            return _s.Pathfinder.TryEstimateCost(from, to, out _);
         }
 
         private static int Manhattan(CellPos a, CellPos b)

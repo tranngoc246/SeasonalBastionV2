@@ -178,6 +178,13 @@ namespace SeasonalBastion
 
                 // Move to site ENTRY (delivery point)
                 var siteEntry = EntryCellUtil.GetApproachCellForSite(_s, site, npcState.Cell);
+                if (!IsReachable(npcState.Cell, siteEntry))
+                {
+                    RefundCarry(npcState.Cell, job.SourceBuilding, rt, carried);
+                    job.Status = JobStatus.Cancelled;
+                    Cleanup(jid);
+                    return true;
+                }
 
                 job.TargetCell = siteEntry;
                 job.Status = JobStatus.InProgress;
@@ -437,6 +444,14 @@ namespace SeasonalBastion
             _srcClaimByJob.Remove(jobId);
             _settle.Remove(jobId);
             // JobScheduler will ReleaseAll(npc) on terminal status (safe).
+        }
+
+        private bool IsReachable(CellPos from, CellPos to)
+        {
+            if (_s?.Pathfinder == null)
+                return true;
+
+            return _s.Pathfinder.TryEstimateCost(from, to, out _);
         }
 
         private static int Manhattan(CellPos a, CellPos b)

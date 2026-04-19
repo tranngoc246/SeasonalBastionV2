@@ -578,6 +578,98 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(job.ResourceType, Is.EqualTo(ResourceType.Wood));
         }
 
+        [Test]
+        public void BuildWorkExecutor_Cancels_WhenSiteEntryBecomesUnreachable()
+        {
+            var bus = new TestEventBus();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef
+            {
+                DefId = "bld_warehouse_t1",
+                IsWarehouse = true,
+                SizeX = 1,
+                SizeY = 1,
+                CapWood = new StorageCapsByLevel { L1 = 300, L2 = 600, L3 = 1000 },
+            });
+            data.Add(new BuildingDef { DefId = "bld_builderhut_t1", SizeX = 1, SizeY = 1, WorkRoles = WorkRoleFlags.Build });
+            data.Add(new BuildingDef { DefId = "bld_house_t1", SizeX = 1, SizeY = 1 });
+
+            var world = new WorldState();
+            var grid = new GridMap(8, 8);
+            var terrain = new TerrainMap(8, 8);
+            for (int y = 0; y < 8; y++)
+                for (int x = 0; x < 8; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.StorageService = new StorageService(world, data, bus);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.AgentMover = new GridAgentMoverLite(grid, data, null, terrain);
+            services.Pathfinder = new NpcPathfinder(grid, terrain);
+
+            var workplace = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_builderhut_t1",
+                Anchor = new CellPos(1, 1),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+            });
+
+            var source = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_warehouse_t1",
+                Anchor = new CellPos(1, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                Wood = 20,
+            });
+
+            var siteId = world.Sites.Create(new BuildSiteState
+            {
+                BuildingDefId = "bld_house_t1",
+                Anchor = new CellPos(6, 6),
+                Rotation = Dir4.N,
+                IsActive = true,
+                RemainingCosts = new List<CostDef> { new CostDef { Resource = ResourceType.Wood, Amount = 5 } },
+                WorkSecondsTotal = 1f,
+            });
+
+            services.WorldIndex.RebuildAll();
+
+            var blockedEntry = EntryCellUtil.GetApproachCellForSite(services, world.Sites.Get(siteId), new CellPos(1, 1));
+            terrain.Set(blockedEntry, TerrainType.Sea);
+
+            var exec = new BuildWorkExecutor(services);
+            var npcId = new NpcId(7);
+            var npc = new NpcState { Id = npcId, DefId = "npc_test", Cell = new CellPos(1, 1), Workplace = workplace, IsIdle = false };
+            var job = new Job
+            {
+                Id = new JobId(7),
+                Archetype = JobArchetype.BuildWork,
+                Site = siteId,
+                Workplace = workplace,
+                SourceBuilding = source,
+                ResourceType = ResourceType.Wood,
+                Amount = 5,
+                Status = JobStatus.InProgress,
+            };
+
+            typeof(BuildWorkExecutor).GetField("_phase", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?.GetValue(exec) is Dictionary<int, byte> phases1
+                ? phases1[job.Id.Value] = 1
+                : throw new Exception("phase field missing");
+            typeof(BuildWorkExecutor).GetField("_carry", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?.GetValue(exec) is Dictionary<int, int> carry1
+                ? carry1[job.Id.Value] = 5
+                : throw new Exception("carry field missing");
+
+            exec.Tick(npcId, ref npc, ref job, 0.1f);
+
+            Assert.That(job.Status, Is.EqualTo(JobStatus.Cancelled));
+        }
+
         // -------------------------
         // P0.2 BuildOrder rebuild from Sites after Load
         // (requires your added method: RebuildActivePlaceOrdersFromSitesAfterLoad)

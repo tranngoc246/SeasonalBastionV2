@@ -136,6 +136,13 @@ namespace SeasonalBastion
             int cur = _resourcePolicy.GetAmountFromBuilding(destState, rt);
             if (cur >= cap) return;
 
+            if (_s.ResourceFlowService != null)
+            {
+                var workplaceEntry = EntryCellUtil.GetApproachCellForBuilding(_s, destState, destState.Anchor);
+                if (!_s.ResourceFlowService.TryPickSource(workplaceEntry, rt, 1, out _))
+                    return;
+            }
+
             int key = workplace.Value * 16 + (int)rt;
 
             if (haulJobByWorkplaceAndType.TryGetValue(key, out var oldId))

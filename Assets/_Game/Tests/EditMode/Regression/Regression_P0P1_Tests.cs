@@ -934,15 +934,38 @@ namespace SeasonalBastion.Tests.EditMode
         public void JobEnqueueService_Haul_DoesNotDuplicateActiveJobForSameWorkplaceAndType()
         {
             var data = new TestDataRegistry();
-            data.Add(new BuildingDef { DefId = "bld_warehouse", WorkRoles = WorkRoleFlags.HaulBasic });
+            data.Add(new BuildingDef { DefId = "bld_warehouse", WorkRoles = WorkRoleFlags.HaulBasic, IsWarehouse = true, CapWood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_warehouse_t1", WorkRoles = WorkRoleFlags.HaulBasic, IsWarehouse = true, CapWood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_lumbercamp", WorkRoles = WorkRoleFlags.Harvest, CapWood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_lumbercamp_t1", WorkRoles = WorkRoleFlags.Harvest, CapWood = new StorageCapsByLevel { L1 = 100 } });
 
             var world = new WorldState();
+            var grid = new GridMap(20, 20);
+            for (int x = 0; x <= 10; x++) grid.SetRoad(new CellPos(x, 8), true);
+
             var board = new JobBoard();
             var cleanup = new JobStateCleanupService(new ClaimService());
             var workplacePolicy = new JobWorkplacePolicy(data);
             var resourcePolicy = new ResourceLogisticsPolicy();
-            var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = new StorageService(world, data, services.EventBus, services.WorldIndex);
+            services.ResourceFlowService = new ResourceFlowService(world, services.WorldIndex, services.StorageService, services.Pathfinder);
             var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup, new FakeHarvestTargetSelector(new CellPos(1, 1)));
+
+            var srcId = world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_lumbercamp_t1",
+                Anchor = new CellPos(2, 8),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                Wood = 7,
+                HP = 10,
+                MaxHP = 10
+            });
+            var src = world.Buildings.Get(srcId); src.Id = srcId; world.Buildings.Set(srcId, src);
 
             var wid = world.Buildings.Create(new BuildingState
             {
@@ -960,6 +983,8 @@ namespace SeasonalBastion.Tests.EditMode
             w.Id = wid;
             world.Buildings.Set(wid, w);
 
+            services.WorldIndex.Rebuild();
+
             var buildingIds = new List<BuildingId> { wid };
             var workplacesWithNpc = new HashSet<int> { wid.Value };
             var haulMap = new Dictionary<int, JobId>();
@@ -969,6 +994,78 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(haulMap.Count, Is.EqualTo(1));
             Assert.That(board.CountActiveJobs(JobArchetype.HaulBasic), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void JobEnqueueService_Haul_DoesNotCreateJob_WhenNoReachableSourceExists()
+        {
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_warehouse", WorkRoles = WorkRoleFlags.HaulBasic, IsWarehouse = true, CapWood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_warehouse_t1", WorkRoles = WorkRoleFlags.HaulBasic, IsWarehouse = true, CapWood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_lumbercamp", WorkRoles = WorkRoleFlags.Harvest, CapWood = new StorageCapsByLevel { L1 = 100 } });
+            data.Add(new BuildingDef { DefId = "bld_lumbercamp_t1", WorkRoles = WorkRoleFlags.Harvest, CapWood = new StorageCapsByLevel { L1 = 100 } });
+
+            var world = new WorldState();
+            var grid = new GridMap(20, 20);
+            for (int x = 0; x <= 4; x++) grid.SetRoad(new CellPos(x, 8), true);
+            for (int x = 10; x <= 14; x++) grid.SetRoad(new CellPos(x, 8), true);
+            var terrain = new TerrainMap(20, 20);
+            for (int y = 0; y < 20; y++)
+                for (int x = 0; x < 20; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+            for (int y = 0; y < 20; y++)
+                terrain.Set(new CellPos(7, y), TerrainType.Sea);
+
+            var board = new JobBoard();
+            var cleanup = new JobStateCleanupService(new ClaimService());
+            var workplacePolicy = new JobWorkplacePolicy(data);
+            var resourcePolicy = new ResourceLogisticsPolicy();
+            var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.TerrainMap = terrain;
+            services.Pathfinder = new NpcPathfinder(grid, terrain);
+            services.WorldIndex = new WorldIndexService(world, data);
+            services.StorageService = new StorageService(world, data, services.EventBus, services.WorldIndex);
+            services.ResourceFlowService = new ResourceFlowService(world, services.WorldIndex, services.StorageService, services.Pathfinder);
+            var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup, new FakeHarvestTargetSelector(new CellPos(1, 1)));
+
+            var srcId = world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_lumbercamp_t1",
+                Anchor = new CellPos(12, 8),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                Wood = 7,
+                HP = 10,
+                MaxHP = 10
+            });
+            var src = world.Buildings.Get(srcId); src.Id = srcId; world.Buildings.Set(srcId, src);
+
+            var wid = world.Buildings.Create(new BuildingState
+            {
+                Id = default,
+                DefId = "bld_warehouse_t1",
+                Anchor = new CellPos(2, 8),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                Wood = 0,
+                HP = 10,
+                MaxHP = 10
+            });
+            var w = world.Buildings.Get(wid); w.Id = wid; world.Buildings.Set(wid, w);
+
+            services.WorldIndex.Rebuild();
+
+            var buildingIds = new List<BuildingId> { wid };
+            var workplacesWithNpc = new HashSet<int> { wid.Value };
+            var haulMap = new Dictionary<int, JobId>();
+
+            enqueue.EnqueueHaulJobsIfNeeded(buildingIds, workplacesWithNpc, haulMap, rt => rt == ResourceType.Wood);
+
+            Assert.That(haulMap.Count, Is.EqualTo(0));
+            Assert.That(board.CountActiveJobs(JobArchetype.HaulBasic), Is.EqualTo(0));
         }
 
         [Test]
@@ -1272,22 +1369,73 @@ namespace SeasonalBastion.Tests.EditMode
         public void BuildJobPlanner_EnsureBuildJobsForSite_DoesNotDuplicateActiveWorkJob()
         {
             var bus = new TestEventBus();
-            var services = MakeServices(bus, new TestDataRegistry(), new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: new WorldState());
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_builderhut", WorkRoles = WorkRoleFlags.Build, SizeX = 1, SizeY = 1, MaxHp = 20 });
+            data.Add(new BuildingDef { DefId = "bld_builderhut_t1", WorkRoles = WorkRoleFlags.Build, SizeX = 1, SizeY = 1, MaxHp = 20 });
+            var grid = new GridMap(12, 12);
+            for (int y = 0; y < 12; y++)
+                for (int x = 0; x < 12; x++)
+                    grid.SetRoad(new CellPos(x, y), true);
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
             var board = new JobBoard();
             services.JobBoard = board;
+
+            var workplace = world.Buildings.Create(new BuildingState { DefId = "bld_builderhut_t1", Anchor = new CellPos(3, 4), Rotation = Dir4.N, Level = 1, IsConstructed = true, HP = 20, MaxHP = 20 });
+            var wb = world.Buildings.Get(workplace); wb.Id = workplace; world.Buildings.Set(workplace, wb);
 
             var deliver = new Dictionary<int, List<JobId>>();
             var work = new Dictionary<int, JobId>();
             var planner = new BuildJobPlanner(services, deliver, work);
             var siteId = new SiteId(7);
-            var site = new BuildSiteState { Anchor = new CellPos(4, 4) };
-            var workplace = new BuildingId(3);
+            var site = new BuildSiteState { Anchor = new CellPos(4, 4), Rotation = Dir4.N };
 
             planner.EnsureBuildJobsForSite(siteId, site, workplace);
             planner.EnsureBuildJobsForSite(siteId, site, workplace);
 
             Assert.That(work.Count, Is.EqualTo(1));
             Assert.That(board.CountActiveJobs(JobArchetype.BuildWork), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BuildJobPlanner_EnsureBuildJobsForSite_DoesNotCreateJobs_WhenSiteEntryUnreachable()
+        {
+            var bus = new TestEventBus();
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_builderhut", WorkRoles = WorkRoleFlags.Build, SizeX = 1, SizeY = 1, MaxHp = 20 });
+            data.Add(new BuildingDef { DefId = "bld_builderhut_t1", WorkRoles = WorkRoleFlags.Build, SizeX = 1, SizeY = 1, MaxHp = 20 });
+            var grid = new GridMap(12, 12);
+            for (int y = 0; y < 12; y++)
+                for (int x = 0; x < 12; x++)
+                    grid.SetRoad(new CellPos(x, y), true);
+            var terrain = new TerrainMap(12, 12);
+            for (int y = 0; y < 12; y++)
+                for (int x = 0; x < 12; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.TerrainMap = terrain;
+            services.Pathfinder = new NpcPathfinder(grid, terrain);
+            var board = new JobBoard();
+            services.JobBoard = board;
+
+            var workplace = world.Buildings.Create(new BuildingState { DefId = "bld_builderhut_t1", Anchor = new CellPos(1, 1), Rotation = Dir4.N, Level = 1, IsConstructed = true, HP = 20, MaxHP = 20 });
+            var wb = world.Buildings.Get(workplace); wb.Id = workplace; world.Buildings.Set(workplace, wb);
+
+            var deliver = new Dictionary<int, List<JobId>>();
+            var work = new Dictionary<int, JobId>();
+            var planner = new BuildJobPlanner(services, deliver, work);
+            var siteId = new SiteId(8);
+            var site = new BuildSiteState { Anchor = new CellPos(4, 4), Rotation = Dir4.N };
+            var blockedEntry = EntryCellUtil.GetApproachCellForSite(services, site, new CellPos(1, 1));
+            terrain.Set(blockedEntry, TerrainType.Sea);
+
+            planner.EnsureBuildJobsForSite(siteId, site, workplace);
+
+            Assert.That(work.Count, Is.EqualTo(0));
+            Assert.That(board.CountActiveJobs(JobArchetype.BuildWork), Is.EqualTo(0));
         }
 
         [Test]

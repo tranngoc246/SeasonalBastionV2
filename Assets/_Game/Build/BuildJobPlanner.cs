@@ -25,7 +25,8 @@ namespace SeasonalBastion
             if (_s.WorldState == null || !_s.WorldState.Buildings.Exists(workplace)) return;
 
             var workplaceState = _s.WorldState.Buildings.Get(workplace);
-            if (!JobReachabilityHelper.IsSiteEntryReachable(_s, site, workplaceState.Anchor))
+            var workplaceEntry = EntryCellUtil.GetApproachCellForBuilding(_s, workplaceState, site.Anchor);
+            if (!JobReachabilityHelper.IsSiteEntryReachable(_s, site, workplaceEntry))
             {
                 CancelTrackedJobsForSite(siteId);
                 return;

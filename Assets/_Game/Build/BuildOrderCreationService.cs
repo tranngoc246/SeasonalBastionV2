@@ -291,6 +291,20 @@ namespace SeasonalBastion
                 return 0;
             }
 
+            if (!JobReachabilityHelper.IsBuildingEntryReachable(_s, bs, bs.Anchor))
+            {
+                _s.NotificationService?.Push(
+                    key: $"UpgradeUnreachable_{building.Value}",
+                    title: "Không thể nâng cấp",
+                    body: "Công trình này hiện không có lối tiếp cận hợp lệ cho thợ xây.",
+                    severity: NotificationSeverity.Warning,
+                    payload: new NotificationPayload(building, default, edge.To),
+                    cooldownSeconds: 2f,
+                    dedupeByKey: true
+                );
+                return 0;
+            }
+
             var fromDef = _s.DataRegistry.GetBuilding(bs.DefId);
             if (fromDef != null && toDef != null)
             {
@@ -415,6 +429,20 @@ namespace SeasonalBastion
             }
 
             if (bs.HP >= bs.MaxHP) return 0;
+
+            if (!JobReachabilityHelper.IsBuildingEntryReachable(_s, bs, bs.Anchor))
+            {
+                _s.NotificationService?.Push(
+                    key: $"RepairUnreachable_{building.Value}",
+                    title: "Không thể sửa chữa",
+                    body: "Công trình này hiện không có lối tiếp cận hợp lệ cho thợ xây.",
+                    severity: NotificationSeverity.Warning,
+                    payload: new NotificationPayload(building, default, bs.DefId),
+                    cooldownSeconds: 2f,
+                    dedupeByKey: true
+                );
+                return 0;
+            }
 
             for (int i = 0; i < _active.Count; i++)
             {

@@ -32,11 +32,13 @@ namespace SeasonalBastion.Tests.EditMode
                 RunOutcomeService = outcome,
                 WorldState = world,
                 GridMap = grid,
+                TerrainMap = grid != null ? new TerrainMap(grid.Width, grid.Height) : null,
+                RuntimeMapSize = grid != null ? new MapSize(grid.Width, grid.Height) : default,
                 PlacementService = placement
             };
 
             if (services.GridMap != null)
-                services.Pathfinder = new NpcPathfinder(services.GridMap);
+                services.Pathfinder = new NpcPathfinder(services.GridMap, services.TerrainMap);
 
             services.ApplyRunStartConfig = (s, cfg) =>
             {
@@ -875,6 +877,108 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void BuildOrderService_CreateUpgradeOrder_ReturnsZero_WhenBuildingEntryIsUnreachable()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true });
+            data.Add(new BuildingDef { DefId = "bld_hq_t2", SizeX = 2, SizeY = 2, BaseLevel = 2, MaxHp = 150, IsHQ = true });
+            data.AddNode(new BuildableNodeDef { Id = "bld_hq_t2", Level = 2, Placeable = false });
+            data.AddUpgradeEdge(new UpgradeEdgeDef
+            {
+                Id = "hq_t1_to_t2",
+                From = "bld_hq_t1",
+                To = "bld_hq_t2",
+                WorkChunks = 2
+            });
+
+            var world = new WorldState();
+            var grid = new GridMap(12, 12);
+            var terrain = new TerrainMap(12, 12);
+            for (int y = 0; y < 12; y++)
+                for (int x = 0; x < 12; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+
+            var buildingId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(2, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 100,
+                MaxHP = 100
+            });
+            var building = world.Buildings.Get(buildingId); building.Id = buildingId; world.Buildings.Set(buildingId, building);
+
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.TerrainMap = terrain;
+            services.Pathfinder = new NpcPathfinder(grid, terrain);
+            var blockedEntry = EntryCellUtil.GetApproachCellForBuilding(services, building, building.Anchor);
+            terrain.Set(blockedEntry, TerrainType.Sea);
+
+            var bos = new BuildOrderService(services);
+            services.BuildOrderService = bos;
+
+            int orderId = bos.CreateUpgradeOrder(buildingId);
+
+            Assert.That(orderId, Is.EqualTo(0));
+            Assert.That(world.Sites.Count, Is.EqualTo(0));
+            Assert.That(bos.TryGet(1, out _), Is.False);
+
+            var inbox = noti.GetInbox();
+            Assert.That(inbox.Count, Is.EqualTo(1));
+            Assert.That(inbox[0].Title, Is.EqualTo("Không thể nâng cấp"));
+        }
+
+        [Test]
+        public void BuildOrderService_CreateRepairOrder_ReturnsZero_WhenBuildingEntryIsUnreachable()
+        {
+            var bus = new TestEventBus();
+            var noti = new NotificationService(bus);
+            var data = new TestDataRegistry();
+            data.Add(new BuildingDef { DefId = "bld_hq_t1", SizeX = 2, SizeY = 2, BaseLevel = 1, MaxHp = 100, IsHQ = true });
+
+            var world = new WorldState();
+            var grid = new GridMap(12, 12);
+            var terrain = new TerrainMap(12, 12);
+            for (int y = 0; y < 12; y++)
+                for (int x = 0; x < 12; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+
+            var buildingId = world.Buildings.Create(new BuildingState
+            {
+                DefId = "bld_hq_t1",
+                Anchor = new CellPos(2, 2),
+                Rotation = Dir4.N,
+                Level = 1,
+                IsConstructed = true,
+                HP = 50,
+                MaxHP = 100
+            });
+            var building = world.Buildings.Get(buildingId); building.Id = buildingId; world.Buildings.Set(buildingId, building);
+
+            var services = MakeServices(bus, data, noti, new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
+            services.TerrainMap = terrain;
+            services.Pathfinder = new NpcPathfinder(grid, terrain);
+            var blockedEntry = EntryCellUtil.GetApproachCellForBuilding(services, building, building.Anchor);
+            terrain.Set(blockedEntry, TerrainType.Sea);
+
+            var bos = new BuildOrderService(services);
+            services.BuildOrderService = bos;
+
+            int orderId = bos.CreateRepairOrder(buildingId);
+
+            Assert.That(orderId, Is.EqualTo(0));
+            Assert.That(bos.TryGet(1, out _), Is.False);
+
+            var inbox = noti.GetInbox();
+            Assert.That(inbox.Count, Is.EqualTo(1));
+            Assert.That(inbox[0].Title, Is.EqualTo("Không thể sửa chữa"));
+        }
+
+        [Test]
         public void JobBoard_ArmoryFilteredPeek_PrioritizesResupplyTower()
         {
             var board = new JobBoard();
@@ -948,8 +1052,9 @@ namespace SeasonalBastion.Tests.EditMode
             var workplacePolicy = new JobWorkplacePolicy(data);
             var resourcePolicy = new ResourceLogisticsPolicy();
             var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
-            services.WorldIndex = new WorldIndexService(world, data);
-            services.StorageService = new StorageService(world, data, services.EventBus, services.WorldIndex);
+            var worldIndex = new WorldIndexService(world, data);
+            services.WorldIndex = worldIndex;
+            services.StorageService = new StorageService(world, data, services.EventBus);
             services.ResourceFlowService = new ResourceFlowService(world, services.WorldIndex, services.StorageService, services.Pathfinder);
             var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup, new FakeHarvestTargetSelector(new CellPos(1, 1)));
 
@@ -983,7 +1088,7 @@ namespace SeasonalBastion.Tests.EditMode
             w.Id = wid;
             world.Buildings.Set(wid, w);
 
-            services.WorldIndex.Rebuild();
+            worldIndex.RebuildAll();
 
             var buildingIds = new List<BuildingId> { wid };
             var workplacesWithNpc = new HashSet<int> { wid.Value };
@@ -1023,8 +1128,9 @@ namespace SeasonalBastion.Tests.EditMode
             var services = MakeServices(new TestEventBus(), data, new NotificationService(new TestEventBus()), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
             services.TerrainMap = terrain;
             services.Pathfinder = new NpcPathfinder(grid, terrain);
-            services.WorldIndex = new WorldIndexService(world, data);
-            services.StorageService = new StorageService(world, data, services.EventBus, services.WorldIndex);
+            var worldIndex = new WorldIndexService(world, data);
+            services.WorldIndex = worldIndex;
+            services.StorageService = new StorageService(world, data, services.EventBus);
             services.ResourceFlowService = new ResourceFlowService(world, services.WorldIndex, services.StorageService, services.Pathfinder);
             var enqueue = new JobEnqueueService(services, world, board, workplacePolicy, resourcePolicy, cleanup, new FakeHarvestTargetSelector(new CellPos(1, 1)));
 
@@ -1056,7 +1162,7 @@ namespace SeasonalBastion.Tests.EditMode
             });
             var w = world.Buildings.Get(wid); w.Id = wid; world.Buildings.Set(wid, w);
 
-            services.WorldIndex.Rebuild();
+            worldIndex.RebuildAll();
 
             var buildingIds = new List<BuildingId> { wid };
             var workplacesWithNpc = new HashSet<int> { wid.Value };
@@ -1384,12 +1490,13 @@ namespace SeasonalBastion.Tests.EditMode
 
             var workplace = world.Buildings.Create(new BuildingState { DefId = "bld_builderhut_t1", Anchor = new CellPos(3, 4), Rotation = Dir4.N, Level = 1, IsConstructed = true, HP = 20, MaxHP = 20 });
             var wb = world.Buildings.Get(workplace); wb.Id = workplace; world.Buildings.Set(workplace, wb);
+            grid.SetBuilding(wb.Anchor, workplace);
 
             var deliver = new Dictionary<int, List<JobId>>();
             var work = new Dictionary<int, JobId>();
             var planner = new BuildJobPlanner(services, deliver, work);
             var siteId = new SiteId(7);
-            var site = new BuildSiteState { Anchor = new CellPos(4, 4), Rotation = Dir4.N };
+            var site = new BuildSiteState { BuildingDefId = "bld_builderhut_t1", Anchor = new CellPos(6, 4), Rotation = Dir4.N };
 
             planner.EnsureBuildJobsForSite(siteId, site, workplace);
             planner.EnsureBuildJobsForSite(siteId, site, workplace);
@@ -1428,7 +1535,7 @@ namespace SeasonalBastion.Tests.EditMode
             var work = new Dictionary<int, JobId>();
             var planner = new BuildJobPlanner(services, deliver, work);
             var siteId = new SiteId(8);
-            var site = new BuildSiteState { Anchor = new CellPos(4, 4), Rotation = Dir4.N };
+            var site = new BuildSiteState { BuildingDefId = "bld_builderhut_t1", Anchor = new CellPos(4, 4), Rotation = Dir4.N };
             var blockedEntry = EntryCellUtil.GetApproachCellForSite(services, site, new CellPos(1, 1));
             terrain.Set(blockedEntry, TerrainType.Sea);
 
@@ -1508,8 +1615,18 @@ namespace SeasonalBastion.Tests.EditMode
             var bus = new TestEventBus();
             var world = new WorldState();
             var data = new TestDataRegistry();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            data.Add(new BuildingDef { DefId = "bld_builderhut", WorkRoles = WorkRoleFlags.Build, SizeX = 1, SizeY = 1, MaxHp = 20 });
+            data.Add(new BuildingDef { DefId = "bld_builderhut_t1", WorkRoles = WorkRoleFlags.Build, SizeX = 1, SizeY = 1, MaxHp = 20 });
+            var grid = new GridMap(12, 12);
+            for (int y = 0; y < 12; y++)
+                for (int x = 0; x < 12; x++)
+                    grid.SetRoad(new CellPos(x, y), true);
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
             services.JobBoard = new JobBoard();
+
+            var workplace = world.Buildings.Create(new BuildingState { DefId = "bld_builderhut_t1", Anchor = new CellPos(3, 4), Rotation = Dir4.N, Level = 1, IsConstructed = true, HP = 20, MaxHP = 20 });
+            var wb = world.Buildings.Get(workplace); wb.Id = workplace; world.Buildings.Set(workplace, wb);
+            grid.SetBuilding(wb.Anchor, workplace);
 
             var deliver = new Dictionary<int, List<JobId>>();
             var work = new Dictionary<int, JobId>();
@@ -1527,8 +1644,7 @@ namespace SeasonalBastion.Tests.EditMode
             work[7] = staleId;
 
             var siteId = new SiteId(7);
-            var site = new BuildSiteState { Anchor = new CellPos(4, 4) };
-            var workplace = new BuildingId(9);
+            var site = new BuildSiteState { BuildingDefId = "bld_builderhut_t1", Anchor = new CellPos(4, 4), Rotation = Dir4.N };
 
             planner.EnsureBuildJobsForSite(siteId, site, workplace);
 
@@ -1545,8 +1661,18 @@ namespace SeasonalBastion.Tests.EditMode
             var bus = new TestEventBus();
             var world = new WorldState();
             var data = new TestDataRegistry();
-            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world);
+            data.Add(new BuildingDef { DefId = "bld_builderhut", WorkRoles = WorkRoleFlags.Build, SizeX = 1, SizeY = 1, MaxHp = 20 });
+            data.Add(new BuildingDef { DefId = "bld_builderhut_t1", WorkRoles = WorkRoleFlags.Build, SizeX = 1, SizeY = 1, MaxHp = 20 });
+            var grid = new GridMap(12, 12);
+            for (int y = 0; y < 12; y++)
+                for (int x = 0; x < 12; x++)
+                    grid.SetRoad(new CellPos(x, y), true);
+            var services = MakeServices(bus, data, new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService(), world: world, grid: grid);
             services.JobBoard = new JobBoard();
+
+            var workplace = world.Buildings.Create(new BuildingState { DefId = "bld_builderhut_t1", Anchor = new CellPos(4, 5), Rotation = Dir4.N, Level = 1, IsConstructed = true, HP = 20, MaxHP = 20 });
+            var wb = world.Buildings.Get(workplace); wb.Id = workplace; world.Buildings.Set(workplace, wb);
+            grid.SetBuilding(wb.Anchor, workplace);
 
             var deliver = new Dictionary<int, List<JobId>>();
             var work = new Dictionary<int, JobId>();
@@ -1564,8 +1690,7 @@ namespace SeasonalBastion.Tests.EditMode
             work[8] = firstId;
 
             var siteId = new SiteId(8);
-            var site = new BuildSiteState { Anchor = new CellPos(5, 5) };
-            var workplace = new BuildingId(11);
+            var site = new BuildSiteState { BuildingDefId = "bld_builderhut_t1", Anchor = new CellPos(5, 5), Rotation = Dir4.N };
 
             planner.EnsureBuildJobsForSite(siteId, site, workplace);
             var recreatedId = work[8];

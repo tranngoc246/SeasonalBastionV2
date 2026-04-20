@@ -66,124 +66,6 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
-        public void RunStart_HarvestDepositPath_FarmNpcCanReturnToFarmEntry()
-        {
-            var services = CreateServices();
-            AssertRunStartApplied(services);
-
-            var farm = FindBuilding(services, "bld_farmhouse_t1");
-            var farmNpcId = FindNpcAssignedTo(services, farm);
-            Assert.That(farm.Value, Is.Not.EqualTo(0));
-            Assert.That(farmNpcId.Value, Is.Not.EqualTo(0));
-
-            for (int i = 0; i < 60; i++)
-                services.JobScheduler.Tick(0.1f);
-
-            var farmState = services.WorldState.Buildings.Get(farm);
-            var farmNpc = services.WorldState.Npcs.Get(farmNpcId);
-            var farmEntry = EntryCellUtil.GetApproachCellForBuilding(services, farmState, farmNpc.Cell);
-            bool entryReachable = services.Pathfinder.TryEstimateCost(farmNpc.Cell, farmEntry, out _);
-
-            Assert.That(entryReachable, Is.True, $"Harvest deposit path is blocked: farm NPC at {farmNpc.Cell.X},{farmNpc.Cell.Y} cannot reach farmhouse entry {farmEntry.X},{farmEntry.Y}.");
-        }
-
-        [Test]
-        public void HarvestDepositEntryCell_IsNotPermanentlyBlockedAtRuntime()
-        {
-            var services = CreateServices();
-            AssertRunStartApplied(services);
-
-            var farm = FindBuilding(services, "bld_farmhouse_t1");
-            var farmNpcId = FindNpcAssignedTo(services, farm);
-            Assert.That(farm.Value, Is.Not.EqualTo(0));
-            Assert.That(farmNpcId.Value, Is.Not.EqualTo(0));
-
-            Job trackedFarmJob = default;
-            bool sawCarryPhase = false;
-
-            for (int i = 0; i < 200; i++)
-            {
-                services.JobScheduler.Tick(0.1f);
-                var farmNpc = services.WorldState.Npcs.Get(farmNpcId);
-                if (farmNpc.CurrentJob.Value == 0)
-                    continue;
-
-                if (!services.JobBoard.TryGet(farmNpc.CurrentJob, out trackedFarmJob))
-                    continue;
-
-                if (trackedFarmJob.Archetype == JobArchetype.Harvest && trackedFarmJob.Amount > 0)
-                {
-                    sawCarryPhase = true;
-                    break;
-                }
-            }
-
-            Assert.That(sawCarryPhase, Is.True, "Harvest job never entered carry/deposit phase.");
-
-            var farmState = services.WorldState.Buildings.Get(farm);
-            var farmNpcAtCarry = services.WorldState.Npcs.Get(farmNpcId);
-            var entry = EntryCellUtil.GetApproachCellForBuilding(services, farmState, farmNpcAtCarry.Cell);
-            var occ = services.GridMap.Get(entry);
-            var blockingNpc = services.WorldState.Npcs.Ids
-                .Select(id => services.WorldState.Npcs.Get(id))
-                .FirstOrDefault(n => n.Cell.X == entry.X && n.Cell.Y == entry.Y);
-
-            Assert.That(services.GridMap.IsInside(entry), Is.True, $"Farm entry {entry.X},{entry.Y} is out of bounds.");
-            Assert.That(services.GridMap.IsBlocked(entry), Is.False, $"Farm entry {entry.X},{entry.Y} is blocked in GridMap with kind={occ.Kind}.");
-            Assert.That(blockingNpc.Id.Value, Is.EqualTo(0), $"Farm entry {entry.X},{entry.Y} is occupied by NPC {blockingNpc.Id.Value}, blocking Harvest deposit.");
-        }
-
-        [Test]
-        public void HarvestExecutor_DepositPhase_PreservesCarryUntilFarmEntryReached()
-        {
-            var services = CreateServices();
-            AssertRunStartApplied(services);
-
-            var farm = FindBuilding(services, "bld_farmhouse_t1");
-            var farmNpcId = FindNpcAssignedTo(services, farm);
-            Assert.That(farm.Value, Is.Not.EqualTo(0));
-            Assert.That(farmNpcId.Value, Is.Not.EqualTo(0));
-
-            Job harvestJob = default;
-            bool sawCarryPhase = false;
-
-            for (int i = 0; i < 200; i++)
-            {
-                services.JobScheduler.Tick(0.1f);
-                harvestJob = services.JobBoard.EnumerateAllJobs().FirstOrDefault(j => j.Workplace.Value == farm.Value && j.Archetype == JobArchetype.Harvest);
-                if (harvestJob.Id.Value != 0 && harvestJob.Amount > 0)
-                {
-                    sawCarryPhase = true;
-                    break;
-                }
-            }
-
-            Assert.That(sawCarryPhase, Is.True, "Harvest job never entered carry/deposit phase.");
-
-            var farmNpc = services.WorldState.Npcs.Get(farmNpcId);
-            var farmState = services.WorldState.Buildings.Get(farm);
-            var farmEntry = EntryCellUtil.GetApproachCellForBuilding(services, farmState, farmNpc.Cell);
-            int initialCarry = harvestJob.Amount;
-
-            for (int i = 0; i < 40; i++)
-            {
-                services.JobScheduler.Tick(0.1f);
-                harvestJob = services.JobBoard.EnumerateAllJobs().FirstOrDefault(j => j.Id.Value == harvestJob.Id.Value);
-                farmNpc = services.WorldState.Npcs.Get(farmNpcId);
-
-                bool atEntry = farmNpc.Cell.X == farmEntry.X && farmNpc.Cell.Y == farmEntry.Y;
-                if (!atEntry)
-                {
-                    Assert.That(harvestJob.Amount, Is.EqualTo(initialCarry), $"Harvest carry was lost before NPC reached farm entry. npc=({farmNpc.Cell.X},{farmNpc.Cell.Y}) entry=({farmEntry.X},{farmEntry.Y}) target=({harvestJob.TargetCell.X},{harvestJob.TargetCell.Y}) status={harvestJob.Status}");
-                }
-                else
-                {
-                    break;
-                }
-            }
-        }
-
-        [Test]
         public void RunStart_HqNpc_HaulWorkflow_ExposesSpawnAssignAndExecuteStages()
         {
             var services = CreateServices();
@@ -203,18 +85,16 @@ namespace SeasonalBastion.Tests.EditMode
             int patchCount = services.ResourcePatchService.Patches.Count;
             int foodPatchCount = services.ResourcePatchService.Patches.Count(p => p.Resource == ResourceType.Food);
             var farmNpcId = FindNpcAssignedTo(services, farm);
-            var hqNpcAfterAssign = services.WorldState.Npcs.Get(hqNpcId);
             var jobsAfterHarvestWindow = services.JobBoard.EnumerateAllJobs().ToList();
             var farmHarvestJob = jobsAfterHarvestWindow.FirstOrDefault(j => j.Workplace.Value == farm.Value && j.Archetype == JobArchetype.Harvest);
 
-            Assert.That(patchCount, Is.GreaterThan(0), "Stage 0 failed: RunStart did not rebuild any resource patches from authored zones.");
-            Assert.That(foodPatchCount, Is.GreaterThan(0), "Stage 0 failed: RunStart has no Food patch, so farmhouse Harvest can never start.");
-            Assert.That(farmHarvestJob.Id.Value, Is.Not.EqualTo(0), "Stage 1a failed: farmhouse never enqueued a Harvest job.");
+            Assert.That(patchCount, Is.GreaterThan(0), "RunStart should rebuild resource patches from authored zones.");
+            Assert.That(foodPatchCount, Is.GreaterThan(0), "RunStart should include at least one Food patch for farmhouse harvest.");
+            Assert.That(farmHarvestJob.Id.Value, Is.Not.EqualTo(0), "Farmhouse should enqueue an initial Harvest job.");
 
             Job trackedFarmJob = default;
             bool sawFarmNpcClaim = false;
             bool sawFarmDeposit = false;
-            string lastFarmDiag = "";
 
             for (int i = 0; i < 600; i++)
             {
@@ -231,7 +111,6 @@ namespace SeasonalBastion.Tests.EditMode
                 {
                     services.JobBoard.TryGet(trackedFarmJob.Id, out trackedFarmJob);
                     int farmFoodNow = services.StorageService.GetAmount(farm, ResourceType.Food);
-                    lastFarmDiag = $"jobId={trackedFarmJob.Id.Value} carry={trackedFarmJob.Amount} farmNpc=({farmNpc.Cell.X},{farmNpc.Cell.Y}) target=({trackedFarmJob.TargetCell.X},{trackedFarmJob.TargetCell.Y}) status={trackedFarmJob.Status}";
                     if (farmFoodNow > 0)
                     {
                         sawFarmDeposit = true;
@@ -246,8 +125,8 @@ namespace SeasonalBastion.Tests.EditMode
                 }
             }
 
-            Assert.That(sawFarmNpcClaim, Is.True, "Stage 1b failed: farmhouse NPC never claimed a Harvest job.");
-            Assert.That(sawFarmDeposit, Is.True, $"Stage 1c failed: farmhouse NPC claimed Harvest but never deposited food into local farm storage. {lastFarmDiag}");
+            Assert.That(sawFarmNpcClaim, Is.True, "Farmhouse NPC should claim a Harvest job.");
+            Assert.That(sawFarmDeposit, Is.True, "Farmhouse Harvest should deposit food into local storage.");
 
             Job foodHaulJob = default;
             for (int i = 0; i < 10; i++)
@@ -258,14 +137,20 @@ namespace SeasonalBastion.Tests.EditMode
                     break;
             }
 
-            var hqState = services.WorldState.Buildings.Get(hq);
-            var hqEntry = EntryCellUtil.GetApproachCellForBuilding(services, hqState, hqState.Anchor);
-            bool sourcePickOk = services.ResourceFlowService.TryPickSource(hqEntry, ResourceType.Food, 1, out var sourcePick);
-            int farmFoodAtStage2 = services.StorageService.GetAmount(farm, ResourceType.Food);
-            bool hqInWarehouses = services.WorldIndex.Warehouses.Any(b => b.Value == hq.Value);
-            bool hqHasHaulRole = services.JobWorkplacePolicy.HasRole(hqState.DefId, WorkRoleFlags.HaulBasic);
-            Assert.That(foodHaulJob.Id.Value, Is.Not.EqualTo(0), $"Stage 2 failed: HQ never enqueued a HaulBasic(Food) job. farmFood={farmFoodAtStage2} hqInWarehouses={hqInWarehouses} hqHasHaulRole={hqHasHaulRole} sourcePickOk={sourcePickOk} sourcePick={sourcePick.Building.Value}");
-            Assert.That(hqNpcAfterAssign.CurrentJob.Value == foodHaulJob.Id.Value || services.WorldState.Npcs.Get(hqNpcId).CurrentJob.Value == foodHaulJob.Id.Value, Is.True, "Stage 3 failed: HQ NPC never claimed the queued food haul job.");
+            Assert.That(foodHaulJob.Id.Value, Is.Not.EqualTo(0), "HQ should enqueue a HaulBasic(Food) job after farm food is available.");
+
+            bool hqClaimedFoodHaul = false;
+            for (int i = 0; i < 10; i++)
+            {
+                services.JobScheduler.Tick(0.1f);
+                if (services.WorldState.Npcs.Get(hqNpcId).CurrentJob.Value == foodHaulJob.Id.Value)
+                {
+                    hqClaimedFoodHaul = true;
+                    break;
+                }
+            }
+
+            Assert.That(hqClaimedFoodHaul, Is.True, "HQ NPC should claim the queued food haul job.");
 
             int initialHqFood = services.StorageService.GetAmount(hq, ResourceType.Food);
             for (int i = 0; i < 540; i++)

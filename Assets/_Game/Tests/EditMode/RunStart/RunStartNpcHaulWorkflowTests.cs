@@ -65,11 +65,20 @@ namespace SeasonalBastion.Tests.EditMode
                 services.JobScheduler.Tick(0.1f);
 
             int farmFoodAfterHarvestWindow = services.StorageService.GetAmount(farm, ResourceType.Food);
+            int patchCount = services.ResourcePatchService.Patches.Count;
+            int foodPatchCount = services.ResourcePatchService.Patches.Count(p => p.Resource == ResourceType.Food);
             var jobsAfterHarvestWindow = services.JobBoard.EnumerateAllJobs().ToList();
+            var farmHarvestJob = jobsAfterHarvestWindow.FirstOrDefault(j => j.Workplace.Value == farm.Value && j.Archetype == JobArchetype.Harvest);
             var foodHaulJob = jobsAfterHarvestWindow.FirstOrDefault(j => j.Workplace.Value == hq.Value && j.Archetype == JobArchetype.HaulBasic && j.ResourceType == ResourceType.Food);
+            var farmNpcId = FindNpcAssignedTo(services, farm);
+            var farmNpcAfterHarvestWindow = services.WorldState.Npcs.Get(farmNpcId);
             var hqNpcAfterAssign = services.WorldState.Npcs.Get(hqNpcId);
 
-            Assert.That(farmFoodAfterHarvestWindow, Is.GreaterThan(0), "Stage 1 failed: farm never accumulated local food, so haul cannot begin.");
+            Assert.That(patchCount, Is.GreaterThan(0), "Stage 0 failed: RunStart did not rebuild any resource patches from authored zones.");
+            Assert.That(foodPatchCount, Is.GreaterThan(0), "Stage 0 failed: RunStart has no Food patch, so farmhouse Harvest can never start.");
+            Assert.That(farmHarvestJob.Id.Value, Is.Not.EqualTo(0), "Stage 1a failed: farmhouse never enqueued a Harvest job.");
+            Assert.That(farmNpcAfterHarvestWindow.CurrentJob.Value, Is.EqualTo(farmHarvestJob.Id.Value), "Stage 1b failed: farmhouse NPC never claimed the Harvest job.");
+            Assert.That(farmFoodAfterHarvestWindow, Is.GreaterThan(0), "Stage 1c failed: farmhouse NPC claimed Harvest but never deposited food into local farm storage.");
             Assert.That(foodHaulJob.Id.Value, Is.Not.EqualTo(0), "Stage 2 failed: HQ never enqueued a HaulBasic(Food) job.");
             Assert.That(hqNpcAfterAssign.CurrentJob.Value, Is.EqualTo(foodHaulJob.Id.Value), "Stage 3 failed: HQ NPC never claimed the queued food haul job.");
 

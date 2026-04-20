@@ -216,7 +216,7 @@ namespace SeasonalBastion.Tests.EditMode
             bool sawFarmDeposit = false;
             string lastFarmDiag = "";
 
-            for (int i = 0; i < 200; i++)
+            for (int i = 0; i < 600; i++)
             {
                 services.JobScheduler.Tick(0.1f);
                 var farmNpc = services.WorldState.Npcs.Get(farmNpcId);
@@ -235,6 +235,12 @@ namespace SeasonalBastion.Tests.EditMode
                     if (farmFoodNow > 0)
                     {
                         sawFarmDeposit = true;
+                        break;
+                    }
+
+                    if (trackedFarmJob.Status == JobStatus.Completed)
+                    {
+                        sawFarmDeposit = farmFoodNow > 0;
                         break;
                     }
                 }

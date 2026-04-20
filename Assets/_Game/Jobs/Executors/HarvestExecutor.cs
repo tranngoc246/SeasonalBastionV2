@@ -97,7 +97,13 @@ namespace SeasonalBastion
 
                 bool arrivedEntry = _s.AgentMover.StepToward(ref npcState, entry, dt);
                 if (!arrivedEntry)
-                    return true;
+                {
+                    int dx = npcState.Cell.X - entry.X; if (dx < 0) dx = -dx;
+                    int dy = npcState.Cell.Y - entry.Y; if (dy < 0) dy = -dy;
+                    bool adjacentToEntry = (dx + dy) == 1;
+                    if (!adjacentToEntry)
+                        return true;
+                }
 
                 // Stand still before deposit
                 if (!_depositSettle.TryGetValue(jid, out var remDep))

@@ -54,8 +54,9 @@ namespace SeasonalBastion
                 int amt = _storage.GetAmount(bid, type);
                 if (amt < need) continue;
 
-                int d = Manhattan(from, bst.Anchor);
-                if (!TryGetCandidateTravelCost(from, bst.Anchor, d, out var cost))
+                var approach = ResolveApproachCell(bst, from);
+                int d = Manhattan(from, approach);
+                if (!TryGetCandidateTravelCost(from, approach, d, out var cost))
                     continue;
                 int idv = bid.Value;
 
@@ -105,8 +106,9 @@ namespace SeasonalBastion
                 int space = cap - amt;
                 if (space < needSpace) continue;
 
-                int d = Manhattan(from, bst.Anchor);
-                if (!TryGetCandidateTravelCost(from, bst.Anchor, d, out var cost))
+                var approach = ResolveApproachCell(bst, from);
+                int d = Manhattan(from, approach);
+                if (!TryGetCandidateTravelCost(from, approach, d, out var cost))
                     continue;
                 int idv = bid.Value;
 
@@ -176,6 +178,33 @@ namespace SeasonalBastion
             return _index.Warehouses;
         }
 
+        private CellPos ResolveApproachCell(in BuildingState bst, CellPos from)
+        {
+            if (DefIdTierUtil.IsBase(bst.DefId, "bld_hq"))
+            {
+                var eN = ComputeEntryOutsideFootprint(bst.Anchor, 5, 5, Dir4.N);
+                var eS = ComputeEntryOutsideFootprint(bst.Anchor, 5, 5, Dir4.S);
+                var eE = ComputeEntryOutsideFootprint(bst.Anchor, 5, 5, Dir4.E);
+                var eW = ComputeEntryOutsideFootprint(bst.Anchor, 5, 5, Dir4.W);
+                return PickNearest(from, bst.Anchor, eN, eS, eE, eW);
+            }
+
+            int w = 1, h = 1;
+            if (DefIdTierUtil.IsBase(bst.DefId, "bld_house")
+                || DefIdTierUtil.IsBase(bst.DefId, "bld_farmhouse")
+                || DefIdTierUtil.IsBase(bst.DefId, "bld_lumbercamp")
+                || DefIdTierUtil.IsBase(bst.DefId, "bld_quarry")
+                || DefIdTierUtil.IsBase(bst.DefId, "bld_ironhut")
+                || DefIdTierUtil.IsBase(bst.DefId, "bld_warehouse"))
+            {
+                w = 3;
+                h = 3;
+            }
+
+            var entry = ComputeEntryOutsideFootprint(bst.Anchor, w, h, bst.Rotation);
+            return PickNearest(from, bst.Anchor, entry);
+        }
+
         private bool TryEstimateTravelCost(CellPos from, CellPos to, out int cost)
         {
             cost = 0;
@@ -199,6 +228,40 @@ namespace SeasonalBastion
             int dx = a.X - b.X; if (dx < 0) dx = -dx;
             int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
             return dx + dy;
+        }
+
+        private static CellPos PickNearest(CellPos from, CellPos fallback, params CellPos[] candidates)
+        {
+            if (candidates == null || candidates.Length == 0) return fallback;
+
+            int best = int.MaxValue;
+            CellPos bestPos = fallback;
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                var c = candidates[i];
+                int d = Manhattan(from, c);
+                if (d < best)
+                {
+                    best = d;
+                    bestPos = c;
+                }
+            }
+            return bestPos;
+        }
+
+        private static CellPos ComputeEntryOutsideFootprint(CellPos anchor, int w, int h, Dir4 rot)
+        {
+            int cx = w / 2;
+            int cy = h / 2;
+
+            return rot switch
+            {
+                Dir4.N => new CellPos(anchor.X + cx, anchor.Y + h),
+                Dir4.S => new CellPos(anchor.X + cx, anchor.Y - 1),
+                Dir4.E => new CellPos(anchor.X + w, anchor.Y + cy),
+                Dir4.W => new CellPos(anchor.X - 1, anchor.Y + cy),
+                _ => new CellPos(anchor.X + cx, anchor.Y + h),
+            };
         }
 
         /// <summary>

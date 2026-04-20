@@ -253,10 +253,10 @@ namespace SeasonalBastion.Tests.EditMode
             var hqState = services.WorldState.Buildings.Get(hq);
             var hqEntry = EntryCellUtil.GetApproachCellForBuilding(services, hqState, hqState.Anchor);
             bool sourcePickOk = services.ResourceFlowService.TryPickSource(hqEntry, ResourceType.Food, 1, out var sourcePick);
-            int farmFoodNow = services.StorageService.GetAmount(farm, ResourceType.Food);
+            int farmFoodAtStage2 = services.StorageService.GetAmount(farm, ResourceType.Food);
             bool hqInWarehouses = services.WorldIndex.Warehouses.Any(b => b.Value == hq.Value);
             bool hqHasHaulRole = services.JobWorkplacePolicy.HasRole(hqState.DefId, WorkRoleFlags.HaulBasic);
-            Assert.That(foodHaulJob.Id.Value, Is.Not.EqualTo(0), $"Stage 2 failed: HQ never enqueued a HaulBasic(Food) job. farmFood={farmFoodNow} hqInWarehouses={hqInWarehouses} hqHasHaulRole={hqHasHaulRole} sourcePickOk={sourcePickOk} sourcePick={sourcePick.Building.Value}");
+            Assert.That(foodHaulJob.Id.Value, Is.Not.EqualTo(0), $"Stage 2 failed: HQ never enqueued a HaulBasic(Food) job. farmFood={farmFoodAtStage2} hqInWarehouses={hqInWarehouses} hqHasHaulRole={hqHasHaulRole} sourcePickOk={sourcePickOk} sourcePick={sourcePick.Building.Value}");
             Assert.That(hqNpcAfterAssign.CurrentJob.Value == foodHaulJob.Id.Value || services.WorldState.Npcs.Get(hqNpcId).CurrentJob.Value == foodHaulJob.Id.Value, Is.True, "Stage 3 failed: HQ NPC never claimed the queued food haul job.");
 
             int initialHqFood = services.StorageService.GetAmount(hq, ResourceType.Food);

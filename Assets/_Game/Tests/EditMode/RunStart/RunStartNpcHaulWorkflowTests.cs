@@ -48,6 +48,24 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void RunStart_FarmStorage_AllowsFoodDeposit()
+        {
+            var services = CreateServices();
+            AssertRunStartApplied(services);
+
+            var farm = FindBuilding(services, "bld_farmhouse_t1");
+            Assert.That(farm.Value, Is.Not.EqualTo(0));
+            Assert.That(services.StorageService.CanStore(farm, ResourceType.Food), Is.True, "Farmhouse must accept Food storage for Harvest deposit.");
+            Assert.That(services.StorageService.GetCap(farm, ResourceType.Food), Is.GreaterThan(0), "Farmhouse Food cap must be > 0 for Harvest deposit.");
+
+            int added = services.StorageService.Add(farm, ResourceType.Food, 6);
+            int stored = services.StorageService.GetAmount(farm, ResourceType.Food);
+
+            Assert.That(added, Is.EqualTo(6), "Direct StorageService.Add to farmhouse Food should succeed.");
+            Assert.That(stored, Is.EqualTo(6), "Farmhouse Food storage should reflect direct deposit.");
+        }
+
+        [Test]
         public void RunStart_HarvestDepositPath_FarmNpcCanReturnToFarmEntry()
         {
             var services = CreateServices();

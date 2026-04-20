@@ -88,6 +88,56 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void HarvestExecutor_DepositPhase_PreservesCarryUntilFarmEntryReached()
+        {
+            var services = CreateServices();
+            AssertRunStartApplied(services);
+
+            var farm = FindBuilding(services, "bld_farmhouse_t1");
+            var farmNpcId = FindNpcAssignedTo(services, farm);
+            Assert.That(farm.Value, Is.Not.EqualTo(0));
+            Assert.That(farmNpcId.Value, Is.Not.EqualTo(0));
+
+            Job harvestJob = default;
+            bool sawCarryPhase = false;
+
+            for (int i = 0; i < 200; i++)
+            {
+                services.JobScheduler.Tick(0.1f);
+                harvestJob = services.JobBoard.EnumerateAllJobs().FirstOrDefault(j => j.Workplace.Value == farm.Value && j.Archetype == JobArchetype.Harvest);
+                if (harvestJob.Id.Value != 0 && harvestJob.Amount > 0)
+                {
+                    sawCarryPhase = true;
+                    break;
+                }
+            }
+
+            Assert.That(sawCarryPhase, Is.True, "Harvest job never entered carry/deposit phase.");
+
+            var farmNpc = services.WorldState.Npcs.Get(farmNpcId);
+            var farmState = services.WorldState.Buildings.Get(farm);
+            var farmEntry = EntryCellUtil.GetApproachCellForBuilding(services, farmState, farmNpc.Cell);
+            int initialCarry = harvestJob.Amount;
+
+            for (int i = 0; i < 40; i++)
+            {
+                services.JobScheduler.Tick(0.1f);
+                harvestJob = services.JobBoard.EnumerateAllJobs().FirstOrDefault(j => j.Id.Value == harvestJob.Id.Value);
+                farmNpc = services.WorldState.Npcs.Get(farmNpcId);
+
+                bool atEntry = farmNpc.Cell.X == farmEntry.X && farmNpc.Cell.Y == farmEntry.Y;
+                if (!atEntry)
+                {
+                    Assert.That(harvestJob.Amount, Is.EqualTo(initialCarry), $"Harvest carry was lost before NPC reached farm entry. npc=({farmNpc.Cell.X},{farmNpc.Cell.Y}) entry=({farmEntry.X},{farmEntry.Y}) target=({harvestJob.TargetCell.X},{harvestJob.TargetCell.Y}) status={harvestJob.Status}");
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        [Test]
         public void RunStart_HqNpc_HaulWorkflow_ExposesSpawnAssignAndExecuteStages()
         {
             var services = CreateServices();
@@ -118,8 +168,7 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(foodPatchCount, Is.GreaterThan(0), "Stage 0 failed: RunStart has no Food patch, so farmhouse Harvest can never start.");
             Assert.That(farmHarvestJob.Id.Value, Is.Not.EqualTo(0), "Stage 1a failed: farmhouse never enqueued a Harvest job.");
             Assert.That(farmNpcAfterHarvestWindow.CurrentJob.Value, Is.EqualTo(farmHarvestJob.Id.Value), "Stage 1b failed: farmhouse NPC never claimed the Harvest job.");
-            Assert.That(farmHarvestJob.Amount, Is.EqualTo(0), $"Stage 1c-precheck failed: harvest job still has carry={farmHarvestJob.Amount}, farmNpc=({farmNpcAfterHarvestWindow.Cell.X},{farmNpcAfterHarvestWindow.Cell.Y}), target=({farmHarvestJob.TargetCell.X},{farmHarvestJob.TargetCell.Y}), status={farmHarvestJob.Status}.");
-            Assert.That(farmFoodAfterHarvestWindow, Is.GreaterThan(0), $"Stage 1c failed: farmhouse NPC claimed Harvest but never deposited food into local farm storage. farmNpc=({farmNpcAfterHarvestWindow.Cell.X},{farmNpcAfterHarvestWindow.Cell.Y}) target=({farmHarvestJob.TargetCell.X},{farmHarvestJob.TargetCell.Y}) status={farmHarvestJob.Status}");
+            Assert.That(farmFoodAfterHarvestWindow, Is.GreaterThan(0), $"Stage 1c failed: farmhouse NPC claimed Harvest but never deposited food into local farm storage. carry={farmHarvestJob.Amount} farmNpc=({farmNpcAfterHarvestWindow.Cell.X},{farmNpcAfterHarvestWindow.Cell.Y}) target=({farmHarvestJob.TargetCell.X},{farmHarvestJob.TargetCell.Y}) status={farmHarvestJob.Status}");
             Assert.That(foodHaulJob.Id.Value, Is.Not.EqualTo(0), "Stage 2 failed: HQ never enqueued a HaulBasic(Food) job.");
             Assert.That(hqNpcAfterAssign.CurrentJob.Value, Is.EqualTo(foodHaulJob.Id.Value), "Stage 3 failed: HQ NPC never claimed the queued food haul job.");
 

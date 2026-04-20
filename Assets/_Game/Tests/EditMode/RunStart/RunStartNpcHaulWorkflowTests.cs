@@ -249,7 +249,15 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(sawFarmNpcClaim, Is.True, "Stage 1b failed: farmhouse NPC never claimed a Harvest job.");
             Assert.That(sawFarmDeposit, Is.True, $"Stage 1c failed: farmhouse NPC claimed Harvest but never deposited food into local farm storage. {lastFarmDiag}");
 
-            var foodHaulJob = services.JobBoard.EnumerateAllJobs().FirstOrDefault(j => j.Workplace.Value == hq.Value && j.Archetype == JobArchetype.HaulBasic && j.ResourceType == ResourceType.Food);
+            Job foodHaulJob = default;
+            for (int i = 0; i < 10; i++)
+            {
+                services.JobScheduler.Tick(0.1f);
+                foodHaulJob = services.JobBoard.EnumerateAllJobs().FirstOrDefault(j => j.Workplace.Value == hq.Value && j.Archetype == JobArchetype.HaulBasic && j.ResourceType == ResourceType.Food);
+                if (foodHaulJob.Id.Value != 0)
+                    break;
+            }
+
             var hqState = services.WorldState.Buildings.Get(hq);
             var hqEntry = EntryCellUtil.GetApproachCellForBuilding(services, hqState, hqState.Anchor);
             bool sourcePickOk = services.ResourceFlowService.TryPickSource(hqEntry, ResourceType.Food, 1, out var sourcePick);

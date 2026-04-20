@@ -69,7 +69,8 @@ namespace SeasonalBastion.Tests.EditMode
                 StorageService = new StorageService(world, data, bus)
             };
 
-            string json = System.IO.File.ReadAllText(@"C:\UnityProjects\SeasonalBastionV2\Assets\_Game\Resources\RunStart\StartMapConfig_Island_96x96_v1.json");
+            string configPath = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "Assets", "_Game", "Resources", "RunStart", "StartMapConfig_Island_96x96_v1.json");
+            string json = System.IO.File.ReadAllText(configPath);
 
             var ok = RunStartFacade.TryApply(services, json, out var error);
 

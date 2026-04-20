@@ -13,16 +13,22 @@ namespace SeasonalBastion.UI
         public event Action<SelectionRef> SelectionRefChanged;
         public event Action<string> ActivePanelChanged;
         public event Action<int> ModalStackChanged;
+        public event Action<SeasonalBastion.Contracts.UiToolMode> ToolModeChanged;
+        public event Action<bool> PlacementModeChanged;
 
         private int _selectedId = -1;
         private SelectionRef _selected = SelectionRef.None;
         private string _activePanelKey = "";
         private readonly List<string> _modalStack = new(4);
+        private SeasonalBastion.Contracts.UiToolMode _toolMode = SeasonalBastion.Contracts.UiToolMode.Select;
+        private bool _isPlacementActive;
 
         public int SelectedId => _selectedId;
         public SelectionRef Selected => _selected;
         public string ActivePanelKey => _activePanelKey;
         public int ModalCount => _modalStack.Count;
+        public SeasonalBastion.Contracts.UiToolMode ToolMode => _toolMode;
+        public bool IsPlacementActive => _isPlacementActive;
 
         public bool HasModal => _modalStack.Count > 0;
 
@@ -88,6 +94,20 @@ namespace SeasonalBastion.UI
         {
             if (_modalStack.Count <= 0) return "";
             return _modalStack[_modalStack.Count - 1];
+        }
+
+        public void SetToolMode(SeasonalBastion.Contracts.UiToolMode mode)
+        {
+            if (_toolMode == mode) return;
+            _toolMode = mode;
+            ToolModeChanged?.Invoke(_toolMode);
+        }
+
+        public void SetPlacementActive(bool active)
+        {
+            if (_isPlacementActive == active) return;
+            _isPlacementActive = active;
+            PlacementModeChanged?.Invoke(_isPlacementActive);
         }
     }
 }

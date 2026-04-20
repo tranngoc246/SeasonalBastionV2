@@ -26,6 +26,7 @@ namespace SeasonalBastion.UI
 
         private PanelRegistry _panelRegistry;
         private ModalStackController _modalStack;
+        private UiGameplayFlowController _flow;
 
         private ToastController _toasts;
         private TooltipController _tooltips;
@@ -67,6 +68,7 @@ namespace SeasonalBastion.UI
 
             _panelRegistry = new PanelRegistry(_store);
             _modalStack = new ModalStackController(_store, _pauseController);
+            _flow = new UiGameplayFlowController(_store, _panelRegistry, _modalStack, services);
 
             _toasts = new ToastController();
             _tooltips = new TooltipController();
@@ -77,6 +79,7 @@ namespace SeasonalBastion.UI
                 _gate,
                 _panelRegistry,
                 _modalStack,
+                _flow,
                 _toasts,
                 _tooltips,
                 _hud,
@@ -164,12 +167,6 @@ namespace SeasonalBastion.UI
 
         private void WireBasicFlow()
         {
-            _store.SelectionRefChanged += sel =>
-            {
-                if (!sel.IsNone) _panelRegistry.Show(UiKeys.Panel_Inspect);
-                else _panelRegistry.HideCurrent();
-            };
-
             _store.ModalStackChanged += _ =>
             {
                 // handled by ModalStackController internals
@@ -207,6 +204,7 @@ namespace SeasonalBastion.UI
             _runEndedModal?.Unbind();
             _rewardSelectionModal?.Unbind();
 
+            _flow?.Dispose();
             _store?.ClearModals();
         }
     }

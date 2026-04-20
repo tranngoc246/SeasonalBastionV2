@@ -86,17 +86,17 @@ namespace SeasonalBastion.UI.Presenters
 
             if (selected.IsNone)
             {
-                if (_info != null) _info.text = "No selection";
-                Set(_id, "ID: -");
-                Set(_def, "Def: -");
-                Set(_hp, "HP: -");
-                Set(_wood, "Wood: -");
-                Set(_food, "Food: -");
-                Set(_stone, "Stone: -");
-                Set(_iron, "Iron: -");
-                Set(_ammo, "Ammo: -");
+                if (_info != null) _info.text = "Nothing selected";
+                SetRow(_id, "");
+                SetRow(_def, "Select a building or resource patch");
+                SetRow(_hp, "");
+                SetRow(_wood, "");
+                SetRow(_food, "");
+                SetRow(_stone, "");
+                SetRow(_iron, "");
+                SetRow(_ammo, "");
 
-                Set(_workers, "Workers: -");
+                SetRow(_workers, "");
                 SetActionHint("");
                 SetEnabled(_btnUpgrade, false);
                 SetEnabled(_btnRepair, false);
@@ -132,16 +132,16 @@ namespace SeasonalBastion.UI.Presenters
 
             var bs = s.WorldState.Buildings.Get(bid);
 
-            if (_info != null) _info.text = $"Selected BuildingId={id}";
-            Set(_id, $"ID: {bs.Id.Value}");
-            Set(_def, $"Def: {bs.DefId}");
-            Set(_hp, $"HP: {bs.HP}/{bs.MaxHP}");
+            if (_info != null) _info.text = bs.IsConstructed ? "BUILDING" : "CONSTRUCTION";
+            SetRow(_id, ToDisplayName(bs.DefId));
+            SetRow(_def, $"Lv {NormalizeLevel(bs.Level)}{(bs.IsConstructed ? "" : " • Under construction")}");
+            SetRow(_hp, bs.MaxHP > 0 ? $"HP: {bs.HP}/{bs.MaxHP}" : "");
 
-            Set(_wood, $"Wood: {bs.Wood}");
-            Set(_food, $"Food: {bs.Food}");
-            Set(_stone, $"Stone: {bs.Stone}");
-            Set(_iron, $"Iron: {bs.Iron}");
-            Set(_ammo, $"Ammo: {bs.Ammo}");
+            SetRow(_wood, bs.Wood > 0 ? $"Wood: {bs.Wood}" : "");
+            SetRow(_food, bs.Food > 0 ? $"Food: {bs.Food}" : "");
+            SetRow(_stone, bs.Stone > 0 ? $"Stone: {bs.Stone}" : "");
+            SetRow(_iron, bs.Iron > 0 ? $"Iron: {bs.Iron}" : "");
+            SetRow(_ammo, bs.Ammo > 0 ? $"Ammo: {bs.Ammo}" : "");
 
             RenderActions(s, bid, bs);
         }
@@ -151,15 +151,15 @@ namespace SeasonalBastion.UI.Presenters
             if (s?.ResourcePatchService == null || !s.ResourcePatchService.TryGetPatch(patchId, out var patch))
             {
                 if (_info != null) _info.text = "RESOURCE PATCH";
-                Set(_id, "ID: -");
-                Set(_def, "Type: -");
-                Set(_hp, "Remaining: -");
-                Set(_wood, "Cells: -");
-                Set(_food, "Anchor: -");
-                Set(_stone, "");
-                Set(_iron, "");
-                Set(_ammo, "");
-                Set(_workers, "");
+                SetRow(_id, "Resource patch");
+                SetRow(_def, "Unavailable");
+                SetRow(_hp, "");
+                SetRow(_wood, "");
+                SetRow(_food, "");
+                SetRow(_stone, "");
+                SetRow(_iron, "");
+                SetRow(_ammo, "");
+                SetRow(_workers, "");
                 SetActionHint("Resource patch not found.");
                 SetEnabled(_btnUpgrade, false);
                 SetEnabled(_btnRepair, false);
@@ -169,15 +169,15 @@ namespace SeasonalBastion.UI.Presenters
             }
 
             if (_info != null) _info.text = "RESOURCE PATCH";
-            Set(_id, $"ID: {patch.Id}");
-            Set(_def, $"Type: {patch.Resource}");
-            Set(_hp, $"Remaining: {patch.RemainingAmount} / {patch.TotalAmount}");
-            Set(_wood, $"Cells: {patch.Cells?.Count ?? 0}");
-            Set(_food, $"Anchor: ({patch.Anchor.X}, {patch.Anchor.Y})");
-            Set(_stone, "");
-            Set(_iron, "");
-            Set(_ammo, "");
-            Set(_workers, "");
+            SetRow(_id, ToDisplayName(patch.Resource.ToString()));
+            SetRow(_def, $"Remaining: {patch.RemainingAmount} / {patch.TotalAmount}");
+            SetRow(_hp, $"Cells: {patch.Cells?.Count ?? 0}");
+            SetRow(_wood, "");
+            SetRow(_food, "");
+            SetRow(_stone, "");
+            SetRow(_iron, "");
+            SetRow(_ammo, "");
+            SetRow(_workers, "");
             SetActionHint("Click another resource patch or building to inspect it.");
             SetEnabled(_btnUpgrade, false);
             SetEnabled(_btnRepair, false);
@@ -193,8 +193,7 @@ namespace SeasonalBastion.UI.Presenters
             var def = SafeGetBuildingDef(s, bs.DefId);
             int max = WorkforceAssignmentRules.GetMaxAssignedFor(def, lvl);
 
-            if (_workers != null)
-                _workers.text = max > 0 ? $"Workers: {assigned}/{max}" : $"Workers: {assigned}/-";
+            SetRow(_workers, max > 0 ? $"Workers: {assigned}/{max}" : (assigned > 0 ? $"Workers: {assigned}" : ""));
 
             bool isUpgrading = IsUpgradeInProgress(s, bid, out var upSite);
 
@@ -226,65 +225,74 @@ namespace SeasonalBastion.UI.Presenters
         private void OnUpgrade()
         {
             if (IsRunEnded()) return;
-            var s = _s;
             int id = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
-            if (id < 0 || s?.BuildOrderService == null) return;
-
-            s.BuildOrderService.CreateUpgradeOrder(new BuildingId(id));
+            if (id < 0) return;
+            _s?.EventBus?.Publish(new UiInspectActionRequestedEvent("Upgrade", id));
             Refresh();
         }
 
         private void OnRepair()
         {
             if (IsRunEnded()) return;
-            var s = _s;
             int id = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
-            if (id < 0 || s?.BuildOrderService == null) return;
-
-            s.BuildOrderService.CreateRepairOrder(new BuildingId(id));
+            if (id < 0) return;
+            _s?.EventBus?.Publish(new UiInspectActionRequestedEvent("Repair", id));
             Refresh();
         }
 
         private void OnAssignNpc()
         {
             if (IsRunEnded()) return;
-            Ctx?.Modals?.Push(UiKeys.Modal_AssignNpc);
+            int id = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
+            if (id < 0) return;
+            _s?.EventBus?.Publish(new UiInspectActionRequestedEvent("AssignNpc", id));
         }
 
         private void OnCancelConstruction()
         {
             if (IsRunEnded()) return;
-            var s = _s;
             int id = Ctx?.Store != null ? Ctx.Store.SelectedId : -1;
-            if (id < 0 || s?.BuildOrderService == null) return;
-
-            bool ok = s.BuildOrderService.CancelByBuilding(new BuildingId(id));
-            if (ok)
-            {
-                s.NotificationService?.Push(
-                    key: $"UiCancelConstruction_{id}",
-                    title: "Đã hủy xây dựng",
-                    body: "Lệnh xây dựng của công trình này đã được hủy.",
-                    severity: NotificationSeverity.Info,
-                    payload: new NotificationPayload(new BuildingId(id), default, "cancel"),
-                    cooldownSeconds: 0.75f,
-                    dedupeByKey: true);
-                Refresh();
-                return;
-            }
-
-            s.NotificationService?.Push(
-                key: $"UiCancelConstructionMissing_{id}",
-                title: "Không thể hủy",
-                body: "Công trình này hiện không có lệnh xây dựng đang hoạt động.",
-                severity: NotificationSeverity.Info,
-                payload: new NotificationPayload(new BuildingId(id), default, "cancel"),
-                cooldownSeconds: 1.5f,
-                dedupeByKey: true);
+            if (id < 0) return;
+            _s?.EventBus?.Publish(new UiInspectActionRequestedEvent("CancelConstruction", id));
             Refresh();
         }
 
         private static void Set(Label l, string t) { if (l != null) l.text = t ?? ""; }
+
+        private static void SetRow(Label l, string t)
+        {
+            if (l == null) return;
+            l.text = t ?? "";
+            bool visible = !string.IsNullOrWhiteSpace(t);
+            l.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        private static string ToDisplayName(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "";
+
+            string text = raw;
+            if (text.StartsWith("bld_")) text = text.Substring(4);
+            else if (text.StartsWith("npc_")) text = text.Substring(4);
+            else if (text.StartsWith("res_")) text = text.Substring(4);
+
+            text = text.Replace("_t1", "")
+                       .Replace("_t2", "")
+                       .Replace("_t3", "")
+                       .Replace('_', ' ')
+                       .Trim();
+
+            if (text.Length == 0) return raw;
+
+            var parts = text.Split(' ');
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (parts[i].Length == 0) continue;
+                parts[i] = char.ToUpperInvariant(parts[i][0]) + parts[i].Substring(1);
+            }
+
+            return string.Join(" ", parts);
+        }
 
         private void SetActionHint(string t)
         {
@@ -401,8 +409,7 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnClear()
         {
-            Ctx?.Store?.ClearSelection();
-            Ctx?.Panels?.HideCurrent();
+            _s?.EventBus?.Publish(new UiClearInspectRequestedEvent());
         }
     }
 }

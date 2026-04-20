@@ -1,0 +1,31 @@
+# Interactive rebase plan for cleaning current branch history
+# Base: 8c2a141 (origin/main)
+# Command to start:
+#   git rebase -i 8c2a141
+#
+# Then replace the todo list with this:
+
+pick 35d4e36 Fix RunStart island integration test path
+pick 53eb1d3 Add HQ haul workflow regression stages
+squash 7fb0116 Refine HQ haul regression stage breakdown
+squash 9d14c1a Relax harvest workflow regression timeout
+squash d9f44fc Wait for haul enqueue maintenance window in regression
+squash 423ec78 Trim run start haul workflow regressions
+pick 5714c37 Use registry building sizes for resource flow entry resolution
+
+# Drop debug / false-start commits:
+# drop b54e6d3 Add harvest deposit path regression
+# drop acb749e Add farm storage deposit regression
+# drop d4b8dab Improve harvest workflow failure diagnostics
+# drop 73c1798 Add harvest carry persistence regression
+# drop d73aebb Track claimed farm harvest job in workflow regression
+# drop 392b339 Add harvest entry blockage regression
+# drop 6b9d284 Allow harvest deposit from adjacent farm entry
+# drop ca05f90 Use building entry cells for resource flow path checks
+# drop 44fb465 Add HQ haul enqueue diagnostics and revert flow change
+# drop f153f75 Fix Stage 2 diagnostic variable shadowing
+
+# Recommended final commit messages after squash/edit:
+# 1) Fix RunStart island integration test path
+# 2) Stabilize RunStart haul workflow regression coverage
+# 3) Use registry building sizes for resource flow entry resolution

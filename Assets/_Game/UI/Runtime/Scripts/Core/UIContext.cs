@@ -17,6 +17,7 @@ namespace SeasonalBastion.UI
 
         public PanelRegistry Panels { get; }
         public ModalStackController Modals { get; }
+        public UiGameplayFlowController Flow { get; }
 
         public ToastController Toasts { get; }
         public TooltipController Tooltips { get; }
@@ -32,6 +33,7 @@ namespace SeasonalBastion.UI
             IInputGate inputGate,
             PanelRegistry panels,
             ModalStackController modals,
+            UiGameplayFlowController flow,
             ToastController toasts,
             TooltipController tooltips,
             UIDocument docHud,
@@ -44,6 +46,7 @@ namespace SeasonalBastion.UI
             InputGate = inputGate;
             Panels = panels;
             Modals = modals;
+            Flow = flow;
             Toasts = toasts;
             Tooltips = tooltips;
             DocHud = docHud;

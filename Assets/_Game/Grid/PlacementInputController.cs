@@ -75,12 +75,12 @@ namespace SeasonalBastion
 
         private string _placeDefId;
         private Dir4 _rot = Dir4.N;
-        private UiToolMode _tool = UiToolMode.None;
+        private UiToolMode _tool = UiToolMode.Select;
 
         // Expose state for UI world selection controller
         public bool IsInPlacementMode => !string.IsNullOrEmpty(_placeDefId);
         public UiToolMode ActiveToolMode => _tool;
-        public bool IsWorldActionActive => IsInPlacementMode || _tool != UiToolMode.None;
+        public bool IsWorldActionActive => IsInPlacementMode || _tool != UiToolMode.Select;
 
         private CellPos _lastPaint = new CellPos(int.MinValue, int.MinValue);
         private PlacementFailReason _lastPlacementFailReason = PlacementFailReason.None;
@@ -215,8 +215,10 @@ namespace SeasonalBastion
                     _noti?.Push("place.ok", "Building placed", $"Id={bid.Value}", NotificationSeverity.Info,
                         new NotificationPayload(default, default, ""), 0.2f, false);
 
+                    string placedDefId = _placeDefId;
                     _placeDefId = null;
-                    _tool = UiToolMode.None;
+                    _tool = UiToolMode.Select;
+                    _bus?.Publish(new UiPlacementFinishedEvent(placedDefId, true));
                     ClearPreview();
                     SetGhostVisible(false);
                 }
@@ -241,7 +243,7 @@ namespace SeasonalBastion
                 return;
             }
 
-            if (_tool == UiToolMode.RemoveRoad)
+            if (_tool == UiToolMode.Remove)
             {
                 if (mouse.leftButton.wasPressedThisFrame)
                 {
@@ -253,11 +255,15 @@ namespace SeasonalBastion
 
         private void CancelAll()
         {
-            _tool = UiToolMode.None;
+            string cancelledDefId = _placeDefId;
+            bool wasPlacement = !string.IsNullOrEmpty(_placeDefId);
+            _tool = UiToolMode.Select;
             _placeDefId = null;
             _rot = Dir4.N;
             _lastPlacementFailReason = PlacementFailReason.None;
             _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
+            if (wasPlacement)
+                _bus?.Publish(new UiPlacementFinishedEvent(cancelledDefId, false));
             ClearPreview();
             SetGhostVisible(false);
             SetFrontArrowVisible(false);
@@ -358,7 +364,7 @@ namespace SeasonalBastion
             }
 
             // REMOVE ROAD preview
-            if (_tool == UiToolMode.RemoveRoad)
+            if (_tool == UiToolMode.Remove)
             {
                 bool ok = _placement.CanRemoveRoad(cell);
                 var t = ok ? _tileOk : _tileBad;
@@ -726,7 +732,7 @@ namespace SeasonalBastion
         private void OnBeginPlaceBuilding(UiBeginPlaceBuildingEvent ev)
         {
             _placeDefId = ev.DefId;
-            _tool = UiToolMode.None;
+            _tool = UiToolMode.BuildPlacement;
             _rot = Dir4.N;
             _lastPlacementFailReason = PlacementFailReason.None;
             _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
@@ -734,16 +740,23 @@ namespace SeasonalBastion
             ClearPreview();
             SetGhostVisible(false);
             SetFrontArrowVisible(false);
+            _bus?.Publish(new UiPlacementStartedEvent(ev.DefId));
         }
 
         private void OnToolModeRequested(UiToolModeRequestedEvent ev)
         {
-            // toggle
-            _tool = (_tool == ev.Mode) ? UiToolMode.None : ev.Mode;
-            _placeDefId = null;
+            bool wasPlacement = !string.IsNullOrEmpty(_placeDefId);
+            string cancelledDefId = _placeDefId;
+
+            _tool = ev.Mode;
+            if (ev.Mode != UiToolMode.BuildPlacement)
+                _placeDefId = null;
             _rot = Dir4.N;
             _lastPlacementFailReason = PlacementFailReason.None;
             _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
+
+            if (wasPlacement && ev.Mode != UiToolMode.BuildPlacement)
+                _bus?.Publish(new UiPlacementFinishedEvent(cancelledDefId, false));
 
             ClearPreview();
             SetGhostVisible(false);

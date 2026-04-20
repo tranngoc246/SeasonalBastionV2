@@ -77,19 +77,20 @@ namespace SeasonalBastion.UI.Input
             if (IsPointerOverBlockingUiNow(mouse.position.ReadValue()))
                 return;
 
-            // Skip selection while placing building / road tool is active
-            if (_placement != null && _placement.IsWorldActionActive)
+            if (_store == null || _store.HasModal || _store.IsPlacementActive || _store.ToolMode != UiToolMode.Select)
                 return;
 
             if (!TryGetCellUnderMouse(out var cell))
             {
-                if (_clearSelectionWhenClickEmpty) _store?.ClearSelection();
+                if (_clearSelectionWhenClickEmpty)
+                    PublishSelection(SelectionRef.None);
                 return;
             }
 
             if (_gridMap == null || !_gridMap.IsInside(cell))
             {
-                if (_clearSelectionWhenClickEmpty) _store?.ClearSelection();
+                if (_clearSelectionWhenClickEmpty)
+                    PublishSelection(SelectionRef.None);
                 return;
             }
 
@@ -124,27 +125,32 @@ namespace SeasonalBastion.UI.Input
             }
 
             // Else: clear selection
-            if (_clearSelectionWhenClickEmpty) _store?.ClearSelection();
+            if (_clearSelectionWhenClickEmpty) PublishSelection(SelectionRef.None);
         }
 
         private void SelectBuilding(int id)
         {
             if (_store == null) return;
 
-            if (_toggleOffWhenClickSame && _store.Selected.Kind == SelectionKind.Building && _store.Selected.Id == id)
-                _store.ClearSelection();
-            else
-                _store.SelectBuilding(id);
+            var sel = (_toggleOffWhenClickSame && _store.Selected.Kind == SelectionKind.Building && _store.Selected.Id == id)
+                ? SelectionRef.None
+                : SelectionRef.Building(id);
+            PublishSelection(sel);
         }
 
         private void SelectResourcePatch(int id)
         {
             if (_store == null) return;
 
-            if (_toggleOffWhenClickSame && _store.Selected.Kind == SelectionKind.ResourcePatch && _store.Selected.Id == id)
-                _store.ClearSelection();
-            else
-                _store.SelectResourcePatch(id);
+            var sel = (_toggleOffWhenClickSame && _store.Selected.Kind == SelectionKind.ResourcePatch && _store.Selected.Id == id)
+                ? SelectionRef.None
+                : SelectionRef.ResourcePatch(id);
+            PublishSelection(sel);
+        }
+
+        private void PublishSelection(SelectionRef selection)
+        {
+            (_uiSystem?.Ctx?.Services as GameServices)?.EventBus?.Publish(new UiInspectSelectionRequestedEvent((int)selection.Kind, selection.Id));
         }
 
         private void TryBind()
@@ -253,7 +259,10 @@ namespace SeasonalBastion.UI.Input
             var picked = panel.Pick(panelPos) as VisualElement;
             if (picked == null) return false;
 
-            return UiElementUtil.HasClassInHierarchy(picked, UiKeys.Class_BlockWorld);
+            if (UiElementUtil.HasClassInHierarchy(picked, UiKeys.Class_BlockWorld))
+                return true;
+
+            return root.Contains(picked);
         }
     }
 }

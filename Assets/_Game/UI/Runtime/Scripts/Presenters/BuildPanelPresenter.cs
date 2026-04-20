@@ -103,13 +103,7 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnClose()
         {
-            // 1) hide qua registry (đúng flow)
-            Ctx?.Panels?.HideCurrent();
-
-            // 2) fallback: hide trực tiếp root (chắc chắn)
-            if (Root != null) Root.style.display = DisplayStyle.None;
-
-            // 3) optional: clear selection đang chọn trong build panel
+            _s?.EventBus?.Publish(new UiCloseBuildPanelRequestedEvent());
             _selectedDefId = null;
         }
 
@@ -359,15 +353,10 @@ namespace SeasonalBastion.UI.Presenters
             if (IsRunEnded()) return;
             if (string.IsNullOrEmpty(_selectedDefId)) return;
 
-            // 1) Ẩn build panel
-            Ctx?.Panels?.HideCurrent();
-
-            // 2) Báo hiệu vào “build flow” (để bạn wire sang placement controller)
             var bus = _s?.EventBus;
             if (bus != null)
                 bus.Publish(new UiBeginPlaceBuildingEvent(_selectedDefId));
 
-            // 3) Feedback
             _s?.NotificationService?.Push(
                 key: "ui.build.begin",
                 title: "Chế độ xây dựng",

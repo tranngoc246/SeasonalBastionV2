@@ -320,51 +320,34 @@ namespace SeasonalBastion.UI.Presenters
 
         private void OnBuildClicked()
         {
-            var panels = Ctx?.Panels;
-            if (panels == null) return;
-
-            if (panels.IsOpen(UiKeys.Panel_Build))
-            {
-                panels.HideCurrent();
-                PublishToolMode(UiToolMode.None);
-                return;
-            }
-
-            // Khi mở build panel, cancel tool mode để tránh ghost/road mode còn chạy
-            PublishToolMode(UiToolMode.None);
-            panels.Show(UiKeys.Panel_Build);
+            _s?.EventBus?.Publish(new UiOpenBuildPanelRequestedEvent());
         }
 
         private void OnSettingsClicked()
         {
-            // Optional: cancel tool mode khi mở settings
-            PublishToolMode(UiToolMode.None);
-            Ctx?.Modals?.Push(UiKeys.Modal_Settings);
+            PublishToolMode(UiToolMode.Select);
+            _s?.EventBus?.Publish(new UiOpenModalRequestedEvent(UiKeys.Modal_Settings));
         }
 
         private void OnPauseClicked()
         {
-            PublishToolMode(UiToolMode.None);
-            Ctx?.Modals?.Push(UiKeys.Modal_Settings);
+            PublishToolMode(UiToolMode.Select);
+            _s?.EventBus?.Publish(new UiOpenModalRequestedEvent(UiKeys.Modal_Settings));
         }
 
         private void OnToolRoad()
         {
-            // đóng build panel nếu đang mở
-            Ctx?.Panels?.HideCurrent();
             PublishToolMode(UiToolMode.Road);
         }
 
         private void OnToolRemove()
         {
-            Ctx?.Panels?.HideCurrent();
-            PublishToolMode(UiToolMode.RemoveRoad);
+            PublishToolMode(UiToolMode.Remove);
         }
 
         private void OnToolCancel()
         {
-            Ctx?.Panels?.HideCurrent();
-            PublishToolMode(UiToolMode.None);
+            PublishToolMode(UiToolMode.Select);
         }
 
         private void PublishToolMode(UiToolMode mode)

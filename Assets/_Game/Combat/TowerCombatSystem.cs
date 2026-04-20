@@ -99,7 +99,9 @@ namespace SeasonalBastion
                     continue;
                 }
 
-                float fireInterval = 1f / rof;
+                float reloadMult = _s?.WorldState != null ? _s.WorldState.RunMods.TowerReloadSpeedMultiplier : 1f;
+                if (reloadMult <= 0f) reloadMult = 1f;
+                float fireInterval = 1f / (rof * reloadMult);
                 if (cd > 0f)
                 {
                     _cdByTower[tid.Value] = cd;

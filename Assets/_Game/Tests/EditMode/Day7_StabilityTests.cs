@@ -243,6 +243,43 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void Placement_CannotPlaceRoad_OnSeaTerrain()
+        {
+            var grid = new GridMap(8, 8);
+            var terrain = new TerrainMap(8, 8);
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            var bus = new TestEventBus();
+            var placement = new PlacementService(grid, world, data, index: null, bus, terrain);
+
+            terrain.Set(new CellPos(2, 2), TerrainType.Sea);
+
+            Assert.That(placement.CanPlaceRoad(new CellPos(2, 2)), Is.False);
+        }
+
+        [Test]
+        public void Placement_ValidateBuilding_FailsWhenFootprintHitsSeaTerrain()
+        {
+            var grid = new GridMap(8, 8);
+            var terrain = new TerrainMap(8, 8);
+            var world = new WorldState();
+            var data = new TestDataRegistry();
+            data.Add(Def("b.house", 1, 1));
+
+            var bus = new TestEventBus();
+            var placement = new PlacementService(grid, world, data, index: null, bus, terrain);
+
+            terrain.Set(new CellPos(2, 2), TerrainType.Sea);
+            terrain.Set(new CellPos(2, 3), TerrainType.Shore);
+            grid.SetRoad(new CellPos(2, 4), true);
+
+            var res = placement.ValidateBuilding("b.house", new CellPos(2, 2), Dir4.N);
+
+            Assert.That(res.Ok, Is.False);
+            Assert.That(res.FailReason, Is.EqualTo(PlacementFailReason.Overlap));
+        }
+
+        [Test]
         public void Placement_Commit_ConvertsDrivewayToRoad_AndPublishesRoadPlaced()
         {
             var grid = new GridMap(8, 8);

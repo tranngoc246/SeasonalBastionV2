@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace SeasonalBastion.Contracts
 {
     public interface IJobBoard
@@ -13,5 +15,7 @@ namespace SeasonalBastion.Contracts
         void ClearAll();
 
         int CountForWorkplace(BuildingId workplace);
+        IEnumerable<Job> EnumerateAllJobs();
+        IEnumerable<KeyValuePair<int, IEnumerable<int>>> EnumerateQueueSnapshots();
     }
 }

@@ -12,18 +12,21 @@ namespace SeasonalBastion.DebugTools
         [SerializeField] private Key _devHookKey = Key.Y;    // toggle dev hook
 
         private GameServices _gs;
+        private DebugHUDHub _hub;
 
         private void Awake()
         {
             _gs = FindObjectOfType<GameBootstrap>()?.Services;
+            _hub = FindObjectOfType<DebugHUDHub>(true);
         }
 
         private void Update()
         {
             TryResolveServices();
 
-            // If Hub is visible, keep standalone HUD silent.
-            if (DebugHubState.Enabled) return;
+            // If Hub exists, standalone HUD stays silent.
+            _hub ??= FindObjectOfType<DebugHUDHub>(true);
+            if (_hub != null || DebugHubState.Enabled) return;
 
             var kb = Keyboard.current;
             if (kb == null) return;
@@ -53,7 +56,8 @@ namespace SeasonalBastion.DebugTools
 
         private void OnGUI()
         {
-            if (DebugHubState.Enabled) return;
+            _hub ??= FindObjectOfType<DebugHUDHub>(true);
+            if (_hub != null || DebugHubState.Enabled) return;
             if (!_enabled) return;
 
             GUILayout.BeginArea(new Rect(10, 740, 620, 200), GUI.skin.box);

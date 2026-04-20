@@ -370,12 +370,12 @@ namespace SeasonalBastion.UI.Presenters
             // 3) Feedback
             _s?.NotificationService?.Push(
                 key: "ui.build.begin",
-                title: "Build mode",
-                body: $"Placing {_selectedDefId}. Click map to place, Q/E to rotate, ESC to cancel.",
+                title: "Chế độ xây dựng",
+                body: "Chọn một ô trên bản đồ để đặt công trình. Q/E để xoay, ESC để hủy.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(default, default, _selectedDefId),
-                cooldownSeconds: 0.5f,
-                dedupeByKey: false);
+                cooldownSeconds: 1.5f,
+                dedupeByKey: true);
         }
 
         private void OnResourceChanged(ResourceDeliveredEvent _) => RenderDetail();

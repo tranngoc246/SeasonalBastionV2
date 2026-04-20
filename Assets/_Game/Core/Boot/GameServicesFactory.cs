@@ -1,13 +1,13 @@
 using SeasonalBastion.Contracts;
-using SeasonalBastion.RunStart;
 
 namespace SeasonalBastion
 {
     public static class GameServicesFactory
     {
-        public static GameServices Create(DefsCatalog catalog)
+        public static GameServices Create(DefsCatalog catalog, MapSize? runtimeMapSize = null)
         {
             var services = new GameServices();
+            var mapSize = runtimeMapSize ?? MapSize.Default;
 
             // Core
             services.EventBus = new EventBus();
@@ -34,15 +34,17 @@ namespace SeasonalBastion
             services.WorldIndex.RebuildAll();
 
             // Grid
-            services.GridMap = new GridMap(width: 64, height: 64);
+            services.RuntimeMapSize = mapSize;
+            services.GridMap = new GridMap(width: mapSize.Width, height: mapSize.Height);
+            services.TerrainMap = new TerrainMap(width: mapSize.Width, height: mapSize.Height);
             services.ResourcePatchService = new ResourcePatchService();
 
             // Day14: simple mover/pathfinding (cell-by-cell)
-            services.Pathfinder = new NpcPathfinder(services.GridMap);
-            services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance);
+            services.Pathfinder = new NpcPathfinder(services.GridMap, services.TerrainMap);
+            services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance, services.TerrainMap);
             services.EventBus.Subscribe<RoadsDirtyEvent>(_ => services.AgentMover?.NotifyRoadsDirty());
 
-            services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus);
+            services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus, services.TerrainMap);
             ((PlacementService)services.PlacementService).BindRunStart(services.RunStartRuntime);
 
             // Economy
@@ -79,7 +81,8 @@ namespace SeasonalBastion
 
             // Save
             var saveMigrator = new SaveMigrator();
-            services.SaveService = new SaveService(new SaveMigrator(), services.DataRegistry, services.GridMap, services.PopulationService);
+            services.SaveService = new SaveService(new SaveMigrator(), services.DataRegistry, services.GridMap, services.PopulationService, services);
+            _ = new SaveAutosaveService(services);
 
             return services;
         }

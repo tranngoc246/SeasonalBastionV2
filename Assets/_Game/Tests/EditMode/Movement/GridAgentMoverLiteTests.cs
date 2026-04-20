@@ -40,9 +40,9 @@ namespace SeasonalBastion.Tests.EditMode
             public bool TryGetDef<T>(string id, out T def) where T : UnityEngine.Object { def = default; return false; }
         }
 
-        private static GridAgentMoverLite MakeMover(GridMap grid)
+        private static GridAgentMoverLite MakeMover(GridMap grid, TerrainMap terrain = null)
         {
-            return new GridAgentMoverLite(grid, new TestDataRegistry(), null);
+            return new GridAgentMoverLite(grid, new TestDataRegistry(), null, terrain);
         }
 
         private static NpcState MakeNpc(int id, int x, int y)
@@ -330,6 +330,36 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(bArrived, Is.False);
             Assert.That(npcB.Cell, Is.Not.EqualTo(before), "Follower should move to a nearby wait cell instead of pausing on the same cell.");
             Assert.That(npcB.Cell, Is.Not.EqualTo(target), "Follower must not enter occupied final stop cell.");
+        }
+
+        [Test]
+        public void StepToward_AvoidsSeaAndMovesAcrossShore()
+        {
+            var grid = new GridMap(5, 5);
+            var terrain = new TerrainMap(5, 5);
+            for (int y = 0; y < 5; y++)
+                for (int x = 0; x < 5; x++)
+                    terrain.Set(new CellPos(x, y), TerrainType.Land);
+
+            terrain.Set(new CellPos(2, 1), TerrainType.Sea);
+            terrain.Set(new CellPos(2, 2), TerrainType.Sea);
+            terrain.Set(new CellPos(2, 3), TerrainType.Sea);
+            terrain.Set(new CellPos(1, 2), TerrainType.Shore);
+
+            var mover = MakeMover(grid, terrain);
+            var npc = MakeNpc(60, 0, 2);
+            var target = new CellPos(4, 2);
+
+            bool arrived = false;
+            for (int i = 0; i < 12; i++)
+            {
+                arrived = mover.StepToward(ref npc, target, 1f);
+                Assert.That(terrain.Get(npc.Cell), Is.Not.EqualTo(TerrainType.Sea));
+                if (arrived) break;
+            }
+
+            Assert.That(arrived, Is.True);
+            Assert.That(npc.Cell, Is.EqualTo(target));
         }
     }
 }

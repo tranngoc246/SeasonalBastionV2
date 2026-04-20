@@ -16,6 +16,7 @@
             </ui:VisualElement>
 
             <ui:Label name="LblSaveHint" text="Checking save..." class="menu-hint" />
+            <ui:VisualElement name="SaveSlotsList" class="save-slots-list" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

@@ -1,5 +1,4 @@
 using SeasonalBastion.Contracts;
-using System;
 
 namespace SeasonalBastion
 {
@@ -14,111 +13,7 @@ namespace SeasonalBastion
             _s = owner.Services;
         }
 
-        internal bool TryStartCraft(BuildingId forge)
-        {
-            if (_s.WorldState == null || _s.StorageService == null || _s.JobBoard == null || _s.DataRegistry == null) return false;
-            if (!_s.WorldState.Buildings.Exists(forge)) return false;
-
-            var bs = _s.WorldState.Buildings.Get(forge);
-            if (!bs.IsConstructed) return false;
-
-            if (!TryGetAmmoRecipe(out var recipe))
-                return false;
-
-            _owner.RebuildWorkplaceHasNpcSet_Core();
-            if (!_owner.WorkplacesWithNpc.Contains(forge.Value)) return false;
-
-            int outCap = _s.StorageService.GetCap(forge, recipe.OutputType);
-            int outCur = _s.StorageService.GetAmount(forge, recipe.OutputType);
-            if (outCap <= 0 || (outCap - outCur) < recipe.OutputAmount) return false;
-
-            int inCur = _s.StorageService.GetAmount(forge, recipe.InputType);
-            if (inCur < recipe.InputAmount) return false;
-
-            var extras = recipe.ExtraInputs;
-            if (extras != null && extras.Length > 0)
-            {
-                for (int i = 0; i < extras.Length; i++)
-                {
-                    var c = extras[i];
-                    if (c == null || c.Amount <= 0) continue;
-                    int cur = _s.StorageService.GetAmount(forge, c.Resource);
-                    if (cur < c.Amount) return false;
-                }
-            }
-
-            if (_owner.CraftJobByForge.TryGetValue(forge.Value, out var oldId))
-            {
-                if (_s.JobBoard.TryGet(oldId, out var old) && !AmmoService.IsTerminal(old.Status))
-                    return false;
-            }
-
-            var j = new Job
-            {
-                Archetype = JobArchetype.CraftAmmo,
-                Status = JobStatus.Created,
-                Workplace = forge,
-                SourceBuilding = forge,
-                DestBuilding = default,
-                ResourceType = recipe.OutputType,
-                Amount = recipe.OutputAmount,
-                TargetCell = bs.Anchor,
-                CreatedAt = 0
-            };
-
-            var id = _s.JobBoard.Enqueue(j);
-            _owner.CraftJobByForge[forge.Value] = id;
-            return true;
-        }
-
-        internal bool TryGetAmmoRecipe(out RecipeDef recipe)
-        {
-            recipe = null;
-
-            string rid = _owner.AmmoRecipeIdValue;
-            if (string.IsNullOrEmpty(rid)) rid = "ForgeAmmo";
-
-            if (!string.Equals(_owner.CachedAmmoRecipeId, rid, StringComparison.OrdinalIgnoreCase))
-            {
-                _owner.CachedAmmoRecipeId = rid;
-                _owner.CachedAmmoRecipe = null;
-            }
-
-            if (_owner.CachedAmmoRecipe != null)
-            {
-                recipe = _owner.CachedAmmoRecipe;
-                return true;
-            }
-
-            try
-            {
-                var r = _s.DataRegistry.GetRecipe(rid);
-                if (r == null) return false;
-                _owner.CachedAmmoRecipe = r;
-                recipe = r;
-                return true;
-            }
-            catch
-            {
-                if (!string.Equals(rid, "ForgeAmmo", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        var r = _s.DataRegistry.GetRecipe("ForgeAmmo");
-                        if (r == null) return false;
-                        _owner.CachedAmmoRecipeId = "ForgeAmmo";
-                        _owner.CachedAmmoRecipe = r;
-                        recipe = r;
-                        return true;
-                    }
-                    catch (Exception ex)
-                    {
-                        UnityEngine.Debug.LogWarning($"[AmmoService] Failed to load fallback recipe 'ForgeAmmo' after recipe '{rid}' lookup failed: {ex}");
-                    }
-                }
-                return false;
-            }
-        }
+        internal bool TryStartCraft(BuildingId forge) => _owner.TryStartCraft(forge);
 
         internal bool HasCapForForgeInputs(BuildingId forge, RecipeDef recipe)
         {
@@ -298,7 +193,7 @@ namespace SeasonalBastion
                     return;
             }
 
-            if (!_owner.TryPickPreferredHaulerWorkplace_Core(forgeAnchor, out var workplace))
+            if (!_owner.TryPickPreferredHaulerWorkplace(forgeAnchor, out var workplace))
                 return;
 
             var j = new Job

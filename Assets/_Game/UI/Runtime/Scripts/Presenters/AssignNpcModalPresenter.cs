@@ -238,11 +238,11 @@ namespace SeasonalBastion.UI.Presenters
             {
                 s.NotificationService?.Push(
                     key: $"NpcAssignBlocked_{npc.Value}_{workplace.Value}",
-                    title: "NPC",
+                    title: "Không thể giao việc",
                     body: reason,
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(workplace, default, "npc_assign_blocked"),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 1.5f,
                     dedupeByKey: true);
                 return;
             }
@@ -264,13 +264,13 @@ namespace SeasonalBastion.UI.Presenters
             s.EventBus?.Publish(new NPCAssignedEvent(npc, workplace));
             s.NotificationService?.Push(
                 key: $"NpcAssigned_{npc.Value}",
-                title: "NPC",
+                title: "Đã giao việc",
                 body: wasUnassigned
-                    ? $"NPC #{npc.Value} assigned to Building #{workplace.Value}"
-                    : $"NPC #{npc.Value} moved to Building #{workplace.Value}",
+                    ? "NPC đã được gán vào workplace mới."
+                    : "NPC đã được chuyển sang workplace khác.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(workplace, default, "npc_assign"),
-                cooldownSeconds: 0.2f,
+                cooldownSeconds: 0.75f,
                 dedupeByKey: true);
         }
 
@@ -296,11 +296,11 @@ namespace SeasonalBastion.UI.Presenters
             s.EventBus?.Publish(new NPCAssignedEvent(npc, default));
             s.NotificationService?.Push(
                 key: $"NpcUnassigned_{npc.Value}",
-                title: "NPC",
-                body: $"NPC #{npc.Value} unassigned",
+                title: "Đã bỏ giao việc",
+                body: "NPC hiện không còn workplace được gán.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(default, default, "npc_unassign"),
-                cooldownSeconds: 0.2f,
+                cooldownSeconds: 0.75f,
                 dedupeByKey: true);
         }
 

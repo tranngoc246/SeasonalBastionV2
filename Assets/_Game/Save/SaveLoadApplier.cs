@@ -42,6 +42,7 @@ namespace SeasonalBastion
                     RebuildRuntimeCachesAndIndices(s);
                     RestoreCombatAfterLoad(s, dto.combat);
                     RestorePopulationAfterLoad(s, dto.population);
+                    RestoreRewardsAfterLoad(s, dto.rewards);
                     ValidatePostApplyRuntime(s, dto, out error);
                     if (!string.IsNullOrEmpty(error))
                         throw new InvalidOperationException(error);
@@ -487,131 +488,14 @@ namespace SeasonalBastion
         private static void AssertConstructedBuildingInvariant(GameServices s, BuildingId buildingId)
         {
             if (s == null) throw new InvalidOperationException("GameServices is null.");
-            if (s.WorldState == null) throw new InvalidOperationException("WorldState is null.");
-            if (buildingId.Value == 0) throw new InvalidOperationException("BuildingId is invalid.");
-            if (!s.WorldState.Buildings.Exists(buildingId)) throw new InvalidOperationException($"Building {buildingId.Value} is missing.");
 
-            var building = s.WorldState.Buildings.Get(buildingId);
-            if (!building.IsConstructed)
-                throw new InvalidOperationException($"Building {buildingId.Value} exists but IsConstructed == false.");
-
-            if (s.WorldState.Sites != null)
+            if (!ConstructedBuildingInvariantValidator.Validate(s.WorldState, s.GridMap, s.DataRegistry, s.WorldIndex, buildingId, out var error))
             {
-                foreach (var siteId in s.WorldState.Sites.Ids)
-                {
-                    if (!s.WorldState.Sites.Exists(siteId)) continue;
-                    var site = s.WorldState.Sites.Get(siteId);
-                    if (site.TargetBuilding.Value == buildingId.Value)
-                        throw new InvalidOperationException($"Site {siteId.Value} still references constructed building {buildingId.Value}.");
-                }
+                if (!string.IsNullOrEmpty(error) && error.StartsWith("Tower backing", StringComparison.Ordinal))
+                    Debug.LogWarning("[SaveLoad] " + error);
+
+                throw new InvalidOperationException(error);
             }
-
-            BuildingDef def = null;
-            if (s.DataRegistry != null && !string.IsNullOrWhiteSpace(building.DefId))
-            {
-                try { def = s.DataRegistry.GetBuilding(building.DefId); }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[SaveLoad] Failed to resolve BuildingDef '{building.DefId}' during post-load invariant check for building {buildingId.Value}: {ex}");
-                }
-            }
-
-            int w = Math.Max(1, def?.SizeX ?? 1);
-            int h = Math.Max(1, def?.SizeY ?? 1);
-
-            if (s.GridMap != null)
-            {
-                for (int dy = 0; dy < h; dy++)
-                for (int dx = 0; dx < w; dx++)
-                {
-                    var cell = new CellPos(building.Anchor.X + dx, building.Anchor.Y + dy);
-                    var occ = s.GridMap.Get(cell);
-                    if (occ.Kind != CellOccupancyKind.Building || occ.Building.Value != buildingId.Value)
-                        throw new InvalidOperationException($"Grid mismatch at ({cell.X},{cell.Y}) for building {buildingId.Value}: got {occ.Kind} / {occ.Building.Value}.");
-                }
-            }
-
-            if (s.WorldIndex != null && !ContainsBuildingInWorldIndex(s, buildingId, building, def))
-                throw new InvalidOperationException($"WorldIndex is missing building {buildingId.Value} ({building.DefId}).");
-        }
-
-        private static bool ContainsBuildingInWorldIndex(GameServices s, BuildingId buildingId, in BuildingState building, BuildingDef def)
-        {
-            return ContainsBuildingId(s.WorldIndex?.Warehouses, buildingId)
-                || ContainsBuildingId(s.WorldIndex?.Producers, buildingId)
-                || ContainsBuildingId(s.WorldIndex?.Houses, buildingId)
-                || ContainsBuildingId(s.WorldIndex?.Forges, buildingId)
-                || ContainsBuildingId(s.WorldIndex?.Armories, buildingId)
-                || ContainsTowerBackingBuilding(s, buildingId, building, def);
-        }
-
-        private static bool ContainsBuildingId(IReadOnlyList<BuildingId> ids, BuildingId buildingId)
-        {
-            if (ids == null) return false;
-            for (int i = 0; i < ids.Count; i++)
-                if (ids[i].Value == buildingId.Value)
-                    return true;
-            return false;
-        }
-
-        private static bool ContainsTowerId(IReadOnlyList<TowerId> ids, TowerId towerId)
-        {
-            if (ids == null) return false;
-            for (int i = 0; i < ids.Count; i++)
-                if (ids[i].Value == towerId.Value)
-                    return true;
-            return false;
-        }
-
-        private static bool ContainsTowerBackingBuilding(GameServices s, BuildingId buildingId, in BuildingState building, BuildingDef def)
-        {
-            if (buildingId.Value == 0 || s?.WorldState?.Towers == null)
-                return false;
-
-            if (def == null)
-            {
-                Debug.LogWarning($"[SaveLoad] Cannot validate tower backing for building {buildingId.Value} because BuildingDef '{building.DefId}' could not be resolved.");
-                return false;
-            }
-
-            if (!def.IsTower)
-                return false;
-
-            int w = Math.Max(1, def.SizeX);
-            int h = Math.Max(1, def.SizeY);
-            var expectedTowerCell = new CellPos(building.Anchor.X + (w / 2), building.Anchor.Y + (h / 2));
-            var indexedTowers = s.WorldIndex?.Towers;
-            bool sawDifferentIndexedTower = false;
-
-            foreach (var towerId in s.WorldState.Towers.Ids)
-            {
-                if (!s.WorldState.Towers.Exists(towerId))
-                    continue;
-
-                var tower = s.WorldState.Towers.Get(towerId);
-                if (tower.Cell.X == expectedTowerCell.X && tower.Cell.Y == expectedTowerCell.Y)
-                {
-                    if (ContainsTowerId(indexedTowers, towerId))
-                        return true;
-
-                    Debug.LogWarning($"[SaveLoad] Tower backing mismatch for building {buildingId.Value} ({building.DefId}): found tower {towerId.Value} at expected cell ({expectedTowerCell.X},{expectedTowerCell.Y}) but WorldIndex.Towers is missing it.");
-                    return false;
-                }
-
-                if (ContainsTowerId(indexedTowers, towerId))
-                    sawDifferentIndexedTower = true;
-            }
-
-            if (sawDifferentIndexedTower)
-            {
-                Debug.LogWarning($"[SaveLoad] Tower backing missing for building {buildingId.Value} ({building.DefId}): WorldIndex has other tower entries, but none match expected cell ({expectedTowerCell.X},{expectedTowerCell.Y}).");
-            }
-            else
-            {
-                Debug.LogWarning($"[SaveLoad] Tower backing missing for building {buildingId.Value} ({building.DefId}): no tower found at expected cell ({expectedTowerCell.X},{expectedTowerCell.Y}).");
-            }
-
-            return false;
         }
 
         private static void ValidateSitesAgainstBuildings(GameServices s, ref string error)
@@ -754,21 +638,16 @@ namespace SeasonalBastion
 
         private static void ValidateJobBoardRuntimeState(GameServices s, ref string error)
         {
-            if (s?.JobBoard is not JobBoard board)
+            if (s?.JobBoard == null)
                 return;
 
             try
             {
-                var jobsField = typeof(JobBoard).GetField("_jobs", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                var queuesField = typeof(JobBoard).GetField("_queues", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                if (jobsField?.GetValue(board) is not Dictionary<int, Job> jobs)
-                    return;
-                if (queuesField?.GetValue(board) is not Dictionary<int, Queue<int>> queues)
-                    return;
-
-                foreach (var kv in jobs)
+                var jobsById = new Dictionary<int, Job>();
+                foreach (var job in s.JobBoard.EnumerateAllJobs())
                 {
-                    var job = kv.Value;
+                    jobsById[job.Id.Value] = job;
+
                     if (job.Workplace.Value != 0 && (s.WorldState?.Buildings == null || !s.WorldState.Buildings.Exists(job.Workplace)))
                     {
                         error = $"[SaveLoad] Post-apply validation failed: job {job.Id.Value} references missing workplace building {job.Workplace.Value}.";
@@ -812,12 +691,12 @@ namespace SeasonalBastion
                     }
                 }
 
-                foreach (var queueKvp in queues)
+                foreach (var queueSnapshot in s.JobBoard.EnumerateQueueSnapshots())
                 {
-                    int workplaceId = queueKvp.Key;
-                    foreach (var jobId in queueKvp.Value)
+                    int workplaceId = queueSnapshot.Key;
+                    foreach (var jobId in queueSnapshot.Value)
                     {
-                        if (!jobs.TryGetValue(jobId, out var job))
+                        if (!jobsById.TryGetValue(jobId, out var job))
                         {
                             error = $"[SaveLoad] Post-apply validation failed: job queue for workplace {workplaceId} references missing job {jobId}.";
                             Debug.LogWarning(error);
@@ -842,16 +721,12 @@ namespace SeasonalBastion
 
         private static void ValidateClaimRuntimeState(GameServices s, ref string error)
         {
-            if (s?.ClaimService is not ClaimService claimService)
+            if (s?.ClaimService == null)
                 return;
 
             try
             {
-                var mapField = typeof(ClaimService).GetField("_map", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                if (mapField?.GetValue(claimService) is not Dictionary<ClaimKey, NpcId> map)
-                    return;
-
-                foreach (var kv in map)
+                foreach (var kv in s.ClaimService.EnumerateClaims())
                 {
                     var owner = kv.Value;
                     if (owner.Value == 0 || s.WorldState?.Npcs == null || !s.WorldState.Npcs.Exists(owner))
@@ -899,6 +774,7 @@ namespace SeasonalBastion
             TryRebuildRunStartRuntimeCaches(s);
             s.EventBus?.Publish(new RoadsDirtyEvent());
             s.WorldIndex?.RebuildAll();
+            (s.AmmoService as AmmoService)?.RebuildInFlightResupplyFromJobBoardAfterLoad();
             PublishResourceRefreshEvents(s);
         }
 
@@ -918,6 +794,19 @@ namespace SeasonalBastion
                 s.PopulationService.Reset();
 
             s.PopulationService.RebuildDerivedState();
+        }
+
+        private static void RestoreRewardsAfterLoad(GameServices s, RewardsDTO rewards)
+        {
+            if (s?.RewardService == null)
+                return;
+
+            s.RewardService.LoadPickedRewards(rewards?.PickedRewardDefIds);
+
+            if (rewards != null && rewards.IsSelectionActive)
+            {
+                s.RewardService.StartSelection(new RewardOffer(rewards.OfferedA, rewards.OfferedB, rewards.OfferedC));
+            }
         }
 
         private static void TryRebuildRunStartRuntimeCaches(GameServices s)

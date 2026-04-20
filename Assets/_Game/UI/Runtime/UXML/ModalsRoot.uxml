@@ -56,5 +56,14 @@
             </ui:VisualElement>
         </ui:VisualElement>
 
+        <!-- Reward Selection Modal -->
+        <ui:VisualElement name="RewardSelectionModal" class="modal modal-reward ui-block-world" picking-mode="Position" style="display:none;">
+            <ui:Label name="LblRewardTitle" text="CHOOSE A REWARD" class="modal-title endgame-title" />
+            <ui:Label name="LblRewardBody" text="Pick 1 of 3. Effect applies immediately." class="hint endgame-body" />
+            <ui:Button name="BtnRewardA" text="Reward A" class="reward-choice" />
+            <ui:Button name="BtnRewardB" text="Reward B" class="reward-choice" />
+            <ui:Button name="BtnRewardC" text="Reward C" class="reward-choice" />
+        </ui:VisualElement>
+
     </ui:VisualElement>
 </ui:UXML>

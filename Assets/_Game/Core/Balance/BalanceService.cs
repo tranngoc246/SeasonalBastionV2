@@ -31,6 +31,14 @@ namespace SeasonalBastion
         }
 
         public BalanceConfig Config => _cfg;
+        public float RewardNpcMoveSpeedMultiplier
+        {
+            get
+            {
+                float v = _s?.WorldState != null ? _s.WorldState.RunMods.NpcMoveSpeedMultiplier : 1f;
+                return v > 0f ? v : 1f;
+            }
+        }
 
         public float DefaultMoveSpeed => _cfg?.movement?.defaultBaseMoveSpeed ?? 1f;
         public float DefaultRoadMult => _cfg?.movement?.defaultRoadSpeedMultiplier ?? 1.3f;
@@ -100,7 +108,12 @@ namespace SeasonalBastion
         }
 
         public float GetBuildSpeedMult(int builderTier)
-            => GetLevel3(_cfg?.builderWorkplace?.buildSpeedMult, builderTier);
+        {
+            float baseValue = GetLevel3(_cfg?.builderWorkplace?.buildSpeedMult, builderTier);
+            float rewardMult = _s?.WorldState != null ? _s.WorldState.RunMods.BuildSpeedMultiplier : 1f;
+            if (rewardMult <= 0f) rewardMult = 1f;
+            return baseValue / rewardMult;
+        }
 
         public float GetRepairTimeMult(int builderTier)
             => GetLevel3(_cfg?.builderWorkplace?.repairTimeMult, builderTier);

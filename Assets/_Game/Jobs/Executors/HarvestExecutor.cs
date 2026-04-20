@@ -70,11 +70,11 @@ namespace SeasonalBastion
                 {
                     _s.NotificationService.Push(
                         key: "producer.local.full",
-                        title: "Producer full",
-                        body: $"{bs.DefId}: {rt} full ({cur}/{cap})",
+                        title: "Kho nội bộ đã đầy",
+                        body: "Công trình này đang đầy hàng, nên tạm thời chưa thể sản xuất thêm.",
                         severity: NotificationSeverity.Info,
                         payload: new NotificationPayload(producer, default, null),
-                        cooldownSeconds: 8f,
+                        cooldownSeconds: 12f,
                         dedupeByKey: true);
                 }
 

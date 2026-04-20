@@ -110,15 +110,14 @@ namespace SeasonalBastion.DebugTools
                 return;
             }
 
-            // NOTE: requires tiny public wrapper in GameBootstrap (see section 3 below)
             try
             {
-                //_bootstrap.DebugStartNewRun(seed);
-                _lines.Add(new Line(true, $"StartNewRun called (seed={seed})."));
+                bool ok = _bootstrap.TryStartNewRun(seed, startMapConfigOverride: null, wipeExistingSave: false, out var error);
+                _lines.Add(new Line(ok, ok ? $"StartNewRun called (seed={seed})." : $"StartNewRun failed: {error}"));
             }
             catch (Exception e)
             {
-                _lines.Add(new Line(false, "Cannot StartNewRun from HUD. Add GameBootstrap.DebugStartNewRun(seed). " + e.Message));
+                _lines.Add(new Line(false, "Cannot StartNewRun from HUD via GameBootstrap.TryStartNewRun(...). " + e.Message));
             }
         }
 

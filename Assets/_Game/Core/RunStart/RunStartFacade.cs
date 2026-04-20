@@ -13,6 +13,9 @@ namespace SeasonalBastion.RunStart
             if (!TryParseAndValidate(s, jsonOrMarkdown, out var cfg, out error))
                 return false;
 
+            if (!RunStartTerrainBuilder.ApplyTerrain(s, cfg, out error))
+                return false;
+
             RunStartRuntimeCacheBuilder.ApplyRuntimeMetadata(s, cfg);
 
             var ctx = new RunStartBuildContext();

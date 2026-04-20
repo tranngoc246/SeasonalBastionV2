@@ -31,11 +31,7 @@
             Application.targetFrameRate = 60;
 
             _services = GameServicesFactory.Create(_defsCatalog);
-            _services.ApplyRunStartConfig = (services, cfg) =>
-            {
-                bool ok = RunStartFacade.TryApply(services, cfg, out var error);
-                return (ok, error);
-            };
+            _services.ApplyRunStartConfig = ApplyRunStartConfigInternal;
             _loop = new GameLoop(_services);
 
             // Day 17: Validate data at boot (fail-fast)
@@ -60,6 +56,12 @@
                 // Apply app default speed (only if build phase)
                 ApplyAppDefaultSpeedIfAllowed();
             }
+        }
+
+        private (bool ok, string error) ApplyRunStartConfigInternal(GameServices services, string cfg)
+        {
+            bool ok = RunStartFacade.TryApply(services, cfg, out var error);
+            return (ok, error);
         }
 
         private void Update()
@@ -135,7 +137,7 @@
                 return false;
             }
 
-            if (!_services.SaveService.HasRunSave())
+            if (!_services.SaveService.HasAnyRunSave())
             {
                 error = "No run save found.";
                 return false;
@@ -144,7 +146,8 @@
             var res = _services.SaveService.LoadRun(out var dto);
             if (res.Code != SaveResultCode.Ok || dto == null)
             {
-                error = "LoadRun failed: " + res.Message;
+                error = "LoadRun failed: " + res.Message + " (retry or backup load available if present)";
+                _services.NotificationService?.Push("load.failed", "Tải tiến trình thất bại", "Không thể tải tiến trình đã lưu. Hãy thử lại hoặc dùng bản lưu khác nếu có.", NotificationSeverity.Warning, default, 5f, true);
                 return false;
             }
 
@@ -235,11 +238,11 @@
             {
                 _services?.NotificationService?.Push(
                     key: "BOOT_ERROR",
-                    title: "BOOT ERROR",
-                    body: msg,
+                    title: "Lỗi khởi tạo",
+                    body: "Game gặp lỗi trong lúc khởi tạo. Hãy kiểm tra Console để biết thêm chi tiết.",
                     severity: NotificationSeverity.Error,
                     payload: default,
-                    cooldownSeconds: 0f,
+                    cooldownSeconds: 2f,
                     dedupeByKey: true
                 );
             }

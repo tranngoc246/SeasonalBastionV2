@@ -23,6 +23,10 @@ namespace SeasonalBastion.UI.Presenters
         private Label _lblPopulationSummary;
 
         private Label _wood, _food, _stone, _iron, _ammo;
+        private Label _ammoState;
+        private Label _ammoDiagTowers;
+        private Label _ammoDiagArmory;
+        private Label _ammoDiagResupply;
 
         private Button _btnBuild;
         private Button _btnSettings;
@@ -57,6 +61,10 @@ namespace SeasonalBastion.UI.Presenters
             _stone = Root.Q<Label>("LblResStone");
             _iron = Root.Q<Label>("LblResIron");
             _ammo = Root.Q<Label>("LblResAmmo");
+            _ammoState = Root.Q<Label>("LblAmmoState");
+            _ammoDiagTowers = Root.Q<Label>("LblAmmoDiagTowers");
+            _ammoDiagArmory = Root.Q<Label>("LblAmmoDiagArmory");
+            _ammoDiagResupply = Root.Q<Label>("LblAmmoDiagResupply");
 
             // NOTE: BtnBuild đã chuyển xuống bottom bar nhưng Q theo name vẫn tìm được
             _btnBuild = Root.Q<Button>("BtnBuild");
@@ -114,6 +122,7 @@ namespace SeasonalBastion.UI.Presenters
             RefreshPopulationSummary();
             RefreshNotifications();
             RefreshSpeedHighlight();
+            RefreshAmmoDiagnostics();
         }
 
         protected override void OnUnbind()
@@ -154,6 +163,7 @@ namespace SeasonalBastion.UI.Presenters
             RefreshPopulationSummary();
             RefreshNotifications();
             RefreshSpeedHighlight();
+            RefreshAmmoDiagnostics();
         }
 
         private void PullClockFromService()
@@ -200,6 +210,33 @@ namespace SeasonalBastion.UI.Presenters
         {
             if (lbl == null) return;
             lbl.text = v.ToString();
+        }
+
+        private void RefreshAmmoDiagnostics()
+        {
+            var ammoService = _s?.AmmoService;
+            if (ammoService == null)
+            {
+                if (_ammoState != null) _ammoState.text = "Unknown";
+                if (_ammoDiagTowers != null) _ammoDiagTowers.text = "Towers: 0";
+                if (_ammoDiagArmory != null) _ammoDiagArmory.text = "Armory: Unknown";
+                if (_ammoDiagResupply != null) _ammoDiagResupply.text = "Resupply: Unknown";
+                return;
+            }
+
+            if (_ammoState != null)
+            {
+                if (ammoService.Debug_TowersWithoutAmmo > 0) _ammoState.text = "Alert";
+                else if (ammoService.PendingRequests > 0) _ammoState.text = "Low";
+                else _ammoState.text = "Stable";
+            }
+
+            if (_ammoDiagTowers != null)
+                _ammoDiagTowers.text = $"Towers: {ammoService.Debug_TotalTowers} • Empty: {ammoService.Debug_TowersWithoutAmmo} • Jobs: {ammoService.Debug_ActiveResupplyJobs}";
+            if (_ammoDiagArmory != null)
+                _ammoDiagArmory.text = $"Armory: {ammoService.Debug_ArmoryStatus} • Ammo: {ammoService.Debug_ArmoryAvailableAmmo}";
+            if (_ammoDiagResupply != null)
+                _ammoDiagResupply.text = $"Resupply: {ammoService.Debug_ResupplyStatus}";
         }
 
         private void RefreshPopulationSummary()
@@ -346,11 +383,11 @@ namespace SeasonalBastion.UI.Presenters
             {
                 _s?.NotificationService?.Push(
                     key: "ui.speed.locked",
-                    title: "Speed locked",
-                    body: "Defend speed >1x is locked.",
+                    title: "Tốc độ bị khóa",
+                    body: "Trong pha phòng thủ, tốc độ hiện chỉ có thể giữ ở 1x.",
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(default, default, ""),
-                    cooldownSeconds: 1.0f,
+                    cooldownSeconds: 3f,
                     dedupeByKey: true);
                 c.SetTimeScale(1f);
                 return;
@@ -370,6 +407,7 @@ namespace SeasonalBastion.UI.Presenters
             _phase = ev.Phase;
             RefreshClockLabels();
             RefreshPopulationSummary();
+            RefreshAmmoDiagnostics();
         }
 
         private void OnSeasonDayChanged(SeasonDayChangedEvent ev)
@@ -402,12 +440,14 @@ namespace SeasonalBastion.UI.Presenters
         {
             RefreshResources();
             RefreshPopulationSummary();
+            RefreshAmmoDiagnostics();
         }
 
         private void OnResourceChanged(ResourceSpentEvent _)
         {
             RefreshResources();
             RefreshPopulationSummary();
+            RefreshAmmoDiagnostics();
         }
 
         private void OnBuildingPlaced(BuildingPlacedEvent _)
@@ -424,6 +464,7 @@ namespace SeasonalBastion.UI.Presenters
         {
             RefreshResources();
             RefreshPopulationSummary();
+            RefreshAmmoDiagnostics();
         }
 
         private void OnNotificationsChanged() => RefreshNotifications();

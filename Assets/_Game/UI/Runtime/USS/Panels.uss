@@ -207,7 +207,7 @@
   margin-top: 8px;
   font-size: 11px;
   -unity-font-style: bold;
-  unity-text-align: middle-center;
+  -unity-text-align: middle-center;
 }
 
 /* Right detail */

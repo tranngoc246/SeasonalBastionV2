@@ -3,6 +3,9 @@ namespace SeasonalBastion.Contracts
 {
     public struct RunModifiers
     {
-        public int Dummy;
+        public float BuildSpeedMultiplier;
+        public int TowerAmmoCapacityBonus;
+        public float TowerReloadSpeedMultiplier;
+        public float NpcMoveSpeedMultiplier;
     }
 }

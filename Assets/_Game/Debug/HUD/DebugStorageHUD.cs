@@ -30,10 +30,13 @@ namespace SeasonalBastion.DebugTools
         private StoragePick _lastSource;
 
         private GameServices _gs;
+        private DebugHUDHub _hub;
 
         private void Awake()
         {
             _gs = FindObjectOfType<GameBootstrap>()?.Services;
+            _hub = FindObjectOfType<DebugHUDHub>(true);
+            _enabled = false;
         }
 
         private void Update()
@@ -379,7 +382,8 @@ namespace SeasonalBastion.DebugTools
 
         private void OnGUI()
         {
-            if (DebugHubState.Enabled || _hubControlled) return;
+            _hub ??= FindObjectOfType<DebugHUDHub>(true);
+            if (_hub != null || DebugHubState.Enabled || _hubControlled) return;
 
             TryResolveServices();
 

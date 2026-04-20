@@ -15,7 +15,9 @@
         "Game.Combat",
         "Game.Economy",
         "Game.Population",
-        "Game.Rewards"
+        "Game.Rewards",
+        "Game.Boot",
+        "Game.Defs"
     ],
     "includePlatforms": [
         "Editor"

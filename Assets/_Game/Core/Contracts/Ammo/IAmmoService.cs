@@ -23,7 +23,13 @@ namespace SeasonalBastion.Contracts
         bool TryStartCraft(BuildingId forge);
         void Tick(float dt);
 
-        // Debug
+        // Debug / observability
         int PendingRequests { get; }
+        int Debug_TotalTowers { get; }
+        int Debug_TowersWithoutAmmo { get; }
+        int Debug_ActiveResupplyJobs { get; }
+        int Debug_ArmoryAvailableAmmo { get; }
+        string Debug_ArmoryStatus { get; }
+        string Debug_ResupplyStatus { get; }
     }
 }

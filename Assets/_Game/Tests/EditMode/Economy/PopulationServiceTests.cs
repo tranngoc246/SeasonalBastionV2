@@ -58,15 +58,20 @@ namespace SeasonalBastion.Tests.EditMode
         {
             var bus = new EventBus();
             var data = new TestDataRegistry();
+            var actualWorld = world ?? new WorldState();
+            var actualGrid = grid ?? new GridMap(32, 32);
+
             var services = new GameServices
             {
                 EventBus = bus,
                 DataRegistry = data,
                 NotificationService = new NotificationService(bus),
                 RunClock = new RunClockService(bus),
-                RunOutcomeService = new RunOutcomeService(bus, world ?? new WorldState(), data),
-                WorldState = world ?? new WorldState(),
-                GridMap = grid ?? new GridMap(32, 32)
+                RunOutcomeService = new RunOutcomeService(bus, actualWorld, data),
+                WorldState = actualWorld,
+                GridMap = actualGrid,
+                TerrainMap = new TerrainMap(actualGrid.Width, actualGrid.Height),
+                RuntimeMapSize = new MapSize(actualGrid.Width, actualGrid.Height)
             };
 
             services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);
@@ -219,6 +224,47 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(state.PopulationCurrent, Is.EqualTo(2));
             Assert.That(state.PopulationCap, Is.EqualTo(4));
             Assert.That(state.DailyFoodNeed, Is.EqualTo(10));
+        }
+
+        [Test]
+        public void BuildingPlacedEvent_RebuildsPopulationOnlyForHousePlacement()
+        {
+            var services = MakeServices();
+            AddNpc(services, 1, 1);
+            AddNpc(services, 2, 1);
+
+            services.PopulationService.RebuildDerivedState();
+            Assert.That(services.PopulationService.State.PopulationCap, Is.EqualTo(0));
+
+            AddBuilding(services, "bld_hq_t1", 10, 10, constructed: true);
+            services.EventBus.Publish(new BuildingPlacedEvent("bld_hq_t1", new BuildingId(1)));
+            Assert.That(services.PopulationService.State.PopulationCap, Is.EqualTo(0), "Non-house placement should not rebuild housing-derived population state.");
+
+            var houseId = AddBuilding(services, "bld_house_t1", 18, 10, constructed: true);
+            services.EventBus.Publish(new BuildingPlacedEvent("bld_house_t1", houseId));
+            Assert.That(services.PopulationService.State.PopulationCap, Is.EqualTo(2), "House placement should rebuild housing-derived population state.");
+        }
+
+        [Test]
+        public void BuildingUpgradedEvent_RebuildsPopulationOnlyWhenHousingSemanticsChange()
+        {
+            var services = MakeServices();
+            AddNpc(services, 1, 1);
+            AddNpc(services, 2, 1);
+            AddBuilding(services, "bld_house_t1", 18, 10, level: 1, constructed: true);
+            services.PopulationService.RebuildDerivedState();
+            Assert.That(services.PopulationService.State.PopulationCap, Is.EqualTo(2));
+
+            services.EventBus.Publish(new BuildingUpgradedEvent("bld_hq_t1", "bld_hq_t1", new BuildingId(99)));
+            Assert.That(services.PopulationService.State.PopulationCap, Is.EqualTo(2), "Non-house upgrade should not rebuild housing-derived population state.");
+
+            var houseId = new BuildingId(1);
+            var upgraded = services.WorldState.Buildings.Get(houseId);
+            upgraded.DefId = "bld_house_t2";
+            upgraded.Level = 2;
+            services.WorldState.Buildings.Set(houseId, upgraded);
+            services.EventBus.Publish(new BuildingUpgradedEvent("bld_house_t1", "bld_house_t2", houseId));
+            Assert.That(services.PopulationService.State.PopulationCap, Is.EqualTo(4), "House upgrade should rebuild housing-derived population state exactly once.");
         }
     }
 }

@@ -66,10 +66,10 @@ namespace SeasonalBastion
                 _s?.NotificationService?.Push(
                     key: "population.food.shortage",
                     title: "Thiếu lương thực",
-                    body: $"Cần {need} Food nhưng chỉ tiêu được {consumed}. Dân số sẽ không tăng hôm nay.",
+                    body: $"Hôm nay cần {need} Food nhưng chỉ tiêu thụ được {consumed}. Dân số sẽ chưa thể tăng.",
                     severity: NotificationSeverity.Warning,
                     payload: default,
-                    cooldownSeconds: 0.5f,
+                    cooldownSeconds: 10f,
                     dedupeByKey: true);
             }
             else
@@ -93,11 +93,11 @@ namespace SeasonalBastion
 
                 _s?.NotificationService?.Push(
                     key: $"population.new.npc.{_state.PopulationCurrent}",
-                    title: "Có NPC mới!",
-                    body: $"Dân số tăng lên {_state.PopulationCurrent}/{_state.PopulationCap}. Hãy gán NPC mới vào công trình phù hợp.",
+                    title: "Có NPC mới",
+                    body: $"Dân số đã tăng lên {_state.PopulationCurrent}/{_state.PopulationCap}. Hãy giao việc cho NPC mới khi phù hợp.",
                     severity: NotificationSeverity.Info,
                     payload: default,
-                    cooldownSeconds: 0.1f,
+                    cooldownSeconds: 5f,
                     dedupeByKey: true);
 
                 if (!CanGrowToday(_s?.StorageService?.GetTotal(ResourceType.Food) ?? 0))
@@ -127,12 +127,44 @@ namespace SeasonalBastion
 
         private void OnBuildingPlaced(BuildingPlacedEvent ev)
         {
+            if (!ShouldRebuildPopulationForPlaced(ev.DefId))
+                return;
+
             RebuildDerivedState();
         }
 
         private void OnBuildingUpgraded(BuildingUpgradedEvent ev)
         {
+            if (!ShouldRebuildPopulationForUpgrade(ev.FromDefId, ev.ToDefId))
+                return;
+
             RebuildDerivedState();
+        }
+
+        private bool ShouldRebuildPopulationForPlaced(string defId)
+        {
+            if (_s?.DataRegistry == null || string.IsNullOrWhiteSpace(defId))
+                return true;
+
+            return _s.DataRegistry.TryGetBuilding(defId, out var def) && def != null && def.IsHouse;
+        }
+
+        private bool ShouldRebuildPopulationForUpgrade(string fromDefId, string toDefId)
+        {
+            if (_s?.DataRegistry == null)
+                return true;
+
+            bool fromIsHouse = !string.IsNullOrWhiteSpace(fromDefId)
+                && _s.DataRegistry.TryGetBuilding(fromDefId, out var fromDef)
+                && fromDef != null
+                && fromDef.IsHouse;
+
+            bool toIsHouse = !string.IsNullOrWhiteSpace(toDefId)
+                && _s.DataRegistry.TryGetBuilding(toDefId, out var toDef)
+                && toDef != null
+                && toDef.IsHouse;
+
+            return fromIsHouse || toIsHouse;
         }
 
         private bool CanGrowToday(int availableFoodBeforeConsume)
@@ -234,9 +266,10 @@ namespace SeasonalBastion
                 return false;
 
             var spawn = ResolveSpawnCellNearHq();
+            string npcDefId = ResolveDefaultPopulationNpcDefId();
             var st = new NpcState
             {
-                DefId = "npc_villager_t1",
+                DefId = npcDefId,
                 Cell = spawn,
                 Workplace = default,
                 CurrentJob = default,
@@ -287,6 +320,20 @@ namespace SeasonalBastion
             int x = bs.Anchor.X + Math.Max(0, def.SizeX / 2);
             int y = bs.Anchor.Y - 1;
             return new CellPos(x, y);
+        }
+
+        private string ResolveDefaultPopulationNpcDefId()
+        {
+            if (_s?.DataRegistry == null)
+                return "NPC_HQ_Worker";
+
+            if (_s.DataRegistry.TryGetNpc("NPC_HQ_Worker", out var _))
+                return "NPC_HQ_Worker";
+
+            if (_s.DataRegistry.TryGetNpc("npc_villager_t1", out var _))
+                return "npc_villager_t1";
+
+            return "NPC_HQ_Worker";
         }
 
         private CellPos ResolveSpawnCell(CellPos desired)

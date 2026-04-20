@@ -10,6 +10,7 @@ public sealed class DebugNotificationsHUD : MonoBehaviour
 
     private INotificationService _noti;
     private int _counter;
+    private DebugHUDHub _hub;
 
     [SerializeField] private bool _hubControlled;
 
@@ -18,6 +19,7 @@ public sealed class DebugNotificationsHUD : MonoBehaviour
     private void Awake()
     {
         if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+        _hub = FindObjectOfType<DebugHUDHub>(true);
     }
 
     private void TryResolve()
@@ -89,7 +91,8 @@ public sealed class DebugNotificationsHUD : MonoBehaviour
     // Standalone OnGUI disabled when hub enabled
     private void OnGUI()
     {
-        if (SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
+        _hub ??= FindObjectOfType<DebugHUDHub>(true);
+        if (_hub != null || SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
         DrawHubGUI();
     }
 }

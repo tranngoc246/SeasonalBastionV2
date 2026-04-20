@@ -51,8 +51,6 @@ Button:active { background-color: rgba(255,255,255,0.22); }
   flex-direction: column;
   justify-content: center;
   align-items: center;
-
-  pointer-events: none;
 }
 
 .time-block { flex-direction: column; margin-right: 14px; }
@@ -86,7 +84,6 @@ Button:active { background-color: rgba(255,255,255,0.22); }
   max-width: 92%;
   flex-direction: column;
   align-items: stretch;
-  pointer-events: none;
 }
 
 .noti-item {
@@ -168,6 +165,31 @@ Button:active { background-color: rgba(255,255,255,0.22); }
 
 .res-key { color: rgb(200,200,200); font-size: 11px; margin-right: 6px; }
 .res-val { -unity-font-style: bold; font-size: 12px; }
+.res-subval { font-size: 10px; color: rgb(210,210,210); margin-left: 6px; }
+.res-chip-ammo { min-width: 120px; }
+
+.ammo-diag-overlay {
+  position: absolute;
+  right: 12px;
+  top: 190px;
+  width: 240px;
+  padding-left: 10px;
+  padding-right: 10px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background-color: rgba(0,0,0,0.70);
+  border-left-width: 1px; border-right-width: 1px; border-top-width: 1px; border-bottom-width: 1px;
+  border-left-color: rgba(255,255,255,0.12); border-right-color: rgba(255,255,255,0.12);
+  border-top-color: rgba(255,255,255,0.12); border-bottom-color: rgba(255,255,255,0.12);
+  border-radius: 10px;
+}
+
+.ammo-diag-line {
+  font-size: 11px;
+  color: rgb(230,230,230);
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
 
 /* ===== Bottom bar ===== */
 .bottombar {

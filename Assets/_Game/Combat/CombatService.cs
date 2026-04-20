@@ -207,10 +207,10 @@ namespace SeasonalBastion
             _s.NotificationService?.Push(
                 key: $"WaveStart_{waveId}",
                 title: "Wave bắt đầu",
-                body: waveId,
-                severity: NotificationSeverity.Warning, // hoặc Info
+                body: "Kẻ địch đang tiến công. Hãy kiểm tra tower và ammo.",
+                severity: NotificationSeverity.Warning,
                 payload: default,
-                cooldownSeconds: 0.25f,
+                cooldownSeconds: 1.5f,
                 dedupeByKey: true
             );
 
@@ -225,15 +225,16 @@ namespace SeasonalBastion
             _s.NotificationService?.Push(
                 key: $"WaveEnd_{wave.DefId}",
                 title: "Wave kết thúc",
-                body: wave.DefId,
+                body: "Bạn đã giữ vững phòng tuyến trong đợt này.",
                 severity: NotificationSeverity.Info,
                 payload: default,
-                cooldownSeconds: 0.25f,
+                cooldownSeconds: 1.5f,
                 dedupeByKey: true
             );
 
             OnWaveEnded?.Invoke(wave.DefId);
             _s.EventBus?.Publish(new WaveEndedEvent(wave.DefId, wave.Year, wave.Season, wave.Day, wave.IsBoss, wave.IsFinalWave));
+            _s.RewardService?.TriggerWaveEndReward(wave.DefId, wave.Year, wave.Season, wave.Day, wave.IsBoss, wave.IsFinalWave);
         }
 
         // Day33: called by SaveLoadApplier after clock snapshot restored.

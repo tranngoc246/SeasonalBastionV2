@@ -16,7 +16,15 @@ namespace SeasonalBastion.RunStart
                 {
                     var c = cfg.roads[i];
                     if (c == null) continue;
-                    s.GridMap.SetRoad(new CellPos(c.x, c.y), true);
+
+                    var roadCell = new CellPos(c.x, c.y);
+                    if (s.TerrainMap != null && !TerrainRules.IsWalkableTerrain(s.TerrainMap.Get(roadCell)))
+                    {
+                        error = $"RunStart road cannot be placed on non-walkable terrain at ({roadCell.X},{roadCell.Y}).";
+                        return false;
+                    }
+
+                    s.GridMap.SetRoad(roadCell, true);
                 }
             }
 
@@ -54,6 +62,22 @@ namespace SeasonalBastion.RunStart
 
                     error = $"RunStart: cannot place '{defId}' near anchor ({desiredAnchor.X},{desiredAnchor.Y})";
                     return false;
+                }
+
+                if (s.TerrainMap != null)
+                {
+                    for (int dy = 0; dy < h; dy++)
+                    {
+                        for (int dx = 0; dx < w; dx++)
+                        {
+                            var cell = new CellPos(finalAnchor.X + dx, finalAnchor.Y + dy);
+                            if (!TerrainRules.IsBuildableTerrain(s.TerrainMap.Get(cell)))
+                            {
+                                error = $"RunStart building '{defId}' footprint hits non-buildable terrain at ({cell.X},{cell.Y}).";
+                                return false;
+                            }
+                        }
+                    }
                 }
 
                 var st = new BuildingState

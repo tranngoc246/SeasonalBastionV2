@@ -32,6 +32,7 @@ namespace SeasonalBastion
         private readonly IGridMap _grid;
         private readonly IDataRegistry _data;
         private readonly BalanceService _bal;
+        private readonly ITerrainMap _terrain;
         private readonly NpcPathfinder _pathfinder;
 
         private readonly float _fallbackBase;
@@ -43,12 +44,13 @@ namespace SeasonalBastion
         private readonly Dictionary<int, CellPos> _reservedStopByNpc = new();
         private int _roadsVersion;
 
-        public GridAgentMoverLite(IGridMap grid, IDataRegistry data, BalanceService bal)
+        public GridAgentMoverLite(IGridMap grid, IDataRegistry data, BalanceService bal, ITerrainMap terrain = null)
         {
             _grid = grid;
             _data = data;
             _bal = bal;
-            _pathfinder = new NpcPathfinder(grid);
+            _terrain = terrain;
+            _pathfinder = new NpcPathfinder(grid, terrain);
 
             _fallbackBase = bal != null ? bal.DefaultMoveSpeed : 1f;
             _fallbackRoadMul = bal != null ? bal.DefaultRoadMult : 1.3f;
@@ -68,6 +70,12 @@ namespace SeasonalBastion
             if (_grid == null || !_grid.IsInside(cur) || !_grid.IsInside(target))
                 return false;
 
+            if (_terrain != null)
+            {
+                if (!TerrainRules.IsWalkableTerrain(_terrain.Get(cur)) || !TerrainRules.IsWalkableTerrain(_terrain.Get(target)))
+                    return false;
+            }
+
             ReleaseStopIfNpcMovedAway(key, cur);
 
             if (!_accum.TryGetValue(key, out var a)) a = 0f;
@@ -77,23 +85,22 @@ namespace SeasonalBastion
 
             if (_data != null && !string.IsNullOrEmpty(st.DefId))
             {
-                try
+                if (_data.TryGetNpc(st.DefId, out var def) && def != null)
                 {
-                    var def = _data.GetNpc(st.DefId);
-                    if (def != null)
-                    {
-                        if (def.BaseMoveSpeed > 0f) baseSpd = def.BaseMoveSpeed;
-                        if (def.RoadSpeedMultiplier > 0f) roadMul = def.RoadSpeedMultiplier;
-                    }
+                    if (def.BaseMoveSpeed > 0f) baseSpd = def.BaseMoveSpeed;
+                    if (def.RoadSpeedMultiplier > 0f) roadMul = def.RoadSpeedMultiplier;
                 }
-                catch (Exception ex)
+                else if (_data.TryGetNpc("NPC_HQ_Worker", out var fallbackDef) && fallbackDef != null)
                 {
-                    UnityEngine.Debug.LogWarning($"[GridAgentMoverLite] Failed to resolve NPC move stats for '{st.DefId}': {ex}");
+                    if (fallbackDef.BaseMoveSpeed > 0f) baseSpd = fallbackDef.BaseMoveSpeed;
+                    if (fallbackDef.RoadSpeedMultiplier > 0f) roadMul = fallbackDef.RoadSpeedMultiplier;
                 }
             }
 
             bool onRoad = _grid.IsRoad(st.Cell);
-            float spd = onRoad ? (baseSpd * roadMul) : baseSpd;
+            float rewardMoveMult = _bal != null ? _bal.RewardNpcMoveSpeedMultiplier : 1f;
+
+            float spd = (onRoad ? (baseSpd * roadMul) : baseSpd) * rewardMoveMult;
 
             a += dt * spd;
 
@@ -276,6 +283,9 @@ namespace SeasonalBastion
             if (!_grid.IsInside(next) || _grid.IsBlocked(next))
                 return false;
 
+            if (_terrain != null && !TerrainRules.IsWalkableTerrain(_terrain.Get(next)))
+                return false;
+
             st.Cell = next;
             route.PathIndex++;
             return true;
@@ -375,6 +385,9 @@ namespace SeasonalBastion
 
                     var c = new CellPos(target.X + dx, target.Y + dy);
                     if (!_grid.IsInside(c) || _grid.IsBlocked(c))
+                        continue;
+
+                    if (_terrain != null && !TerrainRules.IsWalkableTerrain(_terrain.Get(c)))
                         continue;
 
                     if (c.X == blockedFinalCell.X && c.Y == blockedFinalCell.Y)

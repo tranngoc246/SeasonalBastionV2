@@ -94,11 +94,11 @@ namespace SeasonalBastion.UI.Presenters
             {
                 _s?.NotificationService?.Push(
                     key: "ui.settings.save.missing_bootstrap",
-                    title: "Save",
-                    body: "GameBootstrap missing",
+                    title: "Không thể lưu",
+                    body: "Hệ thống lưu hiện chưa sẵn sàng.",
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(default, default, ""),
-                    cooldownSeconds: 1f,
+                    cooldownSeconds: 3f,
                     dedupeByKey: true);
                 return;
             }
@@ -107,22 +107,22 @@ namespace SeasonalBastion.UI.Presenters
             {
                 _s?.NotificationService?.Push(
                     key: "ui.settings.saved",
-                    title: "Save",
-                    body: "Run saved",
+                    title: "Đã lưu",
+                    body: "Tiến trình hiện tại đã được lưu.",
                     severity: NotificationSeverity.Info,
                     payload: new NotificationPayload(default, default, ""),
-                    cooldownSeconds: 0.5f,
+                    cooldownSeconds: 2f,
                     dedupeByKey: true);
             }
             else
             {
                 _s?.NotificationService?.Push(
                     key: "ui.settings.save.failed",
-                    title: "Save",
-                    body: string.IsNullOrWhiteSpace(error) ? "Save failed" : error,
+                    title: "Lưu thất bại",
+                    body: string.IsNullOrWhiteSpace(error) ? "Không thể lưu tiến trình hiện tại." : $"Không thể lưu tiến trình hiện tại. {error}",
                     severity: NotificationSeverity.Error,
                     payload: new NotificationPayload(default, default, ""),
-                    cooldownSeconds: 0.5f,
+                    cooldownSeconds: 2f,
                     dedupeByKey: true);
             }
         }
@@ -144,11 +144,11 @@ namespace SeasonalBastion.UI.Presenters
             else
                 _s?.NotificationService?.Push(
                     key: "ui.menu.missing",
-                    title: "Menu",
-                    body: "GameAppController missing",
+                    title: "Không thể mở menu",
+                    body: "Menu chính hiện chưa sẵn sàng.",
                     severity: NotificationSeverity.Warning,
                     payload: new NotificationPayload(default, default, ""),
-                    cooldownSeconds: 1f,
+                    cooldownSeconds: 3f,
                     dedupeByKey: true);
         }
 

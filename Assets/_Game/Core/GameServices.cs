@@ -25,6 +25,8 @@ namespace SeasonalBastion
         public IWorldOps WorldOps;
         public IWorldIndex WorldIndex;
         public IGridMap GridMap;
+        public ITerrainMap TerrainMap;
+        public MapSize RuntimeMapSize;
         public IPlacementService PlacementService;
         public ResourcePatchService ResourcePatchService;
 

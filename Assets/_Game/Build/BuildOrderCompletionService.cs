@@ -102,14 +102,15 @@ namespace SeasonalBastion
 
             _s.NotificationService?.Push(
                 key: $"BuildComplete_{o.TargetBuilding.Value}",
-                title: "Construction",
-                body: $"Completed: {o.BuildingDefId} (Lv {b.Level}) @ ({b.Anchor.X},{b.Anchor.Y})",
+                title: "Hoàn thành xây dựng",
+                body: "Một công trình đã hoàn tất và sẵn sàng hoạt động.",
                 severity: NotificationSeverity.Info,
                 payload: new NotificationPayload(o.TargetBuilding, default, o.BuildingDefId),
-                cooldownSeconds: 0.25f,
+                cooldownSeconds: 0.75f,
                 dedupeByKey: true
             );
 
+            TryAutosaveOnMilestone();
             return true;
         }
 
@@ -153,15 +154,16 @@ namespace SeasonalBastion
 
                 _s.NotificationService?.Push(
                     key: $"UpgradeComplete_{o.TargetBuilding.Value}",
-                    title: "Construction",
-                    body: $"Upgraded: {fromId} -> {toId} (Lv {b.Level})",
+                    title: "Nâng cấp hoàn tất",
+                    body: "Công trình đã được nâng cấp thành công.",
                     severity: NotificationSeverity.Info,
                     payload: new NotificationPayload(o.TargetBuilding, default, toId),
-                    cooldownSeconds: 0.25f,
+                    cooldownSeconds: 0.75f,
                     dedupeByKey: true
                 );
             }
 
+            TryAutosaveOnMilestone();
             return true;
         }
 
@@ -374,6 +376,26 @@ namespace SeasonalBastion
 
         private static bool CanFinalize(in BuildSiteState site)
             => site.IsReadyToWork && site.WorkSecondsDone + 1e-4f >= site.WorkSecondsTotal;
+
+        private void TryAutosaveOnMilestone()
+        {
+            if (_s?.SaveService == null || _s?.WorldState == null || _s?.RunClock == null)
+                return;
+
+            int constructed = 0;
+            foreach (var id in _s.WorldState.Buildings.Ids)
+            {
+                if (!_s.WorldState.Buildings.Exists(id)) continue;
+                if (_s.WorldState.Buildings.Get(id).IsConstructed) constructed++;
+            }
+
+            if (constructed > 0 && constructed % 3 == 0)
+            {
+                var res = _s.SaveService.SaveRunToSlot(_s.WorldState, _s.RunClock, 1, autosave: true);
+                if (res.Code == SaveResultCode.Ok)
+                    _s.NotificationService?.Push("autosave.milestone", "Tự động lưu", "Đã tự động lưu tại một mốc tiến trình quan trọng.", NotificationSeverity.Info, default, 30f, true);
+            }
+        }
 
         private BuildingDef SafeGetBuildingDef(string defId)
         {

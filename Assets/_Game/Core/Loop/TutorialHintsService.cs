@@ -31,6 +31,10 @@ namespace SeasonalBastion
         private float _prodAcc;
         private float _ammoAcc;
 
+        private bool _hadUnassignedNpc;
+        private bool _hadProducerFull;
+        private bool _hadTowerOutOfAmmo;
+
         // anti-repeat per season defend hint
         private int _lastWaveIncomingSeasonKey = -1;
 
@@ -59,6 +63,10 @@ namespace SeasonalBastion
             _npcAcc = 0f;
             _prodAcc = 0f;
             _ammoAcc = 0f;
+
+            _hadUnassignedNpc = false;
+            _hadProducerFull = false;
+            _hadTowerOutOfAmmo = false;
 
             _lastWaveIncomingSeasonKey = -1;
             _currentYear = 1;
@@ -137,8 +145,8 @@ namespace SeasonalBastion
             var w = _s.WorldState;
             if (w?.Npcs == null) return;
 
-            // avoid showing immediately at t=0
-            if (_runAge < 12f) return;
+            // avoid showing immediately at t=0 and give player time to set up first jobs
+            if (_runAge < 45f) return;
 
             int unassigned = 0;
             foreach (var id in w.Npcs.Ids)
@@ -147,13 +155,20 @@ namespace SeasonalBastion
                 if (st.Workplace.Value == 0) unassigned++;
             }
 
-            if (unassigned <= 0) return;
+            if (unassigned <= 0)
+            {
+                _hadUnassignedNpc = false;
+                return;
+            }
+
+            if (_hadUnassignedNpc) return;
+            _hadUnassignedNpc = true;
 
             PushHint(
                 key: "hint.npc.unassigned",
-                title: "Hint",
-                body: $"Bạn đang có {unassigned} NPC chưa được assign. Chọn workplace rồi bấm ASSIGN NPC để đưa họ vào HQ/Farm/Lumber/Armory.",
-                cooldown: 60f);
+                title: "Gợi ý",
+                body: $"Bạn còn {unassigned} NPC chưa được giao việc. Hãy assign họ vào workplace phù hợp để tăng sản xuất và tiếp tế.",
+                cooldown: 90f);
 
             HintNpcUnassignedCount++;
         }
@@ -191,13 +206,20 @@ namespace SeasonalBastion
                 }
             }
 
-            if (!anyFull) return;
+            if (!anyFull)
+            {
+                _hadProducerFull = false;
+                return;
+            }
+
+            if (_hadProducerFull) return;
+            _hadProducerFull = true;
 
             PushHint(
                 key: "hint.producer.full",
-                title: "Hint",
-                body: "Producer storage đang FULL. Assign NPC để Harvest/Haul hoặc mở rộng storage (Warehouse) để tránh bị đứng sản xuất.",
-                cooldown: 45f);
+                title: "Gợi ý",
+                body: "Một số công trình sản xuất đang đầy kho. Hãy haul tài nguyên đi hoặc mở rộng storage để tránh đứng sản xuất.",
+                cooldown: 60f);
 
             HintProducerFullCount++;
         }
@@ -228,13 +250,20 @@ namespace SeasonalBastion
                 }
             }
 
-            if (!anyTowerEmpty) return;
+            if (!anyTowerEmpty)
+            {
+                _hadTowerOutOfAmmo = false;
+                return;
+            }
+
+            if (_hadTowerOutOfAmmo) return;
+            _hadTowerOutOfAmmo = true;
 
             PushHint(
                 key: "hint.tower.out_of_ammo",
-                title: "Hint",
-                body: "Tower đang hết ammo trong lúc có enemy. Hãy craft/haul ammo từ Armory và đảm bảo có NPC xử lý supply.",
-                cooldown: 30f);
+                title: "Cảnh báo",
+                body: "Có tower đang hết ammo khi đang phòng thủ. Hãy craft hoặc tiếp tế ammo từ Armory ngay.",
+                cooldown: 45f);
 
             HintOutOfAmmoCount++;
         }

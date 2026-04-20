@@ -22,6 +22,15 @@ namespace SeasonalBastion
         public void EnsureBuildJobsForSite(SiteId siteId, BuildSiteState site, BuildingId workplace)
         {
             if (_s.JobBoard == null) return;
+            if (_s.WorldState == null || !_s.WorldState.Buildings.Exists(workplace)) return;
+
+            var workplaceState = _s.WorldState.Buildings.Get(workplace);
+            var workplaceEntry = EntryCellUtil.GetApproachCellForBuilding(_s, workplaceState, site.Anchor);
+            if (!JobReachabilityHelper.IsSiteEntryReachable(_s, site, workplaceEntry))
+            {
+                CancelTrackedJobsForSite(siteId);
+                return;
+            }
 
             if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
                 PruneTerminal(list);

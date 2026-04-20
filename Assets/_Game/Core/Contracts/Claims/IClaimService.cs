@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace SeasonalBastion.Contracts
 {
     public interface IClaimService
@@ -12,5 +14,6 @@ namespace SeasonalBastion.Contracts
         void CleanupInvalidOwners(INpcStore npcs);
 
         int ActiveClaimsCount { get; }
+        IEnumerable<KeyValuePair<ClaimKey, NpcId>> EnumerateClaims();
     }
 }

@@ -272,7 +272,7 @@ namespace SeasonalBastion.Tests.EditMode
             var ex = Assert.Throws<InvalidOperationException>(() =>
                 BuildOrderInvariantHelper.AssertBuildInvariant(world, grid, data, worldIndex, targetBuildingId));
 
-            Assert.That(ex.Message, Does.Contain("WorldIndex is missing building"));
+            Assert.That(ex.Message, Does.Contain("Tower backing missing for building"));
         }
 
         [Test]

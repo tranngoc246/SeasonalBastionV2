@@ -19,14 +19,16 @@ namespace SeasonalBastion
         public const int GroundCost = 30;
 
         private readonly IGridMap _grid;
+        private readonly ITerrainMap _terrain;
 
         // Fixed deterministic neighbor order: N, E, S, W
         private static readonly int[] _dx = { 0, 1, 0, -1 };
         private static readonly int[] _dy = { 1, 0, -1, 0 };
 
-        public NpcPathfinder(IGridMap grid)
+        public NpcPathfinder(IGridMap grid, ITerrainMap terrain = null)
         {
             _grid = grid;
+            _terrain = terrain;
         }
 
         public bool TryFindPath(CellPos from, CellPos target, out List<CellPos> path)
@@ -328,6 +330,7 @@ namespace SeasonalBastion
         private bool IsWalkableMixed(CellPos c)
         {
             if (!_grid.IsInside(c)) return false;
+            if (_terrain != null && !TerrainRules.IsWalkableTerrain(_terrain.Get(c))) return false;
 
             var kind = _grid.Get(c).Kind;
             return kind == CellOccupancyKind.Empty || kind == CellOccupancyKind.Road;
@@ -335,7 +338,9 @@ namespace SeasonalBastion
 
         private bool IsWalkableRoadOnly(CellPos c)
         {
-            return _grid.IsInside(c) && _grid.IsRoad(c);
+            return _grid.IsInside(c)
+                && _grid.IsRoad(c)
+                && (_terrain == null || TerrainRules.IsWalkableTerrain(_terrain.Get(c)));
         }
 
         private int GetMixedStepCost(CellPos c)

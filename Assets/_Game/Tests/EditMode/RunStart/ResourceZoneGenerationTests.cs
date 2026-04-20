@@ -48,6 +48,7 @@ namespace SeasonalBastion.Tests.EditMode
         {
             var bus = new EventBus();
             var world = new WorldState();
+            var grid = new GridMap(width, height);
             var services = new GameServices
             {
                 EventBus = bus,
@@ -56,7 +57,9 @@ namespace SeasonalBastion.Tests.EditMode
                 RunClock = new RunClockService(bus),
                 RunOutcomeService = new RunOutcomeService(bus, world, new TestDataRegistry()),
                 WorldState = world,
-                GridMap = new GridMap(width, height),
+                GridMap = grid,
+                TerrainMap = new TerrainMap(width, height),
+                RuntimeMapSize = new MapSize(width, height),
                 RunStartRuntime = new RunStartRuntime()
             };
             return services;

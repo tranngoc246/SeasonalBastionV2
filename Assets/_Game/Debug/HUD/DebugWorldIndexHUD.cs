@@ -10,6 +10,7 @@ public sealed class DebugWorldIndexHUD : MonoBehaviour
 
     private IWorldIndex _index;
     private IWorldState _world;
+    private DebugHUDHub _hub;
 
     [SerializeField] private bool _hubControlled;
     public void SetHubControlled(bool v) => _hubControlled = v;
@@ -17,6 +18,7 @@ public sealed class DebugWorldIndexHUD : MonoBehaviour
     private void Awake()
     {
         if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+        _hub = FindObjectOfType<DebugHUDHub>(true);
     }
 
     private void TryResolve()
@@ -113,7 +115,8 @@ public sealed class DebugWorldIndexHUD : MonoBehaviour
 
     private void OnGUI()
     {
-        if (SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
+        _hub ??= FindObjectOfType<DebugHUDHub>(true);
+        if (_hub != null || SeasonalBastion.DebugTools.DebugHubState.Enabled || _hubControlled) return;
 
         // Standalone fallback (rarely used)
         GUILayout.BeginArea(new Rect(10, 10, 520, 180), GUI.skin.box);

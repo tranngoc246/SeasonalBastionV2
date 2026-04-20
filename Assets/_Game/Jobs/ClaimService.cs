@@ -67,5 +67,11 @@ namespace SeasonalBastion
         }
 
         public int ActiveClaimsCount => _map.Count;
+
+        public IEnumerable<KeyValuePair<ClaimKey, NpcId>> EnumerateClaims()
+        {
+            foreach (var kv in _map)
+                yield return kv;
+        }
     }
 }

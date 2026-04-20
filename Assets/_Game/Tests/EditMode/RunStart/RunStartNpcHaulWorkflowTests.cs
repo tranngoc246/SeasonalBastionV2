@@ -88,6 +88,52 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void HarvestDepositEntryCell_IsNotPermanentlyBlockedAtRuntime()
+        {
+            var services = CreateServices();
+            AssertRunStartApplied(services);
+
+            var farm = FindBuilding(services, "bld_farmhouse_t1");
+            var farmNpcId = FindNpcAssignedTo(services, farm);
+            Assert.That(farm.Value, Is.Not.EqualTo(0));
+            Assert.That(farmNpcId.Value, Is.Not.EqualTo(0));
+
+            Job trackedFarmJob = default;
+            bool sawCarryPhase = false;
+
+            for (int i = 0; i < 200; i++)
+            {
+                services.JobScheduler.Tick(0.1f);
+                var farmNpc = services.WorldState.Npcs.Get(farmNpcId);
+                if (farmNpc.CurrentJob.Value == 0)
+                    continue;
+
+                if (!services.JobBoard.TryGet(farmNpc.CurrentJob, out trackedFarmJob))
+                    continue;
+
+                if (trackedFarmJob.Archetype == JobArchetype.Harvest && trackedFarmJob.Amount > 0)
+                {
+                    sawCarryPhase = true;
+                    break;
+                }
+            }
+
+            Assert.That(sawCarryPhase, Is.True, "Harvest job never entered carry/deposit phase.");
+
+            var farmState = services.WorldState.Buildings.Get(farm);
+            var farmNpcAtCarry = services.WorldState.Npcs.Get(farmNpcId);
+            var entry = EntryCellUtil.GetApproachCellForBuilding(services, farmState, farmNpcAtCarry.Cell);
+            var occ = services.GridMap.Get(entry);
+            var blockingNpc = services.WorldState.Npcs.Ids
+                .Select(id => services.WorldState.Npcs.Get(id))
+                .FirstOrDefault(n => n.Cell.X == entry.X && n.Cell.Y == entry.Y);
+
+            Assert.That(services.GridMap.IsInside(entry), Is.True, $"Farm entry {entry.X},{entry.Y} is out of bounds.");
+            Assert.That(services.GridMap.IsBlocked(entry), Is.False, $"Farm entry {entry.X},{entry.Y} is blocked in GridMap with kind={occ.Kind}.");
+            Assert.That(blockingNpc.Id.Value, Is.EqualTo(0), $"Farm entry {entry.X},{entry.Y} is occupied by NPC {blockingNpc.Id.Value}, blocking Harvest deposit.");
+        }
+
+        [Test]
         public void HarvestExecutor_DepositPhase_PreservesCarryUntilFarmEntryReached()
         {
             var services = CreateServices();

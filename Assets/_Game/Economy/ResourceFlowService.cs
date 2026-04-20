@@ -18,6 +18,7 @@ namespace SeasonalBastion
         private readonly IWorldIndex _index;
         private readonly IStorageService _storage;
         private readonly IPathfinderRuntime _pathfinder;
+        private readonly IDataRegistry _data;
 
         public ResourceFlowService(IWorldState w, IWorldIndex index, IStorageService storage, IPathfinderRuntime pathfinder = null)
         {
@@ -25,6 +26,11 @@ namespace SeasonalBastion
             _index = index;
             _storage = storage;
             _pathfinder = pathfinder;
+            _data = (storage as StorageService) != null
+                ? (IDataRegistry)typeof(StorageService)
+                    .GetField("_data", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    ?.GetValue(storage)
+                : null;
         }
 
         public bool TryPickSource(CellPos from, ResourceType type, int minAmount, out StoragePick pick)
@@ -180,25 +186,30 @@ namespace SeasonalBastion
 
         private CellPos ResolveApproachCell(in BuildingState bst, CellPos from)
         {
-            if (DefIdTierUtil.IsBase(bst.DefId, "bld_hq"))
+            int w = 1;
+            int h = 1;
+            bool isHQ = false;
+
+            if (_data != null && !string.IsNullOrEmpty(bst.DefId) && _data.TryGetBuilding(bst.DefId, out var def) && def != null)
             {
-                var eN = ComputeEntryOutsideFootprint(bst.Anchor, 5, 5, Dir4.N);
-                var eS = ComputeEntryOutsideFootprint(bst.Anchor, 5, 5, Dir4.S);
-                var eE = ComputeEntryOutsideFootprint(bst.Anchor, 5, 5, Dir4.E);
-                var eW = ComputeEntryOutsideFootprint(bst.Anchor, 5, 5, Dir4.W);
-                return PickNearest(from, bst.Anchor, eN, eS, eE, eW);
+                w = Math.Max(1, def.SizeX);
+                h = Math.Max(1, def.SizeY);
+                isHQ = def.IsHQ;
+            }
+            else if (DefIdTierUtil.IsBase(bst.DefId, "bld_hq"))
+            {
+                w = 5;
+                h = 5;
+                isHQ = true;
             }
 
-            int w = 1, h = 1;
-            if (DefIdTierUtil.IsBase(bst.DefId, "bld_house")
-                || DefIdTierUtil.IsBase(bst.DefId, "bld_farmhouse")
-                || DefIdTierUtil.IsBase(bst.DefId, "bld_lumbercamp")
-                || DefIdTierUtil.IsBase(bst.DefId, "bld_quarry")
-                || DefIdTierUtil.IsBase(bst.DefId, "bld_ironhut")
-                || DefIdTierUtil.IsBase(bst.DefId, "bld_warehouse"))
+            if (isHQ)
             {
-                w = 3;
-                h = 3;
+                var eN = ComputeEntryOutsideFootprint(bst.Anchor, w, h, Dir4.N);
+                var eS = ComputeEntryOutsideFootprint(bst.Anchor, w, h, Dir4.S);
+                var eE = ComputeEntryOutsideFootprint(bst.Anchor, w, h, Dir4.E);
+                var eW = ComputeEntryOutsideFootprint(bst.Anchor, w, h, Dir4.W);
+                return PickNearest(from, bst.Anchor, eN, eS, eE, eW);
             }
 
             var entry = ComputeEntryOutsideFootprint(bst.Anchor, w, h, bst.Rotation);

@@ -48,6 +48,28 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void RunStart_HarvestDepositPath_FarmNpcCanReturnToFarmEntry()
+        {
+            var services = CreateServices();
+            AssertRunStartApplied(services);
+
+            var farm = FindBuilding(services, "bld_farmhouse_t1");
+            var farmNpcId = FindNpcAssignedTo(services, farm);
+            Assert.That(farm.Value, Is.Not.EqualTo(0));
+            Assert.That(farmNpcId.Value, Is.Not.EqualTo(0));
+
+            for (int i = 0; i < 60; i++)
+                services.JobScheduler.Tick(0.1f);
+
+            var farmState = services.WorldState.Buildings.Get(farm);
+            var farmNpc = services.WorldState.Npcs.Get(farmNpcId);
+            var farmEntry = EntryCellUtil.GetApproachCellForBuilding(services, farmState, farmNpc.Cell);
+            bool entryReachable = services.Pathfinder.TryEstimateCost(farmNpc.Cell, farmEntry, out _);
+
+            Assert.That(entryReachable, Is.True, $"Harvest deposit path is blocked: farm NPC at {farmNpc.Cell.X},{farmNpc.Cell.Y} cannot reach farmhouse entry {farmEntry.X},{farmEntry.Y}.");
+        }
+
+        [Test]
         public void RunStart_HqNpc_HaulWorkflow_ExposesSpawnAssignAndExecuteStages()
         {
             var services = CreateServices();
@@ -78,6 +100,7 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(foodPatchCount, Is.GreaterThan(0), "Stage 0 failed: RunStart has no Food patch, so farmhouse Harvest can never start.");
             Assert.That(farmHarvestJob.Id.Value, Is.Not.EqualTo(0), "Stage 1a failed: farmhouse never enqueued a Harvest job.");
             Assert.That(farmNpcAfterHarvestWindow.CurrentJob.Value, Is.EqualTo(farmHarvestJob.Id.Value), "Stage 1b failed: farmhouse NPC never claimed the Harvest job.");
+            Assert.That(farmHarvestJob.Amount, Is.EqualTo(0), "Stage 1c-precheck: harvest job still shows carry > 0, suggesting NPC got stuck trying to return to farmhouse entry for deposit.");
             Assert.That(farmFoodAfterHarvestWindow, Is.GreaterThan(0), "Stage 1c failed: farmhouse NPC claimed Harvest but never deposited food into local farm storage.");
             Assert.That(foodHaulJob.Id.Value, Is.Not.EqualTo(0), "Stage 2 failed: HQ never enqueued a HaulBasic(Food) job.");
             Assert.That(hqNpcAfterAssign.CurrentJob.Value, Is.EqualTo(foodHaulJob.Id.Value), "Stage 3 failed: HQ NPC never claimed the queued food haul job.");

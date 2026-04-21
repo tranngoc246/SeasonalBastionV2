@@ -61,7 +61,7 @@ namespace SeasonalBastion.UI
         private void OnCloseBuildPanelRequested(UiCloseBuildPanelRequestedEvent _)
         {
             if (_panels.IsOpen(UiKeys.Panel_Build))
-                _panels.HideCurrent();
+                _panels.Hide(UiKeys.Panel_Build);
             _store.SetToolMode(UiToolMode.Select);
         }
 
@@ -92,7 +92,7 @@ namespace SeasonalBastion.UI
             {
                 _store.ClearSelection();
                 if (_panels.IsOpen(UiKeys.Panel_Inspect))
-                    _panels.HideCurrent();
+                    _panels.Hide(UiKeys.Panel_Inspect);
                 return;
             }
 
@@ -104,7 +104,7 @@ namespace SeasonalBastion.UI
         {
             _store.ClearSelection();
             if (_panels.IsOpen(UiKeys.Panel_Inspect))
-                _panels.HideCurrent();
+                _panels.Hide(UiKeys.Panel_Inspect);
         }
 
         private void OnOpenModalRequested(UiOpenModalRequestedEvent ev)
@@ -126,8 +126,10 @@ namespace SeasonalBastion.UI
             }
 
             _store.ClearSelection();
-            if (_panels.IsOpen(UiKeys.Panel_Inspect) || _panels.IsOpen(UiKeys.Panel_Build))
-                _panels.HideCurrent();
+            if (_panels.IsOpen(UiKeys.Panel_Inspect))
+                _panels.Hide(UiKeys.Panel_Inspect);
+            if (_panels.IsOpen(UiKeys.Panel_Build))
+                _panels.Hide(UiKeys.Panel_Build);
 
             _store.SetPlacementActive(false);
             _pendingPlacementDefId = null;

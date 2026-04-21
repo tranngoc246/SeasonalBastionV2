@@ -6,8 +6,8 @@ using UnityEngine.UIElements;
 namespace SeasonalBastion.UI.Navigation
 {
     /// <summary>
-    /// Panels: 1 active panel tại 1 thời điểm (simple).
-    /// Có thể mở rộng thành Left/Right dock nếu bạn muốn.
+    /// Panels are tracked independently by key. This allows left/right dock panels
+    /// to coexist, while callers can still explicitly hide the panel they own.
     /// </summary>
     public sealed class PanelRegistry
     {
@@ -15,8 +15,7 @@ namespace SeasonalBastion.UI.Navigation
 
         private readonly Dictionary<string, (IUiPresenter presenter, VisualElement root)> _map =
             new(StringComparer.Ordinal);
-
-        private string _currentKey = "";
+        private readonly HashSet<string> _openKeys = new(StringComparer.Ordinal);
 
         public PanelRegistry(UIStateStore store)
         {
@@ -35,27 +34,31 @@ namespace SeasonalBastion.UI.Navigation
             if (string.IsNullOrEmpty(key)) return false;
             if (!_map.TryGetValue(key, out var entry)) return false;
 
-            HideCurrent();
-
-            _currentKey = key;
             entry.root.style.display = DisplayStyle.Flex;
             entry.presenter.Refresh();
-
+            _openKeys.Add(key);
             _store?.SetActivePanel(key);
             return true;
         }
 
-        public void HideCurrent()
+        public void Hide(string key)
         {
-            if (string.IsNullOrEmpty(_currentKey)) return;
+            if (string.IsNullOrEmpty(key)) return;
+            if (!_map.TryGetValue(key, out var entry)) return;
 
-            if (_map.TryGetValue(_currentKey, out var entry))
-                entry.root.style.display = DisplayStyle.None;
+            entry.root.style.display = DisplayStyle.None;
+            _openKeys.Remove(key);
 
-            _currentKey = "";
-            _store?.SetActivePanel("");
+            if (_store != null && string.Equals(_store.ActivePanelKey, key, StringComparison.Ordinal))
+                _store.SetActivePanel("");
         }
 
-        public bool IsOpen(string key) => string.Equals(_currentKey, key, StringComparison.Ordinal);
+        public void HideCurrent()
+        {
+            if (_store == null || string.IsNullOrEmpty(_store.ActivePanelKey)) return;
+            Hide(_store.ActivePanelKey);
+        }
+
+        public bool IsOpen(string key) => !string.IsNullOrEmpty(key) && _openKeys.Contains(key);
     }
 }

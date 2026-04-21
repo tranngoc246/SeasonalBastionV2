@@ -71,17 +71,27 @@ namespace SeasonalBastion.UI.Input
 
             // Gate: modal open or pointer over blocking ui
             if (_gate != null && !_gate.IsWorldInputAllowed)
+            {
+                Debug.Log($"[WorldSelectionController] Click blocked by InputGate at {mouse.position.ReadValue()}");
                 return;
+            }
 
             // Extra safety: do realtime hit-test this frame (avoid script execution order issues)
             if (IsPointerOverBlockingUiNow(mouse.position.ReadValue()))
+            {
+                Debug.Log($"[WorldSelectionController] Click blocked by realtime UI hit-test at {mouse.position.ReadValue()}");
                 return;
+            }
 
             if (_store == null || _store.HasModal || _store.IsPlacementActive || _store.ToolMode != UiToolMode.Select)
+            {
+                Debug.Log($"[WorldSelectionController] Click ignored due to store state. storeNull={_store == null}, hasModal={_store?.HasModal ?? false}, placement={_store?.IsPlacementActive ?? false}, tool={_store?.ToolMode}");
                 return;
+            }
 
             if (!TryGetCellUnderMouse(out var cell))
             {
+                Debug.Log($"[WorldSelectionController] No cell under mouse at {mouse.position.ReadValue()}, clear={_clearSelectionWhenClickEmpty}");
                 if (_clearSelectionWhenClickEmpty)
                     PublishSelection(SelectionRef.None);
                 return;
@@ -89,12 +99,14 @@ namespace SeasonalBastion.UI.Input
 
             if (_gridMap == null || !_gridMap.IsInside(cell))
             {
+                Debug.Log($"[WorldSelectionController] Cell outside grid or grid missing. cell={cell}, hasGrid={_gridMap != null}, clear={_clearSelectionWhenClickEmpty}");
                 if (_clearSelectionWhenClickEmpty)
                     PublishSelection(SelectionRef.None);
                 return;
             }
 
             var occ = _gridMap.Get(cell);
+            Debug.Log($"[WorldSelectionController] Click cell={cell}, occKind={occ.Kind}, building={occ.Building.Value}, site={occ.Site.Value}");
 
             // Building cell -> select building
             if (occ.Kind == CellOccupancyKind.Building && occ.Building.Value != 0)
@@ -125,6 +137,7 @@ namespace SeasonalBastion.UI.Input
             }
 
             // Else: clear selection
+            Debug.Log($"[WorldSelectionController] Empty/non-selectable click at cell={cell}, clear={_clearSelectionWhenClickEmpty}");
             if (_clearSelectionWhenClickEmpty) PublishSelection(SelectionRef.None);
         }
 
@@ -150,6 +163,7 @@ namespace SeasonalBastion.UI.Input
 
         private void PublishSelection(SelectionRef selection)
         {
+            Debug.Log($"[WorldSelectionController] PublishSelection kind={selection.Kind} id={selection.Id}");
             (_uiSystem?.Ctx?.Services as GameServices)?.EventBus?.Publish(new UiInspectSelectionRequestedEvent((int)selection.Kind, selection.Id));
         }
 

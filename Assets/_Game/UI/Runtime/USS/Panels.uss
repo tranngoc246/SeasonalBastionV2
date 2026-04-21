@@ -16,12 +16,17 @@
   bottom: 12px;
   width: 360px;
   max-width: 92%;
+
+  align-items: flex-start;
 }
 
 .panel {
   width: 520px;       
   max-width: 92%;
   flex-direction: column;
+  align-self: flex-start;
+  flex-grow: 0;
+  flex-shrink: 0;
   border-radius: 12px;
   background-color: rgba(0,0,0,0.62);
   padding: 10px;

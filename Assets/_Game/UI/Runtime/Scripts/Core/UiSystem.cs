@@ -1,4 +1,5 @@
-﻿using SeasonalBastion.UI.Input;
+﻿using SeasonalBastion.Contracts;
+using SeasonalBastion.UI.Input;
 using SeasonalBastion.UI.Navigation;
 using SeasonalBastion.UI.Overlay;
 using SeasonalBastion.UI.Presenters;
@@ -130,6 +131,9 @@ namespace SeasonalBastion.UI
             var buildRoot = UiElementUtil.GetOrCreateChild(leftDock, "BuildPanel");
             var inspectRoot = UiElementUtil.GetOrCreateChild(rightDock, "InspectPanel");
 
+            BindDockBackgroundDismiss(leftDock, buildRoot, UiKeys.Panel_Build, new UiCloseBuildPanelRequestedEvent());
+            BindDockBackgroundDismiss(rightDock, inspectRoot, UiKeys.Panel_Inspect, new UiClearInspectRequestedEvent());
+
             _buildPresenter.Bind(Ctx, buildRoot);
             _inspectPresenter.Bind(Ctx, inspectRoot);
 
@@ -169,6 +173,24 @@ namespace SeasonalBastion.UI
             {
                 // handled by ModalStackController internals
             };
+        }
+
+        private void BindDockBackgroundDismiss<TEvent>(VisualElement dockRoot, VisualElement panelRoot, string panelKey, TEvent dismissEvent)
+            where TEvent : struct
+        {
+            if (dockRoot == null || panelRoot == null) return;
+
+            dockRoot.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (Ctx?.Panels == null || Ctx?.Store == null) return;
+                if (!Ctx.Panels.IsOpen(panelKey)) return;
+                if (panelRoot.resolvedStyle.display == DisplayStyle.None) return;
+                if (panelRoot.worldBound.Contains(evt.position)) return;
+                if (evt.target is VisualElement ve && panelRoot.Contains(ve)) return;
+
+                (Ctx.Services as GameServices)?.EventBus?.Publish(dismissEvent);
+                evt.StopPropagation();
+            }, TrickleDown.TrickleDown);
         }
 
         private void Update()

@@ -7,7 +7,7 @@ namespace SeasonalBastion.UI.Input
 {
     /// <summary>
     /// Hit-test theo USS class ui-block-world.
-    /// Không hardcode element name.
+    /// Khï¿½ng hardcode element name.
     /// </summary>
     public sealed class UiHitTest
     {
@@ -55,18 +55,29 @@ namespace SeasonalBastion.UI.Input
                 var panel = root.panel;
                 if (panel == null) continue;
 
-                // Convert screen -> panel space
                 Vector2 panelPos = RuntimePanelUtils.ScreenToPanel(panel, screenPos);
-
-                // Pick element at position
                 var picked = panel.Pick(panelPos) as VisualElement;
                 if (picked == null) continue;
 
-                if (UiElementUtil.HasClassInHierarchy(picked, UiKeys.Class_BlockWorld))
+                var blocking = FindBlockingAncestor(picked, panelPos);
+                if (blocking != null)
                     return true;
             }
 
             return false;
+        }
+
+        private static VisualElement FindBlockingAncestor(VisualElement picked, Vector2 panelPos)
+        {
+            var current = picked;
+            while (current != null)
+            {
+                if (current.ClassListContains(UiKeys.Class_BlockWorld) && current.worldBound.Contains(panelPos))
+                    return current;
+                current = current.parent;
+            }
+
+            return null;
         }
     }
 }

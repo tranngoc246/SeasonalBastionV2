@@ -259,7 +259,20 @@ namespace SeasonalBastion.UI.Input
             var picked = panel.Pick(panelPos) as VisualElement;
             if (picked == null) return false;
 
-            return UiElementUtil.HasClassInHierarchy(picked, UiKeys.Class_BlockWorld);
+            return FindBlockingAncestor(picked, panelPos) != null;
+        }
+
+        private static VisualElement FindBlockingAncestor(VisualElement picked, Vector2 panelPos)
+        {
+            var current = picked;
+            while (current != null)
+            {
+                if (current.ClassListContains(UiKeys.Class_BlockWorld) && current.worldBound.Contains(panelPos))
+                    return current;
+                current = current.parent;
+            }
+
+            return null;
         }
     }
 }

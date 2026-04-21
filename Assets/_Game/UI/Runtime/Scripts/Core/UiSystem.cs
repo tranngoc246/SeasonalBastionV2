@@ -131,8 +131,7 @@ namespace SeasonalBastion.UI
             var buildRoot = UiElementUtil.GetOrCreateChild(leftDock, "BuildPanel");
             var inspectRoot = UiElementUtil.GetOrCreateChild(rightDock, "InspectPanel");
 
-            BindDockBackgroundDismiss(leftDock, buildRoot, UiKeys.Panel_Build, new UiCloseBuildPanelRequestedEvent());
-            BindDockBackgroundDismiss(rightDock, inspectRoot, UiKeys.Panel_Inspect, new UiClearInspectRequestedEvent());
+            BindPanelsBackgroundDismiss(panelsRoot, buildRoot, inspectRoot);
 
             _buildPresenter.Bind(Ctx, buildRoot);
             _inspectPresenter.Bind(Ctx, inspectRoot);
@@ -175,21 +174,35 @@ namespace SeasonalBastion.UI
             };
         }
 
-        private void BindDockBackgroundDismiss<TEvent>(VisualElement dockRoot, VisualElement panelRoot, string panelKey, TEvent dismissEvent)
-            where TEvent : struct
+        private void BindPanelsBackgroundDismiss(VisualElement panelsRoot, VisualElement buildRoot, VisualElement inspectRoot)
         {
-            if (dockRoot == null || panelRoot == null) return;
+            if (panelsRoot == null) return;
 
-            dockRoot.RegisterCallback<PointerDownEvent>(evt =>
+            panelsRoot.RegisterCallback<PointerDownEvent>(evt =>
             {
                 if (Ctx?.Panels == null || Ctx?.Store == null) return;
-                if (!Ctx.Panels.IsOpen(panelKey)) return;
-                if (panelRoot.resolvedStyle.display == DisplayStyle.None) return;
-                if (panelRoot.worldBound.Contains(evt.position)) return;
-                if (evt.target is VisualElement ve && panelRoot.Contains(ve)) return;
+                if (evt.target is not VisualElement target) return;
 
-                (Ctx.Services as GameServices)?.EventBus?.Publish(dismissEvent);
-                evt.StopPropagation();
+                if (Ctx.Panels.IsOpen(UiKeys.Panel_Inspect)
+                    && inspectRoot != null
+                    && inspectRoot.resolvedStyle.display != DisplayStyle.None
+                    && !inspectRoot.worldBound.Contains(evt.position)
+                    && !inspectRoot.Contains(target))
+                {
+                    (Ctx.Services as GameServices)?.EventBus?.Publish(new UiClearInspectRequestedEvent());
+                    evt.StopPropagation();
+                    return;
+                }
+
+                if (Ctx.Panels.IsOpen(UiKeys.Panel_Build)
+                    && buildRoot != null
+                    && buildRoot.resolvedStyle.display != DisplayStyle.None
+                    && !buildRoot.worldBound.Contains(evt.position)
+                    && !buildRoot.Contains(target))
+                {
+                    (Ctx.Services as GameServices)?.EventBus?.Publish(new UiCloseBuildPanelRequestedEvent());
+                    evt.StopPropagation();
+                }
             }, TrickleDown.TrickleDown);
         }
 

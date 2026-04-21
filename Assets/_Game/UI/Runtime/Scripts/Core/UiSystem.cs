@@ -108,8 +108,6 @@ namespace SeasonalBastion.UI
             var toastHost = UiElementUtil.GetOrCreateChild(overlayRoot, "ToastHost");
             var tooltipHost = UiElementUtil.GetOrCreateChild(overlayRoot, "TooltipHost");
 
-            leftDock?.AddToClassList(UiKeys.Class_BlockWorld);
-            rightDock?.AddToClassList(UiKeys.Class_BlockWorld);
             scrim?.AddToClassList(UiKeys.Class_BlockWorld);
 
             _modalStack.Bind(modalsRoot, scrim, modalHost);

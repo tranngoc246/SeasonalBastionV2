@@ -44,6 +44,7 @@ namespace SeasonalBastion.UI.Input
         private Camera _cam;
         private bool _bound;
         private bool _warned;
+        private bool _pointerDownStartedInsideInspectPanel;
 
         private void Awake()
         {
@@ -53,6 +54,11 @@ namespace SeasonalBastion.UI.Input
         private void OnEnable()
         {
             TryBind();
+        }
+
+        private void LateUpdate()
+        {
+            _pointerDownStartedInsideInspectPanel = false;
         }
 
         private void Update()
@@ -214,6 +220,8 @@ namespace SeasonalBastion.UI.Input
             _world = s.WorldState;
             _resourcePatches = s.ResourcePatchService;
 
+            BindInspectPanelPointerTracking();
+
             if (_gridMap == null || _world == null || _store == null)
                 return;
 
@@ -271,19 +279,7 @@ namespace SeasonalBastion.UI.Input
             if (ctx?.Panels == null || ctx.Store == null) return false;
             if (!ctx.Panels.IsOpen(UiKeys.Panel_Inspect)) return false;
             if (ctx.Store.Selected.IsNone) return false;
-
-            var panelDoc = ctx.DocPanels;
-            var root = panelDoc?.rootVisualElement;
-            var inspectPanel = root?.Q<VisualElement>("InspectPanel");
-            if (inspectPanel == null || inspectPanel.resolvedStyle.display == DisplayStyle.None)
-                return false;
-
-            var panel = root.panel;
-            if (panel == null) return false;
-
-            Vector2 panelPos = RuntimePanelUtils.ScreenToPanel(panel, screenPos);
-            if (inspectPanel.worldBound.Contains(panelPos))
-                return false;
+            if (_pointerDownStartedInsideInspectPanel) return false;
 
             if (IsOverBlocking(ctx.DocOverlay, screenPos) || IsOverBlocking(ctx.DocModals, screenPos))
                 return false;
@@ -292,6 +288,19 @@ namespace SeasonalBastion.UI.Input
                 return false;
 
             return true;
+        }
+
+        private void BindInspectPanelPointerTracking()
+        {
+            var panelDoc = _uiSystem?.Ctx?.DocPanels;
+            var root = panelDoc?.rootVisualElement;
+            var inspectPanel = root?.Q<VisualElement>("InspectPanel");
+            if (inspectPanel == null) return;
+
+            inspectPanel.RegisterCallback<PointerDownEvent>(_ =>
+            {
+                _pointerDownStartedInsideInspectPanel = true;
+            }, TrickleDown.TrickleDown);
         }
 
         private static bool IsOverBlocking(UIDocument doc, Vector2 screen)

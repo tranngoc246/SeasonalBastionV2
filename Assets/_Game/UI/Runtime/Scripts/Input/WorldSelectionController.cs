@@ -285,11 +285,10 @@ namespace SeasonalBastion.UI.Input
             if (inspectPanel.worldBound.Contains(panelPos))
                 return false;
 
-            if (IsOverBlocking(ctx.DocOverlay, screenPos) || IsOverBlocking(ctx.DocModals, screenPos) || IsOverBlocking(ctx.DocHud, screenPos))
+            if (IsOverBlocking(ctx.DocOverlay, screenPos) || IsOverBlocking(ctx.DocModals, screenPos))
                 return false;
 
-            var picked = panel.Pick(panelPos) as VisualElement;
-            if (picked != null && FindBlockingAncestor(picked, panelPos) != null)
+            if (IsOverBlocking(ctx.DocHud, screenPos))
                 return false;
 
             return true;

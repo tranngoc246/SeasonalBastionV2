@@ -63,9 +63,9 @@
             <ui:Label name="LblAmmoDiagResupply" text="Resupply: Stable" class="ammo-diag-line" />
         </ui:VisualElement>
 
-        <!-- BOTTOM BAR (block world input) -->
-        <ui:VisualElement name="BottomBar" class="bottombar ui-block-world" picking-mode="Position">
-            <ui:VisualElement class="tool-group">
+        <!-- BOTTOM BAR (layout only, do not block world input outside actual buttons) -->
+        <ui:VisualElement name="BottomBar" class="bottombar" picking-mode="Ignore">
+            <ui:VisualElement class="tool-group ui-block-world" picking-mode="Position">
 
                 <!-- IMPORTANT: giữ name BtnBuild để HudPresenter vẫn bắt click -->
                 <ui:Button name="BtnBuild" text="B" class="tool-btn" />

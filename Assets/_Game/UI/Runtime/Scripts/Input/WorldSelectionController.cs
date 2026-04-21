@@ -69,6 +69,12 @@ namespace SeasonalBastion.UI.Input
             // Only react on click
             if (!mouse.leftButton.wasPressedThisFrame) return;
 
+            if (ShouldClearOpenInspectFromOutsideClick(mouse.position.ReadValue()))
+            {
+                PublishSelection(SelectionRef.None);
+                return;
+            }
+
             // Gate: modal open or pointer over blocking ui
             if (_gate != null && !_gate.IsWorldInputAllowed)
             {
@@ -257,6 +263,36 @@ namespace SeasonalBastion.UI.Input
                    || IsOverBlocking(ctx.DocModals, screenPos)
                    || IsOverBlocking(ctx.DocPanels, screenPos)
                    || IsOverBlocking(ctx.DocHud, screenPos);
+        }
+
+        private bool ShouldClearOpenInspectFromOutsideClick(Vector2 screenPos)
+        {
+            var ctx = _uiSystem != null ? _uiSystem.Ctx : null;
+            if (ctx?.Panels == null || ctx.Store == null) return false;
+            if (!ctx.Panels.IsOpen(UiKeys.Panel_Inspect)) return false;
+            if (ctx.Store.Selected.IsNone) return false;
+
+            var panelDoc = ctx.DocPanels;
+            var root = panelDoc?.rootVisualElement;
+            var inspectPanel = root?.Q<VisualElement>("InspectPanel");
+            if (inspectPanel == null || inspectPanel.resolvedStyle.display == DisplayStyle.None)
+                return false;
+
+            var panel = root.panel;
+            if (panel == null) return false;
+
+            Vector2 panelPos = RuntimePanelUtils.ScreenToPanel(panel, screenPos);
+            if (inspectPanel.worldBound.Contains(panelPos))
+                return false;
+
+            if (IsOverBlocking(ctx.DocOverlay, screenPos) || IsOverBlocking(ctx.DocModals, screenPos) || IsOverBlocking(ctx.DocHud, screenPos))
+                return false;
+
+            var picked = panel.Pick(panelPos) as VisualElement;
+            if (picked != null && FindBlockingAncestor(picked, panelPos) != null)
+                return false;
+
+            return true;
         }
 
         private static bool IsOverBlocking(UIDocument doc, Vector2 screen)

@@ -33,6 +33,7 @@ namespace SeasonalBastion.UI
         private TooltipController _tooltips;
 
         private HudPresenter _hudPresenter;
+        private HudRuntimeBinder _hudRuntimeBinder;
         private BuildPanelPresenter _buildPresenter;
         private InspectPanelPresenter _inspectPresenter;
         private SettingsModalPresenter _settingsModal;
@@ -127,6 +128,8 @@ namespace SeasonalBastion.UI
             _rewardSelectionModal = new RewardSelectionModalPresenter();
 
             _hudPresenter.Bind(Ctx, hudRoot);
+            _hudRuntimeBinder = new HudRuntimeBinder(_hudPresenter, Ctx?.Services);
+            _hudRuntimeBinder.Bind();
 
             var buildRoot = UiElementUtil.GetOrCreateChild(leftDock, "BuildPanel");
             var inspectRoot = UiElementUtil.GetOrCreateChild(rightDock, "InspectPanel");
@@ -213,6 +216,7 @@ namespace SeasonalBastion.UI
             _hitTest.UpdatePointerBlocking();
             _toasts.Tick(Time.unscaledDeltaTime);
             _tooltips.Tick(Time.unscaledDeltaTime);
+            _hudRuntimeBinder?.Refresh();
 
             // Keep Inspect panel reactive
             _inspectRefreshTimer += Time.unscaledDeltaTime;
@@ -228,6 +232,7 @@ namespace SeasonalBastion.UI
         {
             if (!_initialized) return;
 
+            _hudRuntimeBinder?.Unbind();
             _hudPresenter?.Unbind();
             _buildPresenter?.Unbind();
             _inspectPresenter?.Unbind();

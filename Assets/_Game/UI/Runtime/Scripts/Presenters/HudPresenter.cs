@@ -12,6 +12,12 @@ namespace SeasonalBastion.UI.Presenters
     /// </summary>
     public sealed class HudPresenter : UiPresenterBase
     {
+        private const string ResourceItemWood = "ResourceItemWood";
+        private const string ResourceItemStone = "ResourceItemStone";
+        private const string ResourceItemIron = "ResourceItemIron";
+        private const string ResourceItemFood = "ResourceItemFood";
+        private const string ResourceItemAmmo = "ResourceItemAmmo";
+
         private readonly List<VisualElement> _notificationItems = new(8);
 
         private GameServices _services;
@@ -117,14 +123,14 @@ namespace SeasonalBastion.UI.Presenters
                 _lblPopulationSummary.text = value ?? string.Empty;
         }
 
-        public void SetResourceValue(string labelName, string value)
+        public void SetResourceValue(string itemName, string value)
         {
-            _resourceBarPresenter?.UpdateValue(labelName, value);
+            _resourceBarPresenter?.UpdateValue(itemName, value);
         }
 
-        public void SetResourceItem(ResourceItemViewModel item)
+        public void SetResourceItem(ResourceItemViewModel itemViewModel)
         {
-            _resourceBarPresenter?.UpdateItem(item);
+            _resourceBarPresenter?.UpdateItem(itemViewModel);
         }
 
         public IReadOnlyList<ResourceItemViewModel> GetMockResourceItems()
@@ -156,36 +162,7 @@ namespace SeasonalBastion.UI.Presenters
                 if (itemData == null)
                     continue;
 
-                var item = new VisualElement();
-                item.AddToClassList("hud-root__notification-item");
-                item.pickingMode = PickingMode.Ignore;
-
-                switch (itemData.Variant)
-                {
-                    case HudNotificationVariant.Warning:
-                        item.AddToClassList("hud-root__notification-item--warning");
-                        break;
-                    case HudNotificationVariant.Error:
-                        item.AddToClassList("hud-root__notification-item--error");
-                        break;
-                    default:
-                        item.AddToClassList("hud-root__notification-item--info");
-                        break;
-                }
-
-                var title = new Label(itemData.Title ?? string.Empty);
-                title.AddToClassList("hud-root__notification-title");
-                title.pickingMode = PickingMode.Ignore;
-                item.Add(title);
-
-                if (!string.IsNullOrWhiteSpace(itemData.Body))
-                {
-                    var body = new Label(itemData.Body);
-                    body.AddToClassList("hud-root__notification-body");
-                    body.pickingMode = PickingMode.Ignore;
-                    item.Add(body);
-                }
-
+                var item = CreateNotificationItem(itemData);
                 _notificationPanel.Add(item);
                 _notificationItems.Add(item);
             }
@@ -278,15 +255,50 @@ namespace SeasonalBastion.UI.Presenters
 
         private void RefreshResourceValues()
         {
-            var storage = _services?.StorageService;
-            if (storage == null)
+            var storageService = _services?.StorageService;
+            if (storageService == null)
                 return;
 
-            SetResourceValue("ResourceItemWood", storage.GetTotal(ResourceType.Wood).ToString());
-            SetResourceValue("ResourceItemStone", storage.GetTotal(ResourceType.Stone).ToString());
-            SetResourceValue("ResourceItemIron", storage.GetTotal(ResourceType.Iron).ToString());
-            SetResourceValue("ResourceItemFood", storage.GetTotal(ResourceType.Food).ToString());
-            SetResourceValue("ResourceItemAmmo", storage.GetTotal(ResourceType.Ammo).ToString());
+            SetResourceValue(ResourceItemWood, storageService.GetTotal(ResourceType.Wood).ToString());
+            SetResourceValue(ResourceItemStone, storageService.GetTotal(ResourceType.Stone).ToString());
+            SetResourceValue(ResourceItemIron, storageService.GetTotal(ResourceType.Iron).ToString());
+            SetResourceValue(ResourceItemFood, storageService.GetTotal(ResourceType.Food).ToString());
+            SetResourceValue(ResourceItemAmmo, storageService.GetTotal(ResourceType.Ammo).ToString());
+        }
+
+        private VisualElement CreateNotificationItem(HudNotificationItem itemData)
+        {
+            var notificationItem = new VisualElement();
+            notificationItem.AddToClassList("hud-root__notification-item");
+            notificationItem.pickingMode = PickingMode.Ignore;
+
+            switch (itemData.Variant)
+            {
+                case HudNotificationVariant.Warning:
+                    notificationItem.AddToClassList("hud-root__notification-item--warning");
+                    break;
+                case HudNotificationVariant.Error:
+                    notificationItem.AddToClassList("hud-root__notification-item--error");
+                    break;
+                default:
+                    notificationItem.AddToClassList("hud-root__notification-item--info");
+                    break;
+            }
+
+            var titleLabel = new Label(itemData.Title ?? string.Empty);
+            titleLabel.AddToClassList("hud-root__notification-title");
+            titleLabel.pickingMode = PickingMode.Ignore;
+            notificationItem.Add(titleLabel);
+
+            if (!string.IsNullOrWhiteSpace(itemData.Body))
+            {
+                var bodyLabel = new Label(itemData.Body);
+                bodyLabel.AddToClassList("hud-root__notification-body");
+                bodyLabel.pickingMode = PickingMode.Ignore;
+                notificationItem.Add(bodyLabel);
+            }
+
+            return notificationItem;
         }
 
         private void OnResourceChanged(ResourceDeliveredEvent _) => RefreshResourceValues();

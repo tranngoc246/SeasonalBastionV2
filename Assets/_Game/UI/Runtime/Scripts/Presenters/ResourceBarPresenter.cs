@@ -1,27 +1,22 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace SeasonalBastion.UI.Presenters
 {
     /// <summary>
-    /// Reusable resource bar presenter with mock data only.
-    /// No game-service integration yet.
+    /// Reusable resource bar presenter responsible only for resource item binding and updates.
     /// </summary>
     public sealed class ResourceBarPresenter
     {
         private const string HiddenKeyClass = "resource-item__key--hidden";
+        private readonly List<ResourceItemBinding> _itemBindings = new();
+        private readonly VisualElement _resourceList;
 
-        private readonly VisualElement _root;
-        private readonly VisualElement _list;
-        private readonly List<ResourceItemBinding> _bindings = new();
-
-        public ResourceBarPresenter(VisualElement root)
+        public ResourceBarPresenter(VisualElement resourceBarRoot)
         {
-            _root = root;
-            _list = root?.Q<VisualElement>("ResourceBarList");
-            CacheBindings();
+            _resourceList = resourceBarRoot?.Q<VisualElement>("ResourceBarList");
+            CacheItemBindings();
         }
 
         public void BindMockData()
@@ -34,35 +29,35 @@ namespace SeasonalBastion.UI.Presenters
             if (items == null)
                 return;
 
-            for (var index = 0; index < _bindings.Count; index++)
+            for (var index = 0; index < _itemBindings.Count; index++)
             {
                 if (index < items.Count)
-                    Apply(_bindings[index], items[index]);
+                    ApplyItem(_itemBindings[index], items[index]);
                 else
-                    SetVisible(_bindings[index], false);
+                    SetItemVisible(_itemBindings[index], false);
             }
         }
 
         public void UpdateValue(string itemName, string valueText)
         {
-            var binding = FindBinding(itemName);
-            if (binding == null)
+            var itemBinding = FindItemBinding(itemName);
+            if (itemBinding == null)
                 return;
 
-            binding.ValueLabel.text = valueText ?? "0";
-            SetVisible(binding, true);
+            itemBinding.ValueLabel.text = valueText ?? "0";
+            SetItemVisible(itemBinding, true);
         }
 
-        public void UpdateItem(ResourceItemViewModel item)
+        public void UpdateItem(ResourceItemViewModel itemViewModel)
         {
-            if (item == null || string.IsNullOrWhiteSpace(item.ItemName))
+            if (itemViewModel == null || string.IsNullOrWhiteSpace(itemViewModel.ItemName))
                 return;
 
-            var binding = FindBinding(item.ItemName);
-            if (binding == null)
+            var itemBinding = FindItemBinding(itemViewModel.ItemName);
+            if (itemBinding == null)
                 return;
 
-            Apply(binding, item);
+            ApplyItem(itemBinding, itemViewModel);
         }
 
         public IReadOnlyList<ResourceItemViewModel> CreateMockSnapshot()
@@ -70,83 +65,83 @@ namespace SeasonalBastion.UI.Presenters
             return ResourceBarMockData.CreateDefault();
         }
 
-        private void CacheBindings()
+        private void CacheItemBindings()
         {
-            _bindings.Clear();
-            if (_list == null)
+            _itemBindings.Clear();
+            if (_resourceList == null)
                 return;
 
-            CacheBinding("ResourceItemWood");
-            CacheBinding("ResourceItemStone");
-            CacheBinding("ResourceItemIron");
-            CacheBinding("ResourceItemFood");
-            CacheBinding("ResourceItemAmmo");
+            CacheItemBinding("ResourceItemWood");
+            CacheItemBinding("ResourceItemStone");
+            CacheItemBinding("ResourceItemIron");
+            CacheItemBinding("ResourceItemFood");
+            CacheItemBinding("ResourceItemAmmo");
         }
 
-        private void CacheBinding(string instanceName)
+        private void CacheItemBinding(string itemName)
         {
-            var instance = _list.Q<TemplateContainer>(instanceName);
-            if (instance == null)
+            var itemInstance = _resourceList.Q<TemplateContainer>(itemName);
+            if (itemInstance == null)
                 return;
 
-            var itemRoot = instance.Q<VisualElement>("ResourceItem");
-            var iconLabel = instance.Q<Label>("IconText");
-            var keyLabel = instance.Q<Label>("KeyText");
-            var valueLabel = instance.Q<Label>("ValueText");
+            var itemRoot = itemInstance.Q<VisualElement>("ResourceItem");
+            var iconLabel = itemInstance.Q<Label>("IconText");
+            var keyLabel = itemInstance.Q<Label>("KeyText");
+            var valueLabel = itemInstance.Q<Label>("ValueText");
 
             if (itemRoot == null || iconLabel == null || keyLabel == null || valueLabel == null)
                 return;
 
-            _bindings.Add(new ResourceItemBinding(instanceName, instance, itemRoot, iconLabel, keyLabel, valueLabel));
+            _itemBindings.Add(new ResourceItemBinding(itemName, itemInstance, itemRoot, iconLabel, keyLabel, valueLabel));
         }
 
-        private ResourceItemBinding FindBinding(string itemName)
+        private ResourceItemBinding FindItemBinding(string itemName)
         {
-            for (var index = 0; index < _bindings.Count; index++)
+            for (var index = 0; index < _itemBindings.Count; index++)
             {
-                var binding = _bindings[index];
-                if (string.Equals(binding.ItemName, itemName, StringComparison.Ordinal))
-                    return binding;
+                var itemBinding = _itemBindings[index];
+                if (string.Equals(itemBinding.ItemName, itemName, StringComparison.Ordinal))
+                    return itemBinding;
             }
 
             return null;
         }
 
-        private static void Apply(ResourceItemBinding binding, ResourceItemViewModel item)
+        private static void ApplyItem(ResourceItemBinding itemBinding, ResourceItemViewModel itemViewModel)
         {
-            if (binding == null || item == null)
+            if (itemBinding == null || itemViewModel == null)
                 return;
 
-            binding.IconLabel.text = string.IsNullOrWhiteSpace(item.IconText) ? "?" : item.IconText;
-            binding.KeyLabel.text = item.KeyText ?? string.Empty;
-            binding.ValueLabel.text = item.ValueText ?? "0";
+            itemBinding.IconLabel.text = string.IsNullOrWhiteSpace(itemViewModel.IconText) ? "?" : itemViewModel.IconText;
+            itemBinding.KeyLabel.text = itemViewModel.KeyText ?? string.Empty;
+            itemBinding.ValueLabel.text = itemViewModel.ValueText ?? "0";
 
-            if (item.ShowKey)
-                binding.KeyLabel.RemoveFromClassList(HiddenKeyClass);
+            if (itemViewModel.ShowKey)
+                itemBinding.KeyLabel.RemoveFromClassList(HiddenKeyClass);
             else
-                binding.KeyLabel.AddToClassList(HiddenKeyClass);
+                itemBinding.KeyLabel.AddToClassList(HiddenKeyClass);
 
-            SyncModifierClass(binding, item.ModifierClass);
-            SetVisible(binding, item.Visible);
+            UpdateModifierClass(itemBinding, itemViewModel.ModifierClass);
+            SetItemVisible(itemBinding, itemViewModel.Visible);
         }
 
-        private static void SyncModifierClass(ResourceItemBinding binding, string modifierClass)
+        private static void UpdateModifierClass(ResourceItemBinding itemBinding, string modifierClass)
         {
-            if (!string.IsNullOrWhiteSpace(binding.CurrentModifierClass))
-                binding.ItemRoot.RemoveFromClassList(binding.CurrentModifierClass);
+            if (!string.IsNullOrWhiteSpace(itemBinding.CurrentModifierClass))
+                itemBinding.ItemRoot.RemoveFromClassList(itemBinding.CurrentModifierClass);
 
-            binding.CurrentModifierClass = null;
+            itemBinding.CurrentModifierClass = null;
 
             if (!string.IsNullOrWhiteSpace(modifierClass))
             {
-                binding.ItemRoot.AddToClassList(modifierClass);
-                binding.CurrentModifierClass = modifierClass;
+                itemBinding.ItemRoot.AddToClassList(modifierClass);
+                itemBinding.CurrentModifierClass = modifierClass;
             }
         }
 
-        private static void SetVisible(ResourceItemBinding binding, bool visible)
+        private static void SetItemVisible(ResourceItemBinding itemBinding, bool isVisible)
         {
-            binding.Instance.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            itemBinding.Instance.style.display = isVisible ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         private sealed class ResourceItemBinding

@@ -1,7 +1,4 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uxml="UnityEngine.UIElements" editor-extension-mode="False">
-    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
-    <Style src="project://database/Assets/_Game/UI/Runtime/USS/ResourceBar.uss" />
-
     <ui:Template name="ResourceItemTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/ResourceItem.uxml" />
 
     <ui:VisualElement name="ResourceBar" class="resource-bar">

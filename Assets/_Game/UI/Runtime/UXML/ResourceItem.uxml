@@ -1,0 +1,11 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/ResourceBar.uss" />
+
+    <ui:VisualElement name="ResourceItem" class="resource-item">
+        <ui:VisualElement name="Icon" class="resource-item__icon">
+            <ui:Label name="IconText" text="W" class="resource-item__icon-text" />
+        </ui:VisualElement>
+        <ui:Label name="ValueText" text="0" class="resource-item__value" />
+    </ui:VisualElement>
+</ui:UXML>

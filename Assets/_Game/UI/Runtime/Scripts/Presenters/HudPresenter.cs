@@ -118,11 +118,6 @@ namespace SeasonalBastion.UI.Presenters
             _resourceBarPresenter?.UpdateItem(itemViewModel);
         }
 
-        public IReadOnlyList<ResourceItemViewModel> GetMockResourceItems()
-        {
-            return _resourceBarPresenter?.CreateMockSnapshot();
-        }
-
         public void SetSpeedSelection(int speedLevel, bool paused)
         {
             SetButtonActive(_btnPause, paused);

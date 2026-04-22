@@ -128,7 +128,7 @@ namespace SeasonalBastion.UI
             _rewardSelectionModal = new RewardSelectionModalPresenter();
 
             _hudPresenter.Bind(Ctx, hudRoot);
-            _hudRuntimeBinder = new HudRuntimeBinder(_hudPresenter, Ctx?.Services);
+            _hudRuntimeBinder = new HudRuntimeBinder(_hudPresenter, Ctx?.Services as GameServices);
             _hudRuntimeBinder.Bind();
 
             var buildRoot = UiElementUtil.GetOrCreateChild(leftDock, "BuildPanel");

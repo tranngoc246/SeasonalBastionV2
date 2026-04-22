@@ -18,10 +18,10 @@ namespace SeasonalBastion.UI
         private readonly HudPresenter _hudPresenter;
         private readonly GameServices _services;
 
-        public HudRuntimeBinder(HudPresenter hudPresenter, object services)
+        public HudRuntimeBinder(HudPresenter hudPresenter, GameServices services)
         {
             _hudPresenter = hudPresenter;
-            _services = services as GameServices;
+            _services = services;
         }
 
         public void Bind()

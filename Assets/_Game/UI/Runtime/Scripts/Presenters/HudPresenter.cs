@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SeasonalBastion.Contracts;
 using UnityEngine.UIElements;
 
 namespace SeasonalBastion.UI.Presenters
@@ -13,6 +14,7 @@ namespace SeasonalBastion.UI.Presenters
     {
         private readonly List<VisualElement> _notificationItems = new(8);
 
+        private GameServices _services;
         private Label _lblTime;
         private Label _lblPhase;
         private Label _lblPopulationSummary;
@@ -42,6 +44,8 @@ namespace SeasonalBastion.UI.Presenters
 
         protected override void OnBind()
         {
+            _services = Ctx?.Services as GameServices;
+
             _lblTime = Root.Q<Label>("LblTime");
             _lblPhase = Root.Q<Label>("LblPhase");
             _lblPopulationSummary = Root.Q<Label>("LblPopulationSummary");
@@ -63,13 +67,17 @@ namespace SeasonalBastion.UI.Presenters
             _resourceBarPresenter?.BindMockData();
 
             RegisterButtonCallbacks();
+            RegisterRuntimeSubscriptions();
+            RefreshResourceValues();
         }
 
         protected override void OnUnbind()
         {
+            UnregisterRuntimeSubscriptions();
             UnregisterButtonCallbacks();
             ClearNotifications();
 
+            _services = null;
             _lblTime = null;
             _lblPhase = null;
             _lblPopulationSummary = null;
@@ -88,6 +96,7 @@ namespace SeasonalBastion.UI.Presenters
 
         protected override void OnRefresh()
         {
+            RefreshResourceValues();
         }
 
         public void SetTimeText(string value)
@@ -246,6 +255,43 @@ namespace SeasonalBastion.UI.Presenters
             if (_btnToolCancel != null)
                 _btnToolCancel.clicked -= HandleCancelClicked;
         }
+
+        private void RegisterRuntimeSubscriptions()
+        {
+            if (_services?.EventBus == null)
+                return;
+
+            _services.EventBus.Subscribe<ResourceDeliveredEvent>(OnResourceChanged);
+            _services.EventBus.Subscribe<ResourceSpentEvent>(OnResourceChanged);
+            _services.EventBus.Subscribe<AmmoUsedEvent>(OnAmmoChanged);
+        }
+
+        private void UnregisterRuntimeSubscriptions()
+        {
+            if (_services?.EventBus == null)
+                return;
+
+            _services.EventBus.Unsubscribe<ResourceDeliveredEvent>(OnResourceChanged);
+            _services.EventBus.Unsubscribe<ResourceSpentEvent>(OnResourceChanged);
+            _services.EventBus.Unsubscribe<AmmoUsedEvent>(OnAmmoChanged);
+        }
+
+        private void RefreshResourceValues()
+        {
+            var storage = _services?.StorageService;
+            if (storage == null)
+                return;
+
+            SetResourceValue("ResourceItemWood", storage.GetTotal(ResourceType.Wood).ToString());
+            SetResourceValue("ResourceItemStone", storage.GetTotal(ResourceType.Stone).ToString());
+            SetResourceValue("ResourceItemIron", storage.GetTotal(ResourceType.Iron).ToString());
+            SetResourceValue("ResourceItemFood", storage.GetTotal(ResourceType.Food).ToString());
+            SetResourceValue("ResourceItemAmmo", storage.GetTotal(ResourceType.Ammo).ToString());
+        }
+
+        private void OnResourceChanged(ResourceDeliveredEvent _) => RefreshResourceValues();
+        private void OnResourceChanged(ResourceSpentEvent _) => RefreshResourceValues();
+        private void OnAmmoChanged(AmmoUsedEvent _) => RefreshResourceValues();
 
         private void ClearNotifications()
         {

@@ -6,24 +6,24 @@
     flex-grow: 1;
     flex-direction: column;
     justify-content: space-between;
-    padding-top: 1rem;
-    padding-right: 1rem;
-    padding-bottom: 1rem;
-    padding-left: 1rem;
-    row-gap: 0.75rem;
+    padding-top: 16px;
+    padding-right: 16px;
+    padding-bottom: 16px;
+    padding-left: 16px;
+    row-gap: 12px;
 }
 
 .hud-root__top-bar {
-    min-height: 4rem;
+    min-height: 64px;
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    column-gap: 1rem;
-    padding-top: 0.75rem;
-    padding-right: 1rem;
-    padding-bottom: 0.75rem;
-    padding-left: 1rem;
-    border-radius: 0.75rem;
+    column-gap: 16px;
+    padding-top: 12px;
+    padding-right: 16px;
+    padding-bottom: 12px;
+    padding-left: 16px;
+    border-radius: 12px;
     background-color: rgba(8, 12, 18, 0.78);
     flex-shrink: 0;
 }
@@ -35,38 +35,38 @@
     justify-content: flex-start;
     flex-basis: 0;
     flex-grow: 1;
-    column-gap: 0.5rem;
-    row-gap: 0.5rem;
+    column-gap: 8px;
+    row-gap: 8px;
     min-width: 0;
 }
 
 .hud-root__resource-item {
-    min-width: 5.5rem;
+    min-width: 88px;
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    column-gap: 0.375rem;
-    padding-top: 0.45rem;
-    padding-right: 0.7rem;
-    padding-bottom: 0.45rem;
-    padding-left: 0.7rem;
+    column-gap: 6px;
+    padding-top: 7px;
+    padding-right: 11px;
+    padding-bottom: 7px;
+    padding-left: 11px;
     border-radius: 999px;
     background-color: rgba(255, 255, 255, 0.08);
 }
 
 .hud-root__resource-label {
     color: rgba(214, 220, 228, 0.88);
-    font-size: 0.78rem;
+    font-size: 12px;
 }
 
 .hud-root__resource-value {
     color: rgb(255, 255, 255);
     -unity-font-style: bold;
-    font-size: 0.84rem;
+    font-size: 13px;
 }
 
 .hud-root__time-group {
-    min-width: 9rem;
+    min-width: 144px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -76,14 +76,14 @@
 .hud-root__time-value {
     color: rgb(255, 255, 255);
     -unity-font-style: bold;
-    font-size: 1rem;
+    font-size: 16px;
     unity-text-align: middle-center;
 }
 
 .hud-root__time-subtitle {
-    margin-top: 0.15rem;
+    margin-top: 2px;
     color: rgba(214, 220, 228, 0.82);
-    font-size: 0.82rem;
+    font-size: 13px;
     unity-text-align: middle-center;
 }
 
@@ -96,22 +96,22 @@
 .hud-root__notification-panel {
     align-self: center;
     width: 100%;
-    max-width: 42rem;
+    max-width: 672px;
     flex-direction: column;
     align-items: stretch;
-    row-gap: 0.5rem;
+    row-gap: 8px;
     min-height: 0;
     flex-grow: 1;
 }
 
 .hud-root__notification-item {
-    padding-top: 0.7rem;
-    padding-right: 0.85rem;
-    padding-bottom: 0.7rem;
-    padding-left: 0.85rem;
-    border-radius: 0.75rem;
+    padding-top: 11px;
+    padding-right: 14px;
+    padding-bottom: 11px;
+    padding-left: 14px;
+    border-radius: 12px;
     background-color: rgba(8, 12, 18, 0.84);
-    border-left-width: 0.25rem;
+    border-left-width: 4px;
 }
 
 .hud-root__notification-item--info {
@@ -129,13 +129,13 @@
 .hud-root__notification-title {
     color: rgb(255, 255, 255);
     -unity-font-style: bold;
-    font-size: 0.84rem;
+    font-size: 13px;
 }
 
 .hud-root__notification-body {
-    margin-top: 0.2rem;
+    margin-top: 3px;
     color: rgba(214, 220, 228, 0.88);
-    font-size: 0.78rem;
+    font-size: 12px;
     white-space: normal;
 }
 
@@ -152,26 +152,26 @@
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    column-gap: 0.75rem;
-    row-gap: 0.75rem;
-    padding-top: 0.75rem;
-    padding-right: 0.75rem;
-    padding-bottom: 0.75rem;
-    padding-left: 0.75rem;
-    border-radius: 1rem;
+    column-gap: 12px;
+    row-gap: 12px;
+    padding-top: 12px;
+    padding-right: 12px;
+    padding-bottom: 12px;
+    padding-left: 12px;
+    border-radius: 16px;
     background-color: rgba(8, 12, 18, 0.82);
 }
 
 .hud-root__action-button {
-    width: 4.5rem;
-    height: 4.5rem;
-    min-width: 4.5rem;
-    min-height: 4.5rem;
+    width: 72px;
+    height: 72px;
+    min-width: 72px;
+    min-height: 72px;
     padding-top: 0;
-    padding-right: 0.35rem;
+    padding-right: 6px;
     padding-bottom: 0;
-    padding-left: 0.35rem;
-    border-radius: 0.9rem;
+    padding-left: 6px;
+    border-radius: 14px;
     -unity-font-style: bold;
     unity-text-align: middle-center;
     white-space: normal;

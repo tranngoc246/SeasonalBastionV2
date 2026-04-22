@@ -14,12 +14,10 @@ namespace SeasonalBastion.UI.Views
         private const string ErrorClass = "notification-panel__item--error";
 
         private readonly List<VisualElement> _notificationItems = new(MaxVisibleNotifications);
-        private VisualElement _root;
         private VisualElement _list;
 
         public void Initialize(VisualElement root)
         {
-            _root = root;
             _list = root?.Q<VisualElement>("NotificationList") ?? root;
             Clear();
         }

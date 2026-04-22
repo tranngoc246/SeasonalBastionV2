@@ -49,11 +49,6 @@ namespace SeasonalBastion.UI
             _services.EventBus.Unsubscribe<AmmoUsedEvent>(OnAmmoChanged);
         }
 
-        public void Refresh()
-        {
-            RefreshResourceValues();
-        }
-
         private void RefreshResourceValues()
         {
             var storageService = _services?.StorageService;

@@ -216,7 +216,6 @@ namespace SeasonalBastion.UI
             _hitTest.UpdatePointerBlocking();
             _toasts.Tick(Time.unscaledDeltaTime);
             _tooltips.Tick(Time.unscaledDeltaTime);
-            _hudRuntimeBinder?.Refresh();
 
             // Keep Inspect panel reactive
             _inspectRefreshTimer += Time.unscaledDeltaTime;

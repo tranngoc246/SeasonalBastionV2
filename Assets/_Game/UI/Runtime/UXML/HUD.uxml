@@ -40,7 +40,7 @@
                 <ui:VisualElement class="hud-root__top-right">
                     <ui:VisualElement class="hud-root__speed-group">
                         <ui:Button name="BtnPause" text="||" class="hud-root__speed-button" />
-                        <ui:Button name="BtnSpeed1" text="x1" class="hud-root__speed-button hud-root__speed-button--active" />
+                        <ui:Button name="BtnSpeed1" text="x1" class="hud-root__speed-button" />
                         <ui:Button name="BtnSpeed2" text="x2" class="hud-root__speed-button" />
                         <ui:Button name="BtnSpeed3" text="x3" class="hud-root__speed-button" />
                     </ui:VisualElement>

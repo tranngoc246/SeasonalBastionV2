@@ -5,45 +5,60 @@
     <ui:VisualElement name="HUDRoot" class="hud-root">
         <ui:VisualElement class="hud-root__layout">
             <ui:VisualElement name="TopBar" class="hud-root__top-bar ui-block-world" picking-mode="Position">
-                <ui:VisualElement name="ResourceList" class="hud-root__resource-list">
-                    <ui:VisualElement class="hud-root__resource-item">
-                        <ui:Label text="Wood" class="hud-root__resource-label" />
-                        <ui:Label name="LblResWood" text="0" class="hud-root__resource-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="hud-root__resource-item">
-                        <ui:Label text="Stone" class="hud-root__resource-label" />
-                        <ui:Label name="LblResStone" text="0" class="hud-root__resource-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="hud-root__resource-item">
-                        <ui:Label text="Iron" class="hud-root__resource-label" />
-                        <ui:Label name="LblResIron" text="0" class="hud-root__resource-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="hud-root__resource-item">
-                        <ui:Label text="Food" class="hud-root__resource-label" />
-                        <ui:Label name="LblResFood" text="0" class="hud-root__resource-value" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="hud-root__resource-item">
-                        <ui:Label text="Ammo" class="hud-root__resource-label" />
-                        <ui:Label name="LblResAmmo" text="0" class="hud-root__resource-value" />
+                <ui:VisualElement class="hud-root__top-left">
+                    <ui:VisualElement name="ResourceList" class="hud-root__resource-list">
+                        <ui:VisualElement class="hud-root__resource-item">
+                            <ui:Label text="Wood" class="hud-root__resource-label" />
+                            <ui:Label name="LblResWood" text="0" class="hud-root__resource-value" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="hud-root__resource-item">
+                            <ui:Label text="Stone" class="hud-root__resource-label" />
+                            <ui:Label name="LblResStone" text="0" class="hud-root__resource-value" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="hud-root__resource-item">
+                            <ui:Label text="Iron" class="hud-root__resource-label" />
+                            <ui:Label name="LblResIron" text="0" class="hud-root__resource-value" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="hud-root__resource-item">
+                            <ui:Label text="Food" class="hud-root__resource-label" />
+                            <ui:Label name="LblResFood" text="0" class="hud-root__resource-value" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="hud-root__resource-item hud-root__resource-item--ammo">
+                            <ui:Label text="Ammo" class="hud-root__resource-label" />
+                            <ui:Label name="LblResAmmo" text="0" class="hud-root__resource-value" />
+                            <ui:Label name="LblAmmoState" text="Stable" class="hud-root__resource-subvalue" />
+                        </ui:VisualElement>
                     </ui:VisualElement>
                 </ui:VisualElement>
 
                 <ui:VisualElement class="hud-root__time-group" picking-mode="Ignore">
-                    <ui:Label name="LblTime" text="Day 1" class="hud-root__time-value" />
-                    <ui:Label name="LblDayYear" text="Year 1" class="hud-root__time-subtitle" />
+                    <ui:Label name="LblTime" text="Year 1 • Spring D1" class="hud-root__time-value" />
+                    <ui:Label name="LblPhase" text="Build" class="hud-root__time-phase" />
+                    <ui:Label name="LblPopulationSummary" text="Pop 0/0 • Need 0/day" class="hud-root__time-subtitle" />
                 </ui:VisualElement>
 
-                <ui:VisualElement class="hud-root__top-spacer" picking-mode="Ignore" />
+                <ui:VisualElement class="hud-root__top-right">
+                    <ui:VisualElement class="hud-root__speed-group">
+                        <ui:Button name="BtnPause" text="||" class="hud-root__speed-button" />
+                        <ui:Button name="BtnSpeed1" text="x1" class="hud-root__speed-button" />
+                        <ui:Button name="BtnSpeed2" text="x2" class="hud-root__speed-button" />
+                        <ui:Button name="BtnSpeed3" text="x3" class="hud-root__speed-button" />
+                    </ui:VisualElement>
+
+                    <ui:Button name="BtnSettings" text="Settings" class="hud-root__settings-button" />
+                </ui:VisualElement>
             </ui:VisualElement>
 
-            <ui:VisualElement name="NotificationPanel" class="hud-root__notification-panel" picking-mode="Ignore" />
+            <ui:VisualElement class="hud-root__center-stack" picking-mode="Ignore">
+                <ui:VisualElement name="NotiStack" class="hud-root__notification-panel" picking-mode="Ignore" />
+            </ui:VisualElement>
 
             <ui:VisualElement class="hud-root__bottom-bar-shell" picking-mode="Ignore">
                 <ui:VisualElement name="BottomBar" class="hud-root__bottom-bar ui-block-world" picking-mode="Position">
                     <ui:Button name="BtnBuild" text="Build" class="hud-root__action-button" />
                     <ui:Button name="BtnToolRoad" text="Road" class="hud-root__action-button" />
                     <ui:Button name="BtnToolRemove" text="Remove" class="hud-root__action-button" />
-                    <ui:Button name="BtnSettings" text="Settings" class="hud-root__action-button" />
+                    <ui:Button name="BtnToolCancel" text="Cancel" class="hud-root__action-button hud-root__action-button--wide" />
                 </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>

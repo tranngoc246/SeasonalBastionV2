@@ -11,13 +11,11 @@ namespace SeasonalBastion.UI.Presenters
     /// </summary>
     public sealed class HudPresenter : UiPresenterBase
     {
-        private readonly Dictionary<string, Label> _labelsByName = new(StringComparer.Ordinal);
         private readonly List<VisualElement> _notificationItems = new(8);
 
         private Label _lblTime;
         private Label _lblPhase;
         private Label _lblPopulationSummary;
-        private Label _lblAmmoState;
 
         private Button _btnBuild;
         private Button _btnSettings;
@@ -30,6 +28,7 @@ namespace SeasonalBastion.UI.Presenters
         private Button _btnToolCancel;
 
         private VisualElement _notificationPanel;
+        private ResourceBarPresenter _resourceBarPresenter;
 
         public event Action BuildClicked;
         public event Action SettingsClicked;
@@ -43,12 +42,9 @@ namespace SeasonalBastion.UI.Presenters
 
         protected override void OnBind()
         {
-            CacheLabels();
-
             _lblTime = Root.Q<Label>("LblTime");
             _lblPhase = Root.Q<Label>("LblPhase");
             _lblPopulationSummary = Root.Q<Label>("LblPopulationSummary");
-            _lblAmmoState = Root.Q<Label>("LblAmmoState");
 
             _btnBuild = Root.Q<Button>("BtnBuild");
             _btnSettings = Root.Q<Button>("BtnSettings");
@@ -62,6 +58,10 @@ namespace SeasonalBastion.UI.Presenters
 
             _notificationPanel = Root.Q<VisualElement>("NotiStack");
 
+            var resourceBarRoot = Root.Q<VisualElement>("HudResourceBar");
+            _resourceBarPresenter = resourceBarRoot != null ? new ResourceBarPresenter(resourceBarRoot) : null;
+            _resourceBarPresenter?.BindMockData();
+
             RegisterButtonCallbacks();
         }
 
@@ -69,12 +69,10 @@ namespace SeasonalBastion.UI.Presenters
         {
             UnregisterButtonCallbacks();
             ClearNotifications();
-            _labelsByName.Clear();
 
             _lblTime = null;
             _lblPhase = null;
             _lblPopulationSummary = null;
-            _lblAmmoState = null;
             _btnBuild = null;
             _btnSettings = null;
             _btnPause = null;
@@ -85,6 +83,7 @@ namespace SeasonalBastion.UI.Presenters
             _btnToolRemove = null;
             _btnToolCancel = null;
             _notificationPanel = null;
+            _resourceBarPresenter = null;
         }
 
         protected override void OnRefresh()
@@ -109,19 +108,19 @@ namespace SeasonalBastion.UI.Presenters
                 _lblPopulationSummary.text = value ?? string.Empty;
         }
 
-        public void SetAmmoStateText(string value)
-        {
-            if (_lblAmmoState != null)
-                _lblAmmoState.text = value ?? string.Empty;
-        }
-
         public void SetResourceValue(string labelName, string value)
         {
-            if (string.IsNullOrWhiteSpace(labelName))
-                return;
+            _resourceBarPresenter?.UpdateValue(labelName, value);
+        }
 
-            if (_labelsByName.TryGetValue(labelName, out var label) && label != null)
-                label.text = value ?? string.Empty;
+        public void SetResourceItem(ResourceItemViewModel item)
+        {
+            _resourceBarPresenter?.UpdateItem(item);
+        }
+
+        public IReadOnlyList<ResourceItemViewModel> GetMockResourceItems()
+        {
+            return _resourceBarPresenter?.CreateMockSnapshot();
         }
 
         public void SetSpeedSelection(int speedLevel, bool paused)
@@ -186,24 +185,6 @@ namespace SeasonalBastion.UI.Presenters
         public VisualElement GetNotificationPanel()
         {
             return _notificationPanel;
-        }
-
-        private void CacheLabels()
-        {
-            _labelsByName.Clear();
-
-            CacheLabel("LblResWood");
-            CacheLabel("LblResStone");
-            CacheLabel("LblResIron");
-            CacheLabel("LblResFood");
-            CacheLabel("LblResAmmo");
-        }
-
-        private void CacheLabel(string name)
-        {
-            var label = Root.Q<Label>(name);
-            if (label != null)
-                _labelsByName[name] = label;
         }
 
         private void RegisterButtonCallbacks()

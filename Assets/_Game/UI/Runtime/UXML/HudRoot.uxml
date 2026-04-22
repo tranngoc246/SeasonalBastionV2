@@ -1,34 +1,15 @@
-<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uxml="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/HudRoot.uss" />
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/ResourceBar.uss" />
+
+    <ui:Template name="ResourceBarTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/ResourceBar.uxml?fileID=9197481962204192901&guid=f91d2cba68445c84ab73fdce0df2888b&type=3#ResourceBar" />
 
     <ui:VisualElement name="HUDRoot" class="hud-root">
         <ui:VisualElement class="hud-root__layout">
             <ui:VisualElement name="TopBar" class="hud-root__top-bar ui-block-world" picking-mode="Position">
                 <ui:VisualElement class="hud-root__top-left">
-                    <ui:VisualElement name="ResourceList" class="hud-root__resource-list">
-                        <ui:VisualElement class="hud-root__resource-item">
-                            <ui:Label text="Wood" class="hud-root__resource-label" />
-                            <ui:Label name="LblResWood" text="0" class="hud-root__resource-value" />
-                        </ui:VisualElement>
-                        <ui:VisualElement class="hud-root__resource-item">
-                            <ui:Label text="Stone" class="hud-root__resource-label" />
-                            <ui:Label name="LblResStone" text="0" class="hud-root__resource-value" />
-                        </ui:VisualElement>
-                        <ui:VisualElement class="hud-root__resource-item">
-                            <ui:Label text="Iron" class="hud-root__resource-label" />
-                            <ui:Label name="LblResIron" text="0" class="hud-root__resource-value" />
-                        </ui:VisualElement>
-                        <ui:VisualElement class="hud-root__resource-item">
-                            <ui:Label text="Food" class="hud-root__resource-label" />
-                            <ui:Label name="LblResFood" text="0" class="hud-root__resource-value" />
-                        </ui:VisualElement>
-                        <ui:VisualElement class="hud-root__resource-item hud-root__resource-item--ammo">
-                            <ui:Label text="Ammo" class="hud-root__resource-label" />
-                            <ui:Label name="LblResAmmo" text="0" class="hud-root__resource-value" />
-                            <ui:Label name="LblAmmoState" text="Stable" class="hud-root__resource-subvalue" />
-                        </ui:VisualElement>
-                    </ui:VisualElement>
+                    <ui:Instance template="ResourceBarTemplate" name="HudResourceBar" />
                 </ui:VisualElement>
 
                 <ui:VisualElement class="hud-root__time-group" picking-mode="Ignore">

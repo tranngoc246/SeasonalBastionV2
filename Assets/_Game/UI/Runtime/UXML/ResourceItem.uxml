@@ -6,6 +6,10 @@
         <ui:VisualElement name="Icon" class="resource-item__icon">
             <ui:Label name="IconText" text="W" class="resource-item__icon-text" />
         </ui:VisualElement>
-        <ui:Label name="ValueText" text="0" class="resource-item__value" />
+
+        <ui:VisualElement class="resource-item__content">
+            <ui:Label name="KeyText" text="Wood" class="resource-item__key" />
+            <ui:Label name="ValueText" text="0" class="resource-item__value" />
+        </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

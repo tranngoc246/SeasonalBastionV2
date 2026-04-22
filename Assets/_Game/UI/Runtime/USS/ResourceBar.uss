@@ -15,17 +15,20 @@
 }
 
 .resource-item {
-    min-width: 88px;
+    min-width: 104px;
     flex-direction: row;
     align-items: center;
-    justify-content: center;
-    column-gap: 6px;
+    column-gap: 8px;
     padding-top: 7px;
     padding-right: 11px;
     padding-bottom: 7px;
     padding-left: 11px;
     border-radius: 999px;
     background-color: rgba(255, 255, 255, 0.08);
+}
+
+.resource-item--ammo {
+    min-width: 128px;
 }
 
 .resource-item__icon {
@@ -46,8 +49,23 @@
     unity-text-align: middle-center;
 }
 
+.resource-item__content {
+    flex-direction: row;
+    align-items: center;
+    column-gap: 6px;
+}
+
+.resource-item__key {
+    color: rgba(214, 220, 228, 0.88);
+    font-size: 12px;
+}
+
 .resource-item__value {
     color: rgb(255, 255, 255);
     -unity-font-style: bold;
     font-size: 13px;
+}
+
+.resource-item__key--hidden {
+    display: none;
 }

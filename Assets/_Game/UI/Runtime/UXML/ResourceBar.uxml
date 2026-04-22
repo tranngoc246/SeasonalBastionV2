@@ -1,8 +1,16 @@
-<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uxml="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/ResourceBar.uss" />
 
+    <ui:Template name="ResourceItemTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/ResourceItem.uxml?fileID=9197481962204192901&guid=0b1fe8f4c4d1b794d97ef920b8850562&type=3#ResourceItem" />
+
     <ui:VisualElement name="ResourceBar" class="resource-bar">
-        <ui:VisualElement name="ResourceBarList" class="resource-bar__list" />
+        <ui:VisualElement name="ResourceBarList" class="resource-bar__list">
+            <ui:Instance template="ResourceItemTemplate" name="ResourceItemWood" />
+            <ui:Instance template="ResourceItemTemplate" name="ResourceItemStone" />
+            <ui:Instance template="ResourceItemTemplate" name="ResourceItemIron" />
+            <ui:Instance template="ResourceItemTemplate" name="ResourceItemFood" />
+            <ui:Instance template="ResourceItemTemplate" name="ResourceItemAmmo" />
+        </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

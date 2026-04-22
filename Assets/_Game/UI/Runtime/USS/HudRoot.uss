@@ -104,6 +104,41 @@
     flex-grow: 1;
 }
 
+.hud-root__notification-item {
+    padding-top: 0.7rem;
+    padding-right: 0.85rem;
+    padding-bottom: 0.7rem;
+    padding-left: 0.85rem;
+    border-radius: 0.75rem;
+    background-color: rgba(8, 12, 18, 0.84);
+    border-left-width: 0.25rem;
+}
+
+.hud-root__notification-item--info {
+    border-left-color: rgba(86, 160, 255, 0.95);
+}
+
+.hud-root__notification-item--warning {
+    border-left-color: rgba(255, 196, 73, 0.95);
+}
+
+.hud-root__notification-item--error {
+    border-left-color: rgba(255, 100, 100, 0.95);
+}
+
+.hud-root__notification-title {
+    color: rgb(255, 255, 255);
+    -unity-font-style: bold;
+    font-size: 0.84rem;
+}
+
+.hud-root__notification-body {
+    margin-top: 0.2rem;
+    color: rgba(214, 220, 228, 0.88);
+    font-size: 0.78rem;
+    white-space: normal;
+}
+
 .hud-root__bottom-bar-shell {
     width: 100%;
     flex-direction: row;

@@ -2,8 +2,10 @@
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/HudRoot.uss" />
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/ResourceBar.uss" />
+    <Style src="project://database/Assets/_Game/UI/Runtime/USS/NotificationPanel.uss" />
 
     <ui:Template name="ResourceBarTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/ResourceBar.uxml" />
+    <ui:Template name="NotificationPanelTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/NotificationPanel.uxml" />
 
     <ui:VisualElement name="HUDRoot" class="hud-root">
         <ui:VisualElement class="hud-root__layout">
@@ -31,7 +33,7 @@
             </ui:VisualElement>
 
             <ui:VisualElement class="hud-root__center-stack" picking-mode="Ignore">
-                <ui:VisualElement name="NotiStack" class="hud-root__notification-panel" picking-mode="Ignore" />
+                <ui:Instance template="NotificationPanelTemplate" name="HudNotificationPanel" />
             </ui:VisualElement>
 
             <ui:VisualElement class="hud-root__bottom-bar-shell" picking-mode="Ignore">

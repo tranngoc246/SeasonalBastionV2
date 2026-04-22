@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SeasonalBastion.UI.Views;
 using UnityEngine.UIElements;
 
 namespace SeasonalBastion.UI.Presenters
@@ -11,8 +12,6 @@ namespace SeasonalBastion.UI.Presenters
     /// </summary>
     public sealed class HudPresenter : UiPresenterBase
     {
-        private readonly List<VisualElement> _notificationItems = new(8);
-
         private Label _lblTime;
         private Label _lblPhase;
         private Label _lblPopulationSummary;
@@ -27,7 +26,7 @@ namespace SeasonalBastion.UI.Presenters
         private Button _btnToolRemove;
         private Button _btnToolCancel;
 
-        private VisualElement _notificationPanel;
+        private NotificationView _notificationView;
         private ResourceBarPresenter _resourceBarPresenter;
 
         public event Action BuildClicked;
@@ -56,7 +55,9 @@ namespace SeasonalBastion.UI.Presenters
             _btnToolRemove = Root.Q<Button>("BtnToolRemove");
             _btnToolCancel = Root.Q<Button>("BtnToolCancel");
 
-            _notificationPanel = Root.Q<VisualElement>("NotiStack");
+            var notificationRoot = Root.Q<VisualElement>("HudNotificationPanel");
+            _notificationView = new NotificationView();
+            _notificationView.Initialize(notificationRoot);
 
             var resourceBarRoot = Root.Q<VisualElement>("HudResourceBar");
             _resourceBarPresenter = resourceBarRoot != null ? new ResourceBarPresenter(resourceBarRoot) : null;
@@ -68,7 +69,7 @@ namespace SeasonalBastion.UI.Presenters
         protected override void OnUnbind()
         {
             UnregisterButtonCallbacks();
-            ClearNotifications();
+            _notificationView?.Clear();
 
             _lblTime = null;
             _lblPhase = null;
@@ -82,7 +83,7 @@ namespace SeasonalBastion.UI.Presenters
             _btnToolRoad = null;
             _btnToolRemove = null;
             _btnToolCancel = null;
-            _notificationPanel = null;
+            _notificationView = null;
             _resourceBarPresenter = null;
         }
 
@@ -126,31 +127,19 @@ namespace SeasonalBastion.UI.Presenters
             SetButtonActive(_btnSpeed3, !paused && speedLevel == 3);
         }
 
-        public void SetNotifications(IReadOnlyList<HudNotificationItem> items)
+        public void ShowNotification(string message)
         {
-            if (_notificationPanel == null)
-                return;
-
-            ClearNotifications();
-
-            if (items == null)
-                return;
-
-            for (var index = 0; index < items.Count; index++)
-            {
-                var itemData = items[index];
-                if (itemData == null)
-                    continue;
-
-                var item = CreateNotificationItem(itemData);
-                _notificationPanel.Add(item);
-                _notificationItems.Add(item);
-            }
+            _notificationView?.Show(message);
         }
 
-        public VisualElement GetNotificationPanel()
+        public void ShowNotification(string message, NotificationKind kind)
         {
-            return _notificationPanel;
+            _notificationView?.Show(message, kind);
+        }
+
+        public void SetNotifications(IReadOnlyList<NotificationItemViewModel> items)
+        {
+            _notificationView?.SetNotifications(items);
         }
 
         private void RegisterButtonCallbacks()
@@ -213,49 +202,6 @@ namespace SeasonalBastion.UI.Presenters
                 _btnToolCancel.clicked -= HandleCancelClicked;
         }
 
-        private VisualElement CreateNotificationItem(HudNotificationItem itemData)
-        {
-            var notificationItem = new VisualElement();
-            notificationItem.AddToClassList("hud-root__notification-item");
-            notificationItem.pickingMode = PickingMode.Ignore;
-
-            switch (itemData.Variant)
-            {
-                case HudNotificationVariant.Warning:
-                    notificationItem.AddToClassList("hud-root__notification-item--warning");
-                    break;
-                case HudNotificationVariant.Error:
-                    notificationItem.AddToClassList("hud-root__notification-item--error");
-                    break;
-                default:
-                    notificationItem.AddToClassList("hud-root__notification-item--info");
-                    break;
-            }
-
-            var titleLabel = new Label(itemData.Title ?? string.Empty);
-            titleLabel.AddToClassList("hud-root__notification-title");
-            titleLabel.pickingMode = PickingMode.Ignore;
-            notificationItem.Add(titleLabel);
-
-            if (!string.IsNullOrWhiteSpace(itemData.Body))
-            {
-                var bodyLabel = new Label(itemData.Body);
-                bodyLabel.AddToClassList("hud-root__notification-body");
-                bodyLabel.pickingMode = PickingMode.Ignore;
-                notificationItem.Add(bodyLabel);
-            }
-
-            return notificationItem;
-        }
-
-        private void ClearNotifications()
-        {
-            for (var index = 0; index < _notificationItems.Count; index++)
-                _notificationItems[index]?.RemoveFromHierarchy();
-
-            _notificationItems.Clear();
-        }
-
         private static void SetButtonActive(Button button, bool isActive)
         {
             if (button == null)
@@ -277,19 +223,5 @@ namespace SeasonalBastion.UI.Presenters
         private void HandleRoadClicked() => RoadClicked?.Invoke();
         private void HandleRemoveClicked() => RemoveClicked?.Invoke();
         private void HandleCancelClicked() => CancelClicked?.Invoke();
-    }
-
-    public sealed class HudNotificationItem
-    {
-        public string Title { get; set; }
-        public string Body { get; set; }
-        public HudNotificationVariant Variant { get; set; } = HudNotificationVariant.Info;
-    }
-
-    public enum HudNotificationVariant
-    {
-        Info,
-        Warning,
-        Error,
     }
 }

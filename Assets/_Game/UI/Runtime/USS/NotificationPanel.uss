@@ -1,0 +1,52 @@
+.notification-panel {
+    width: 100%;
+    max-width: 672px;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+}
+
+.notification-panel__list {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    row-gap: 8px;
+}
+
+.notification-panel__item {
+    opacity: 1;
+    translate: 0 0;
+    padding-top: 11px;
+    padding-right: 14px;
+    padding-bottom: 11px;
+    padding-left: 14px;
+    border-radius: 12px;
+    background-color: rgba(8, 12, 18, 0.84);
+    border-left-width: 4px;
+    transition-property: opacity, translate;
+    transition-duration: 0.18s;
+    transition-timing-function: ease-out;
+}
+
+.notification-panel__item--info {
+    border-left-color: rgba(86, 160, 255, 0.95);
+}
+
+.notification-panel__item--warning {
+    border-left-color: rgba(255, 196, 73, 0.95);
+}
+
+.notification-panel__item--error {
+    border-left-color: rgba(255, 100, 100, 0.95);
+}
+
+.notification-panel__item--enter {
+    opacity: 0;
+    translate: 0 -6px;
+}
+
+.notification-panel__text {
+    color: rgba(245, 245, 245, 0.96);
+    font-size: 12px;
+    white-space: normal;
+}

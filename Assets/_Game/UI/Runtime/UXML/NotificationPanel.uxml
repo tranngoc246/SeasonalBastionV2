@@ -1,0 +1,5 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="NotificationPanel" class="notification-panel" picking-mode="Ignore">
+        <ui:VisualElement name="NotificationList" class="notification-panel__list" picking-mode="Ignore" />
+    </ui:VisualElement>
+</ui:UXML>

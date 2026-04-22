@@ -51,12 +51,6 @@
 
             <ui:VisualElement class="hud-root__center-stack" picking-mode="Ignore">
                 <ui:VisualElement name="NotiStack" class="hud-root__notification-panel" picking-mode="Ignore" />
-
-                <ui:VisualElement name="AmmoDiagOverlay" class="hud-root__ammo-panel" picking-mode="Ignore">
-                    <ui:Label name="LblAmmoDiagTowers" text="Towers: 0" class="hud-root__ammo-line" />
-                    <ui:Label name="LblAmmoDiagArmory" text="Armory: Unknown" class="hud-root__ammo-line" />
-                    <ui:Label name="LblAmmoDiagResupply" text="Resupply: Stable" class="hud-root__ammo-line" />
-                </ui:VisualElement>
             </ui:VisualElement>
 
             <ui:VisualElement class="hud-root__bottom-bar-shell" picking-mode="Ignore">

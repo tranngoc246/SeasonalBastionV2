@@ -193,30 +193,6 @@
     white-space: normal;
 }
 
-.hud-root__ammo-panel {
-    width: 100%;
-    max-width: 360px;
-    padding-top: 10px;
-    padding-right: 12px;
-    padding-bottom: 10px;
-    padding-left: 12px;
-    border-radius: 12px;
-    background-color: rgba(8, 12, 18, 0.76);
-    border-left-width: 1px;
-    border-right-width: 1px;
-    border-top-width: 1px;
-    border-bottom-width: 1px;
-    border-left-color: rgba(255, 255, 255, 0.12);
-    border-right-color: rgba(255, 255, 255, 0.12);
-    border-top-color: rgba(255, 255, 255, 0.12);
-    border-bottom-color: rgba(255, 255, 255, 0.12);
-}
-
-.hud-root__ammo-line {
-    color: rgba(230, 230, 230, 0.94);
-    font-size: 11px;
-}
-
 .hud-root__bottom-bar-shell {
     width: 100%;
     flex-direction: row;

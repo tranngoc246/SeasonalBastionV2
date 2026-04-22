@@ -23,9 +23,6 @@ namespace SeasonalBastion.UI.Presenters
         private Label _food;
         private Label _ammo;
         private Label _ammoState;
-        private Label _ammoDiagTowers;
-        private Label _ammoDiagArmory;
-        private Label _ammoDiagResupply;
 
         private Button _btnBuild;
         private Button _btnSettings;
@@ -59,9 +56,6 @@ namespace SeasonalBastion.UI.Presenters
             _food = Root.Q<Label>("LblResFood");
             _ammo = Root.Q<Label>("LblResAmmo");
             _ammoState = Root.Q<Label>("LblAmmoState");
-            _ammoDiagTowers = Root.Q<Label>("LblAmmoDiagTowers");
-            _ammoDiagArmory = Root.Q<Label>("LblAmmoDiagArmory");
-            _ammoDiagResupply = Root.Q<Label>("LblAmmoDiagResupply");
 
             _btnBuild = Root.Q<Button>("BtnBuild");
             _btnSettings = Root.Q<Button>("BtnSettings");
@@ -84,7 +78,7 @@ namespace SeasonalBastion.UI.Presenters
             RefreshPopulationSummary();
             RefreshNotifications();
             RefreshSpeedHighlight();
-            RefreshAmmoDiagnostics();
+            RefreshAmmoState();
         }
 
         protected override void OnUnbind()
@@ -103,9 +97,6 @@ namespace SeasonalBastion.UI.Presenters
             _food = null;
             _ammo = null;
             _ammoState = null;
-            _ammoDiagTowers = null;
-            _ammoDiagArmory = null;
-            _ammoDiagResupply = null;
             _btnBuild = null;
             _btnSettings = null;
             _btnPause = null;
@@ -126,7 +117,7 @@ namespace SeasonalBastion.UI.Presenters
             RefreshPopulationSummary();
             RefreshNotifications();
             RefreshSpeedHighlight();
-            RefreshAmmoDiagnostics();
+            RefreshAmmoState();
         }
 
         private void RegisterButtonCallbacks()
@@ -300,36 +291,25 @@ namespace SeasonalBastion.UI.Presenters
             SetButtonActive(_btnSpeed3, Math.Abs(timeScale - 3f) < 0.01f);
         }
 
-        private void RefreshAmmoDiagnostics()
+        private void RefreshAmmoState()
         {
             var ammoService = _services?.AmmoService;
             if (ammoService == null)
             {
-                if (_ammoState != null) _ammoState.text = "Unknown";
-                if (_ammoDiagTowers != null) _ammoDiagTowers.text = "Towers: 0";
-                if (_ammoDiagArmory != null) _ammoDiagArmory.text = "Armory: Unknown";
-                if (_ammoDiagResupply != null) _ammoDiagResupply.text = "Resupply: Unknown";
+                if (_ammoState != null)
+                    _ammoState.text = "Unknown";
                 return;
             }
 
-            if (_ammoState != null)
-            {
-                if (ammoService.Debug_TowersWithoutAmmo > 0)
-                    _ammoState.text = "Alert";
-                else if (ammoService.PendingRequests > 0)
-                    _ammoState.text = "Low";
-                else
-                    _ammoState.text = "Stable";
-            }
+            if (_ammoState == null)
+                return;
 
-            if (_ammoDiagTowers != null)
-                _ammoDiagTowers.text = $"Towers: {ammoService.Debug_TotalTowers} • Empty: {ammoService.Debug_TowersWithoutAmmo} • Jobs: {ammoService.Debug_ActiveResupplyJobs}";
-
-            if (_ammoDiagArmory != null)
-                _ammoDiagArmory.text = $"Armory: {ammoService.Debug_ArmoryStatus} • Ammo: {ammoService.Debug_ArmoryAvailableAmmo}";
-
-            if (_ammoDiagResupply != null)
-                _ammoDiagResupply.text = $"Resupply: {ammoService.Debug_ResupplyStatus}";
+            if (ammoService.Debug_TowersWithoutAmmo > 0)
+                _ammoState.text = "Alert";
+            else if (ammoService.PendingRequests > 0)
+                _ammoState.text = "Low";
+            else
+                _ammoState.text = "Stable";
         }
 
         private void RefreshNotifications()
@@ -499,7 +479,7 @@ namespace SeasonalBastion.UI.Presenters
             _phase = eventData.Phase;
             RefreshClockLabels();
             RefreshPopulationSummary();
-            RefreshAmmoDiagnostics();
+            RefreshAmmoState();
         }
 
         private void OnSeasonDayChanged(SeasonDayChangedEvent eventData)
@@ -552,7 +532,7 @@ namespace SeasonalBastion.UI.Presenters
         {
             RefreshResources();
             RefreshPopulationSummary();
-            RefreshAmmoDiagnostics();
+            RefreshAmmoState();
         }
 
         private void OnNotificationsChanged()

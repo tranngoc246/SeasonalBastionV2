@@ -2,7 +2,7 @@
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/Theme.uss" />
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/ResourceBar.uss" />
 
-    <ui:Template name="ResourceItemTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/ResourceItem.uxml?fileID=9197481962204192901&guid=0b1fe8f4c4d1b794d97ef920b8850562&type=3#ResourceItem" />
+    <ui:Template name="ResourceItemTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/ResourceItem.uxml" />
 
     <ui:VisualElement name="ResourceBar" class="resource-bar">
         <ui:VisualElement name="ResourceBarList" class="resource-bar__list">

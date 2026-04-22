@@ -3,7 +3,7 @@
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/HudRoot.uss" />
     <Style src="project://database/Assets/_Game/UI/Runtime/USS/ResourceBar.uss" />
 
-    <ui:Template name="ResourceBarTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/ResourceBar.uxml?fileID=9197481962204192901&guid=f91d2cba68445c84ab73fdce0df2888b&type=3#ResourceBar" />
+    <ui:Template name="ResourceBarTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/ResourceBar.uxml" />
 
     <ui:VisualElement name="HUDRoot" class="hud-root">
         <ui:VisualElement class="hud-root__layout">

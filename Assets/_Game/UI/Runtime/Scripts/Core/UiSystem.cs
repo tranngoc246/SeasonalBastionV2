@@ -1,4 +1,5 @@
 ﻿using SeasonalBastion.Contracts;
+using SeasonalBastion.UI.Binders;
 using SeasonalBastion.UI.Input;
 using SeasonalBastion.UI.Navigation;
 using SeasonalBastion.UI.Overlay;
@@ -35,6 +36,7 @@ namespace SeasonalBastion.UI
         private HudPresenter _hudPresenter;
         private HudRuntimeBinder _hudRuntimeBinder;
         private BuildPanelPresenter _buildPresenter;
+        private BuildPanelRuntimeBinder _buildRuntimeBinder;
         private InspectPanelPresenter _inspectPresenter;
         private SettingsModalPresenter _settingsModal;
         private ConfirmModalPresenter _confirmModal;
@@ -137,6 +139,8 @@ namespace SeasonalBastion.UI
             BindPanelsBackgroundDismiss(panelsRoot, buildRoot, inspectRoot);
 
             _buildPresenter.Bind(Ctx, buildRoot);
+            _buildRuntimeBinder = new BuildPanelRuntimeBinder(_buildPresenter, Ctx?.Services as GameServices);
+            _buildRuntimeBinder.Bind();
             _inspectPresenter.Bind(Ctx, inspectRoot);
 
             _panelRegistry.Register(UiKeys.Panel_Build, _buildPresenter, buildRoot);
@@ -232,6 +236,7 @@ namespace SeasonalBastion.UI
             if (!_initialized) return;
 
             _hudRuntimeBinder?.Unbind();
+            _buildRuntimeBinder?.Unbind();
             _hudPresenter?.Unbind();
             _buildPresenter?.Unbind();
             _inspectPresenter?.Unbind();

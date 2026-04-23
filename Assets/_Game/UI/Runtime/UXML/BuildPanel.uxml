@@ -1,0 +1,48 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:Template name="BuildingCardTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/BuildingCard.uxml" />
+
+    <ui:VisualElement name="BuildPanel" class="panel build-panel ui-block-world" picking-mode="Position" style="display:none;">
+        <ui:VisualElement class="panel-header">
+            <ui:Label name="Title" text="Build" class="panel-title" />
+            <ui:Button name="BtnClose" text="X" class="panel-close" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="panel-body build-panel__body">
+            <ui:VisualElement class="build-panel__left">
+                <ui:Label name="LblBuildHint" text="Chọn công trình để đặt." class="build-panel__hint" />
+
+                <ui:VisualElement name="BuildTabs" class="build-panel__tabs">
+                    <ui:Button name="BtnTabAll" text="All" class="tab-btn is-selected" />
+                    <ui:Button name="BtnTabStorage" text="Kho" class="tab-btn" />
+                    <ui:Button name="BtnTabFarm" text="Farm" class="tab-btn" />
+                    <ui:Button name="BtnTabTower" text="Tower" class="tab-btn" />
+                    <ui:Button name="BtnTabOther" text="Khác" class="tab-btn" />
+                </ui:VisualElement>
+
+                <ui:ScrollView name="BuildList" class="build-panel__list-scroll">
+                    <ui:VisualElement name="BuildGridContainer" class="build-panel__card-grid" />
+                </ui:ScrollView>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="build-panel__right">
+                <ui:VisualElement name="DetailIcon" class="build-panel__detail-icon">
+                    <ui:Label name="DetailIconText" text="?" class="build-panel__detail-icon-text" />
+                </ui:VisualElement>
+
+                <ui:Label name="DetailName" text="Chọn 1 building" class="build-panel__detail-name" />
+                <ui:Label name="DetailSub" text="" class="build-panel__detail-sub" />
+                <ui:Label name="DetailDescription" text="" class="build-panel__detail-description" />
+
+                <ui:VisualElement class="build-panel__detail-block">
+                    <ui:Label text="Costs (L1)" class="build-panel__detail-block-title" />
+                    <ui:VisualElement name="DetailCosts" class="build-panel__detail-costs" />
+                    <ui:Label name="DetailCostHint" text="" class="detail-hint hidden" />
+                </ui:VisualElement>
+
+                <ui:VisualElement class="build-panel__footer">
+                    <ui:Button name="BtnBuildConfirm" text="BUILD" class="btn-build" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

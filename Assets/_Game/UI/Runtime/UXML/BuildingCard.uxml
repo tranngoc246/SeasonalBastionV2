@@ -1,0 +1,11 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <ui:VisualElement name="BuildingCard" class="building-card ui-block-world" picking-mode="Position">
+        <ui:VisualElement name="BuildingCardIcon" class="building-card__icon">
+            <ui:Label name="BuildingCardIconText" text="?" class="building-card__icon-text" />
+        </ui:VisualElement>
+
+        <ui:Label name="BuildingCardName" text="Building" class="building-card__name" />
+        <ui:Label name="BuildingCardCost" text="No cost" class="building-card__cost" />
+        <ui:Label name="BuildingCardStatus" text="" class="building-card__status hidden" />
+    </ui:VisualElement>
+</ui:UXML>

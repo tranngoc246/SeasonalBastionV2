@@ -1,50 +1,58 @@
 using System;
 using System.Collections.Generic;
-using SeasonalBastion.Contracts;
+using SeasonalBastion.UI.Views;
 using UnityEngine.UIElements;
 
 namespace SeasonalBastion.UI.Presenters
 {
     public sealed class BuildPanelPresenter : UiPresenterBase
     {
-        private enum BuildTab { All, Storage, Farm, Tower, Other }
-
-        private GameServices _s;
+        private const string SelectedClass = "is-selected";
 
         private Button _btnClose;
-
-        // Left
-        private ScrollView _scroll;
-        private VisualElement _grid;
+        private Button _btnBuildConfirm;
         private Label _buildHint;
-
-        private Button _tabAll, _tabStorage, _tabFarm, _tabTower, _tabOther;
-        private BuildTab _tab = BuildTab.All;
-
-        // Right detail
+        private ScrollView _scroll;
         private VisualElement _detailIcon;
+        private VisualElement _grid;
+
+        private Button _tabAll;
+        private Button _tabStorage;
+        private Button _tabFarm;
+        private Button _tabTower;
+        private Button _tabOther;
+
         private Label _detailIconText;
         private Label _detailName;
         private Label _detailSub;
+        private Label _detailDescription;
         private VisualElement _detailCosts;
         private Label _detailCostHint;
-        private Button _btnBuildConfirm;
 
-        private readonly List<string> _ids = new(256);
-        private string _selectedDefId;
+        private readonly Dictionary<string, Button> _categoryButtons = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, BuildingCardBinding> _cardBindings = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<BuildingCardViewModel> _cards = new();
+        private readonly List<CategoryBinding> _categoryBindings = new();
+
+        private string _selectedCardId;
+        private string _selectedCategoryId = BuildPanelCategories.All;
+
+        public event Action CloseRequested;
+        public event Action BuildRequested;
+        public event Action<string> CategorySelected;
+        public event Action<string> CardSelected;
 
         protected override void OnBind()
         {
-            _s = Ctx?.Services as GameServices;
-
             Root.AddToClassList(UiKeys.Class_BlockWorld);
             Root.pickingMode = PickingMode.Position;
 
             _btnClose = Root.Q<Button>("BtnClose");
-
+            _btnBuildConfirm = Root.Q<Button>("BtnBuildConfirm");
+            _buildHint = Root.Q<Label>("LblBuildHint");
             _scroll = Root.Q<ScrollView>("BuildList");
             _grid = Root.Q<VisualElement>("BuildGridContainer");
-            _buildHint = Root.Q<Label>("LblBuildHint");
+            _detailIcon = Root.Q<VisualElement>("DetailIcon");
 
             _tabAll = Root.Q<Button>("BtnTabAll");
             _tabStorage = Root.Q<Button>("BtnTabStorage");
@@ -52,327 +60,379 @@ namespace SeasonalBastion.UI.Presenters
             _tabTower = Root.Q<Button>("BtnTabTower");
             _tabOther = Root.Q<Button>("BtnTabOther");
 
-            _detailIcon = Root.Q<VisualElement>("DetailIcon");
             _detailIconText = Root.Q<Label>("DetailIconText");
             _detailName = Root.Q<Label>("DetailName");
             _detailSub = Root.Q<Label>("DetailSub");
+            _detailDescription = Root.Q<Label>("DetailDescription");
             _detailCosts = Root.Q<VisualElement>("DetailCosts");
             _detailCostHint = Root.Q<Label>("DetailCostHint");
-            _btnBuildConfirm = Root.Q<Button>("BtnBuildConfirm");
 
-            if (_btnClose != null) _btnClose.clicked += OnClose;
-
-            if (_tabAll != null) _tabAll.clicked += () => SetTab(BuildTab.All);
-            if (_tabStorage != null) _tabStorage.clicked += () => SetTab(BuildTab.Storage);
-            if (_tabFarm != null) _tabFarm.clicked += () => SetTab(BuildTab.Farm);
-            if (_tabTower != null) _tabTower.clicked += () => SetTab(BuildTab.Tower);
-            if (_tabOther != null) _tabOther.clicked += () => SetTab(BuildTab.Other);
-
-            if (_btnBuildConfirm != null) _btnBuildConfirm.clicked += OnBuildConfirm;
-
-            // Refresh when resources change (cost enable)
-            if (_s?.EventBus != null)
-            {
-                _s.EventBus.Subscribe<ResourceDeliveredEvent>(OnResourceChanged);
-                _s.EventBus.Subscribe<ResourceSpentEvent>(OnResourceChanged);
-            }
-
-            RebuildGrid();
-            RenderDetail();
+            CacheCategoryButtons();
+            RegisterCallbacks();
+            RenderCategorySelection();
         }
 
         protected override void OnUnbind()
         {
-            if (_btnClose != null) _btnClose.clicked -= OnClose;
-            if (_btnBuildConfirm != null) _btnBuildConfirm.clicked -= OnBuildConfirm;
+            UnregisterCallbacks();
 
-            if (_s?.EventBus != null)
-            {
-                _s.EventBus.Unsubscribe<ResourceDeliveredEvent>(OnResourceChanged);
-                _s.EventBus.Unsubscribe<ResourceSpentEvent>(OnResourceChanged);
-            }
+            for (var index = 0; index < _categoryBindings.Count; index++)
+                _categoryBindings[index].Detach();
 
-            _s = null;
+            _categoryBindings.Clear();
+            _categoryButtons.Clear();
+            _cardBindings.Clear();
+            _cards.Clear();
+            _selectedCardId = null;
         }
 
         protected override void OnRefresh()
         {
-            RebuildGrid();
-            RenderDetail();
         }
 
-        private void OnClose()
+        public void Show() => UiElementUtil.SetVisible(Root, true);
+        public void Hide() => UiElementUtil.SetVisible(Root, false);
+        public void SetVisible(bool visible) => UiElementUtil.SetVisible(Root, visible);
+
+        public void SetBuildHint(string text)
         {
-            _s?.EventBus?.Publish(new UiCloseBuildPanelRequestedEvent());
-            _selectedDefId = null;
+            if (_buildHint != null)
+                _buildHint.text = text ?? string.Empty;
         }
 
-        private void SetTab(BuildTab t)
+        public void SetCategories(IReadOnlyList<BuildCategoryViewModel> categories)
         {
-            _tab = t;
-            SetSelected(_tabAll, _tab == BuildTab.All);
-            SetSelected(_tabStorage, _tab == BuildTab.Storage);
-            SetSelected(_tabFarm, _tab == BuildTab.Farm);
-            SetSelected(_tabTower, _tab == BuildTab.Tower);
-            SetSelected(_tabOther, _tab == BuildTab.Other);
-
-            RebuildGrid();
-        }
-
-        private static void SetSelected(Button b, bool on)
-        {
-            if (b == null) return;
-            const string cls = "is-selected";
-            if (on) b.AddToClassList(cls);
-            else b.RemoveFromClassList(cls);
-        }
-
-        private void RebuildGrid()
-        {
-            if (_grid == null) return;
-
-            _grid.Clear();
-            _ids.Clear();
-
-            var s = _s;
-            if (s?.DataRegistry == null)
-            {
-                _grid.Add(new Label("DataRegistry missing"));
+            if (categories == null || categories.Count == 0)
                 return;
-            }
 
-            if (s.DataRegistry is SeasonalBastion.DataRegistry dr)
+            foreach (var category in categories)
             {
-                foreach (var id in dr.GetAllBuildableNodeIds())
+                if (category == null || string.IsNullOrWhiteSpace(category.Id))
+                    continue;
+
+                if (_categoryButtons.TryGetValue(category.Id, out var button) && button != null)
                 {
-                    if (string.IsNullOrEmpty(id)) continue;
-                    if (!s.DataRegistry.IsPlaceableBuildable(id)) continue;
-                    if (s.UnlockService != null && !s.UnlockService.IsUnlocked(id)) continue;
-
-                    // Filter by tab
-                    if (_tab != BuildTab.All)
-                    {
-                        var def = s.DataRegistry.GetBuilding(id);
-                        var cat = GetCategory(def);
-                        if (cat != _tab) continue;
-                    }
-
-                    _ids.Add(id);
+                    button.text = string.IsNullOrWhiteSpace(category.DisplayName) ? category.Id : category.DisplayName;
+                    button.SetEnabled(category.IsEnabled);
                 }
             }
+        }
 
-            _ids.Sort(StringComparer.OrdinalIgnoreCase);
+        public void SetSelectedCategory(string categoryId)
+        {
+            _selectedCategoryId = string.IsNullOrWhiteSpace(categoryId) ? BuildPanelCategories.All : categoryId;
+            RenderCategorySelection();
+        }
 
-            if ((_selectedDefId == null || !_ids.Contains(_selectedDefId)) && _ids.Count > 0)
-                _selectedDefId = _ids[0];
+        public void SetCards(IReadOnlyList<BuildingCardViewModel> cards)
+        {
+            _cards.Clear();
+            _cardBindings.Clear();
 
-            for (int i = 0; i < _ids.Count; i++)
-                _grid.Add(MakeGridItem(_ids[i]));
+            if (_grid == null)
+                return;
 
-            if (_buildHint != null)
+            _grid.Clear();
+
+            if (cards == null)
+                return;
+
+            for (var index = 0; index < cards.Count; index++)
             {
-                _buildHint.text = _ids.Count > 0
-                    ? "Chọn công trình rồi bấm BUILD để vào placement mode."
-                    : "Chưa có building nào khả dụng để build ở thời điểm này.";
+                var viewModel = cards[index];
+                if (viewModel == null || string.IsNullOrWhiteSpace(viewModel.Id))
+                    continue;
+
+                _cards.Add(viewModel);
+
+                var cardRoot = BuildBuildingCardElement();
+                if (cardRoot == null)
+                    continue;
+
+                var cardView = new BuildingCardView(cardRoot);
+                cardView.Bind(
+                    viewModel.DisplayName,
+                    viewModel.CostText,
+                    viewModel.IconText,
+                    viewModel.StatusText,
+                    viewModel.IsSelected,
+                    viewModel.IsLocked);
+
+                var capturedId = viewModel.Id;
+                cardRoot.RegisterCallback<ClickEvent>(_ => CardSelected?.Invoke(capturedId));
+
+                _cardBindings[capturedId] = new BuildingCardBinding(cardView);
+                _grid.Add(cardRoot);
+            }
+
+            SetSelectedCard(_selectedCardId);
+        }
+
+        public void SetSelectedCard(string id)
+        {
+            _selectedCardId = id;
+
+            foreach (var pair in _cardBindings)
+            {
+                var isSelected = !string.IsNullOrWhiteSpace(id) && string.Equals(pair.Key, id, StringComparison.OrdinalIgnoreCase);
+                SetClass(pair.Value.View.Root, SelectedClass, isSelected);
             }
         }
 
-        private BuildTab GetCategory(BuildingDef def)
+        public void SetSelectedBuilding(BuildingDetailViewModel detail)
         {
-            if (def == null) return BuildTab.Other;
-            if (def.IsWarehouse) return BuildTab.Storage;
-            if (def.IsProducer) return BuildTab.Farm;
-            if (def.IsTower) return BuildTab.Tower;
-            return BuildTab.Other;
-        }
-
-        private VisualElement MakeGridItem(string defId)
-        {
-            var item = new VisualElement();
-            item.AddToClassList("build-grid-item");
-            item.AddToClassList(UiKeys.Class_BlockWorld);
-            item.pickingMode = PickingMode.Position;
-
-            if (string.Equals(defId, _selectedDefId, StringComparison.OrdinalIgnoreCase))
-                item.AddToClassList("is-selected");
-
-            var icon = new VisualElement();
-            icon.AddToClassList("build-icon");
-
-            // Placeholder “icon”: chữ cái đầu
-            var iconText = new Label(GetIconLetter(defId));
-            iconText.AddToClassList("build-icon-text");
-            icon.Add(iconText);
-
-            var name = new Label(defId);
-            name.AddToClassList("build-name");
-
-            item.Add(icon);
-            item.Add(name);
-
-            item.RegisterCallback<ClickEvent>(_ =>
+            if (detail == null)
             {
-                _selectedDefId = defId;
-                RebuildGrid();   // update selection highlight
-                RenderDetail();
-            });
-
-            return item;
-        }
-
-        private static string GetIconLetter(string id)
-        {
-            if (string.IsNullOrEmpty(id)) return "?";
-            // bld_warehouse_t1 -> W
-            for (int i = 0; i < id.Length; i++)
-            {
-                char c = id[i];
-                if (c >= 'a' && c <= 'z') return char.ToUpperInvariant(c).ToString();
-                if (c >= 'A' && c <= 'Z') return c.ToString();
-            }
-            return "?";
-        }
-
-        private void RenderDetail()
-        {
-            var s = _s;
-            bool runEnded = IsRunEnded();
-
-            if (string.IsNullOrEmpty(_selectedDefId) || s?.DataRegistry == null)
-            {
+                SetClass(_detailIcon, "is-locked", false);
                 SetText(_detailIconText, "?");
                 SetText(_detailName, "Chọn 1 building");
-                SetText(_detailSub, "");
-                if (_detailCosts != null) _detailCosts.Clear();
-                HideHint();
-                SetBuildEnabled(false);
+                SetText(_detailSub, string.Empty);
+                SetText(_detailDescription, string.Empty);
+                _detailCosts?.Clear();
+                SetStatusText(string.Empty);
+                SetBuildButtonEnabled(false);
                 return;
             }
 
-            var def = s.DataRegistry.GetBuilding(_selectedDefId);
-            if (def == null)
-            {
-                SetText(_detailIconText, "?");
-                SetText(_detailName, _selectedDefId);
-                SetText(_detailSub, "(missing def)");
-                if (_detailCosts != null) _detailCosts.Clear();
-                HideHint();
-                SetBuildEnabled(false);
-                return;
-            }
-
-            SetText(_detailIconText, GetIconLetter(def.DefId));
-            SetText(_detailName, def.DefId);
-            SetText(_detailSub, $"{def.SizeX}x{def.SizeY}  Lv{def.BaseLevel}  HP {def.MaxHp}");
-
-            if (runEnded)
-            {
-                ShowHint("Run has ended.");
-                SetBuildEnabled(false);
-                return;
-            }
-
-            BuildCosts(def);
+            SetClass(_detailIcon, "is-locked", !detail.CanBuild && !string.IsNullOrWhiteSpace(detail.StatusText));
+            SetText(_detailIconText, detail.IconText);
+            SetText(_detailName, detail.DisplayName);
+            SetText(_detailSub, detail.SubText);
+            SetText(_detailDescription, detail.Description);
+            RenderCostRows(detail.CostRows);
+            SetStatusText(detail.StatusText);
+            SetBuildButtonEnabled(detail.CanBuild);
         }
 
-        private void BuildCosts(BuildingDef def)
+        public void SetBuildButtonEnabled(bool enabled)
         {
-            if (_detailCosts == null) return;
-            _detailCosts.Clear();
+            _btnBuildConfirm?.SetEnabled(enabled);
+        }
 
-            var st = _s?.StorageService;
-            bool canAfford = true;
+        private void CacheCategoryButtons()
+        {
+            _categoryButtons[BuildPanelCategories.All] = _tabAll;
+            _categoryButtons[BuildPanelCategories.Storage] = _tabStorage;
+            _categoryButtons[BuildPanelCategories.Farm] = _tabFarm;
+            _categoryButtons[BuildPanelCategories.Tower] = _tabTower;
+            _categoryButtons[BuildPanelCategories.Other] = _tabOther;
+        }
 
-            var costs = def.BuildCostsL1;
-            if (costs == null || costs.Length == 0)
-            {
-                var row = new Label("No cost");
-                _detailCosts.Add(row);
-                HideHint();
-                SetBuildEnabled(true);
+        private void RegisterCallbacks()
+        {
+            if (_btnClose != null)
+                _btnClose.clicked += HandleCloseClicked;
+
+            if (_btnBuildConfirm != null)
+                _btnBuildConfirm.clicked += HandleBuildClicked;
+
+            RegisterCategoryClick(_tabAll, BuildPanelCategories.All);
+            RegisterCategoryClick(_tabStorage, BuildPanelCategories.Storage);
+            RegisterCategoryClick(_tabFarm, BuildPanelCategories.Farm);
+            RegisterCategoryClick(_tabTower, BuildPanelCategories.Tower);
+            RegisterCategoryClick(_tabOther, BuildPanelCategories.Other);
+        }
+
+        private void UnregisterCallbacks()
+        {
+            if (_btnClose != null)
+                _btnClose.clicked -= HandleCloseClicked;
+
+            if (_btnBuildConfirm != null)
+                _btnBuildConfirm.clicked -= HandleBuildClicked;
+        }
+
+        private void RegisterCategoryClick(Button button, string categoryId)
+        {
+            if (button == null)
                 return;
-            }
 
-            for (int i = 0; i < costs.Length; i++)
+            _categoryBindings.Add(new CategoryBinding(button, () => HandleCategoryButtonClicked(categoryId)));
+        }
+
+        private void HandleCloseClicked() => CloseRequested?.Invoke();
+        private void HandleBuildClicked() => BuildRequested?.Invoke();
+
+        private void HandleCategoryButtonClicked(string categoryId)
+        {
+            if (string.IsNullOrWhiteSpace(categoryId))
+                return;
+
+            SetSelectedCategory(categoryId);
+            CategorySelected?.Invoke(categoryId);
+        }
+
+        private void RenderCategorySelection()
+        {
+            foreach (var pair in _categoryButtons)
             {
-                var c = costs[i];
-                int have = st != null ? st.GetTotal(c.Resource) : 0;
-                bool ok = have >= c.Amount;
-                if (!ok) canAfford = false;
+                if (pair.Value == null)
+                    continue;
+
+                SetClass(pair.Value, SelectedClass, string.Equals(pair.Key, _selectedCategoryId, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+
+        private void RenderCostRows(IReadOnlyList<BuildingCostRowViewModel> rows)
+        {
+            if (_detailCosts == null)
+                return;
+
+            _detailCosts.Clear();
+            if (rows == null)
+                return;
+
+            for (var index = 0; index < rows.Count; index++)
+            {
+                var rowViewModel = rows[index];
+                if (rowViewModel == null)
+                    continue;
 
                 var row = new VisualElement();
                 row.AddToClassList("cost-row");
-                if (!ok) row.AddToClassList("insufficient");
+                if (!rowViewModel.IsAffordable)
+                    row.AddToClassList("insufficient");
 
-                row.Add(new Label(c.Resource.ToString()));
-                row.Add(new Label($"{have}/{c.Amount}"));
-
+                row.Add(new Label(rowViewModel.ResourceLabel ?? string.Empty));
+                row.Add(new Label(rowViewModel.ValueText ?? string.Empty));
                 _detailCosts.Add(row);
             }
+        }
 
-            if (!canAfford)
-            {
-                ShowHint("Không đủ tài nguyên để build.");
-            }
+        private void SetStatusText(string text)
+        {
+            if (_detailCostHint == null)
+                return;
+
+            _detailCostHint.text = text ?? string.Empty;
+            SetClass(_detailCostHint, "hidden", string.IsNullOrWhiteSpace(text));
+        }
+
+        private VisualElement BuildBuildingCardElement()
+        {
+            var root = new VisualElement();
+            root.AddToClassList("building-card");
+            root.AddToClassList(UiKeys.Class_BlockWorld);
+            root.pickingMode = PickingMode.Position;
+
+            var icon = new VisualElement { name = "BuildingCardIcon" };
+            icon.AddToClassList("building-card__icon");
+            var iconText = new Label("?") { name = "BuildingCardIconText" };
+            iconText.AddToClassList("building-card__icon-text");
+            icon.Add(iconText);
+
+            var name = new Label(string.Empty) { name = "BuildingCardName" };
+            name.AddToClassList("building-card__name");
+
+            var cost = new Label(string.Empty) { name = "BuildingCardCost" };
+            cost.AddToClassList("building-card__cost");
+
+            var status = new Label(string.Empty) { name = "BuildingCardStatus" };
+            status.AddToClassList("building-card__status");
+            status.AddToClassList("hidden");
+
+            root.Add(icon);
+            root.Add(name);
+            root.Add(cost);
+            root.Add(status);
+            return root;
+        }
+
+        private static void SetText(Label label, string value)
+        {
+            if (label != null)
+                label.text = value ?? string.Empty;
+        }
+
+        private static void SetClass(VisualElement element, string className, bool enabled)
+        {
+            if (element == null)
+                return;
+
+            if (enabled)
+                element.AddToClassList(className);
             else
+                element.RemoveFromClassList(className);
+        }
+
+        private sealed class BuildingCardBinding
+        {
+            public BuildingCardBinding(BuildingCardView view)
             {
-                HideHint();
+                View = view;
             }
 
-            SetBuildEnabled(canAfford);
+            public BuildingCardView View { get; }
         }
 
-        private void SetBuildEnabled(bool enabled)
+        private sealed class CategoryBinding
         {
-            if (_btnBuildConfirm == null) return;
-            _btnBuildConfirm.SetEnabled(enabled);
+            private readonly Button _button;
+            private readonly Action _callback;
+
+            public CategoryBinding(Button button, Action callback)
+            {
+                _button = button;
+                _callback = callback;
+                _button.clicked += _callback;
+            }
+
+            public void Detach()
+            {
+                if (_button != null && _callback != null)
+                    _button.clicked -= _callback;
+            }
         }
+    }
 
-        private void ShowHint(string t)
-        {
-            if (_detailCostHint == null) return;
-            _detailCostHint.text = t ?? "";
-            _detailCostHint.RemoveFromClassList("hidden");
-        }
+    public static class BuildPanelCategories
+    {
+        public const string All = "all";
+        public const string Storage = "storage";
+        public const string Farm = "farm";
+        public const string Tower = "tower";
+        public const string Other = "other";
+    }
 
-        private void HideHint()
-        {
-            if (_detailCostHint == null) return;
-            _detailCostHint.text = "";
-            _detailCostHint.AddToClassList("hidden");
-        }
+    [Serializable]
+    public sealed class BuildCategoryViewModel
+    {
+        public string Id;
+        public string DisplayName;
+        public bool IsEnabled = true;
+    }
 
-        private static void SetText(Label l, string t)
-        {
-            if (l == null) return;
-            l.text = t ?? "";
-        }
+    [Serializable]
+    public sealed class BuildingCardViewModel
+    {
+        public string Id;
+        public string DisplayName;
+        public string CostText;
+        public string StatusText;
+        public string IconText;
+        public bool IsLocked;
+        public bool IsSelected;
+    }
 
-        private void OnBuildConfirm()
-        {
-            if (IsRunEnded()) return;
-            if (string.IsNullOrEmpty(_selectedDefId)) return;
+    [Serializable]
+    public sealed class BuildingDetailViewModel
+    {
+        public string Id;
+        public string DisplayName;
+        public string SubText;
+        public string Description;
+        public string CostText;
+        public string StatusText;
+        public string IconText;
+        public bool CanBuild;
+        public List<BuildingCostRowViewModel> CostRows = new();
+    }
 
-            var bus = _s?.EventBus;
-            if (bus != null)
-                bus.Publish(new UiBeginPlaceBuildingEvent(_selectedDefId));
-
-            _s?.NotificationService?.Push(
-                key: "ui.build.begin",
-                title: "Chế độ xây dựng",
-                body: "Chọn một ô trên bản đồ để đặt công trình. Q/E để xoay, ESC để hủy.",
-                severity: NotificationSeverity.Info,
-                payload: new NotificationPayload(default, default, _selectedDefId),
-                cooldownSeconds: 1.5f,
-                dedupeByKey: true);
-        }
-
-        private void OnResourceChanged(ResourceDeliveredEvent _) => RenderDetail();
-        private void OnResourceChanged(ResourceSpentEvent _) => RenderDetail();
-
-        private bool IsRunEnded()
-        {
-            return _s?.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing;
-        }
+    [Serializable]
+    public sealed class BuildingCostRowViewModel
+    {
+        public string ResourceLabel;
+        public string ValueText;
+        public bool IsAffordable;
     }
 }

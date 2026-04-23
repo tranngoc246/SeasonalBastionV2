@@ -22,6 +22,10 @@
                 <ui:ScrollView name="BuildList" class="build-panel__list-scroll">
                     <ui:VisualElement name="BuildGridContainer" class="build-panel__card-grid" />
                 </ui:ScrollView>
+
+                <ui:VisualElement name="BuildingCardPrototypeHost" class="build-panel__prototype-host hidden">
+                    <ui:Instance template="BuildingCardTemplate" name="BuildingCardPrototype" />
+                </ui:VisualElement>
             </ui:VisualElement>
 
             <ui:VisualElement class="build-panel__right">

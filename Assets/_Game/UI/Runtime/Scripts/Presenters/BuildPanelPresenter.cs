@@ -8,12 +8,15 @@ namespace SeasonalBastion.UI.Presenters
     public sealed class BuildPanelPresenter : UiPresenterBase
     {
         private const string SelectedClass = "is-selected";
+        private const string LockedClass = "is-locked";
+        private const string HiddenClass = "hidden";
 
         private Button _btnClose;
         private Button _btnBuildConfirm;
         private Label _buildHint;
         private VisualElement _detailIcon;
         private VisualElement _grid;
+        private VisualElement _cardPrototype;
 
         private Button _tabAll;
         private Button _tabStorage;
@@ -51,6 +54,7 @@ namespace SeasonalBastion.UI.Presenters
             _buildHint = Root.Q<Label>("LblBuildHint");
             _grid = Root.Q<VisualElement>("BuildGridContainer");
             _detailIcon = Root.Q<VisualElement>("DetailIcon");
+            _cardPrototype = Root.Q<VisualElement>("BuildingCardPrototype");
 
             _tabAll = Root.Q<Button>("BtnTabAll");
             _tabStorage = Root.Q<Button>("BtnTabStorage");
@@ -65,7 +69,7 @@ namespace SeasonalBastion.UI.Presenters
             _detailCosts = Root.Q<VisualElement>("DetailCosts");
             _detailCostHint = Root.Q<Label>("DetailCostHint");
 
-            _cardFactory = new BuildingCardFactory(Root);
+            _cardFactory = new BuildingCardFactory(_cardPrototype);
 
             CacheCategoryButtons();
             RegisterCallbacks();
@@ -83,6 +87,7 @@ namespace SeasonalBastion.UI.Presenters
             _categoryButtons.Clear();
             _cardBindings.Clear();
             _cardFactory = null;
+            _cardPrototype = null;
             _selectedCardId = null;
         }
 
@@ -146,18 +151,8 @@ namespace SeasonalBastion.UI.Presenters
                 if (cardView?.Root == null)
                     continue;
 
-                cardView.Bind(
-                    viewModel.DisplayName,
-                    viewModel.CostText,
-                    viewModel.IconText,
-                    viewModel.StatusText,
-                    viewModel.IsSelected,
-                    viewModel.IsLocked);
-
-                var capturedId = viewModel.Id;
-                cardView.Root.RegisterCallback<ClickEvent>(_ => CardSelected?.Invoke(capturedId));
-
-                _cardBindings[capturedId] = new BuildingCardBinding(cardView);
+                BindCard(cardView, viewModel);
+                _cardBindings[viewModel.Id] = new BuildingCardBinding(cardView);
                 _grid.Add(cardView.Root);
             }
 
@@ -179,18 +174,11 @@ namespace SeasonalBastion.UI.Presenters
         {
             if (detail == null)
             {
-                SetClass(_detailIcon, "is-locked", false);
-                SetText(_detailIconText, "?");
-                SetText(_detailName, "Chọn 1 building");
-                SetText(_detailSub, string.Empty);
-                SetText(_detailDescription, string.Empty);
-                _detailCosts?.Clear();
-                SetStatusText(string.Empty);
-                SetBuildButtonEnabled(false);
+                ClearDetail();
                 return;
             }
 
-            SetClass(_detailIcon, "is-locked", !detail.CanBuild && !string.IsNullOrWhiteSpace(detail.StatusText));
+            SetClass(_detailIcon, LockedClass, !detail.CanBuild && !string.IsNullOrWhiteSpace(detail.StatusText));
             SetText(_detailIconText, detail.IconText);
             SetText(_detailName, detail.DisplayName);
             SetText(_detailSub, detail.SubText);
@@ -244,6 +232,32 @@ namespace SeasonalBastion.UI.Presenters
                 return;
 
             _categoryBindings.Add(new CategoryBinding(button, () => HandleCategoryButtonClicked(categoryId)));
+        }
+
+        private void BindCard(BuildingCardView cardView, BuildingCardViewModel viewModel)
+        {
+            cardView.Bind(
+                viewModel.DisplayName,
+                viewModel.CostText,
+                viewModel.IconText,
+                viewModel.StatusText,
+                viewModel.IsSelected,
+                viewModel.IsLocked);
+
+            var capturedId = viewModel.Id;
+            cardView.Root.RegisterCallback<ClickEvent>(_ => CardSelected?.Invoke(capturedId));
+        }
+
+        private void ClearDetail()
+        {
+            SetClass(_detailIcon, LockedClass, false);
+            SetText(_detailIconText, "?");
+            SetText(_detailName, "Chọn 1 building");
+            SetText(_detailSub, string.Empty);
+            SetText(_detailDescription, string.Empty);
+            _detailCosts?.Clear();
+            SetStatusText(string.Empty);
+            SetBuildButtonEnabled(false);
         }
 
         private void HandleCloseClicked() => CloseRequested?.Invoke();
@@ -301,7 +315,7 @@ namespace SeasonalBastion.UI.Presenters
                 return;
 
             _detailCostHint.text = text ?? string.Empty;
-            SetClass(_detailCostHint, "hidden", string.IsNullOrWhiteSpace(text));
+            SetClass(_detailCostHint, HiddenClass, string.IsNullOrWhiteSpace(text));
         }
 
         private static void SetText(Label label, string value)

@@ -4,58 +4,32 @@ namespace SeasonalBastion.UI.Views
 {
     public sealed class BuildingCardFactory
     {
-        private readonly TemplateContainer _prototype;
+        private readonly VisualTreeAsset _template;
 
         public BuildingCardFactory(VisualElement prototype)
         {
-            _prototype = prototype as TemplateContainer;
+            _template = prototype as VisualTreeAsset ?? prototype?.visualTreeAssetSource;
         }
 
         public BuildingCardView Create()
         {
-            if (_prototype == null)
-                return null;
-
-            var clonedRoot = _prototype.contentContainer?.Q<VisualElement>("BuildingCard");
-            if (clonedRoot == null)
-                return null;
-
-            var cardRoot = new VisualElement { name = "BuildingCard" };
-            foreach (var className in clonedRoot.GetClasses())
-                cardRoot.AddToClassList(className);
-
-            for (var i = 0; i < clonedRoot.childCount; i++)
-            {
-                var child = clonedRoot[i];
-                if (child is VisualElement childElement)
-                    cardRoot.Add(CloneElement(childElement));
-            }
-
-            cardRoot.RemoveFromClassList("hidden");
-            return new BuildingCardView(cardRoot);
+            var cardRoot = CreateCardRoot();
+            return cardRoot != null ? new BuildingCardView(cardRoot) : null;
         }
 
-        private static VisualElement CloneElement(VisualElement source)
+        private VisualElement CreateCardRoot()
         {
-            var clone = new VisualElement { name = source.name, pickingMode = source.pickingMode };
-            foreach (var className in source.GetClasses())
-                clone.AddToClassList(className);
+            if (_template == null)
+                return null;
 
-            if (source is Label sourceLabel)
-            {
-                var labelClone = new Label(sourceLabel.text) { name = source.name, pickingMode = source.pickingMode };
-                foreach (var className in source.GetClasses())
-                    labelClone.AddToClassList(className);
-                clone = labelClone;
-            }
+            var instance = _template.CloneTree();
+            var cardRoot = instance?.Q<VisualElement>(BuildingCardView.RootElementName);
+            if (cardRoot == null)
+                return null;
 
-            for (var i = 0; i < source.childCount; i++)
-            {
-                if (source[i] is VisualElement child)
-                    clone.Add(CloneElement(child));
-            }
-
-            return clone;
+            cardRoot.RemoveFromHierarchy();
+            cardRoot.RemoveFromClassList(BuildingCardView.HiddenClass);
+            return cardRoot;
         }
     }
 }

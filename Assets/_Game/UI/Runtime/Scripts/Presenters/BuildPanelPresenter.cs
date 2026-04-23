@@ -142,19 +142,7 @@ namespace SeasonalBastion.UI.Presenters
                 return;
 
             for (var index = 0; index < cards.Count; index++)
-            {
-                var viewModel = cards[index];
-                if (viewModel == null || string.IsNullOrWhiteSpace(viewModel.Id))
-                    continue;
-
-                var cardView = _cardFactory?.Create();
-                if (cardView?.Root == null)
-                    continue;
-
-                BindCard(cardView, viewModel);
-                _cardBindings[viewModel.Id] = new BuildingCardBinding(cardView);
-                _grid.Add(cardView.Root);
-            }
+                AddCard(cards[index]);
 
             SetSelectedCard(_selectedCardId);
         }
@@ -232,6 +220,20 @@ namespace SeasonalBastion.UI.Presenters
                 return;
 
             _categoryBindings.Add(new CategoryBinding(button, () => HandleCategoryButtonClicked(categoryId)));
+        }
+
+        private void AddCard(BuildingCardViewModel viewModel)
+        {
+            if (viewModel == null || string.IsNullOrWhiteSpace(viewModel.Id))
+                return;
+
+            var cardView = _cardFactory?.Create();
+            if (cardView?.Root == null)
+                return;
+
+            BindCard(cardView, viewModel);
+            _cardBindings[viewModel.Id] = new BuildingCardBinding(cardView);
+            _grid.Add(cardView.Root);
         }
 
         private void BindCard(BuildingCardView cardView, BuildingCardViewModel viewModel)

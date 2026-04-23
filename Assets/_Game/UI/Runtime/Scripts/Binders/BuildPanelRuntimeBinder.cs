@@ -16,6 +16,7 @@ namespace SeasonalBastion.UI.Binders
         private readonly BuildPanelViewModelMapper _mapper;
         private readonly List<BuildCategoryViewModel> _categories = new();
         private readonly List<BuildingCardViewModel> _cards = new();
+        private readonly StringComparer _idComparer = StringComparer.OrdinalIgnoreCase;
 
         private string _selectedCategoryId = BuildPanelCategories.All;
         private string _selectedDefId;
@@ -86,39 +87,14 @@ namespace SeasonalBastion.UI.Binders
 
             foreach (var defId in data.GetAllBuildableNodeIds())
             {
-                if (string.IsNullOrWhiteSpace(defId))
+                if (!TryCreateCardViewModel(dataRegistry, defId, out var cardViewModel))
                     continue;
 
-                if (!dataRegistry.IsPlaceableBuildable(defId))
-                    continue;
-
-                if (_services.UnlockService != null && !_services.UnlockService.IsUnlocked(defId))
-                    continue;
-
-                if (!dataRegistry.TryGetBuilding(defId, out var def) || def == null)
-                    continue;
-
-                var categoryId = _mapper.GetCategoryId(def);
-                if (!string.Equals(_selectedCategoryId, BuildPanelCategories.All, StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(_selectedCategoryId, categoryId, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                _cards.Add(_mapper.CreateCardViewModel(def, _selectedDefId));
+                _cards.Add(cardViewModel);
             }
 
             _cards.Sort((a, b) => string.Compare(a?.DisplayName, b?.DisplayName, StringComparison.OrdinalIgnoreCase));
-
-            if (_cards.Count == 0)
-            {
-                _selectedDefId = null;
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(_selectedDefId) || _cards.FindIndex(card => string.Equals(card.Id, _selectedDefId, StringComparison.OrdinalIgnoreCase)) < 0)
-                _selectedDefId = _cards[0].Id;
-
-            for (var index = 0; index < _cards.Count; index++)
-                _cards[index].IsSelected = string.Equals(_cards[index].Id, _selectedDefId, StringComparison.OrdinalIgnoreCase);
+            SyncSelectedCard();
         }
 
         private void PushViewState()
@@ -131,6 +107,51 @@ namespace SeasonalBastion.UI.Binders
                 ? "Chọn công trình rồi bấm BUILD để vào placement mode."
                 : "Chưa có building nào khả dụng để build ở thời điểm này.");
             _presenter.SetSelectedBuilding(_mapper.CreateDetailViewModel(_selectedDefId));
+        }
+
+        private bool TryCreateCardViewModel(SeasonalBastion.DataRegistry dataRegistry, string defId, out BuildingCardViewModel cardViewModel)
+        {
+            cardViewModel = null;
+
+            if (string.IsNullOrWhiteSpace(defId))
+                return false;
+
+            if (!dataRegistry.IsPlaceableBuildable(defId))
+                return false;
+
+            if (_services.UnlockService != null && !_services.UnlockService.IsUnlocked(defId))
+                return false;
+
+            if (!dataRegistry.TryGetBuilding(defId, out var def) || def == null)
+                return false;
+
+            var categoryId = _mapper.GetCategoryId(def);
+            if (!IsCategoryMatch(categoryId))
+                return false;
+
+            cardViewModel = _mapper.CreateCardViewModel(def, _selectedDefId);
+            return cardViewModel != null;
+        }
+
+        private bool IsCategoryMatch(string categoryId)
+        {
+            return _idComparer.Equals(_selectedCategoryId, BuildPanelCategories.All)
+                || _idComparer.Equals(_selectedCategoryId, categoryId);
+        }
+
+        private void SyncSelectedCard()
+        {
+            if (_cards.Count == 0)
+            {
+                _selectedDefId = null;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_selectedDefId) || _cards.FindIndex(card => _idComparer.Equals(card.Id, _selectedDefId)) < 0)
+                _selectedDefId = _cards[0].Id;
+
+            for (var index = 0; index < _cards.Count; index++)
+                _cards[index].IsSelected = _idComparer.Equals(_cards[index].Id, _selectedDefId);
         }
 
         private void HandleCloseRequested()

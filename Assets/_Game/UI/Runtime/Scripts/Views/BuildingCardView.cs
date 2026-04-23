@@ -4,9 +4,11 @@ namespace SeasonalBastion.UI.Views
 {
     public sealed class BuildingCardView
     {
+        public const string RootElementName = "BuildingCard";
+        public const string HiddenClass = "hidden";
+
         private const string SelectedClass = "is-selected";
         private const string LockedClass = "is-locked";
-        private const string HiddenClass = "hidden";
 
         private readonly VisualElement _root;
         private readonly Label _iconText;

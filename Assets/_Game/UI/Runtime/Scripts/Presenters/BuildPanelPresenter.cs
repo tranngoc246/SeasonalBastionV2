@@ -12,7 +12,6 @@ namespace SeasonalBastion.UI.Presenters
         private Button _btnClose;
         private Button _btnBuildConfirm;
         private Label _buildHint;
-        private ScrollView _scroll;
         private VisualElement _detailIcon;
         private VisualElement _grid;
 
@@ -31,9 +30,9 @@ namespace SeasonalBastion.UI.Presenters
 
         private readonly Dictionary<string, Button> _categoryButtons = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, BuildingCardBinding> _cardBindings = new(StringComparer.OrdinalIgnoreCase);
-        private readonly List<BuildingCardViewModel> _cards = new();
         private readonly List<CategoryBinding> _categoryBindings = new();
 
+        private BuildingCardFactory _cardFactory;
         private string _selectedCardId;
         private string _selectedCategoryId = BuildPanelCategories.All;
 
@@ -50,7 +49,6 @@ namespace SeasonalBastion.UI.Presenters
             _btnClose = Root.Q<Button>("BtnClose");
             _btnBuildConfirm = Root.Q<Button>("BtnBuildConfirm");
             _buildHint = Root.Q<Label>("LblBuildHint");
-            _scroll = Root.Q<ScrollView>("BuildList");
             _grid = Root.Q<VisualElement>("BuildGridContainer");
             _detailIcon = Root.Q<VisualElement>("DetailIcon");
 
@@ -67,6 +65,8 @@ namespace SeasonalBastion.UI.Presenters
             _detailCosts = Root.Q<VisualElement>("DetailCosts");
             _detailCostHint = Root.Q<Label>("DetailCostHint");
 
+            _cardFactory = new BuildingCardFactory(Root);
+
             CacheCategoryButtons();
             RegisterCallbacks();
             RenderCategorySelection();
@@ -82,7 +82,7 @@ namespace SeasonalBastion.UI.Presenters
             _categoryBindings.Clear();
             _categoryButtons.Clear();
             _cardBindings.Clear();
-            _cards.Clear();
+            _cardFactory = null;
             _selectedCardId = null;
         }
 
@@ -126,7 +126,6 @@ namespace SeasonalBastion.UI.Presenters
 
         public void SetCards(IReadOnlyList<BuildingCardViewModel> cards)
         {
-            _cards.Clear();
             _cardBindings.Clear();
 
             if (_grid == null)
@@ -143,13 +142,10 @@ namespace SeasonalBastion.UI.Presenters
                 if (viewModel == null || string.IsNullOrWhiteSpace(viewModel.Id))
                     continue;
 
-                _cards.Add(viewModel);
-
-                var cardRoot = BuildBuildingCardElement();
-                if (cardRoot == null)
+                var cardView = _cardFactory?.Create();
+                if (cardView?.Root == null)
                     continue;
 
-                var cardView = new BuildingCardView(cardRoot);
                 cardView.Bind(
                     viewModel.DisplayName,
                     viewModel.CostText,
@@ -159,10 +155,10 @@ namespace SeasonalBastion.UI.Presenters
                     viewModel.IsLocked);
 
                 var capturedId = viewModel.Id;
-                cardRoot.RegisterCallback<ClickEvent>(_ => CardSelected?.Invoke(capturedId));
+                cardView.Root.RegisterCallback<ClickEvent>(_ => CardSelected?.Invoke(capturedId));
 
                 _cardBindings[capturedId] = new BuildingCardBinding(cardView);
-                _grid.Add(cardRoot);
+                _grid.Add(cardView.Root);
             }
 
             SetSelectedCard(_selectedCardId);
@@ -308,36 +304,6 @@ namespace SeasonalBastion.UI.Presenters
             SetClass(_detailCostHint, "hidden", string.IsNullOrWhiteSpace(text));
         }
 
-        private VisualElement BuildBuildingCardElement()
-        {
-            var root = new VisualElement();
-            root.AddToClassList("building-card");
-            root.AddToClassList(UiKeys.Class_BlockWorld);
-            root.pickingMode = PickingMode.Position;
-
-            var icon = new VisualElement { name = "BuildingCardIcon" };
-            icon.AddToClassList("building-card__icon");
-            var iconText = new Label("?") { name = "BuildingCardIconText" };
-            iconText.AddToClassList("building-card__icon-text");
-            icon.Add(iconText);
-
-            var name = new Label(string.Empty) { name = "BuildingCardName" };
-            name.AddToClassList("building-card__name");
-
-            var cost = new Label(string.Empty) { name = "BuildingCardCost" };
-            cost.AddToClassList("building-card__cost");
-
-            var status = new Label(string.Empty) { name = "BuildingCardStatus" };
-            status.AddToClassList("building-card__status");
-            status.AddToClassList("hidden");
-
-            root.Add(icon);
-            root.Add(name);
-            root.Add(cost);
-            root.Add(status);
-            return root;
-        }
-
         private static void SetText(Label label, string value)
         {
             if (label != null)
@@ -421,7 +387,6 @@ namespace SeasonalBastion.UI.Presenters
         public string DisplayName;
         public string SubText;
         public string Description;
-        public string CostText;
         public string StatusText;
         public string IconText;
         public bool CanBuild;

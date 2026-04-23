@@ -42,11 +42,6 @@
 .section { margin-top: 10px; }
 .section-title { -unity-font-style: bold; margin-bottom: 6px; }
 
-.detail-hint {
-  margin-top: 8px;
-  color: rgba(255, 199, 0, 1);
-}
-
 .inspect-actions {
   flex-direction: row;
   flex-wrap: wrap;

@@ -13,6 +13,7 @@ namespace SeasonalBastion.UI.Binders
     {
         private readonly BuildPanelPresenter _presenter;
         private readonly GameServices _services;
+        private readonly BuildPanelViewModelMapper _mapper;
         private readonly List<BuildCategoryViewModel> _categories = new();
         private readonly List<BuildingCardViewModel> _cards = new();
 
@@ -23,6 +24,7 @@ namespace SeasonalBastion.UI.Binders
         {
             _presenter = presenter;
             _services = services;
+            _mapper = new BuildPanelViewModelMapper(services);
         }
 
         public void Bind()
@@ -71,11 +73,7 @@ namespace SeasonalBastion.UI.Binders
         private void BuildCategories()
         {
             _categories.Clear();
-            _categories.Add(new BuildCategoryViewModel { Id = BuildPanelCategories.All, DisplayName = "All" });
-            _categories.Add(new BuildCategoryViewModel { Id = BuildPanelCategories.Storage, DisplayName = "Kho" });
-            _categories.Add(new BuildCategoryViewModel { Id = BuildPanelCategories.Farm, DisplayName = "Farm" });
-            _categories.Add(new BuildCategoryViewModel { Id = BuildPanelCategories.Tower, DisplayName = "Tower" });
-            _categories.Add(new BuildCategoryViewModel { Id = BuildPanelCategories.Other, DisplayName = "Khác" });
+            _categories.AddRange(_mapper.CreateCategories());
         }
 
         private void BuildCards()
@@ -83,32 +81,29 @@ namespace SeasonalBastion.UI.Binders
             _cards.Clear();
 
             var dataRegistry = _services?.DataRegistry;
-            if (dataRegistry == null)
+            if (dataRegistry is not SeasonalBastion.DataRegistry data)
                 return;
 
-            if (dataRegistry is SeasonalBastion.DataRegistry data)
+            foreach (var defId in data.GetAllBuildableNodeIds())
             {
-                foreach (var defId in data.GetAllBuildableNodeIds())
-                {
-                    if (string.IsNullOrWhiteSpace(defId))
-                        continue;
+                if (string.IsNullOrWhiteSpace(defId))
+                    continue;
 
-                    if (!dataRegistry.IsPlaceableBuildable(defId))
-                        continue;
+                if (!dataRegistry.IsPlaceableBuildable(defId))
+                    continue;
 
-                    if (_services.UnlockService != null && !_services.UnlockService.IsUnlocked(defId))
-                        continue;
+                if (_services.UnlockService != null && !_services.UnlockService.IsUnlocked(defId))
+                    continue;
 
-                    if (!dataRegistry.TryGetBuilding(defId, out var def) || def == null)
-                        continue;
+                if (!dataRegistry.TryGetBuilding(defId, out var def) || def == null)
+                    continue;
 
-                    var categoryId = GetCategoryId(def);
-                    if (!string.Equals(_selectedCategoryId, BuildPanelCategories.All, StringComparison.OrdinalIgnoreCase)
-                        && !string.Equals(_selectedCategoryId, categoryId, StringComparison.OrdinalIgnoreCase))
-                        continue;
+                var categoryId = _mapper.GetCategoryId(def);
+                if (!string.Equals(_selectedCategoryId, BuildPanelCategories.All, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(_selectedCategoryId, categoryId, StringComparison.OrdinalIgnoreCase))
+                    continue;
 
-                    _cards.Add(CreateCardViewModel(def));
-                }
+                _cards.Add(_mapper.CreateCardViewModel(def, _selectedDefId));
             }
 
             _cards.Sort((a, b) => string.Compare(a?.DisplayName, b?.DisplayName, StringComparison.OrdinalIgnoreCase));
@@ -135,92 +130,7 @@ namespace SeasonalBastion.UI.Binders
             _presenter.SetBuildHint(_cards.Count > 0
                 ? "Chọn công trình rồi bấm BUILD để vào placement mode."
                 : "Chưa có building nào khả dụng để build ở thời điểm này.");
-            _presenter.SetSelectedBuilding(CreateDetailViewModel(_selectedDefId));
-        }
-
-        private BuildingCardViewModel CreateCardViewModel(BuildingDef def)
-        {
-            var affordability = EvaluateAffordability(def);
-            return new BuildingCardViewModel
-            {
-                Id = def.DefId,
-                DisplayName = def.DefId,
-                CostText = FormatCostSummary(def),
-                StatusText = affordability.StatusText,
-                IconText = GetIconLetter(def.DefId),
-                IsLocked = !affordability.CanBuild,
-                IsSelected = string.Equals(def.DefId, _selectedDefId, StringComparison.OrdinalIgnoreCase),
-            };
-        }
-
-        private BuildingDetailViewModel CreateDetailViewModel(string defId)
-        {
-            if (string.IsNullOrWhiteSpace(defId) || _services?.DataRegistry == null)
-                return null;
-
-            if (!_services.DataRegistry.TryGetBuilding(defId, out var def) || def == null)
-                return null;
-
-            var affordability = EvaluateAffordability(def);
-            var detail = new BuildingDetailViewModel
-            {
-                Id = def.DefId,
-                DisplayName = def.DefId,
-                SubText = $"{def.SizeX}x{def.SizeY}  Lv{def.BaseLevel}  HP {def.MaxHp}",
-                Description = BuildDescription(def),
-                StatusText = affordability.StatusText,
-                IconText = GetIconLetter(def.DefId),
-                CanBuild = affordability.CanBuild,
-            };
-
-            if (def.BuildCostsL1 == null || def.BuildCostsL1.Length == 0)
-            {
-                detail.CostRows.Add(new BuildingCostRowViewModel
-                {
-                    ResourceLabel = "Cost",
-                    ValueText = "No cost",
-                    IsAffordable = true,
-                });
-                return detail;
-            }
-
-            for (var index = 0; index < def.BuildCostsL1.Length; index++)
-            {
-                var cost = def.BuildCostsL1[index];
-                var have = _services.StorageService != null ? _services.StorageService.GetTotal(cost.Resource) : 0;
-                detail.CostRows.Add(new BuildingCostRowViewModel
-                {
-                    ResourceLabel = cost.Resource.ToString(),
-                    ValueText = $"{have}/{cost.Amount}",
-                    IsAffordable = have >= cost.Amount,
-                });
-            }
-
-            return detail;
-        }
-
-        private BuildAvailability EvaluateAffordability(BuildingDef def)
-        {
-            if (def == null)
-                return BuildAvailability.Disabled("Missing building definition.");
-
-            if (_services?.RunOutcomeService != null && _services.RunOutcomeService.Outcome != RunOutcome.Ongoing)
-                return BuildAvailability.Disabled("Run has ended.");
-
-            if (def.BuildCostsL1 == null || def.BuildCostsL1.Length == 0)
-                return BuildAvailability.Enabled();
-
-            if (_services?.StorageService == null)
-                return BuildAvailability.Disabled("Storage service missing.");
-
-            for (var index = 0; index < def.BuildCostsL1.Length; index++)
-            {
-                var cost = def.BuildCostsL1[index];
-                if (_services.StorageService.GetTotal(cost.Resource) < cost.Amount)
-                    return BuildAvailability.Disabled("Không đủ tài nguyên để build.");
-            }
-
-            return BuildAvailability.Enabled();
+            _presenter.SetSelectedBuilding(_mapper.CreateDetailViewModel(_selectedDefId));
         }
 
         private void HandleCloseRequested()
@@ -234,7 +144,7 @@ namespace SeasonalBastion.UI.Binders
             if (string.IsNullOrWhiteSpace(_selectedDefId))
                 return;
 
-            var detail = CreateDetailViewModel(_selectedDefId);
+            var detail = _mapper.CreateDetailViewModel(_selectedDefId);
             if (detail == null || !detail.CanBuild)
                 return;
 
@@ -263,8 +173,91 @@ namespace SeasonalBastion.UI.Binders
 
         private void OnRuntimeStateChanged(ResourceDeliveredEvent _) => Refresh();
         private void OnRuntimeStateChanged(ResourceSpentEvent _) => Refresh();
+    }
 
-        private static string GetCategoryId(BuildingDef def)
+    internal sealed class BuildPanelViewModelMapper
+    {
+        private readonly GameServices _services;
+
+        public BuildPanelViewModelMapper(GameServices services)
+        {
+            _services = services;
+        }
+
+        public IReadOnlyList<BuildCategoryViewModel> CreateCategories()
+        {
+            return new[]
+            {
+                new BuildCategoryViewModel { Id = BuildPanelCategories.All, DisplayName = "All" },
+                new BuildCategoryViewModel { Id = BuildPanelCategories.Storage, DisplayName = "Kho" },
+                new BuildCategoryViewModel { Id = BuildPanelCategories.Farm, DisplayName = "Farm" },
+                new BuildCategoryViewModel { Id = BuildPanelCategories.Tower, DisplayName = "Tower" },
+                new BuildCategoryViewModel { Id = BuildPanelCategories.Other, DisplayName = "Khác" },
+            };
+        }
+
+        public BuildingCardViewModel CreateCardViewModel(BuildingDef def, string selectedDefId)
+        {
+            var availability = EvaluateAvailability(def);
+            return new BuildingCardViewModel
+            {
+                Id = def.DefId,
+                DisplayName = def.DefId,
+                CostText = FormatCostSummary(def),
+                StatusText = availability.StatusText,
+                IconText = GetIconLetter(def.DefId),
+                IsLocked = !availability.CanBuild,
+                IsSelected = string.Equals(def.DefId, selectedDefId, StringComparison.OrdinalIgnoreCase),
+            };
+        }
+
+        public BuildingDetailViewModel CreateDetailViewModel(string defId)
+        {
+            if (string.IsNullOrWhiteSpace(defId) || _services?.DataRegistry == null)
+                return null;
+
+            if (!_services.DataRegistry.TryGetBuilding(defId, out var def) || def == null)
+                return null;
+
+            var availability = EvaluateAvailability(def);
+            var detail = new BuildingDetailViewModel
+            {
+                Id = def.DefId,
+                DisplayName = def.DefId,
+                SubText = $"{def.SizeX}x{def.SizeY}  Lv{def.BaseLevel}  HP {def.MaxHp}",
+                Description = BuildDescription(def),
+                StatusText = availability.StatusText,
+                IconText = GetIconLetter(def.DefId),
+                CanBuild = availability.CanBuild,
+            };
+
+            if (def.BuildCostsL1 == null || def.BuildCostsL1.Length == 0)
+            {
+                detail.CostRows.Add(new BuildingCostRowViewModel
+                {
+                    ResourceLabel = "Cost",
+                    ValueText = "No cost",
+                    IsAffordable = true,
+                });
+                return detail;
+            }
+
+            for (var index = 0; index < def.BuildCostsL1.Length; index++)
+            {
+                var cost = def.BuildCostsL1[index];
+                var have = _services.StorageService != null ? _services.StorageService.GetTotal(cost.Resource) : 0;
+                detail.CostRows.Add(new BuildingCostRowViewModel
+                {
+                    ResourceLabel = cost.Resource.ToString(),
+                    ValueText = $"{have}/{cost.Amount}",
+                    IsAffordable = have >= cost.Amount,
+                });
+            }
+
+            return detail;
+        }
+
+        public string GetCategoryId(BuildingDef def)
         {
             if (def == null)
                 return BuildPanelCategories.Other;
@@ -275,6 +268,30 @@ namespace SeasonalBastion.UI.Binders
             if (def.IsTower)
                 return BuildPanelCategories.Tower;
             return BuildPanelCategories.Other;
+        }
+
+        private BuildAvailability EvaluateAvailability(BuildingDef def)
+        {
+            if (def == null)
+                return BuildAvailability.Disabled("Missing building definition.");
+
+            if (_services?.RunOutcomeService != null && _services.RunOutcomeService.Outcome != RunOutcome.Ongoing)
+                return BuildAvailability.Disabled("Run has ended.");
+
+            if (def.BuildCostsL1 == null || def.BuildCostsL1.Length == 0)
+                return BuildAvailability.Enabled();
+
+            if (_services?.StorageService == null)
+                return BuildAvailability.Disabled("Storage service missing.");
+
+            for (var index = 0; index < def.BuildCostsL1.Length; index++)
+            {
+                var cost = def.BuildCostsL1[index];
+                if (_services.StorageService.GetTotal(cost.Resource) < cost.Amount)
+                    return BuildAvailability.Disabled("Không đủ tài nguyên để build.");
+            }
+
+            return BuildAvailability.Enabled();
         }
 
         private static string BuildDescription(BuildingDef def)

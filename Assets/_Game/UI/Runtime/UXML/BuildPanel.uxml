@@ -19,9 +19,7 @@
                     <ui:Button name="BtnTabOther" text="Khác" class="tab-btn" />
                 </ui:VisualElement>
 
-                <ui:ScrollView name="BuildList" class="build-panel__list-scroll">
-                    <ui:VisualElement name="BuildGridContainer" class="build-panel__card-grid" />
-                </ui:ScrollView>
+                <ui:ListView name="BuildList" class="build-panel__list-scroll build-panel__card-list" virtualization-method="DynamicHeight" selection-type="None" reorderable="false" show-border="false" />
 
                 <ui:VisualElement name="BuildingCardPrototypeHost" class="build-panel__prototype-host hidden">
                     <ui:Instance template="BuildingCardTemplate" name="BuildingCardPrototype" />

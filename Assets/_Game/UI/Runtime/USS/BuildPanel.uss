@@ -52,11 +52,14 @@
   flex-grow: 1;
 }
 
-.build-panel__card-grid {
+.build-panel__card-list {
+  padding-top: 6px;
+}
+
+.build-panel__card-list .unity-list-view__content-container {
   flex-direction: row;
   flex-wrap: wrap;
   align-content: flex-start;
-  padding-top: 6px;
 }
 
 .building-card {

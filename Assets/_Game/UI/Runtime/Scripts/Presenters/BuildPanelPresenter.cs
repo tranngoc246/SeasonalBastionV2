@@ -15,7 +15,7 @@ namespace SeasonalBastion.UI.Presenters
         private Button _btnBuildConfirm;
         private Label _buildHint;
         private VisualElement _detailIcon;
-        private VisualElement _grid;
+        private ListView _buildList;
         private VisualElement _cardPrototype;
 
         private Button _tabAll;
@@ -34,6 +34,7 @@ namespace SeasonalBastion.UI.Presenters
         private readonly Dictionary<string, Button> _categoryButtons = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, BuildingCardBinding> _cardBindings = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<CategoryBinding> _categoryBindings = new();
+        private readonly List<BuildingCardViewModel> _cardItems = new();
 
         private BuildingCardFactory _cardFactory;
         private string _selectedCardId;
@@ -52,7 +53,7 @@ namespace SeasonalBastion.UI.Presenters
             _btnClose = Root.Q<Button>("BtnClose");
             _btnBuildConfirm = Root.Q<Button>("BtnBuildConfirm");
             _buildHint = Root.Q<Label>("LblBuildHint");
-            _grid = Root.Q<VisualElement>("BuildGridContainer");
+            _buildList = Root.Q<ListView>("BuildList");
             _detailIcon = Root.Q<VisualElement>("DetailIcon");
             _cardPrototype = Root.Q<VisualElement>("BuildingCardPrototype");
 
@@ -72,6 +73,7 @@ namespace SeasonalBastion.UI.Presenters
             _cardFactory = new BuildingCardFactory(_cardPrototype);
 
             CacheCategoryButtons();
+            ConfigureBuildList();
             RegisterCallbacks();
             RenderCategorySelection();
         }
@@ -86,8 +88,10 @@ namespace SeasonalBastion.UI.Presenters
             _categoryBindings.Clear();
             _categoryButtons.Clear();
             _cardBindings.Clear();
+            _cardItems.Clear();
             _cardFactory = null;
             _cardPrototype = null;
+            _buildList = null;
             _selectedCardId = null;
         }
 
@@ -132,18 +136,22 @@ namespace SeasonalBastion.UI.Presenters
         public void SetCards(IReadOnlyList<BuildingCardViewModel> cards)
         {
             _cardBindings.Clear();
+            _cardItems.Clear();
 
-            if (_grid == null)
+            if (_buildList == null)
                 return;
 
-            _grid.Clear();
+            if (cards != null)
+            {
+                for (var index = 0; index < cards.Count; index++)
+                {
+                    if (cards[index] != null)
+                        _cardItems.Add(cards[index]);
+                }
+            }
 
-            if (cards == null)
-                return;
-
-            for (var index = 0; index < cards.Count; index++)
-                AddCard(cards[index]);
-
+            _buildList.itemsSource = _cardItems;
+            _buildList.Rebuild();
             SetSelectedCard(_selectedCardId);
         }
 
@@ -222,22 +230,42 @@ namespace SeasonalBastion.UI.Presenters
             _categoryBindings.Add(new CategoryBinding(button, () => HandleCategoryButtonClicked(categoryId)));
         }
 
-        private void AddCard(BuildingCardViewModel viewModel)
+        private void ConfigureBuildList()
         {
+            if (_buildList == null)
+                return;
+
+            _buildList.selectionType = SelectionType.None;
+            _buildList.makeItem = MakeCardItem;
+            _buildList.bindItem = BindCardItem;
+            _buildList.fixedItemHeight = 158f;
+            _buildList.itemsSource = _cardItems;
+        }
+
+        private VisualElement MakeCardItem()
+        {
+            var cardView = _cardFactory?.Create();
+            if (cardView?.Root == null)
+                return new VisualElement();
+
+            cardView.Root.userData = cardView;
+            cardView.Root.RegisterCallback<ClickEvent>(OnCardClicked);
+            return cardView.Root;
+        }
+
+        private void BindCardItem(VisualElement element, int index)
+        {
+            if (element?.userData is not BuildingCardView cardView)
+                return;
+
+            if (index < 0 || index >= _cardItems.Count)
+                return;
+
+            var viewModel = _cardItems[index];
             if (viewModel == null || string.IsNullOrWhiteSpace(viewModel.Id))
                 return;
 
-            var cardView = _cardFactory?.Create();
-            if (cardView?.Root == null)
-                return;
-
-            BindCard(cardView, viewModel);
-            _cardBindings[viewModel.Id] = new BuildingCardBinding(cardView);
-            _grid.Add(cardView.Root);
-        }
-
-        private void BindCard(BuildingCardView cardView, BuildingCardViewModel viewModel)
-        {
+            cardView.Root.userData = new BuildingCardBinding(cardView, viewModel.Id);
             cardView.Bind(
                 viewModel.DisplayName,
                 viewModel.CostText,
@@ -246,8 +274,16 @@ namespace SeasonalBastion.UI.Presenters
                 viewModel.IsSelected,
                 viewModel.IsLocked);
 
-            var capturedId = viewModel.Id;
-            cardView.Root.RegisterCallback<ClickEvent>(_ => CardSelected?.Invoke(capturedId));
+            _cardBindings[viewModel.Id] = new BuildingCardBinding(cardView, viewModel.Id);
+        }
+
+        private void OnCardClicked(ClickEvent evt)
+        {
+            if (evt?.currentTarget is not VisualElement element)
+                return;
+
+            if (element.userData is BuildingCardBinding binding && !string.IsNullOrWhiteSpace(binding.Id))
+                CardSelected?.Invoke(binding.Id);
         }
 
         private void ClearDetail()
@@ -339,12 +375,14 @@ namespace SeasonalBastion.UI.Presenters
 
         private sealed class BuildingCardBinding
         {
-            public BuildingCardBinding(BuildingCardView view)
+            public BuildingCardBinding(BuildingCardView view, string id)
             {
                 View = view;
+                Id = id;
             }
 
             public BuildingCardView View { get; }
+            public string Id { get; }
         }
 
         private sealed class CategoryBinding

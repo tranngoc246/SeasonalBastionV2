@@ -137,7 +137,7 @@ namespace SeasonalBastion
         {
             try
             {
-                var services = FindObjectOfType<GameBootstrap>()?.Services;
+                var services = FindAnyObjectByType<GameBootstrap>()?.Services;
                 if (services?.SaveService != null)
                     return services.SaveService.ListRunSaves();
             }

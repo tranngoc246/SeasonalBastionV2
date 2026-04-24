@@ -18,7 +18,7 @@ namespace SeasonalBastion.UI.Runtime
 
         private void Awake()
         {
-            if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+            if (_bootstrap == null) _bootstrap = FindAnyObjectByType<GameBootstrap>();
             _s = _bootstrap != null ? _bootstrap.Services : null;
         }
 
@@ -26,7 +26,7 @@ namespace SeasonalBastion.UI.Runtime
         {
             if (_s == null)
             {
-                if (_bootstrap == null) _bootstrap = FindObjectOfType<GameBootstrap>();
+                if (_bootstrap == null) _bootstrap = FindAnyObjectByType<GameBootstrap>();
                 _s = _bootstrap != null ? _bootstrap.Services : null;
             }
             return _s;

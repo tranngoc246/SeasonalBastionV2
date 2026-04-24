@@ -185,12 +185,12 @@ namespace SeasonalBastion.UI.Input
 
             if (_uiSystem == null)
             {
-                _uiSystem = FindObjectOfType<UiSystem>();
+                _uiSystem = FindAnyObjectByType<UiSystem>();
                 if (_uiSystem == null) return;
             }
 
             if (_placement == null)
-                _placement = FindObjectOfType<PlacementInputController>(); // optional
+                _placement = FindAnyObjectByType<PlacementInputController>(); // optional
 
             // UI context must exist (UiBootstrap.Start() will Initialize UiSystem)
             var ctx = _uiSystem.Ctx;
@@ -228,7 +228,7 @@ namespace SeasonalBastion.UI.Input
 
             // World mapping fallbacks
             if (_cam == null) _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
-            if (_grid == null) _grid = FindObjectOfType<Grid>();
+            if (_grid == null) _grid = FindAnyObjectByType<Grid>();
 
             _bound = true;
         }

@@ -105,6 +105,14 @@
   border-bottom-color: rgba(255,255,255,0.18);
 }
 
+.reward-list {
+  min-width: 0;
+}
+
+.reward-list .unity-list-view__content-container {
+  flex-direction: column;
+}
+
 .reward-choice {
   min-height: 64px;
   margin-top: 10px;

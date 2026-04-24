@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 using UnityEngine.UIElements;
 
@@ -9,9 +10,8 @@ namespace SeasonalBastion.UI.Presenters
 
         private Label _title;
         private Label _body;
-        private Button _btnChoiceA;
-        private Button _btnChoiceB;
-        private Button _btnChoiceC;
+        private ListView _rewardList;
+        private readonly List<RewardOptionViewModel> _rewardItems = new(3);
 
         protected override void OnBind()
         {
@@ -22,13 +22,9 @@ namespace SeasonalBastion.UI.Presenters
 
             _title = Root.Q<Label>("LblRewardTitle");
             _body = Root.Q<Label>("LblRewardBody");
-            _btnChoiceA = Root.Q<Button>("BtnRewardA");
-            _btnChoiceB = Root.Q<Button>("BtnRewardB");
-            _btnChoiceC = Root.Q<Button>("BtnRewardC");
+            _rewardList = Root.Q<ListView>("RewardList");
 
-            if (_btnChoiceA != null) _btnChoiceA.clicked += OnChooseA;
-            if (_btnChoiceB != null) _btnChoiceB.clicked += OnChooseB;
-            if (_btnChoiceC != null) _btnChoiceC.clicked += OnChooseC;
+            ConfigureRewardList();
 
             if (_s?.RewardService != null)
             {
@@ -39,9 +35,7 @@ namespace SeasonalBastion.UI.Presenters
 
         protected override void OnUnbind()
         {
-            if (_btnChoiceA != null) _btnChoiceA.clicked -= OnChooseA;
-            if (_btnChoiceB != null) _btnChoiceB.clicked -= OnChooseB;
-            if (_btnChoiceC != null) _btnChoiceC.clicked -= OnChooseC;
+            _rewardItems.Clear();
 
             if (_s?.RewardService != null)
             {
@@ -59,9 +53,16 @@ namespace SeasonalBastion.UI.Presenters
 
             var offer = _s != null && _s.RewardService != null ? _s.RewardService.CurrentOffer : default;
 
-            ApplyButton(_btnChoiceA, offer.A);
-            ApplyButton(_btnChoiceB, offer.B);
-            ApplyButton(_btnChoiceC, offer.C);
+            _rewardItems.Clear();
+            AddRewardOption(offer.A, 0);
+            AddRewardOption(offer.B, 1);
+            AddRewardOption(offer.C, 2);
+
+            if (_rewardList != null)
+            {
+                _rewardList.itemsSource = _rewardItems;
+                _rewardList.Rebuild();
+            }
         }
 
         private void OnSelectionStarted()
@@ -76,15 +77,73 @@ namespace SeasonalBastion.UI.Presenters
             Ctx?.Modals?.Pop();
         }
 
-        private void OnChooseA() => _s?.RewardService?.Choose(0);
-        private void OnChooseB() => _s?.RewardService?.Choose(1);
-        private void OnChooseC() => _s?.RewardService?.Choose(2);
-
-        private static void ApplyButton(Button button, string rewardId)
+        private void ConfigureRewardList()
         {
-            if (button == null) return;
-            button.text = $"{GetRewardTitle(rewardId)}\n{GetRewardDescription(rewardId)}";
-            button.SetEnabled(!string.IsNullOrWhiteSpace(rewardId));
+            if (_rewardList == null)
+                return;
+
+            _rewardList.selectionType = SelectionType.None;
+            _rewardList.makeItem = MakeRewardItem;
+            _rewardList.bindItem = BindRewardItem;
+            _rewardList.unbindItem = UnbindRewardItem;
+            _rewardList.fixedItemHeight = 74f;
+            _rewardList.itemsSource = _rewardItems;
+        }
+
+        private VisualElement MakeRewardItem()
+        {
+            var button = new Button();
+            button.AddToClassList("reward-choice");
+            button.RegisterCallback<ClickEvent>(OnRewardClicked);
+            button.userData = new RewardButtonBinding(button);
+            return button;
+        }
+
+        private void BindRewardItem(VisualElement element, int index)
+        {
+            if (element?.userData is not RewardButtonBinding binding)
+                return;
+
+            if (index < 0 || index >= _rewardItems.Count)
+            {
+                UnbindRewardItem(element, index);
+                return;
+            }
+
+            var item = _rewardItems[index];
+            if (item == null)
+            {
+                UnbindRewardItem(element, index);
+                return;
+            }
+
+            binding.Index = item.Index;
+            binding.Button.text = $"{GetRewardTitle(item.RewardId)}\n{GetRewardDescription(item.RewardId)}";
+            binding.Button.SetEnabled(!string.IsNullOrWhiteSpace(item.RewardId));
+        }
+
+        private void UnbindRewardItem(VisualElement element, int index)
+        {
+            if (element?.userData is not RewardButtonBinding binding)
+                return;
+
+            binding.Index = -1;
+            binding.Button.text = string.Empty;
+            binding.Button.SetEnabled(false);
+        }
+
+        private void OnRewardClicked(ClickEvent evt)
+        {
+            if (evt?.currentTarget is not Button button || button.userData is not RewardButtonBinding binding)
+                return;
+
+            if (binding.Index >= 0)
+                _s?.RewardService?.Choose(binding.Index);
+        }
+
+        private void AddRewardOption(string rewardId, int index)
+        {
+            _rewardItems.Add(new RewardOptionViewModel { RewardId = rewardId, Index = index });
         }
 
         private static string GetRewardTitle(string rewardId)
@@ -109,6 +168,23 @@ namespace SeasonalBastion.UI.Presenters
                 "Reward_NpcMoveSpeed" => "NPCs move 10% faster this run.",
                 _ => "Applies immediately.",
             };
+        }
+
+        private sealed class RewardOptionViewModel
+        {
+            public string RewardId { get; set; }
+            public int Index { get; set; }
+        }
+
+        private sealed class RewardButtonBinding
+        {
+            public RewardButtonBinding(Button button)
+            {
+                Button = button;
+            }
+
+            public Button Button { get; }
+            public int Index { get; set; } = -1;
         }
     }
 }

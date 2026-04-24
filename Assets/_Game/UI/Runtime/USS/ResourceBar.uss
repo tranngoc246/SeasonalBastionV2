@@ -5,6 +5,10 @@
 }
 
 .resource-bar__list {
+    min-width: 0;
+}
+
+.resource-bar__list .unity-list-view__content-container {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;

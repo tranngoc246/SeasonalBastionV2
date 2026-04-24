@@ -7,6 +7,10 @@
 }
 
 .notification-panel__list {
+    min-width: 0;
+}
+
+.notification-panel__list .unity-list-view__content-container {
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;

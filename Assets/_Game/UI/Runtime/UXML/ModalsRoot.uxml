@@ -37,7 +37,7 @@
             <ui:Label name="LblAssignWorkers" text="Workers: -" class="hint" />
             <ui:Label name="LblAssignSummary" text="Summary: -" class="hint assign-summary" />
 
-            <ui:ScrollView name="NpcList" class="npc-list" />
+            <ui:ListView name="NpcList" class="npc-list" virtualization-method="DynamicHeight" selection-type="None" reorderable="false" show-border="false" />
 
             <ui:Label name="LblAssignHint" text="" class="hint" />
 

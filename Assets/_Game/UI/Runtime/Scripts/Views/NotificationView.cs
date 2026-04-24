@@ -13,12 +13,13 @@ namespace SeasonalBastion.UI.Views
         private const string WarningClass = "notification-panel__item--warning";
         private const string ErrorClass = "notification-panel__item--error";
 
-        private readonly List<VisualElement> _notificationItems = new(MaxVisibleNotifications);
-        private VisualElement _list;
+        private readonly List<NotificationItemViewModel> _notificationItems = new(MaxVisibleNotifications);
+        private ListView _list;
 
         public void Initialize(VisualElement root)
         {
-            _list = root?.Q<VisualElement>("NotificationList") ?? root;
+            _list = root?.Q<ListView>("NotificationList");
+            ConfigureList();
             Clear();
         }
 
@@ -32,23 +33,21 @@ namespace SeasonalBastion.UI.Views
             if (_list == null || string.IsNullOrWhiteSpace(message))
                 return;
 
-            var itemElement = CreateItem(message, kind);
-            _list.Insert(0, itemElement);
-            _notificationItems.Insert(0, itemElement);
-
-            itemElement.schedule.Execute(() => itemElement.RemoveFromClassList(EnterClass)).ExecuteLater(0);
-
+            _notificationItems.Insert(0, new NotificationItemViewModel { Message = message, Kind = kind });
             TrimExcess();
+            _list.itemsSource = _notificationItems;
+            _list.Rebuild();
         }
 
         public void Clear()
         {
-            for (var index = 0; index < _notificationItems.Count; index++)
-                _notificationItems[index]?.RemoveFromHierarchy();
-
             _notificationItems.Clear();
 
-            _list?.Clear();
+            if (_list != null)
+            {
+                _list.itemsSource = _notificationItems;
+                _list.Rebuild();
+            }
         }
 
         public void SetNotifications(IReadOnlyList<NotificationItemViewModel> items)
@@ -67,31 +66,71 @@ namespace SeasonalBastion.UI.Views
             }
         }
 
-        private VisualElement CreateItem(string message, NotificationKind kind)
+        private void ConfigureList()
+        {
+            if (_list == null)
+                return;
+
+            _list.selectionType = SelectionType.None;
+            _list.makeItem = CreateItem;
+            _list.bindItem = BindItem;
+            _list.unbindItem = UnbindItem;
+            _list.fixedItemHeight = 52f;
+            _list.itemsSource = _notificationItems;
+        }
+
+        private VisualElement CreateItem()
         {
             var itemElement = new VisualElement();
             itemElement.pickingMode = PickingMode.Ignore;
             itemElement.AddToClassList(BaseItemClass);
-            itemElement.AddToClassList(EnterClass);
-            itemElement.AddToClassList(GetKindClass(kind));
 
-            var textLabel = new Label(message);
+            var textLabel = new Label();
             textLabel.pickingMode = PickingMode.Ignore;
             textLabel.AddToClassList(TextClass);
             itemElement.Add(textLabel);
-
+            itemElement.userData = textLabel;
             return itemElement;
+        }
+
+        private void BindItem(VisualElement itemElement, int index)
+        {
+            if (itemElement?.userData is not Label textLabel)
+                return;
+
+            if (index < 0 || index >= _notificationItems.Count)
+            {
+                UnbindItem(itemElement, index);
+                return;
+            }
+
+            var item = _notificationItems[index];
+            textLabel.text = item?.Message ?? string.Empty;
+            itemElement.RemoveFromClassList(EnterClass);
+            itemElement.RemoveFromClassList(InfoClass);
+            itemElement.RemoveFromClassList(WarningClass);
+            itemElement.RemoveFromClassList(ErrorClass);
+            itemElement.AddToClassList(GetKindClass(item?.Kind ?? NotificationKind.Info));
+            itemElement.AddToClassList(EnterClass);
+            itemElement.schedule.Execute(() => itemElement.RemoveFromClassList(EnterClass)).ExecuteLater(0);
+        }
+
+        private void UnbindItem(VisualElement itemElement, int index)
+        {
+            if (itemElement?.userData is not Label textLabel)
+                return;
+
+            textLabel.text = string.Empty;
+            itemElement.RemoveFromClassList(EnterClass);
+            itemElement.RemoveFromClassList(InfoClass);
+            itemElement.RemoveFromClassList(WarningClass);
+            itemElement.RemoveFromClassList(ErrorClass);
         }
 
         private void TrimExcess()
         {
             while (_notificationItems.Count > MaxVisibleNotifications)
-            {
-                var lastIndex = _notificationItems.Count - 1;
-                var lastItem = _notificationItems[lastIndex];
-                lastItem?.RemoveFromHierarchy();
-                _notificationItems.RemoveAt(lastIndex);
-            }
+                _notificationItems.RemoveAt(_notificationItems.Count - 1);
         }
 
         private static string GetKindClass(NotificationKind kind)

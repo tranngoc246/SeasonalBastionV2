@@ -1,5 +1,5 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <ui:VisualElement name="NotificationPanel" class="notification-panel" picking-mode="Ignore">
-        <ui:VisualElement name="NotificationList" class="notification-panel__list" picking-mode="Ignore" />
+        <ui:ListView name="NotificationList" class="notification-panel__list" picking-mode="Ignore" virtualization-method="DynamicHeight" selection-type="None" reorderable="false" show-border="false" />
     </ui:VisualElement>
 </ui:UXML>

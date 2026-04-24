@@ -238,6 +238,7 @@ namespace SeasonalBastion.UI.Presenters
             _buildList.selectionType = SelectionType.None;
             _buildList.makeItem = MakeCardItem;
             _buildList.bindItem = BindCardItem;
+            _buildList.unbindItem = UnbindCardItem;
             _buildList.fixedItemHeight = 158f;
             _buildList.itemsSource = _cardItems;
         }
@@ -248,25 +249,36 @@ namespace SeasonalBastion.UI.Presenters
             if (cardView?.Root == null)
                 return new VisualElement();
 
-            cardView.Root.userData = cardView;
-            cardView.Root.RegisterCallback<ClickEvent>(OnCardClicked);
-            return cardView.Root;
+            var element = cardView.Root;
+            element.userData = new BuildingCardBinding(cardView, null);
+            element.RegisterCallback<ClickEvent>(OnCardClicked);
+            return element;
         }
 
         private void BindCardItem(VisualElement element, int index)
         {
-            if (element?.userData is not BuildingCardView cardView)
+            if (element == null)
+                return;
+
+            var viewBinding = GetOrCreateCardBinding(element);
+            if (viewBinding?.View == null)
                 return;
 
             if (index < 0 || index >= _cardItems.Count)
+            {
+                UnbindCardItem(element, index);
                 return;
+            }
 
             var viewModel = _cardItems[index];
             if (viewModel == null || string.IsNullOrWhiteSpace(viewModel.Id))
+            {
+                UnbindCardItem(element, index);
                 return;
+            }
 
-            cardView.Root.userData = new BuildingCardBinding(cardView, viewModel.Id);
-            cardView.Bind(
+            viewBinding.Id = viewModel.Id;
+            viewBinding.View.Bind(
                 viewModel.DisplayName,
                 viewModel.CostText,
                 viewModel.IconText,
@@ -274,7 +286,19 @@ namespace SeasonalBastion.UI.Presenters
                 viewModel.IsSelected,
                 viewModel.IsLocked);
 
-            _cardBindings[viewModel.Id] = new BuildingCardBinding(cardView, viewModel.Id);
+            _cardBindings[viewModel.Id] = viewBinding;
+        }
+
+        private void UnbindCardItem(VisualElement element, int index)
+        {
+            if (element?.userData is not BuildingCardBinding binding)
+                return;
+
+            if (!string.IsNullOrWhiteSpace(binding.Id))
+                _cardBindings.Remove(binding.Id);
+
+            binding.Id = null;
+            binding.View?.Bind(string.Empty, string.Empty, "?", string.Empty, false, false);
         }
 
         private void OnCardClicked(ClickEvent evt)
@@ -284,6 +308,20 @@ namespace SeasonalBastion.UI.Presenters
 
             if (element.userData is BuildingCardBinding binding && !string.IsNullOrWhiteSpace(binding.Id))
                 CardSelected?.Invoke(binding.Id);
+        }
+
+        private BuildingCardBinding GetOrCreateCardBinding(VisualElement element)
+        {
+            if (element == null)
+                return null;
+
+            if (element.userData is BuildingCardBinding existing)
+                return existing;
+
+            var cardView = new BuildingCardView(element);
+            var binding = new BuildingCardBinding(cardView, null);
+            element.userData = binding;
+            return binding;
         }
 
         private void ClearDetail()
@@ -382,7 +420,7 @@ namespace SeasonalBastion.UI.Presenters
             }
 
             public BuildingCardView View { get; }
-            public string Id { get; }
+            public string Id { get; set; }
         }
 
         private sealed class CategoryBinding

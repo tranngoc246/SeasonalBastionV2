@@ -2,32 +2,9 @@
     <ui:Template name="ResourceItemTemplate" src="project://database/Assets/_Game/UI/Runtime/UXML/ResourceItem.uxml" />
 
     <ui:VisualElement name="ResourceBar" class="resource-bar">
-        <ui:VisualElement name="ResourceBarList" class="resource-bar__list">
-            <ui:Instance template="ResourceItemTemplate" name="ResourceItemWood">
-                <ui:AttributeOverrides element-name="IconText" text="W" />
-                <ui:AttributeOverrides element-name="KeyText" text="Wood" />
-                <ui:AttributeOverrides element-name="ValueText" text="120" />
-            </ui:Instance>
-            <ui:Instance template="ResourceItemTemplate" name="ResourceItemStone">
-                <ui:AttributeOverrides element-name="IconText" text="S" />
-                <ui:AttributeOverrides element-name="KeyText" text="Stone" />
-                <ui:AttributeOverrides element-name="ValueText" text="80" />
-            </ui:Instance>
-            <ui:Instance template="ResourceItemTemplate" name="ResourceItemIron">
-                <ui:AttributeOverrides element-name="IconText" text="I" />
-                <ui:AttributeOverrides element-name="KeyText" text="Iron" />
-                <ui:AttributeOverrides element-name="ValueText" text="45" />
-            </ui:Instance>
-            <ui:Instance template="ResourceItemTemplate" name="ResourceItemFood">
-                <ui:AttributeOverrides element-name="IconText" text="F" />
-                <ui:AttributeOverrides element-name="KeyText" text="Food" />
-                <ui:AttributeOverrides element-name="ValueText" text="210" />
-            </ui:Instance>
-            <ui:Instance template="ResourceItemTemplate" name="ResourceItemAmmo">
-                <ui:AttributeOverrides element-name="IconText" text="A" />
-                <ui:AttributeOverrides element-name="KeyText" text="Ammo" />
-                <ui:AttributeOverrides element-name="ValueText" text="32" />
-            </ui:Instance>
+        <ui:ListView name="ResourceBarList" class="resource-bar__list" virtualization-method="DynamicHeight" selection-type="None" reorderable="false" show-border="false" />
+        <ui:VisualElement name="ResourceItemPrototypeHost" class="hidden">
+            <ui:Instance template="ResourceItemTemplate" name="ResourceItemPrototype" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

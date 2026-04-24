@@ -4,11 +4,13 @@ namespace SeasonalBastion.UI.Views
 {
     public sealed class BuildingCardFactory
     {
+        private readonly VisualElement _prototype;
         private readonly VisualTreeAsset _template;
 
         public BuildingCardFactory(VisualElement prototype)
         {
-            _template = prototype as VisualTreeAsset ?? prototype?.visualTreeAssetSource;
+            _prototype = prototype;
+            _template = prototype?.visualTreeAssetSource;
         }
 
         public BuildingCardView Create()
@@ -24,6 +26,8 @@ namespace SeasonalBastion.UI.Views
 
             var instance = _template.CloneTree();
             var cardRoot = instance?.Q<VisualElement>(BuildingCardView.RootElementName);
+            if (cardRoot == null && _prototype != null && _prototype.name == BuildingCardView.RootElementName)
+                cardRoot = instance;
             if (cardRoot == null)
                 return null;
 

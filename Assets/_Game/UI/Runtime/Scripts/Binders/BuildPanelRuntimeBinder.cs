@@ -82,10 +82,10 @@ namespace SeasonalBastion.UI.Binders
             _cards.Clear();
 
             var dataRegistry = _services?.DataRegistry;
-            if (dataRegistry is not SeasonalBastion.DataRegistry data)
+            if (dataRegistry == null)
                 return;
 
-            foreach (var defId in data.GetAllBuildableNodeIds())
+            foreach (var defId in EnumerateBuildableNodeIds(dataRegistry))
             {
                 if (!TryCreateCardViewModel(dataRegistry, defId, out var cardViewModel))
                     continue;
@@ -109,7 +109,7 @@ namespace SeasonalBastion.UI.Binders
             _presenter.SetSelectedBuilding(_mapper.CreateDetailViewModel(_selectedDefId));
         }
 
-        private bool TryCreateCardViewModel(SeasonalBastion.DataRegistry dataRegistry, string defId, out BuildingCardViewModel cardViewModel)
+        private bool TryCreateCardViewModel(IDataRegistry dataRegistry, string defId, out BuildingCardViewModel cardViewModel)
         {
             cardViewModel = null;
 
@@ -131,6 +131,21 @@ namespace SeasonalBastion.UI.Binders
 
             cardViewModel = _mapper.CreateCardViewModel(def, _selectedDefId);
             return cardViewModel != null;
+        }
+
+        private static IEnumerable<string> EnumerateBuildableNodeIds(IDataRegistry dataRegistry)
+        {
+            if (dataRegistry == null)
+                yield break;
+
+            if (dataRegistry is SeasonalBastion.DataRegistry concreteRegistry)
+            {
+                foreach (var defId in concreteRegistry.GetAllBuildableNodeIds())
+                    yield return defId;
+                yield break;
+            }
+
+            yield break;
         }
 
         private bool IsCategoryMatch(string categoryId)

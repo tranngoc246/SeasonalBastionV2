@@ -326,7 +326,7 @@ namespace SeasonalBastion.Tests.EditMode
             var services = MakeServices();
             AddHq(services, 30, 30);
             var cfg = MakeGeneratedConfig();
-            cfg.resourceGeneration = null;
+            cfg.resourceGeneration = new ResourceGenerationDto { mode = "GeneratedOnly" };
             cfg.zones = new[]
             {
                 new ZoneDto

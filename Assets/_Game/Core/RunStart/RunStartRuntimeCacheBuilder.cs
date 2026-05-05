@@ -14,7 +14,9 @@ namespace SeasonalBastion.RunStart
             s.RunStartRuntime.ResourceGenerationModeRequested = NormalizeRequestedMode(cfg?.resourceGeneration?.mode);
             s.RunStartRuntime.ResourceGenerationModeApplied = null;
             s.RunStartRuntime.ResourceGenerationFailureReason = null;
+            s.RunStartRuntime.ResourceGenerationFailureStage = null;
             s.RunStartRuntime.OpeningQualityBand = "Unknown";
+            s.RunStartRuntime.OpeningQualityScore = 0;
 
             if (cfg.map.buildableRect != null)
             {
@@ -57,7 +59,7 @@ namespace SeasonalBastion.RunStart
                     var z = cfg.zones[i];
                     if (z == null || z.cellsRect == null || string.IsNullOrEmpty(z.zoneId)) continue;
                     var rect = new IntRect(z.cellsRect.xMin, z.cellsRect.yMin, z.cellsRect.xMax, z.cellsRect.yMax);
-                    s.RunStartRuntime.Zones[z.zoneId] = new ZoneRect(z.zoneId, z.type, z.ownerBuildingHint, rect, z.cellCount, origin: "ConfigAuthored");
+                    s.RunStartRuntime.Zones[z.zoneId] = new ZoneRect(z.zoneId, z.type, z.ownerBuildingHint, rect, z.cellCount, origin: "ConfigAuthored", bucket: "authored");
                 }
             }
         }
@@ -69,6 +71,7 @@ namespace SeasonalBastion.RunStart
 
             s.RunStartRuntime.Zones.Clear();
             string origin = ResolveZoneOrigin(s.RunStartRuntime.ResourceGenerationModeApplied);
+            string defaultBucket = ResolveZoneBucketFromAppliedMode(s.RunStartRuntime.ResourceGenerationModeApplied);
 
             foreach (var z in EnumerateZones(s.WorldState.Zones))
             {
@@ -79,7 +82,7 @@ namespace SeasonalBastion.RunStart
                 string zoneId = $"zone_{z.Id}";
                 string type = ResourceTypeToZoneType(z.Resource);
                 int cellCount = z.Cells.Count;
-                s.RunStartRuntime.Zones[zoneId] = new ZoneRect(zoneId, type, ownerBuildingHint: null, new IntRect(xMin, yMin, xMax, yMax), cellCount, origin);
+                s.RunStartRuntime.Zones[zoneId] = new ZoneRect(zoneId, type, ownerBuildingHint: null, new IntRect(xMin, yMin, xMax, yMax), cellCount, origin, defaultBucket);
             }
         }
 
@@ -147,6 +150,17 @@ namespace SeasonalBastion.RunStart
             if (string.Equals(appliedMode, "LegacyFallback", System.StringComparison.OrdinalIgnoreCase))
                 return "LegacyFallback";
             return "Unknown";
+        }
+
+        private static string ResolveZoneBucketFromAppliedMode(string appliedMode)
+        {
+            if (string.Equals(appliedMode, "Generated", System.StringComparison.OrdinalIgnoreCase))
+                return "generated";
+            if (string.Equals(appliedMode, "AuthoredFallback", System.StringComparison.OrdinalIgnoreCase))
+                return "authored";
+            if (string.Equals(appliedMode, "LegacyFallback", System.StringComparison.OrdinalIgnoreCase))
+                return "legacy";
+            return "unknown";
         }
     }
 }

@@ -14,6 +14,11 @@ namespace SeasonalBastion.RunStart
         private const string AppliedAuthored = "AuthoredFallback";
         private const string AppliedLegacy = "LegacyFallback";
 
+        private const string FailureStageGeneratedTechnical = "GeneratedTechnical";
+        private const string FailureStageGeneratedEmpty = "GeneratedEmpty";
+        private const string FailureStageGeneratedMissingConfig = "GeneratedMissingConfig";
+        private const string FailureStageAuthoredUnavailable = "AuthoredUnavailable";
+
         internal static void ApplyZones(GameServices s, StartMapConfigDto cfg)
         {
             var zs = s?.WorldState?.Zones;
@@ -61,7 +66,9 @@ namespace SeasonalBastion.RunStart
             s.RunStartRuntime.ResourceGenerationModeRequested = NormalizeRequestedMode(cfg?.resourceGeneration?.mode);
             s.RunStartRuntime.ResourceGenerationModeApplied = null;
             s.RunStartRuntime.ResourceGenerationFailureReason = null;
+            s.RunStartRuntime.ResourceGenerationFailureStage = null;
             s.RunStartRuntime.OpeningQualityBand = "Unknown";
+            s.RunStartRuntime.OpeningQualityScore = 0;
         }
 
         private static bool TryApplyGeneratedZones(GameServices s, StartMapConfigDto cfg, out string error)
@@ -70,25 +77,25 @@ namespace SeasonalBastion.RunStart
             if (cfg?.resourceGeneration == null)
             {
                 error = "resourceGeneration missing.";
-                RecordGenerationFailure(s, error);
+                RecordGenerationFailure(s, FailureStageGeneratedMissingConfig, error, "GenerationMissingConfig", 0);
                 return false;
             }
 
             if (!RunStartResourceZoneGenerator.TryGenerateZones(s, cfg, ResolveSeed(s), out var zones, out error))
             {
-                RecordGenerationFailure(s, error);
+                RecordGenerationFailure(s, FailureStageGeneratedTechnical, error, "GenerationFailed", 0);
                 return false;
             }
 
             if (zones == null || zones.Count == 0)
             {
                 error = "Generated resource zone list was empty.";
-                RecordGenerationFailure(s, error);
+                RecordGenerationFailure(s, FailureStageGeneratedEmpty, error, "GenerationEmpty", 0);
                 return false;
             }
 
             ApplyZoneStates(s.WorldState.Zones, zones);
-            RecordAppliedMode(s, AppliedGenerated, "GeneratedUsable");
+            RecordAppliedMode(s, AppliedGenerated, "GeneratedUsable", 100);
             return true;
         }
 
@@ -96,9 +103,12 @@ namespace SeasonalBastion.RunStart
         {
             bool addedAny = ApplyAuthoredZones(s?.WorldState?.Zones, cfg);
             if (!addedAny)
+            {
+                RecordFailureStageIfEmpty(s, FailureStageAuthoredUnavailable, "No authored fallback zones available.");
                 return false;
+            }
 
-            RecordAppliedMode(s, AppliedAuthored, "AuthoredFallback");
+            RecordAppliedMode(s, AppliedAuthored, "AuthoredFallback", 60);
             return true;
         }
 
@@ -132,7 +142,7 @@ namespace SeasonalBastion.RunStart
             AddRectZone(zs, 2, ResourceType.Food, 40, 14, 50, 24);
             AddRectZone(zs, 3, ResourceType.Stone, 14, 14, 24, 24);
             AddRectZone(zs, 4, ResourceType.Iron, 40, 40, 50, 50);
-            RecordAppliedMode(s, AppliedLegacy, "LegacyFallback");
+            RecordAppliedMode(s, AppliedLegacy, "LegacyFallback", 30);
         }
 
         private static void ApplyZoneStates(IZoneStore zs, List<ZoneState> zones)
@@ -152,22 +162,37 @@ namespace SeasonalBastion.RunStart
             return s?.RunStartRuntime != null ? s.RunStartRuntime.Seed : 0;
         }
 
-        private static void RecordGenerationFailure(GameServices s, string reason)
+        private static void RecordGenerationFailure(GameServices s, string stage, string reason, string qualityBand, int qualityScore)
         {
             if (s?.RunStartRuntime == null)
                 return;
 
+            s.RunStartRuntime.ResourceGenerationFailureStage = stage;
             s.RunStartRuntime.ResourceGenerationFailureReason = string.IsNullOrWhiteSpace(reason) ? "Unknown generation failure." : reason;
-            s.RunStartRuntime.OpeningQualityBand = "GenerationFailed";
+            s.RunStartRuntime.OpeningQualityBand = qualityBand;
+            s.RunStartRuntime.OpeningQualityScore = qualityScore;
         }
 
-        private static void RecordAppliedMode(GameServices s, string appliedMode, string qualityBand)
+        private static void RecordFailureStageIfEmpty(GameServices s, string stage, string reason)
+        {
+            if (s?.RunStartRuntime == null)
+                return;
+
+            if (!string.IsNullOrWhiteSpace(s.RunStartRuntime.ResourceGenerationFailureStage))
+                return;
+
+            s.RunStartRuntime.ResourceGenerationFailureStage = stage;
+            s.RunStartRuntime.ResourceGenerationFailureReason = reason;
+        }
+
+        private static void RecordAppliedMode(GameServices s, string appliedMode, string qualityBand, int qualityScore)
         {
             if (s?.RunStartRuntime == null)
                 return;
 
             s.RunStartRuntime.ResourceGenerationModeApplied = appliedMode;
             s.RunStartRuntime.OpeningQualityBand = qualityBand;
+            s.RunStartRuntime.OpeningQualityScore = qualityScore;
         }
 
         private static string NormalizeRequestedMode(string mode)

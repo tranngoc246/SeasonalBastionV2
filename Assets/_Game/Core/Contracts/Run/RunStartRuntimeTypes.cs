@@ -16,7 +16,9 @@ namespace SeasonalBastion.Contracts
         public string ResourceGenerationModeRequested;
         public string ResourceGenerationModeApplied;
         public string ResourceGenerationFailureReason;
+        public string ResourceGenerationFailureStage;
         public string OpeningQualityBand;
+        public int OpeningQualityScore;
 
         public IntRect BuildableRect;
 
@@ -85,8 +87,9 @@ namespace SeasonalBastion.Contracts
         public readonly IntRect Rect;
         public readonly int CellCount;
         public readonly string Origin;
+        public readonly string Bucket;
 
-        public ZoneRect(string zoneId, string type, string ownerBuildingHint, IntRect rect, int cellCount, string origin = null)
+        public ZoneRect(string zoneId, string type, string ownerBuildingHint, IntRect rect, int cellCount, string origin = null, string bucket = null)
         {
             ZoneId = zoneId;
             Type = type;
@@ -94,6 +97,7 @@ namespace SeasonalBastion.Contracts
             Rect = rect;
             CellCount = cellCount;
             Origin = origin;
+            Bucket = bucket;
         }
     }
 }

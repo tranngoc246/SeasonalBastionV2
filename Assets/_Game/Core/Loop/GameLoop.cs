@@ -49,8 +49,10 @@ namespace SeasonalBastion
                 {
                     if (_s.RunStartRuntime != null)
                     {
+                        _s.RunStartRuntime.ResourceGenerationFailureStage = "RunStartApply";
                         _s.RunStartRuntime.ResourceGenerationFailureReason = result.error;
                         _s.RunStartRuntime.OpeningQualityBand = "RunStartApplyFailed";
+                        _s.RunStartRuntime.OpeningQualityScore = 0;
                     }
 
                     _s.NotificationService?.Push(
@@ -139,7 +141,9 @@ namespace SeasonalBastion
             rt.ResourceGenerationModeRequested = null;
             rt.ResourceGenerationModeApplied = null;
             rt.ResourceGenerationFailureReason = null;
+            rt.ResourceGenerationFailureStage = null;
             rt.OpeningQualityBand = null;
+            rt.OpeningQualityScore = 0;
             rt.BuildableRect = default;
             rt.SpawnGates.Clear();
             rt.Zones.Clear();

@@ -321,12 +321,12 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
-        public void RunStartZoneInitializer_GeneratedOnly_WithoutResourceGeneration_RecordsMissingConfigStage()
+        public void RunStartZoneInitializer_GeneratedOnly_WithoutRules_RecordsGeneratedEmptyStage()
         {
             var services = MakeServices();
             AddHq(services, 30, 30);
             var cfg = MakeGeneratedConfig();
-            cfg.resourceGeneration = new ResourceGenerationDto { mode = "GeneratedOnly" };
+            cfg.resourceGeneration = new ResourceGenerationDto { mode = "GeneratedOnly", starterRules = null, bonusRules = null };
             cfg.zones = new[]
             {
                 new ZoneDto
@@ -343,8 +343,8 @@ namespace SeasonalBastion.Tests.EditMode
             RunStartRuntimeCacheBuilder.ApplyRuntimeZonesFromWorld(services);
 
             Assert.That(services.RunStartRuntime.ResourceGenerationModeApplied, Is.EqualTo("AuthoredFallback"));
-            Assert.That(services.RunStartRuntime.ResourceGenerationFailureStage, Is.EqualTo("GeneratedMissingConfig"));
-            Assert.That(services.RunStartRuntime.ResourceGenerationFailureReason, Is.EqualTo("resourceGeneration missing."));
+            Assert.That(services.RunStartRuntime.ResourceGenerationFailureStage, Is.EqualTo("GeneratedEmpty"));
+            Assert.That(services.RunStartRuntime.ResourceGenerationFailureReason, Is.EqualTo("Generated resource zone list was empty."));
             Assert.That(services.RunStartRuntime.OpeningQualityScore, Is.EqualTo(60));
         }
 

@@ -193,6 +193,12 @@ namespace SeasonalBastion.RunStart
             s.RunStartRuntime.ResourceGenerationModeApplied = appliedMode;
             s.RunStartRuntime.OpeningQualityBand = qualityBand;
             s.RunStartRuntime.OpeningQualityScore = qualityScore;
+
+            if (string.Equals(appliedMode, AppliedGenerated, StringComparison.OrdinalIgnoreCase))
+            {
+                s.RunStartRuntime.ResourceGenerationFailureStage = null;
+                s.RunStartRuntime.ResourceGenerationFailureReason = null;
+            }
         }
 
         private static string NormalizeRequestedMode(string mode)

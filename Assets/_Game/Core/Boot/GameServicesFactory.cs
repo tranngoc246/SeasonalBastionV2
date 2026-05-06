@@ -9,7 +9,19 @@ namespace SeasonalBastion
             var services = new GameServices();
             var mapSize = runtimeMapSize ?? MapSize.Default;
 
-            // Core
+            ComposeCore(services, catalog);
+            ComposeRunStartAndWorld(services);
+            ComposeGrid(services, mapSize);
+            ComposeEconomyAndJobs(services);
+            ComposeBuild(services);
+            ComposeCombatAndRewards(services);
+            ComposeSave(services);
+
+            return services;
+        }
+
+        private static void ComposeCore(GameServices services, DefsCatalog catalog)
+        {
             services.EventBus = new EventBus();
             services.DataRegistry = new DataRegistry(catalog);
             services.DataValidator = new DataValidator();
@@ -21,70 +33,72 @@ namespace SeasonalBastion
             services.NotificationService = new NotificationService(services.EventBus);
             services.TutorialHints = new TutorialHintsService(services);
             services.SeasonMetrics = new SeasonMetricsService(services.EventBus);
+        }
 
-            // RunStart
+        private static void ComposeRunStartAndWorld(GameServices services)
+        {
             services.RunStartRuntime = new RunStartRuntime();
 
-            // World
             services.WorldState = new WorldState();
             services.JobBoard = new JobBoard();
             services.WorldIndex = new WorldIndexService(services.WorldState, services.DataRegistry);
             services.WorldOps = new WorldOps(services.WorldState, services.EventBus, services.DataRegistry, services.WorldIndex, services.JobBoard);
-            // Keep derived lists in sync for existing state at boot.
             services.WorldIndex.RebuildAll();
+        }
 
-            // Grid
+        private static void ComposeGrid(GameServices services, MapSize mapSize)
+        {
             services.RuntimeMapSize = mapSize;
             services.GridMap = new GridMap(width: mapSize.Width, height: mapSize.Height);
             services.TerrainMap = new TerrainMap(width: mapSize.Width, height: mapSize.Height);
             services.ResourcePatchService = new ResourcePatchService();
 
-            // Day14: simple mover/pathfinding (cell-by-cell)
             services.Pathfinder = new NpcPathfinder(services.GridMap, services.TerrainMap);
             services.AgentMover = new GridAgentMoverLite(services.GridMap, services.DataRegistry, services.Balance, services.TerrainMap);
             services.EventBus.Subscribe<RoadsDirtyEvent>(_ => services.AgentMover?.NotifyRoadsDirty());
 
             services.PlacementService = new PlacementService(services.GridMap, services.WorldState, services.DataRegistry, services.WorldIndex, services.EventBus, services.TerrainMap);
             ((PlacementService)services.PlacementService).BindRunStart(services.RunStartRuntime);
+        }
 
-            // Economy
+        private static void ComposeEconomyAndJobs(GameServices services)
+        {
             services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);
             services.ResourceFlowService = new ResourceFlowService(services.WorldState, services.WorldIndex, services.StorageService, services.Pathfinder);
             services.PopulationService = new PopulationService(services);
-            
-            // Jobs
+
             services.ClaimService = new ClaimService();
             services.JobWorkplacePolicy = new JobWorkplacePolicy(services.DataRegistry);
             var executorRegistry = new JobExecutorRegistry(services);
-            services.JobScheduler = new JobScheduler( services, services.WorldState, services.JobBoard, services.ClaimService, executorRegistry, services.EventBus, services.DataRegistry, services.NotificationService, services.JobWorkplacePolicy);
+            services.JobScheduler = new JobScheduler(services, services.WorldState, services.JobBoard, services.ClaimService, executorRegistry, services.EventBus, services.DataRegistry, services.NotificationService, services.JobWorkplacePolicy);
 
-            //services.ProducerLoopService = new ProducerLoopService(services.WorldState, services.DataRegistry, services.StorageService, services.JobBoard, services.NotificationService, services.RunClock);
             // P0: disable ProducerLoopService to avoid duplicate/invalid Harvest jobs (JobScheduler is the single source)
             services.ProducerLoopService = null;
+        }
 
-            // Build
+        private static void ComposeBuild(GameServices services)
+        {
             services.BuildWorkplaceResolver = new BuildOrderWorkplaceResolver(services);
             services.BuildOrderService = new BuildOrderService(services);
 
-            // bind build orders into placement (so CommitBuilding routes to construction)
             if (services.PlacementService is PlacementService ps)
                 ps.BindBuildOrders(services.BuildOrderService);
+        }
 
-            // Ammo & Combat
+        private static void ComposeCombatAndRewards(GameServices services)
+        {
             services.AmmoService = new AmmoService(services);
             services.CombatService = new CombatService(services);
             services.WaveCalendarResolver = new WaveCalendarResolver(services.DataRegistry);
 
-            // Rewards & Outcome
             services.RewardService = new RewardService(services);
             services.RunOutcomeService = new RunOutcomeService(services.EventBus, services.WorldState, services.DataRegistry);
+        }
 
-            // Save
-            var saveMigrator = new SaveMigrator();
+        private static void ComposeSave(GameServices services)
+        {
             services.SaveService = new SaveService(new SaveMigrator(), services.DataRegistry, services.GridMap, services.PopulationService, services);
             _ = new SaveAutosaveService(services);
-
-            return services;
         }
     }
 }

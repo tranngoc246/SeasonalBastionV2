@@ -287,4 +287,16 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 2. tách nhỏ `GameServicesFactory.Create(...)`
 3. lên kế hoạch split `SaveService.cs`
 
+### Cập nhật 2026-05-06
+- [x] Đã refactor bước đầu `Assets/_Game/Core/Boot/GameServicesFactory.cs` bằng cách tách `Create(...)` thành các helper composition nhỏ hơn:
+  - `ComposeCore(...)`
+  - `ComposeRunStartAndWorld(...)`
+  - `ComposeGrid(...)`
+  - `ComposeEconomyAndJobs(...)`
+  - `ComposeBuild(...)`
+  - `ComposeCombatAndRewards(...)`
+  - `ComposeSave(...)`
+- [~] Refactor này hiện ưu tiên readability/composition clarity, chưa đổi sang partial files riêng hoặc interface views hẹp hơn.
+- [ ] Bước tiếp theo hợp lý: nếu pass này ổn, cân nhắc tách các helper composition ra file riêng hoặc bắt đầu giảm dependency trực tiếp vào `GameServices` ở các service mới.
+
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

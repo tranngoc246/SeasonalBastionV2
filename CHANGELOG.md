@@ -1,5 +1,77 @@
 # CHANGELOG
 
+## 2026-05-06
+
+### Tóm tắt
+Đợt cập nhật này là pass **hardening / stability / debugability** cho opening economy, với mục tiêu biến hybrid opening từ mức groundwork thành một flow có fallback rõ, quality gate rõ, patch metadata rõ, và harvest opening bớt rung hơn khi layout thay đổi theo seed.
+
+### Opening generation fallback / runtime visibility
+- Refactor `RunStartZoneInitializer` để fallback chain đọc rõ hơn theo hướng:
+  - `Generated -> AuthoredFallback -> LegacyFallback`
+- Ghi rõ runtime state cho:
+  - requested mode
+  - applied mode
+  - failure reason
+  - failure stage
+  - opening quality band / score
+- Thêm distinction rõ hơn cho failure stage, bao gồm cả nhánh `GeneratedQualityGate`.
+- Chuẩn hóa runtime/cache metadata để phân biệt được:
+  - `starter-generated`
+  - `bonus-generated`
+  - `authored-fallback`
+  - `legacy-fallback`
+
+### Opening quality gate / generator hardening
+- Mở rộng `RunStartResourceZoneGenerator` để evaluate whole-opening thay vì chỉ rect validity.
+- Thêm quality gate tối thiểu cho starter coverage usable quanh HQ:
+  - Wood
+  - Food
+  - Stone
+- Thêm `qualityBand` + `qualityScore` trả ra từ generator.
+- Thêm bounded retry cấp opening để thử nhiều candidate layout hữu hạn và chọn candidate tốt nhất.
+- Thêm scoring cơ bản cho:
+  - starter accessibility
+  - starter distribution quanh HQ
+  - iron pressure gần HQ
+- `RunStartConfigValidator` được xiết thêm semantic validation cơ bản cho opening intent trong starter rules.
+
+### Start map tuning theo quality gate mới
+- Tune `StartMapConfig_RunStart_64x64_v0.1.json` pass đầu theo quality gate mới.
+- Starter wood/food được kéo gần hơn và ổn định hơn.
+- Starter stone được giữ trong range opener an toàn hơn.
+- Starter-lite iron bị đẩy xa HQ hơn để giảm opening pressure.
+- Bonus outer ring được đẩy xa hơn để tránh lấn starter ring quá sớm.
+
+### Harvest opening stabilization
+- Mở rộng `ResourcePatchState` với metadata patch-level cho opening policy:
+  - `OriginKind`
+  - `GenerationBucket`
+  - `SourceLabel`
+  - `IsStarterLike`
+- `ResourcePatchService` giờ rebuild patch metadata từ generated/authored zones thay vì chỉ giữ shape + amount.
+- Thêm bias để opening harvest ưu tiên starter patch hợp lý hơn so với bonus patch gần tương đương.
+- Cải thiện retarget khi patch cạn trong `HarvestExecutor` để reset state sạch hơn và chuyển patch khác gọn hơn.
+
+### Regression / smoke / docs
+- Mở rộng `ResourceZoneGenerationTests` để khóa thêm quality-failure semantics, starter/bonus metadata, và quality scoring cơ bản.
+- Thêm test mới `HarvestOpeningStabilityTests` để khóa:
+  - patch metadata preservation
+  - starter patch preference
+  - retarget behavior khi patch cạn
+- Chuyển `docs/opening-economy-seed-stability-checklist.md` thành progress checklist sống, có rule bắt buộc cập nhật sau mỗi phiên làm.
+- Thêm `docs/opening-economy-smoke-matrix.md` làm khung smoke matrix seed cố định cho các batch tiếp theo.
+
+### Kết luận / trạng thái hiện tại
+- Opening economy hiện đã tiến gần hơn nhiều tới trạng thái productionizing:
+  - fallback traceable
+  - generated quality có gate rõ
+  - runtime/debug metadata đủ dùng hơn
+  - harvest opening có starter-aware behavior cơ bản
+- Các bước hợp lý tiếp theo nếu đi tiếp sẽ là:
+  1. chạy smoke multi-seed thật trong môi trường runtime phù hợp
+  2. thêm path-cost aware scoring sâu hơn nếu cần
+  3. tiếp tục polish harvest/runtime behavior nếu smoke lộ edge case mới
+
 ## 2026-03-29
 
 ### Tóm tắt

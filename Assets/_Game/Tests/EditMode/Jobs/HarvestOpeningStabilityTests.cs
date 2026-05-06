@@ -133,7 +133,7 @@ namespace SeasonalBastion.Tests.EditMode.Jobs
         public void HarvestExecutor_WhenStarterPatchDepletes_RetargetsToAnotherAvailablePatch()
         {
             var services = CreateHarvestServices();
-            var workplaceId = CreateWorkplace(services.WorldState);
+            var workplaceId = CreateWorkplace((WorldState)services.WorldState);
             services.ResourcePatchService.RebuildFromZones(new List<ZoneState>
             {
                 MakeZone(1, ResourceType.Wood, 10, 10, 10, 10, "Generated", "starter-generated"),

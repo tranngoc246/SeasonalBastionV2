@@ -327,12 +327,12 @@ Retune rules sau khi đã có visibility + quality gate.
 ## FILE 13 - `docs/opening-economy-smoke-matrix.md`
 
 ### Status
-- [ ] chưa làm
+- [x] đã tạo smoke matrix khởi tạo với seed set + acceptance criteria + update rule
 
 ## FILE 14 - `CHANGELOG.md`
 
 ### Status
-- [ ] chưa làm
+- [x] đã ghi lại đúng intent và phạm vi batch hardening opening economy
 
 ---
 
@@ -392,6 +392,12 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - [x] `HarvestExecutor.cs`
 - [x] `HarvestOpeningStabilityTests.cs`
 
+### Đợt 4 - regression / smoke / docs
+- [x] `ResourceZoneGenerationTests.cs`
+- [x] `HarvestOpeningStabilityTests.cs`
+- [x] `docs/opening-economy-smoke-matrix.md`
+- [x] `CHANGELOG.md`
+
 ---
 
 ## 7. Blockers / follow-up cần chốt
@@ -401,7 +407,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - [x] `quality failure` đã được đưa vào fallback semantics ở phase B với `GeneratedQualityGate`.
 - [x] Đã có bounded retry/scoring cơ bản cho quality evaluation trong phase B.
 - [!] Chưa có path-cost aware scoring và chưa có smoke multi-seed đủ rộng để xác nhận tuning JSON mới.
-- [~] Phase D đã có test coverage logic + retarget cơ bản, nhưng vẫn chưa verify runtime test suite trên máy này.
+- [~] Phase D/E đã có test coverage logic + docs scaffolding tốt hơn, nhưng vẫn chưa verify runtime test suite trên máy này.
 
 ---
 
@@ -415,6 +421,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - 2026-05-06 09:xx GMT+7, tune `StartMapConfig_RunStart_64x64_v0.1.json` pass đầu theo quality gate mới: siết starter wood/food, ổn định stone starter, đẩy iron starter-lite ra xa hơn, và đẩy outer bonus ring ra xa để giảm cạnh tranh với opening ring.
 - 2026-05-06 10:xx GMT+7, bắt đầu phase D: thêm patch metadata `OriginKind/GenerationBucket/SourceLabel`, rebuild starter-aware patch state từ zones, thêm bias ưu tiên starter trong patch selection, chỉnh retarget sạch hơn khi patch cạn, và tạo file test `HarvestOpeningStabilityTests.cs` cho nền tảng harvest opening stability.
 - 2026-05-06 10:xx GMT+7, đóng tiếp phase D ở level test logic: thêm coverage cho `HarvestTargetSelectionHelper` ưu tiên starter patch và `HarvestExecutor` retarget sang patch khác khi patch hiện tại đã cạn.
+- 2026-05-06 10:xx GMT+7, bắt đầu phase E: thêm `docs/opening-economy-smoke-matrix.md` với seed set cố định + acceptance criteria, cập nhật `CHANGELOG.md` cho batch hardening opening economy, và đánh dấu scaffold regression/smoke/docs đã sẵn sàng cho runtime verification.
 
 ---
 

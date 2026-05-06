@@ -17,6 +17,7 @@ namespace SeasonalBastion.RunStart
         private const string FailureStageGeneratedTechnical = "GeneratedTechnical";
         private const string FailureStageGeneratedEmpty = "GeneratedEmpty";
         private const string FailureStageGeneratedMissingConfig = "GeneratedMissingConfig";
+        private const string FailureStageGeneratedQualityGate = "GeneratedQualityGate";
         private const string FailureStageAuthoredUnavailable = "AuthoredUnavailable";
 
         internal static void ApplyZones(GameServices s, StartMapConfigDto cfg)
@@ -81,9 +82,10 @@ namespace SeasonalBastion.RunStart
                 return false;
             }
 
-            if (!RunStartResourceZoneGenerator.TryGenerateZones(s, cfg, ResolveSeed(s), out var zones, out error))
+            if (!RunStartResourceZoneGenerator.TryGenerateZones(s, cfg, ResolveSeed(s), out var zones, out error, out var qualityBand, out var qualityScore))
             {
-                RecordGenerationFailure(s, FailureStageGeneratedTechnical, error, "GenerationFailed", 0);
+                string failureStage = ResolveFailureStage(qualityBand);
+                RecordGenerationFailure(s, failureStage, error, QualityBandToText(qualityBand), qualityScore);
                 return false;
             }
 
@@ -95,7 +97,7 @@ namespace SeasonalBastion.RunStart
             }
 
             ApplyZoneStates(s.WorldState.Zones, zones);
-            RecordAppliedMode(s, AppliedGenerated, "GeneratedUsable", 100);
+            RecordAppliedMode(s, AppliedGenerated, QualityBandToText(qualityBand), qualityScore);
             return true;
         }
 
@@ -199,6 +201,29 @@ namespace SeasonalBastion.RunStart
                 s.RunStartRuntime.ResourceGenerationFailureStage = null;
                 s.RunStartRuntime.ResourceGenerationFailureReason = null;
             }
+        }
+
+        private static string ResolveFailureStage(OpeningQualityBandKind qualityBand)
+        {
+            return qualityBand switch
+            {
+                OpeningQualityBandKind.GenerationEmpty => FailureStageGeneratedEmpty,
+                OpeningQualityBandKind.GenerationMissingConfig => FailureStageGeneratedMissingConfig,
+                OpeningQualityBandKind.GeneratedWeak => FailureStageGeneratedQualityGate,
+                _ => FailureStageGeneratedTechnical
+            };
+        }
+
+        private static string QualityBandToText(OpeningQualityBandKind qualityBand)
+        {
+            return qualityBand switch
+            {
+                OpeningQualityBandKind.GeneratedUsable => "GeneratedUsable",
+                OpeningQualityBandKind.GeneratedWeak => "GeneratedWeak",
+                OpeningQualityBandKind.GenerationEmpty => "GenerationEmpty",
+                OpeningQualityBandKind.GenerationMissingConfig => "GenerationMissingConfig",
+                _ => "GenerationFailed"
+            };
         }
 
         private static string NormalizeRequestedMode(string mode)

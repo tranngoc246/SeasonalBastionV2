@@ -35,9 +35,9 @@ Sau mỗi phiên làm, cập nhật tối thiểu:
 Sau batch này, project nên đạt:
 
 - [~] `Hybrid` mode tạo được opening usable qua nhiều seed
-- [~] fallback chain rõ ràng: `Generated -> AuthoredFallback -> LegacyFallback`
-- [~] runtime/debug state cho biết run đã dùng mode nào và fail ở đâu
-- [~] phân biệt được zone/patch nào là `starter`, `bonus`, `authored`, `legacy`
+- [x] fallback chain rõ ràng: `Generated -> AuthoredFallback -> LegacyFallback`
+- [x] runtime/debug state cho biết run đã dùng mode nào và fail ở đâu
+- [x] phân biệt được zone/patch nào là `starter`, `bonus`, `authored`, `legacy`
 - [ ] harvest opening ưu tiên starter patches hợp lý
 - [ ] có regression + smoke checklist đủ để balance tiếp mà không làm vỡ opener
 
@@ -219,8 +219,28 @@ Khóa behavior fallback/debug trước khi refactor generator mạnh tay.
 ### Goal
 Nâng generator từ `spawn hợp lệ` lên `opening usable`.
 
-### Status
-- [ ] chưa rà ở pass này
+### Trạng thái thực tế
+**Status: [~] đã có quality gate cơ bản cho starter coverage, còn thiếu scoring/retry sâu hơn**
+
+### Đã có trong code
+- [x] giữ `TryPickZoneRect(...)` là rect-level concern
+- [x] thêm pass evaluate toàn opening sau khi generate xong
+- [x] có `HasStarterCoverage(...)`
+- [x] có quality band và quality score trả ra từ generator
+- [x] generated fail quality giờ có semantics riêng (`GeneratedWeak` / `GeneratedQualityGate`)
+- [x] quality gate khóa tối thiểu:
+  - [x] có `Wood` starter usable
+  - [x] có `Food` starter usable
+  - [x] có `Stone` starter usable
+
+### Còn thiếu / cần verify
+- [ ] chưa có deterministic bounded retry khi quality chưa đạt
+- [ ] chưa có score/accessibility/distribution helper sâu hơn
+- [ ] chưa khóa rule về path cost / phân bố quanh HQ / iron starter-lite
+
+### Verify phase B
+- [x] seed xấu có thể bị reject với lý do rõ
+- [~] cùng seed vẫn deterministic theo logic hiện tại, nhưng chưa verify runtime test trên máy này
 
 ---
 
@@ -229,8 +249,23 @@ Nâng generator từ `spawn hợp lệ` lên `opening usable`.
 ### Goal
 Xiết validator theo semantic gameplay, không chỉ schema/range.
 
-### Status
-- [ ] chưa rà ở pass này
+### Trạng thái thực tế
+**Status: [~] đã thêm semantic validation cơ bản cho starter coverage intent**
+
+### Đã có trong code
+- [x] semantic validation helper cho starter coverage intent
+- [x] flag config thiếu opening coverage intent cho `Wood/Food/Stone`
+- [x] enforce khoảng cách intent cơ bản:
+  - [x] `Wood <= 14`
+  - [x] `Food <= 14`
+  - [x] `Stone <= 16`
+
+### Còn thiếu / cần verify
+- [ ] chưa tách warning/helper mềm trước khi fail hard
+- [ ] chưa validate iron starter / rect quá nhỏ / count quá thấp theo gameplay semantics sâu hơn
+
+### Verify phase B
+- [x] config “hợp lệ về cú pháp nhưng tệ gameplay” đã bị lộ sớm hơn ở mức cơ bản
 
 ---
 
@@ -288,7 +323,7 @@ Retune rules sau khi đã có visibility + quality gate.
 - [x] fallback chain trace được rõ ở level mode tổng
 - [x] runtime state cho biết requested/applied mode + failure reason
 - [x] có distinction giữa starter/bonus/authored/legacy ở mức debug usable cơ bản cho phase 1
-- [ ] multi-seed smoke không có case thiếu `Wood/Food/Stone` starter usable
+- [~] multi-seed smoke không có case thiếu `Wood/Food/Stone` starter usable
 - [ ] worker opening pick được starter patch hợp lý
 - [ ] có regression cho generation + harvest opening
 
@@ -319,8 +354,8 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - [x] behavior hiện tại của `GeneratedOnly` đã được phản ánh rõ trong code/doc
 
 ### Đợt 2 - sửa generation
-- [ ] `RunStartResourceZoneGenerator.cs`
-- [ ] `RunStartConfigValidator.cs`
+- [~] `RunStartResourceZoneGenerator.cs`
+- [~] `RunStartConfigValidator.cs`
 - [ ] `StartMapConfig_RunStart_64x64_v0.1.json`
 
 ### Đợt 3 - khóa harvest opening
@@ -336,9 +371,8 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 
 - [x] Behavior hiện tại của `GeneratedOnly` đã được ghi nhận: đang fallback sang authored/legacy nếu generated không áp dụng được.
 - [x] Metadata generated zones đã tách rõ `starter-generated` và `bonus-generated` ở runtime/cache.
-- [!] Chốt thời điểm đưa `quality failure` vào fallback semantics:
-  - ngay phase 1.5 / phase 2,
-  - hay để sau khi generator quality gate hoàn tất.
+- [x] `quality failure` đã được đưa vào fallback semantics ở phase B với `GeneratedQualityGate`.
+- [!] Chưa có bounded retry/scoring sâu hơn cho quality evaluation, đây là phần follow-up tiếp theo của phase B.
 
 ---
 
@@ -347,6 +381,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - 2026-05-06 09:xx GMT+7, đối chiếu code thực tế phase 1 với checklist. Kết luận: phase 1 đã làm được phần lớn fallback visibility và runtime tracking cơ bản, nhưng chưa xong trọn vẹn vì còn thiếu starter/bonus metadata bền vững, quality-failure semantics rõ hơn, và một số test/intent cần chốt.
 - 2026-05-06 09:xx GMT+7, chuyển file này từ note/checklist định hướng sang progress checklist sống, thêm rule bắt buộc phải cập nhật file sau mỗi phiên làm / trước khi commit.
 - 2026-05-06 09:xx GMT+7, đóng nốt phase 1 ở level code/doc: thêm zone metadata `Origin/Bucket` vào `ZoneState`, preserve `starter-generated` vs `bonus-generated` qua runtime cache, thêm `ZoneRect.IsStarter`, cập nhật test để khóa starter/bonus/authored/legacy distinction. Chưa verify được test command trên máy này vì thiếu .NET SDK/runner phù hợp.
+- 2026-05-06 09:xx GMT+7, bắt đầu phase B: thêm quality gate semantics cho generated opening, cho generator trả `qualityBand/qualityScore`, reject seed thiếu starter coverage với reason rõ, map sang `GeneratedQualityGate` ở initializer, thêm semantic validation cơ bản trong `RunStartConfigValidator`, và cập nhật test/checklist tương ứng.
 
 ---
 

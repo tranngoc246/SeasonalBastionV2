@@ -138,7 +138,52 @@ namespace SeasonalBastion.RunStart
             if (!ValidateSpawnRules(rg.bonusRules, "bonusRules", out error))
                 return false;
 
+            if ((hybrid || generatedOnly) && !ValidateStarterCoverageIntent(rg.starterRules, out error))
+                return false;
+
             return true;
+        }
+
+        private static bool ValidateStarterCoverageIntent(ResourceSpawnRuleDto[] starterRules, out string error)
+        {
+            error = null;
+            bool hasWood = HasStarterRule(starterRules, ResourceType.Wood, maxRecommendedDistance: 14);
+            bool hasFood = HasStarterRule(starterRules, ResourceType.Food, maxRecommendedDistance: 14);
+            bool hasStone = HasStarterRule(starterRules, ResourceType.Stone, maxRecommendedDistance: 16);
+
+            if (hasWood && hasFood && hasStone)
+                return true;
+
+            var missing = new System.Collections.Generic.List<string>(3);
+            if (!hasWood) missing.Add("Wood<=14");
+            if (!hasFood) missing.Add("Food<=14");
+            if (!hasStone) missing.Add("Stone<=16");
+            error = $"resourceGeneration.starterRules missing opening coverage intent for: {string.Join(", ", missing)}.";
+            return false;
+        }
+
+        private static bool HasStarterRule(ResourceSpawnRuleDto[] rules, ResourceType expected, int maxRecommendedDistance)
+        {
+            if (rules == null)
+                return false;
+
+            for (int i = 0; i < rules.Length; i++)
+            {
+                var r = rules[i];
+                if (r == null)
+                    continue;
+
+                if (!TryParseResourceType(r.resourceType, out var parsed) || parsed != expected)
+                    continue;
+
+                if (r.countMax <= 0)
+                    continue;
+
+                if (r.maxDistanceFromHQ <= maxRecommendedDistance)
+                    return true;
+            }
+
+            return false;
         }
 
         private static bool ValidateSpawnRules(ResourceSpawnRuleDto[] rules, string label, out string error)

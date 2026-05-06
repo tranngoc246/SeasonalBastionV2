@@ -366,6 +366,59 @@ namespace SeasonalBastion.Tests.EditMode
         }
 
         [Test]
+        public void RunStartZoneInitializer_GeneratedOnly_QualityFailure_FallsBackToAuthored()
+        {
+            var services = MakeServices();
+            AddHq(services, 30, 30);
+            var cfg = MakeGeneratedConfig();
+            cfg.resourceGeneration.starterRules = new[]
+            {
+                new ResourceSpawnRuleDto { resourceType = "Wood", countMin = 1, countMax = 1, minDistanceFromHQ = 30, maxDistanceFromHQ = 34, rectWidthMin = 3, rectWidthMax = 3, rectHeightMin = 3, rectHeightMax = 3 }
+            };
+            cfg.resourceGeneration.bonusRules = null;
+            cfg.zones = new[]
+            {
+                new ZoneDto
+                {
+                    zoneId = "zone_authored_food",
+                    type = "FarmPlots",
+                    ownerBuildingHint = "bld_farmhouse_t1",
+                    cellsRect = new RectMinMaxDto { xMin = 40, yMin = 40, xMax = 41, yMax = 41 },
+                    cellCount = 4
+                }
+            };
+
+            RunStartZoneInitializer.ApplyZones(services, cfg);
+            RunStartRuntimeCacheBuilder.ApplyRuntimeZonesFromWorld(services);
+
+            Assert.That(services.RunStartRuntime.ResourceGenerationModeApplied, Is.EqualTo("AuthoredFallback"));
+            Assert.That(services.RunStartRuntime.ResourceGenerationFailureStage, Is.EqualTo("GeneratedQualityGate"));
+            Assert.That(services.RunStartRuntime.OpeningQualityBand, Is.EqualTo("AuthoredFallback"));
+            Assert.That(services.RunStartRuntime.ResourceGenerationFailureReason, Does.Contain("Missing usable starter coverage"));
+        }
+
+        [Test]
+        public void ResourceZoneGenerator_QualityGate_RejectsMissingStarterCoverage()
+        {
+            var services = MakeServices();
+            AddHq(services, 30, 30);
+            var cfg = MakeGeneratedConfig();
+            cfg.resourceGeneration.starterRules = new[]
+            {
+                new ResourceSpawnRuleDto { resourceType = "Wood", countMin = 1, countMax = 1, minDistanceFromHQ = 30, maxDistanceFromHQ = 34, rectWidthMin = 3, rectWidthMax = 3, rectHeightMin = 3, rectHeightMax = 3 }
+            };
+            cfg.resourceGeneration.bonusRules = null;
+
+            bool ok = RunStartResourceZoneGenerator.TryGenerateZones(services, cfg, 333, out var zones, out var error, out var qualityBand, out var qualityScore);
+
+            Assert.That(ok, Is.False);
+            Assert.That(qualityBand.ToString(), Is.EqualTo("GeneratedWeak"));
+            Assert.That(qualityScore, Is.LessThan(100));
+            Assert.That(error, Does.Contain("Missing usable starter coverage"));
+            Assert.That(zones, Is.Not.Null);
+        }
+
+        [Test]
         public void RunStartRuntimeCacheBuilder_GeneratedZones_PreserveStarterBonusDistinction()
         {
             var services = MakeServices();

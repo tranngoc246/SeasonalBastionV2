@@ -4,6 +4,16 @@ using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion.RunStart
 {
+    internal enum OpeningQualityBandKind
+    {
+        Unknown = 0,
+        GeneratedUsable = 1,
+        GeneratedWeak = 2,
+        GenerationFailed = 3,
+        GenerationEmpty = 4,
+        GenerationMissingConfig = 5
+    }
+
     internal static class RunStartResourceZoneGenerator
     {
         internal static bool TryGenerateZones(
@@ -11,26 +21,33 @@ namespace SeasonalBastion.RunStart
             StartMapConfigDto cfg,
             int seed,
             out List<ZoneState> zones,
-            out string error)
+            out string error,
+            out OpeningQualityBandKind qualityBand,
+            out int qualityScore)
         {
             zones = new List<ZoneState>();
             error = null;
+            qualityBand = OpeningQualityBandKind.Unknown;
+            qualityScore = 0;
 
             if (s?.GridMap == null)
             {
                 error = "GenerateZones requires GridMap.";
+                qualityBand = OpeningQualityBandKind.GenerationFailed;
                 return false;
             }
 
             if (cfg?.resourceGeneration == null)
             {
                 error = "resourceGeneration missing.";
+                qualityBand = OpeningQualityBandKind.GenerationMissingConfig;
                 return false;
             }
 
             if (!TryResolveHqAnchor(s, out var hqAnchor))
             {
                 error = "Unable to resolve HQ anchor for resource generation.";
+                qualityBand = OpeningQualityBandKind.GenerationFailed;
                 return false;
             }
 
@@ -63,7 +80,24 @@ namespace SeasonalBastion.RunStart
                 }
             }
 
+            EvaluateOpeningLayout(hqAnchor, zones, out qualityBand, out qualityScore, out error);
+            if (qualityBand == OpeningQualityBandKind.GeneratedWeak)
+                return false;
+
+            if (zones.Count == 0 && qualityBand == OpeningQualityBandKind.Unknown)
+                qualityBand = OpeningQualityBandKind.GenerationEmpty;
+
             return true;
+        }
+
+        internal static bool TryGenerateZones(
+            GameServices s,
+            StartMapConfigDto cfg,
+            int seed,
+            out List<ZoneState> zones,
+            out string error)
+        {
+            return TryGenerateZones(s, cfg, seed, out zones, out error, out _, out _);
         }
 
         private static void GenerateZonesForRule(
@@ -309,6 +343,78 @@ namespace SeasonalBastion.RunStart
             }
 
             return false;
+        }
+
+        private static void EvaluateOpeningLayout(CellPos hqAnchor, List<ZoneState> zones, out OpeningQualityBandKind qualityBand, out int qualityScore, out string error)
+        {
+            qualityBand = OpeningQualityBandKind.GeneratedUsable;
+            qualityScore = 100;
+            error = null;
+
+            if (zones == null || zones.Count == 0)
+            {
+                qualityBand = OpeningQualityBandKind.GenerationEmpty;
+                qualityScore = 0;
+                error = "Generated resource zone list was empty.";
+                return;
+            }
+
+            bool hasWoodStarter = HasStarterCoverage(hqAnchor, zones, ResourceType.Wood, 14);
+            bool hasFoodStarter = HasStarterCoverage(hqAnchor, zones, ResourceType.Food, 14);
+            bool hasStoneStarter = HasStarterCoverage(hqAnchor, zones, ResourceType.Stone, 16);
+
+            int starterCoverageScore = 0;
+            if (hasWoodStarter) starterCoverageScore += 35;
+            if (hasFoodStarter) starterCoverageScore += 35;
+            if (hasStoneStarter) starterCoverageScore += 30;
+
+            qualityScore = starterCoverageScore;
+            if (hasWoodStarter && hasFoodStarter && hasStoneStarter)
+            {
+                qualityBand = OpeningQualityBandKind.GeneratedUsable;
+                error = null;
+                return;
+            }
+
+            qualityBand = OpeningQualityBandKind.GeneratedWeak;
+            error = BuildQualityFailureReason(hasWoodStarter, hasFoodStarter, hasStoneStarter);
+        }
+
+        private static bool HasStarterCoverage(CellPos hqAnchor, List<ZoneState> zones, ResourceType rt, int maxDistance)
+        {
+            for (int i = 0; i < zones.Count; i++)
+            {
+                var z = zones[i];
+                if (z == null || z.Resource != rt || !string.Equals(z.Bucket, "starter-generated", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (MinDistanceToZone(hqAnchor, z) <= maxDistance)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string BuildQualityFailureReason(bool hasWoodStarter, bool hasFoodStarter, bool hasStoneStarter)
+        {
+            var missing = new List<string>(3);
+            if (!hasWoodStarter) missing.Add("Wood");
+            if (!hasFoodStarter) missing.Add("Food");
+            if (!hasStoneStarter) missing.Add("Stone");
+            return $"Generated opening failed quality gate. Missing usable starter coverage: {string.Join(", ", missing)}.";
+        }
+
+        private static int MinDistanceToZone(CellPos from, ZoneState z)
+        {
+            int best = int.MaxValue;
+            for (int i = 0; i < z.Cells.Count; i++)
+            {
+                var c = z.Cells[i];
+                int d = Math.Abs(from.X - c.X) + Math.Abs(from.Y - c.Y);
+                if (d < best) best = d;
+            }
+
+            return best;
         }
 
         private static bool TryParseResourceType(string text, out ResourceType rt)

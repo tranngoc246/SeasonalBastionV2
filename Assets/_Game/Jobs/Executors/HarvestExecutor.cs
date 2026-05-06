@@ -220,7 +220,7 @@ namespace SeasonalBastion
                     job.TargetCell = nextTarget;
                     job.Amount = 0;
                     job.Status = JobStatus.InProgress;
-                    _remaining[jid] = workSec;
+                    _remaining.Remove(jid);
                     _depositSettle.Remove(jid);
                     _s.AgentMover.StepToward(ref npcState, nextTarget, 0f);
                     return true;

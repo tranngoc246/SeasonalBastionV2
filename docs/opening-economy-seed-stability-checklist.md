@@ -302,27 +302,27 @@ Retune rules sau khi đã có visibility + quality gate.
 ## FILE 8 - `Assets/_Game/Core/ResourcePatchState.cs`
 
 ### Status
-- [ ] chưa làm
+- [~] đã thêm patch metadata cơ bản cho origin/bucket/source
 
 ## FILE 9 - `Assets/_Game/Core/ResourcePatchService.cs`
 
 ### Status
-- [ ] chưa làm
+- [~] đã rebuild patch metadata từ zones và thêm bias starter cơ bản
 
 ## FILE 10 - `Assets/_Game/Jobs/HarvestTargetSelectionHelper.cs`
 
 ### Status
-- [ ] chưa làm
+- [~] đã thêm bias ưu tiên starter patch trong selection và fallback relaxed
 
 ## FILE 11 - `Assets/_Game/Jobs/Executors/HarvestExecutor.cs`
 
 ### Status
-- [ ] chưa làm
+- [~] đã chỉnh retarget khi patch cạn để reset timer sạch hơn
 
 ## FILE 12 - `Assets/_Game/Tests/EditMode/Jobs/HarvestOpeningStabilityTests.cs`
 
 ### Status
-- [ ] chưa làm
+- [~] đã tạo test phase D nền tảng cho patch metadata và starter preference
 
 ## FILE 13 - `docs/opening-economy-smoke-matrix.md`
 
@@ -343,8 +343,8 @@ Retune rules sau khi đã có visibility + quality gate.
 - [x] runtime state cho biết requested/applied mode + failure reason
 - [x] có distinction giữa starter/bonus/authored/legacy ở mức debug usable cơ bản cho phase 1
 - [~] multi-seed smoke không có case thiếu `Wood/Food/Stone` starter usable
-- [ ] worker opening pick được starter patch hợp lý
-- [ ] có regression cho generation + harvest opening
+- [~] worker opening pick được starter patch hợp lý
+- [~] có regression cho generation + harvest opening
 
 ### Nice-to-have
 - [x] có quality score thay vì chỉ quality band
@@ -386,11 +386,11 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - [x] đã tune JSON pass đầu theo policy mới
 
 ### Đợt 3 - khóa harvest opening
-- [ ] `ResourcePatchState.cs`
-- [ ] `ResourcePatchService.cs`
-- [ ] `HarvestTargetSelectionHelper.cs`
-- [ ] `HarvestExecutor.cs`
-- [ ] `HarvestOpeningStabilityTests.cs`
+- [~] `ResourcePatchState.cs`
+- [~] `ResourcePatchService.cs`
+- [~] `HarvestTargetSelectionHelper.cs`
+- [~] `HarvestExecutor.cs`
+- [~] `HarvestOpeningStabilityTests.cs`
 
 ---
 
@@ -401,6 +401,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - [x] `quality failure` đã được đưa vào fallback semantics ở phase B với `GeneratedQualityGate`.
 - [x] Đã có bounded retry/scoring cơ bản cho quality evaluation trong phase B.
 - [!] Chưa có path-cost aware scoring và chưa có smoke multi-seed đủ rộng để xác nhận tuning JSON mới.
+- [!] Phase D mới ở pass nền tảng, còn thiếu integration test/selection verification ở runtime job flow đầy đủ.
 
 ---
 
@@ -412,6 +413,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - 2026-05-06 09:xx GMT+7, bắt đầu phase B: thêm quality gate semantics cho generated opening, cho generator trả `qualityBand/qualityScore`, reject seed thiếu starter coverage với reason rõ, map sang `GeneratedQualityGate` ở initializer, thêm semantic validation cơ bản trong `RunStartConfigValidator`, và cập nhật test/checklist tương ứng.
 - 2026-05-06 09:xx GMT+7, mở rộng phase B: thêm bounded retry ở level whole-opening candidate, thêm scoring cơ bản cho accessibility/distribution/iron pressure, cập nhật test quality score, và cập nhật checklist tiến độ theo policy mới.
 - 2026-05-06 09:xx GMT+7, tune `StartMapConfig_RunStart_64x64_v0.1.json` pass đầu theo quality gate mới: siết starter wood/food, ổn định stone starter, đẩy iron starter-lite ra xa hơn, và đẩy outer bonus ring ra xa để giảm cạnh tranh với opening ring.
+- 2026-05-06 10:xx GMT+7, bắt đầu phase D: thêm patch metadata `OriginKind/GenerationBucket/SourceLabel`, rebuild starter-aware patch state từ zones, thêm bias ưu tiên starter trong patch selection, chỉnh retarget sạch hơn khi patch cạn, và tạo file test `HarvestOpeningStabilityTests.cs` cho nền tảng harvest opening stability.
 
 ---
 

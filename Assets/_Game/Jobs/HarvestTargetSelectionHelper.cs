@@ -38,6 +38,11 @@ namespace SeasonalBastion
                     continue;
 
                 int score = cost - (patch.RemainingAmount > 200 ? 200 : patch.RemainingAmount);
+                if (patch.IsStarterLike)
+                    score -= 48;
+                else if (string.Equals(patch.GenerationBucket, "bonus-generated", System.StringComparison.OrdinalIgnoreCase))
+                    score += 24;
+
                 if (!found || score < bestScore)
                 {
                     found = true;
@@ -58,11 +63,24 @@ namespace SeasonalBastion
                     if (!s.ResourcePatchService.TryPickCellInPatch(patch.Id, origin, variationSeed, out var relaxedCell))
                         relaxedCell = patch.Anchor;
 
-                    zoneCell = relaxedCell;
-                    return true;
+                    if (patch.IsStarterLike)
+                    {
+                        zoneCell = relaxedCell;
+                        return true;
+                    }
+
+                    if (!found)
+                    {
+                        found = true;
+                        bestCell = relaxedCell;
+                    }
                 }
 
-                return false;
+                if (!found)
+                    return false;
+
+                zoneCell = bestCell;
+                return true;
             }
 
             zoneCell = bestCell;

@@ -24,7 +24,7 @@ namespace SeasonalBastion
                 if (zone == null || zone.Cells == null || zone.Cells.Count == 0)
                     continue;
 
-                int total = ComputeInitialAmount(zone.Resource, zone.Cells.Count);
+                int total = ComputeInitialAmount(zone.Resource, zone.Cells.Count, zone.Bucket);
                 var patch = new ResourcePatchState
                 {
                     Id = nextId++,
@@ -32,7 +32,10 @@ namespace SeasonalBastion
                     Cells = new List<CellPos>(zone.Cells),
                     Anchor = ComputeCenter(zone.Cells),
                     TotalAmount = total,
-                    RemainingAmount = total
+                    RemainingAmount = total,
+                    OriginKind = zone.Origin,
+                    GenerationBucket = zone.Bucket,
+                    SourceLabel = $"{zone.Origin}:{zone.Bucket}:{zone.Resource}"
                 };
 
                 _byId[patch.Id] = patch;
@@ -96,9 +99,7 @@ namespace SeasonalBastion
                 if (p.Resource != rt || p.RemainingAmount <= 0)
                     continue;
 
-                int dist = System.Math.Abs(p.Anchor.X - origin.X) + System.Math.Abs(p.Anchor.Y - origin.Y);
-                int richness = p.RemainingAmount;
-                int score = dist * 12 - (richness > 200 ? 200 : richness);
+                int score = ScorePatch(p, origin);
                 if (!found || score < bestScore)
                 {
                     found = true;
@@ -108,6 +109,32 @@ namespace SeasonalBastion
             }
 
             return found;
+        }
+
+        public IReadOnlyList<ResourcePatchState> GetPatchesByResource(ResourceType rt)
+        {
+            var result = new List<ResourcePatchState>();
+            for (int i = 0; i < _ordered.Count; i++)
+            {
+                var patch = _ordered[i];
+                if (patch.Resource == rt)
+                    result.Add(patch);
+            }
+
+            return result;
+        }
+
+        public IReadOnlyList<ResourcePatchState> GetRemainingPatchesByBucket(string bucket)
+        {
+            var result = new List<ResourcePatchState>();
+            for (int i = 0; i < _ordered.Count; i++)
+            {
+                var patch = _ordered[i];
+                if (patch.RemainingAmount > 0 && string.Equals(patch.GenerationBucket, bucket, System.StringComparison.OrdinalIgnoreCase))
+                    result.Add(patch);
+            }
+
+            return result;
         }
 
         public bool TryPickCellInPatch(int patchId, CellPos origin, int variationSeed, out CellPos cell)
@@ -174,7 +201,7 @@ namespace SeasonalBastion
             return new CellPos(xMin + (xMax - xMin) / 2, yMin + (yMax - yMin) / 2);
         }
 
-        private static int ComputeInitialAmount(ResourceType rt, int cellCount)
+        private static int ComputeInitialAmount(ResourceType rt, int cellCount, string bucket)
         {
             int perCell = rt switch
             {
@@ -184,7 +211,32 @@ namespace SeasonalBastion
                 ResourceType.Iron => 12,
                 _ => 1
             };
-            return cellCount * perCell;
+
+            int total = cellCount * perCell;
+            if (string.Equals(bucket, "starter-generated", System.StringComparison.OrdinalIgnoreCase))
+                total += rt switch
+                {
+                    ResourceType.Wood => 18,
+                    ResourceType.Food => 16,
+                    ResourceType.Stone => 10,
+                    _ => 0
+                };
+
+            return total;
+        }
+
+        private static int ScorePatch(ResourcePatchState patch, CellPos origin)
+        {
+            int dist = System.Math.Abs(patch.Anchor.X - origin.X) + System.Math.Abs(patch.Anchor.Y - origin.Y);
+            int richness = patch.RemainingAmount;
+            int score = dist * 12 - (richness > 200 ? 200 : richness);
+
+            if (patch.IsStarterLike)
+                score -= 40;
+            else if (string.Equals(patch.GenerationBucket, "bonus-generated", System.StringComparison.OrdinalIgnoreCase))
+                score += 24;
+
+            return score;
         }
 
         private static void TryInsertBestCell(CellPos cell, int score, CellPos[] bestCells, int[] bestScores, ref int foundCount)

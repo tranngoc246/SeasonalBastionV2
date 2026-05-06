@@ -11,5 +11,10 @@ namespace SeasonalBastion
         public List<CellPos> Cells;
         public int TotalAmount;
         public int RemainingAmount;
+        public string OriginKind;
+        public string GenerationBucket;
+        public string SourceLabel;
+
+        public bool IsStarterLike => GenerationBucket == "starter-generated";
     }
 }

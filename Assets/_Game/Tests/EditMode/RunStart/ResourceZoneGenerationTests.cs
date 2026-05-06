@@ -413,9 +413,24 @@ namespace SeasonalBastion.Tests.EditMode
 
             Assert.That(ok, Is.False);
             Assert.That(qualityBand.ToString(), Is.EqualTo("GeneratedWeak"));
-            Assert.That(qualityScore, Is.LessThan(100));
+            Assert.That(qualityScore, Is.LessThan(80));
             Assert.That(error, Does.Contain("Missing usable starter coverage"));
             Assert.That(zones, Is.Not.Null);
+        }
+
+        [Test]
+        public void ResourceZoneGenerator_UsableLayout_ProducesHighQualityScore()
+        {
+            var services = MakeServices();
+            AddHq(services, 30, 30);
+            var cfg = MakeGeneratedConfig();
+
+            bool ok = RunStartResourceZoneGenerator.TryGenerateZones(services, cfg, 12345, out var zones, out var error, out var qualityBand, out var qualityScore);
+
+            Assert.That(ok, Is.True, error);
+            Assert.That(qualityBand.ToString(), Is.EqualTo("GeneratedUsable"));
+            Assert.That(qualityScore, Is.GreaterThanOrEqualTo(70));
+            Assert.That(zones.Count, Is.GreaterThan(0));
         }
 
         [Test]

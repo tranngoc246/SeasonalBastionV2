@@ -51,8 +51,57 @@ namespace SeasonalBastion.RunStart
                 return false;
             }
 
+            const int maxLayoutAttempts = 4;
+            List<ZoneState> bestZones = null;
+            string bestError = null;
+            OpeningQualityBandKind bestBand = OpeningQualityBandKind.Unknown;
+            int bestScore = int.MinValue;
+
+            for (int layoutAttempt = 0; layoutAttempt < maxLayoutAttempts; layoutAttempt++)
+            {
+                var candidateZones = GenerateCandidateZones(s, cfg, hqAnchor, seed, layoutAttempt);
+                EvaluateOpeningLayout(hqAnchor, candidateZones, out var candidateBand, out var candidateScore, out var candidateError);
+
+                if (bestZones == null || candidateScore > bestScore)
+                {
+                    bestZones = candidateZones;
+                    bestBand = candidateBand;
+                    bestScore = candidateScore;
+                    bestError = candidateError;
+                }
+
+                if (candidateBand == OpeningQualityBandKind.GeneratedUsable)
+                {
+                    zones = candidateZones;
+                    qualityBand = candidateBand;
+                    qualityScore = candidateScore;
+                    error = candidateError;
+                    return true;
+                }
+            }
+
+            zones = bestZones ?? new List<ZoneState>();
+            qualityBand = bestBand == OpeningQualityBandKind.Unknown && zones.Count == 0 ? OpeningQualityBandKind.GenerationEmpty : bestBand;
+            qualityScore = bestScore == int.MinValue ? 0 : bestScore;
+            error = bestError ?? "Generated opening failed quality gate.";
+            return false;
+        }
+
+        internal static bool TryGenerateZones(
+            GameServices s,
+            StartMapConfigDto cfg,
+            int seed,
+            out List<ZoneState> zones,
+            out string error)
+        {
+            return TryGenerateZones(s, cfg, seed, out zones, out error, out _, out _);
+        }
+
+        private static List<ZoneState> GenerateCandidateZones(GameServices s, StartMapConfigDto cfg, CellPos hqAnchor, int seed, int layoutAttempt)
+        {
+            var zones = new List<ZoneState>();
             int nextZoneId = 1;
-            int rootSeed = Mix(seed, cfg.resourceGeneration.seedOffset, 7919);
+            int rootSeed = Mix(seed, cfg.resourceGeneration.seedOffset, 7919 + layoutAttempt * 101);
 
             if (cfg.resourceGeneration.starterRules != null)
             {
@@ -62,8 +111,8 @@ namespace SeasonalBastion.RunStart
                     if (rule == null) continue;
                     if (!TryParseResourceType(rule.resourceType, out var rt)) continue;
 
-                    int count = PickRange(rule.countMin, rule.countMax, Mix(rootSeed, i, 101));
-                    GenerateZonesForRule(s, hqAnchor, rt, rule, count, Mix(rootSeed, i, 211), isStarter: true, ref nextZoneId, zones);
+                    int count = PickRange(rule.countMin, rule.countMax, Mix(rootSeed, i, 101 + layoutAttempt * 13));
+                    GenerateZonesForRule(s, hqAnchor, rt, rule, count, Mix(rootSeed, i, 211 + layoutAttempt * 17), isStarter: true, ref nextZoneId, zones);
                 }
             }
 
@@ -75,29 +124,12 @@ namespace SeasonalBastion.RunStart
                     if (rule == null) continue;
                     if (!TryParseResourceType(rule.resourceType, out var rt)) continue;
 
-                    int count = PickRange(rule.countMin, rule.countMax, Mix(rootSeed, i, 307));
-                    GenerateZonesForRule(s, hqAnchor, rt, rule, count, Mix(rootSeed, i, 401), isStarter: false, ref nextZoneId, zones);
+                    int count = PickRange(rule.countMin, rule.countMax, Mix(rootSeed, i, 307 + layoutAttempt * 19));
+                    GenerateZonesForRule(s, hqAnchor, rt, rule, count, Mix(rootSeed, i, 401 + layoutAttempt * 23), isStarter: false, ref nextZoneId, zones);
                 }
             }
 
-            EvaluateOpeningLayout(hqAnchor, zones, out qualityBand, out qualityScore, out error);
-            if (qualityBand == OpeningQualityBandKind.GeneratedWeak)
-                return false;
-
-            if (zones.Count == 0 && qualityBand == OpeningQualityBandKind.Unknown)
-                qualityBand = OpeningQualityBandKind.GenerationEmpty;
-
-            return true;
-        }
-
-        internal static bool TryGenerateZones(
-            GameServices s,
-            StartMapConfigDto cfg,
-            int seed,
-            out List<ZoneState> zones,
-            out string error)
-        {
-            return TryGenerateZones(s, cfg, seed, out zones, out error, out _, out _);
+            return zones;
         }
 
         private static void GenerateZonesForRule(
@@ -348,7 +380,7 @@ namespace SeasonalBastion.RunStart
         private static void EvaluateOpeningLayout(CellPos hqAnchor, List<ZoneState> zones, out OpeningQualityBandKind qualityBand, out int qualityScore, out string error)
         {
             qualityBand = OpeningQualityBandKind.GeneratedUsable;
-            qualityScore = 100;
+            qualityScore = 0;
             error = null;
 
             if (zones == null || zones.Count == 0)
@@ -359,17 +391,31 @@ namespace SeasonalBastion.RunStart
                 return;
             }
 
-            bool hasWoodStarter = HasStarterCoverage(hqAnchor, zones, ResourceType.Wood, 14);
-            bool hasFoodStarter = HasStarterCoverage(hqAnchor, zones, ResourceType.Food, 14);
-            bool hasStoneStarter = HasStarterCoverage(hqAnchor, zones, ResourceType.Stone, 16);
+            bool hasWoodStarter = HasStarterCoverage(hqAnchor, zones, ResourceType.Wood, 14, out int woodDist);
+            bool hasFoodStarter = HasStarterCoverage(hqAnchor, zones, ResourceType.Food, 14, out int foodDist);
+            bool hasStoneStarter = HasStarterCoverage(hqAnchor, zones, ResourceType.Stone, 16, out int stoneDist);
 
             int starterCoverageScore = 0;
-            if (hasWoodStarter) starterCoverageScore += 35;
-            if (hasFoodStarter) starterCoverageScore += 35;
-            if (hasStoneStarter) starterCoverageScore += 30;
+            if (hasWoodStarter) starterCoverageScore += 30;
+            if (hasFoodStarter) starterCoverageScore += 30;
+            if (hasStoneStarter) starterCoverageScore += 25;
 
-            qualityScore = starterCoverageScore;
-            if (hasWoodStarter && hasFoodStarter && hasStoneStarter)
+            int accessibilityScore = ScoreStarterAccessibility(woodDist, foodDist, stoneDist);
+            int distributionScore = ScoreDistribution(hqAnchor, zones);
+            int ironPenalty = ScoreIronPenalty(hqAnchor, zones);
+
+            qualityScore = starterCoverageScore + accessibilityScore + distributionScore - ironPenalty;
+            if (qualityScore < 0)
+                qualityScore = 0;
+            if (qualityScore > 100)
+                qualityScore = 100;
+
+            bool hasStarterCoverage = hasWoodStarter && hasFoodStarter && hasStoneStarter;
+            bool acceptableDistribution = distributionScore >= 8;
+            bool acceptableAccessibility = accessibilityScore >= 18;
+            bool acceptableIronPenalty = ironPenalty <= 8;
+
+            if (hasStarterCoverage && acceptableDistribution && acceptableAccessibility && acceptableIronPenalty)
             {
                 qualityBand = OpeningQualityBandKind.GeneratedUsable;
                 error = null;
@@ -377,31 +423,107 @@ namespace SeasonalBastion.RunStart
             }
 
             qualityBand = OpeningQualityBandKind.GeneratedWeak;
-            error = BuildQualityFailureReason(hasWoodStarter, hasFoodStarter, hasStoneStarter);
+            error = BuildQualityFailureReason(hasWoodStarter, hasFoodStarter, hasStoneStarter, accessibilityScore, distributionScore, ironPenalty);
         }
 
-        private static bool HasStarterCoverage(CellPos hqAnchor, List<ZoneState> zones, ResourceType rt, int maxDistance)
+        private static bool HasStarterCoverage(CellPos hqAnchor, List<ZoneState> zones, ResourceType rt, int maxDistance, out int bestDistance)
         {
+            bestDistance = int.MaxValue;
             for (int i = 0; i < zones.Count; i++)
             {
                 var z = zones[i];
                 if (z == null || z.Resource != rt || !string.Equals(z.Bucket, "starter-generated", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                if (MinDistanceToZone(hqAnchor, z) <= maxDistance)
-                    return true;
+                int distance = MinDistanceToZone(hqAnchor, z);
+                if (distance < bestDistance)
+                    bestDistance = distance;
             }
 
-            return false;
+            return bestDistance <= maxDistance;
         }
 
-        private static string BuildQualityFailureReason(bool hasWoodStarter, bool hasFoodStarter, bool hasStoneStarter)
+        private static int ScoreStarterAccessibility(int woodDist, int foodDist, int stoneDist)
         {
+            int score = 0;
+            score += ScoreDistanceBand(woodDist, 14, 10);
+            score += ScoreDistanceBand(foodDist, 14, 10);
+            score += ScoreDistanceBand(stoneDist, 16, 8);
+            return score;
+        }
+
+        private static int ScoreDistanceBand(int distance, int preferredMax, int weight)
+        {
+            if (distance == int.MaxValue)
+                return 0;
+            if (distance <= preferredMax - 4)
+                return weight;
+            if (distance <= preferredMax)
+                return weight - 2;
+            if (distance <= preferredMax + 4)
+                return weight / 2;
+            return 0;
+        }
+
+        private static int ScoreDistribution(CellPos hqAnchor, List<ZoneState> zones)
+        {
+            int quadrantMask = 0;
+            for (int i = 0; i < zones.Count; i++)
+            {
+                var z = zones[i];
+                if (z == null || !string.Equals(z.Bucket, "starter-generated", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var center = ComputeCenter(z.Cells);
+                int bit = ResolveQuadrantBit(hqAnchor, center);
+                quadrantMask |= bit;
+            }
+
+            int occupiedQuadrants = CountBits(quadrantMask);
+            return occupiedQuadrants switch
+            {
+                >= 3 => 15,
+                2 => 8,
+                1 => 2,
+                _ => 0
+            };
+        }
+
+        private static int ScoreIronPenalty(CellPos hqAnchor, List<ZoneState> zones)
+        {
+            int penalty = 0;
+            for (int i = 0; i < zones.Count; i++)
+            {
+                var z = zones[i];
+                if (z == null || z.Resource != ResourceType.Iron || !string.Equals(z.Bucket, "starter-generated", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                int distance = MinDistanceToZone(hqAnchor, z);
+                if (distance <= 10)
+                    penalty += 12;
+                else if (distance <= 14)
+                    penalty += 6;
+            }
+
+            return penalty;
+        }
+
+        private static string BuildQualityFailureReason(bool hasWoodStarter, bool hasFoodStarter, bool hasStoneStarter, int accessibilityScore, int distributionScore, int ironPenalty)
+        {
+            var issues = new List<string>(4);
             var missing = new List<string>(3);
             if (!hasWoodStarter) missing.Add("Wood");
             if (!hasFoodStarter) missing.Add("Food");
             if (!hasStoneStarter) missing.Add("Stone");
-            return $"Generated opening failed quality gate. Missing usable starter coverage: {string.Join(", ", missing)}.";
+            if (missing.Count > 0)
+                issues.Add($"Missing usable starter coverage: {string.Join(", ", missing)}");
+            if (accessibilityScore < 18)
+                issues.Add($"starter accessibility score too low ({accessibilityScore})");
+            if (distributionScore < 8)
+                issues.Add($"starter distribution score too low ({distributionScore})");
+            if (ironPenalty > 8)
+                issues.Add($"iron starter pressure too high ({ironPenalty})");
+            return $"Generated opening failed quality gate. {string.Join("; ", issues)}.";
         }
 
         private static int MinDistanceToZone(CellPos from, ZoneState z)
@@ -415,6 +537,43 @@ namespace SeasonalBastion.RunStart
             }
 
             return best;
+        }
+
+        private static CellPos ComputeCenter(List<CellPos> cells)
+        {
+            int xMin = int.MaxValue, yMin = int.MaxValue, xMax = int.MinValue, yMax = int.MinValue;
+            for (int i = 0; i < cells.Count; i++)
+            {
+                var c = cells[i];
+                if (c.X < xMin) xMin = c.X;
+                if (c.Y < yMin) yMin = c.Y;
+                if (c.X > xMax) xMax = c.X;
+                if (c.Y > yMax) yMax = c.Y;
+            }
+
+            return new CellPos(xMin + (xMax - xMin) / 2, yMin + (yMax - yMin) / 2);
+        }
+
+        private static int ResolveQuadrantBit(CellPos hqAnchor, CellPos center)
+        {
+            bool east = center.X >= hqAnchor.X;
+            bool north = center.Y >= hqAnchor.Y;
+            if (north && east) return 1;
+            if (north) return 2;
+            if (east) return 4;
+            return 8;
+        }
+
+        private static int CountBits(int value)
+        {
+            int count = 0;
+            while (value != 0)
+            {
+                count += value & 1;
+                value >>= 1;
+            }
+
+            return count;
         }
 
         private static bool TryParseResourceType(string text, out ResourceType rt)

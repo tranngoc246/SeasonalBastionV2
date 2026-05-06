@@ -8,7 +8,15 @@ namespace SeasonalBastion
         {
             services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);
             services.ResourceFlowService = new ResourceFlowService(services.WorldState, services.WorldIndex, services.StorageService, services.Pathfinder);
-            services.PopulationService = new PopulationService(services);
+            services.PopulationService = new PopulationService(
+                services.EventBus,
+                services.DataRegistry,
+                services.RunClock,
+                services.NotificationService,
+                services.WorldState,
+                services.GridMap,
+                services.StorageService,
+                services.RunOutcomeService);
 
             services.ClaimService = new ClaimService();
             services.JobWorkplacePolicy = new JobWorkplacePolicy(services.DataRegistry);

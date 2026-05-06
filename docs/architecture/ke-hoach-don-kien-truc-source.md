@@ -323,6 +323,9 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã tách `ReadSlotInfo(...)`, `ListRunSaves()`, và `GetLatestValidSlot()` sang `SaveService.Slots.cs` để gom slot policy/inspection về một chỗ.
 - [x] Đã tách `SaveMeta(...)` và `LoadMeta(...)` sang `SaveService.Meta.cs` để hoàn tất nhóm trách nhiệm meta persistence.
 - [ ] Bước tiếp theo hợp lý: review `SaveService.cs` sau cleanup này để quyết định dừng ở checkpoint hiện tại hay tách nốt các helper nhỏ còn lại.
-- [ ] Sau đó có thể tiếp tục giảm dependency trực tiếp vào `GameServices` ở các service mới, hoặc tách tiếp `SaveService.cs`.
+- [x] Đã bắt đầu wave giảm phụ thuộc trực tiếp vào `GameServices` bằng `PopulationService` pass 1.
+- [x] `PopulationService` không còn nhận full `GameServices`; hiện constructor nhận tập dependency hẹp hơn: `IEventBus`, `IDataRegistry`, `IRunClock`, `INotificationService`, `IWorldState`, `IGridMap`, `IStorageService`, `IRunOutcomeService`.
+- [~] Pass này giữ nguyên behavior, chủ yếu làm rõ dependency boundary và mở đường cho các service khác áp dụng pattern tương tự.
+- [ ] Bước tiếp theo hợp lý sau `PopulationService`: cân nhắc `RewardService` hoặc một service nhỏ hơn trong cụm economy/combat trước khi đụng `AmmoService`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

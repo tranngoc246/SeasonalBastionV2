@@ -10,19 +10,41 @@ namespace SeasonalBastion
         private const float GrowthDaysPerNpc = 1f;
         private const int FoodReserveDaysRequiredForGrowth = 2;
 
-        private readonly GameServices _s;
+        private readonly IEventBus _eventBus;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IRunClock _runClock;
+        private readonly INotificationService _notificationService;
+        private readonly IWorldState _worldState;
+        private readonly IGridMap _gridMap;
+        private readonly IStorageService _storageService;
+        private readonly IRunOutcomeService _runOutcomeService;
         private PopulationState _state;
         private bool _ignoreNextDayStartedEvent;
         private bool _loadingSnapshot;
 
         public PopulationState State => _state;
 
-        public PopulationService(GameServices s)
+        public PopulationService(
+            IEventBus eventBus,
+            IDataRegistry dataRegistry,
+            IRunClock runClock,
+            INotificationService notificationService,
+            IWorldState worldState,
+            IGridMap gridMap,
+            IStorageService storageService,
+            IRunOutcomeService runOutcomeService)
         {
-            _s = s;
-            _s?.EventBus?.Subscribe<DayStartedEvent>(OnDayStartedEvent);
-            _s?.EventBus?.Subscribe<BuildingPlacedEvent>(OnBuildingPlaced);
-            _s?.EventBus?.Subscribe<BuildingUpgradedEvent>(OnBuildingUpgraded);
+            _eventBus = eventBus;
+            _dataRegistry = dataRegistry;
+            _runClock = runClock;
+            _notificationService = notificationService;
+            _worldState = worldState;
+            _gridMap = gridMap;
+            _storageService = storageService;
+            _runOutcomeService = runOutcomeService;
+            _eventBus?.Subscribe<DayStartedEvent>(OnDayStartedEvent);
+            _eventBus?.Subscribe<BuildingPlacedEvent>(OnBuildingPlaced);
+            _eventBus?.Subscribe<BuildingUpgradedEvent>(OnBuildingUpgraded);
             Reset();
         }
 
@@ -55,7 +77,7 @@ namespace SeasonalBastion
             RebuildDerivedState();
 
             int need = _state.DailyFoodNeed;
-            int available = _s?.StorageService?.GetTotal(ResourceType.Food) ?? 0;
+            int available = _storageService?.GetTotal(ResourceType.Food) ?? 0;
             int consumed = ConsumeFoodDeterministic(need);
             bool starved = consumed < need;
 
@@ -63,7 +85,7 @@ namespace SeasonalBastion
             if (starved)
             {
                 _state.StarvationDays++;
-                _s?.NotificationService?.Push(
+                _notificationService?.Push(
                     key: "population.food.shortage",
                     title: "Thiếu lương thực",
                     body: $"Hôm nay cần {need} Food nhưng chỉ tiêu thụ được {consumed}. Dân số sẽ chưa thể tăng.",
@@ -91,7 +113,7 @@ namespace SeasonalBastion
                 _state.GrowthProgressDays -= GrowthDaysPerNpc;
                 RebuildDerivedState();
 
-                _s?.NotificationService?.Push(
+                _notificationService?.Push(
                     key: $"population.new.npc.{_state.PopulationCurrent}",
                     title: "Có NPC mới",
                     body: $"Dân số đã tăng lên {_state.PopulationCurrent}/{_state.PopulationCap}. Hãy giao việc cho NPC mới khi phù hợp.",
@@ -100,7 +122,7 @@ namespace SeasonalBastion
                     cooldownSeconds: 5f,
                     dedupeByKey: true);
 
-                if (!CanGrowToday(_s?.StorageService?.GetTotal(ResourceType.Food) ?? 0))
+                if (!CanGrowToday(_storageService?.GetTotal(ResourceType.Food) ?? 0))
                     break;
             }
         }
@@ -119,7 +141,7 @@ namespace SeasonalBastion
                 return;
             }
 
-            if (_s?.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing)
+            if (_runOutcomeService != null && _runOutcomeService.Outcome != RunOutcome.Ongoing)
                 return;
 
             OnDayStarted();
@@ -143,24 +165,24 @@ namespace SeasonalBastion
 
         private bool ShouldRebuildPopulationForPlaced(string defId)
         {
-            if (_s?.DataRegistry == null || string.IsNullOrWhiteSpace(defId))
+            if (_dataRegistry == null || string.IsNullOrWhiteSpace(defId))
                 return true;
 
-            return _s.DataRegistry.TryGetBuilding(defId, out var def) && def != null && def.IsHouse;
+            return _dataRegistry.TryGetBuilding(defId, out var def) && def != null && def.IsHouse;
         }
 
         private bool ShouldRebuildPopulationForUpgrade(string fromDefId, string toDefId)
         {
-            if (_s?.DataRegistry == null)
+            if (_dataRegistry == null)
                 return true;
 
             bool fromIsHouse = !string.IsNullOrWhiteSpace(fromDefId)
-                && _s.DataRegistry.TryGetBuilding(fromDefId, out var fromDef)
+                && _dataRegistry.TryGetBuilding(fromDefId, out var fromDef)
                 && fromDef != null
                 && fromDef.IsHouse;
 
             bool toIsHouse = !string.IsNullOrWhiteSpace(toDefId)
-                && _s.DataRegistry.TryGetBuilding(toDefId, out var toDef)
+                && _dataRegistry.TryGetBuilding(toDefId, out var toDef)
                 && toDef != null
                 && toDef.IsHouse;
 
@@ -169,7 +191,7 @@ namespace SeasonalBastion
 
         private bool CanGrowToday(int availableFoodBeforeConsume)
         {
-            if (_s?.RunClock != null && _s.RunClock.CurrentPhase == Phase.Defend)
+            if (_runClock != null && _runClock.CurrentPhase == Phase.Defend)
                 return false;
 
             if (_state.StarvedToday)
@@ -187,24 +209,24 @@ namespace SeasonalBastion
 
         private int ConsumeFoodDeterministic(int need)
         {
-            if (need <= 0 || _s?.StorageService == null || _s?.WorldState?.Buildings == null)
+            if (need <= 0 || _storageService == null || _worldState?.Buildings == null)
                 return 0;
 
             int left = need;
             int consumed = 0;
 
             var ids = new List<BuildingId>();
-            foreach (var id in _s.WorldState.Buildings.Ids)
+            foreach (var id in _worldState.Buildings.Ids)
                 ids.Add(id);
             ids.Sort((a, b) => a.Value.CompareTo(b.Value));
 
             for (int i = 0; i < ids.Count && left > 0; i++)
             {
                 var bid = ids[i];
-                if (!_s.StorageService.CanStore(bid, ResourceType.Food))
+                if (!_storageService.CanStore(bid, ResourceType.Food))
                     continue;
 
-                int rem = _s.StorageService.Remove(bid, ResourceType.Food, left);
+                int rem = _storageService.Remove(bid, ResourceType.Food, left);
                 if (rem <= 0)
                     continue;
 
@@ -217,13 +239,13 @@ namespace SeasonalBastion
 
         private int CountPopulationCurrent()
         {
-            if (_s?.WorldState?.Npcs == null)
+            if (_worldState?.Npcs == null)
                 return 0;
 
             int count = 0;
-            foreach (var id in _s.WorldState.Npcs.Ids)
+            foreach (var id in _worldState.Npcs.Ids)
             {
-                if (_s.WorldState.Npcs.Exists(id))
+                if (_worldState.Npcs.Exists(id))
                     count++;
             }
             return count;
@@ -231,17 +253,17 @@ namespace SeasonalBastion
 
         private int CountPopulationCap()
         {
-            if (_s?.WorldState?.Buildings == null || _s?.DataRegistry == null)
+            if (_worldState?.Buildings == null || _dataRegistry == null)
                 return 0;
 
             int cap = 0;
-            foreach (var id in _s.WorldState.Buildings.Ids)
+            foreach (var id in _worldState.Buildings.Ids)
             {
-                if (!_s.WorldState.Buildings.Exists(id)) continue;
-                var bs = _s.WorldState.Buildings.Get(id);
+                if (!_worldState.Buildings.Exists(id)) continue;
+                var bs = _worldState.Buildings.Get(id);
                 if (!bs.IsConstructed) continue;
 
-                var def = _s.DataRegistry.GetBuilding(bs.DefId);
+                var def = _dataRegistry.GetBuilding(bs.DefId);
                 if (def == null || !def.IsHouse) continue;
 
                 int level = bs.Level;
@@ -262,7 +284,7 @@ namespace SeasonalBastion
 
         private bool TrySpawnNewVillager()
         {
-            if (_s?.WorldState?.Npcs == null)
+            if (_worldState?.Npcs == null)
                 return false;
 
             var spawn = ResolveSpawnCellNearHq();
@@ -276,9 +298,9 @@ namespace SeasonalBastion
                 IsIdle = true
             };
 
-            var id = _s.WorldState.Npcs.Create(st);
+            var id = _worldState.Npcs.Create(st);
             st.Id = id;
-            _s.WorldState.Npcs.Set(id, st);
+            _worldState.Npcs.Set(id, st);
             return true;
         }
 
@@ -291,16 +313,16 @@ namespace SeasonalBastion
 
         private BuildingId? FindPrimaryHq()
         {
-            if (_s?.WorldState?.Buildings == null || _s?.DataRegistry == null)
+            if (_worldState?.Buildings == null || _dataRegistry == null)
                 return null;
 
             BuildingId best = default;
-            foreach (var bid in _s.WorldState.Buildings.Ids)
+            foreach (var bid in _worldState.Buildings.Ids)
             {
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
-                var bs = _s.WorldState.Buildings.Get(bid);
+                if (!_worldState.Buildings.Exists(bid)) continue;
+                var bs = _worldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
-                var def = _s.DataRegistry.GetBuilding(bs.DefId);
+                var def = _dataRegistry.GetBuilding(bs.DefId);
                 if (def == null || !def.IsHQ) continue;
 
                 if (best.Value == 0 || bid.Value < best.Value)
@@ -312,8 +334,8 @@ namespace SeasonalBastion
 
         private CellPos FindHqApproachCell(BuildingId hq)
         {
-            var bs = _s.WorldState.Buildings.Get(hq);
-            var def = _s.DataRegistry.GetBuilding(bs.DefId);
+            var bs = _worldState.Buildings.Get(hq);
+            var def = _dataRegistry.GetBuilding(bs.DefId);
             if (def == null)
                 return bs.Anchor;
 
@@ -324,13 +346,13 @@ namespace SeasonalBastion
 
         private string ResolveDefaultPopulationNpcDefId()
         {
-            if (_s?.DataRegistry == null)
+            if (_dataRegistry == null)
                 return "NPC_HQ_Worker";
 
-            if (_s.DataRegistry.TryGetNpc("NPC_HQ_Worker", out var _))
+            if (_dataRegistry.TryGetNpc("NPC_HQ_Worker", out var _))
                 return "NPC_HQ_Worker";
 
-            if (_s.DataRegistry.TryGetNpc("npc_villager_t1", out var _))
+            if (_dataRegistry.TryGetNpc("npc_villager_t1", out var _))
                 return "npc_villager_t1";
 
             return "NPC_HQ_Worker";
@@ -338,7 +360,7 @@ namespace SeasonalBastion
 
         private CellPos ResolveSpawnCell(CellPos desired)
         {
-            if (_s?.GridMap == null)
+            if (_gridMap == null)
                 return desired;
 
             if (IsPreferredSpawnCell(desired))
@@ -352,18 +374,18 @@ namespace SeasonalBastion
             if (road.HasValue)
                 return road.Value;
 
-            if (_s.GridMap.IsInside(desired))
+            if (_gridMap.IsInside(desired))
                 return desired;
 
-            int x = Math.Clamp(desired.X, 0, _s.GridMap.Width - 1);
-            int y = Math.Clamp(desired.Y, 0, _s.GridMap.Height - 1);
+            int x = Math.Clamp(desired.X, 0, _gridMap.Width - 1);
+            int y = Math.Clamp(desired.Y, 0, _gridMap.Height - 1);
             return new CellPos(x, y);
         }
 
         private bool IsPreferredSpawnCell(CellPos cell)
         {
-            if (!_s.GridMap.IsInside(cell)) return false;
-            return _s.GridMap.Get(cell).Kind == CellOccupancyKind.Empty;
+            if (!_gridMap.IsInside(cell)) return false;
+            return _gridMap.Get(cell).Kind == CellOccupancyKind.Empty;
         }
 
         private CellPos? FindNearbyCell(CellPos desired, CellOccupancyKind wanted)
@@ -372,8 +394,8 @@ namespace SeasonalBastion
 
             bool IsMatch(CellPos c)
             {
-                if (!_s.GridMap.IsInside(c)) return false;
-                return _s.GridMap.Get(c).Kind == wanted;
+                if (!_gridMap.IsInside(c)) return false;
+                return _gridMap.Get(c).Kind == wanted;
             }
 
             for (int r = 1; r <= maxR; r++)
@@ -399,3 +421,4 @@ namespace SeasonalBastion
         }
     }
 }
+

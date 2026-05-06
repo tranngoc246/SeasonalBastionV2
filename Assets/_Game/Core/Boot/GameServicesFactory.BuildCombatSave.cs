@@ -6,7 +6,11 @@ namespace SeasonalBastion
     {
         private static void ComposeBuild(GameServices services)
         {
-            services.BuildWorkplaceResolver = new BuildOrderWorkplaceResolver(services);
+            services.BuildWorkplaceResolver = new BuildOrderWorkplaceResolver(
+                services.Balance,
+                services.WorldState,
+                services.DataRegistry,
+                services.JobWorkplacePolicy);
             services.BuildOrderService = new BuildOrderService(services);
 
             if (services.PlacementService is PlacementService ps)

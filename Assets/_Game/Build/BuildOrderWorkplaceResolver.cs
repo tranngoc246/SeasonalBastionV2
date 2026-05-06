@@ -6,30 +6,35 @@ namespace SeasonalBastion
 {
     public sealed class BuildOrderWorkplaceResolver : IBuildWorkplaceResolver
     {
-        private readonly GameServices _s;
+        private readonly BalanceService _balance;
+        private readonly IWorldState _worldState;
+        private readonly IDataRegistry _dataRegistry;
         private readonly IJobWorkplacePolicy _workplacePolicy;
         private readonly List<BuildingId> _buildingIdsBuf = new(128);
 
-        public BuildOrderWorkplaceResolver(GameServices s)
+        public BuildOrderWorkplaceResolver(BalanceService balance, IWorldState worldState, IDataRegistry dataRegistry, IJobWorkplacePolicy workplacePolicy)
         {
-            _s = s;
-            _workplacePolicy = s?.JobWorkplacePolicy;
+            _balance = balance;
+            _worldState = worldState;
+            _dataRegistry = dataRegistry;
+            _workplacePolicy = workplacePolicy;
         }
 
         public BuildingId ResolveBuildWorkplace()
         {
-            if (_s?.Balance != null)
+            if (_balance != null)
             {
-                var balanced = _s.Balance.ResolveBuilderWorkplace();
+                var balanced = _balance.ResolveBuilderWorkplace();
                 if (balanced.Value != 0)
                     return balanced;
             }
 
-            if (_s?.WorldState?.Buildings == null || _s.DataRegistry == null)
+            if (_worldState?.Buildings == null || _dataRegistry == null)
                 return default;
 
             _buildingIdsBuf.Clear();
-            foreach (var id in _s.WorldState.Buildings.Ids) _buildingIdsBuf.Add(id);
+            foreach (var id in _worldState.Buildings.Ids)
+                _buildingIdsBuf.Add(id);
             _buildingIdsBuf.Sort((a, b) => a.Value.CompareTo(b.Value));
 
             // Prefer dedicated build workplaces first (e.g. Builder Hut).
@@ -37,16 +42,16 @@ namespace SeasonalBastion
             for (int i = 0; i < _buildingIdsBuf.Count; i++)
             {
                 var bid = _buildingIdsBuf[i];
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+                if (!_worldState.Buildings.Exists(bid)) continue;
 
-                var bs = _s.WorldState.Buildings.Get(bid);
+                var bs = _worldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
                 bool hasBuildRole = _workplacePolicy != null
                     ? _workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.Build)
-                    : (_s.DataRegistry.GetBuilding(bs.DefId).WorkRoles & WorkRoleFlags.Build) != 0;
+                    : (_dataRegistry.GetBuilding(bs.DefId).WorkRoles & WorkRoleFlags.Build) != 0;
 
-                bool isHq = _s.DataRegistry.TryGetBuilding(bs.DefId, out var def) && def != null && def.IsHQ;
+                bool isHq = _dataRegistry.TryGetBuilding(bs.DefId, out var def) && def != null && def.IsHQ;
                 if (hasBuildRole && !isHq)
                     return bid;
             }
@@ -55,12 +60,12 @@ namespace SeasonalBastion
             for (int i = 0; i < _buildingIdsBuf.Count; i++)
             {
                 var bid = _buildingIdsBuf[i];
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+                if (!_worldState.Buildings.Exists(bid)) continue;
 
-                var bs = _s.WorldState.Buildings.Get(bid);
+                var bs = _worldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
-                bool isHq = _s.DataRegistry.TryGetBuilding(bs.DefId, out var def) && def != null && def.IsHQ;
+                bool isHq = _dataRegistry.TryGetBuilding(bs.DefId, out var def) && def != null && def.IsHQ;
                 if (isHq) return bid;
             }
 
@@ -68,14 +73,14 @@ namespace SeasonalBastion
             for (int i = 0; i < _buildingIdsBuf.Count; i++)
             {
                 var bid = _buildingIdsBuf[i];
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+                if (!_worldState.Buildings.Exists(bid)) continue;
 
-                var bs = _s.WorldState.Buildings.Get(bid);
+                var bs = _worldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
                 bool hasBuildRole = _workplacePolicy != null
                     ? _workplacePolicy.HasRole(bs.DefId, WorkRoleFlags.Build)
-                    : (_s.DataRegistry.GetBuilding(bs.DefId).WorkRoles & WorkRoleFlags.Build) != 0;
+                    : (_dataRegistry.GetBuilding(bs.DefId).WorkRoles & WorkRoleFlags.Build) != 0;
                 if (hasBuildRole) return bid;
             }
 

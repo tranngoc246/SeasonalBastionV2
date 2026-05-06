@@ -320,7 +320,9 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã tách `CreateImmutableRunSnapshot(...)` sang `SaveService.Snapshot.cs` để cô lập snapshot writer path mà chưa đổi behavior.
 - [x] Đã tách `TryReadRunFile(...)` và `AtomicWriteRunSave(...)` sang `SaveService.IO.cs` để cô lập lớp I/O helpers.
 - [x] Đã tách `LoadRun(...)`, `LoadRunFromSlot(...)`, và mapper DTO trung tâm sang `SaveService.LoadMapping.cs` để `SaveService.cs` giữ orchestration mỏng hơn.
-- [ ] Bước tiếp theo hợp lý: tách tiếp `ReadSlotInfo(...)`/slot listing hoặc gom save-slot policy thành partial riêng.
+- [x] Đã tách `ReadSlotInfo(...)`, `ListRunSaves()`, và `GetLatestValidSlot()` sang `SaveService.Slots.cs` để gom slot policy/inspection về một chỗ.
+- [x] Đã tách `SaveMeta(...)` và `LoadMeta(...)` sang `SaveService.Meta.cs` để hoàn tất nhóm trách nhiệm meta persistence.
+- [ ] Bước tiếp theo hợp lý: review `SaveService.cs` sau cleanup này để quyết định dừng ở checkpoint hiện tại hay tách nốt các helper nhỏ còn lại.
 - [ ] Sau đó có thể tiếp tục giảm dependency trực tiếp vào `GameServices` ở các service mới, hoặc tách tiếp `SaveService.cs`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

@@ -55,8 +55,8 @@ docs/
 
 ### Chuyển sang `docs/backlog/`
 - `docs/backlog/audit-no-ky-thuat.md`
-- `docs/phan-ra-task-di-chuyen-npc-theo-road.md`
-- `docs/phan-ra-task-population-food-upkeep.md`
+- `docs/archive/phan-ra-task-di-chuyen-npc-theo-road.md`
+- `docs/archive/phan-ra-task-population-food-upkeep.md`
 
 ### Chuyển sang `docs/archive/`
 - `docs/archive/phan-ra-task-on-dinh-seed-opening-economy.md`
@@ -65,7 +65,7 @@ docs/
   - likely partially superseded by opening-economy hardening batch
 - `docs/archive/sprint1-nen-tang-islandmap.md`
 - `docs/archive/backlog-islandmap-rebuild.md`
-- `docs/chien-luoc-port-v3d.md` (nếu không còn active roadmap owner)
+- `docs/archive/chien-luoc-port-v3d.md` (nếu không còn active roadmap owner)
 
 ---
 

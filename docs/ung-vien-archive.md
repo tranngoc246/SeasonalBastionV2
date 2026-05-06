@@ -46,13 +46,13 @@
 
 ---
 
-### `docs/chien-luoc-port-v3d.md`
+### `docs/archive/chien-luoc-port-v3d.md`
 **Lý do**
-- cần xác nhận còn active hay chỉ là note chiến lược cũ
+- là note chiến lược cũ, không nên tiếp tục nằm ở root docs nếu không có active owner rõ ràng
 
 **Khuyến nghị**
-- nếu không có owner hiện tại, archive
-- nếu còn roadmap thật, chuyển về `docs/backlog/`
+- đã move sang `docs/archive/`
+- nếu sau này roadmap 3D sống lại, cân nhắc restore/move sang `docs/backlog/`
 
 ---
 
@@ -75,6 +75,26 @@
 **Nhưng cần chỉnh**
 - đổi vai trò rõ hơn thành technical debt backlog
 - thêm owner/status/priority/date nếu muốn dùng thật
+
+---
+
+### `docs/archive/phan-ra-task-di-chuyen-npc-theo-road.md`
+**Lý do**
+- là task breakdown lịch sử, không còn là live tracker
+
+**Khuyến nghị**
+- đã move sang `docs/archive/`
+- giữ như historical context cho movement/pathfinding decisions
+
+---
+
+### `docs/archive/phan-ra-task-population-food-upkeep.md`
+**Lý do**
+- là task breakdown lịch sử, nhiều phần đã được hấp thụ vào implementation hiện tại của `PopulationService`
+
+**Khuyến nghị**
+- đã move sang `docs/archive/`
+- giữ như historical context cho population/economy decisions
 
 ---
 

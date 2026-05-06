@@ -4,23 +4,36 @@ namespace SeasonalBastion
 {
     public sealed class SaveAutosaveService
     {
-        private readonly GameServices _s;
+        private readonly IEventBus _eventBus;
+        private readonly ISaveService _saveService;
+        private readonly IWorldState _worldState;
+        private readonly IRunClock _runClock;
+        private readonly INotificationService _notificationService;
 
-        public SaveAutosaveService(GameServices s)
+        public SaveAutosaveService(
+            IEventBus eventBus,
+            ISaveService saveService,
+            IWorldState worldState,
+            IRunClock runClock,
+            INotificationService notificationService)
         {
-            _s = s;
-            _s?.EventBus?.Subscribe<SeasonChangedEvent>(OnSeasonChanged);
+            _eventBus = eventBus;
+            _saveService = saveService;
+            _worldState = worldState;
+            _runClock = runClock;
+            _notificationService = notificationService;
+            _eventBus?.Subscribe<SeasonChangedEvent>(OnSeasonChanged);
         }
 
         private void OnSeasonChanged(SeasonChangedEvent ev)
         {
-            if (_s?.SaveService == null || _s?.WorldState == null || _s?.RunClock == null)
+            if (_saveService == null || _worldState == null || _runClock == null)
                 return;
 
-            var res = _s.SaveService.SaveRunToSlot(_s.WorldState, _s.RunClock, 1, autosave: true);
+            var res = _saveService.SaveRunToSlot(_worldState, _runClock, 1, autosave: true);
             if (res.Code == SaveResultCode.Ok)
             {
-                _s.NotificationService?.Push(
+                _notificationService?.Push(
                     key: "autosave.season",
                     title: "Tự động lưu",
                     body: "Đã tự động lưu khi sang mùa mới.",

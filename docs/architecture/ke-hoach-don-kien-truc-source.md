@@ -328,6 +328,7 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [~] Pass này giữ nguyên behavior, chủ yếu làm rõ dependency boundary và mở đường cho các service khác áp dụng pattern tương tự.
 - [x] Đã đi tiếp `RewardService` pass 1 theo cùng hướng: bỏ constructor nhận `GameServices`, chuyển sang `IWorldState`, `IDataRegistry`, `IEventBus`.
 - [~] `RewardService` vẫn giữ nguyên behavior hiện tại, nhưng boundary đã rõ hơn và dễ mở rộng/refactor tiếp theo.
-- [ ] Bước tiếp theo hợp lý sau `RewardService`: cân nhắc `SaveAutosaveService` như một quick win nhỏ, hoặc chuẩn bị một pass lớn hơn cho cụm `Ammo*`.
+- [x] Đã bóc `SaveAutosaveService` như một quick win nhỏ: constructor hiện nhận `IEventBus`, `ISaveService`, `IWorldState`, `IRunClock`, `INotificationService` thay vì `GameServices`.
+- [ ] Bước tiếp theo hợp lý sau quick win này: chuẩn bị một pass lớn hơn cho cụm `Ammo*`, hoặc quay lại chọn một helper/service runtime khác còn đang nhận full `GameServices`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

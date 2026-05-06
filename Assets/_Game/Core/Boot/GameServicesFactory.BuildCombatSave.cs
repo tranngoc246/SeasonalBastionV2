@@ -26,7 +26,12 @@ namespace SeasonalBastion
         private static void ComposeSave(GameServices services)
         {
             services.SaveService = new SaveService(new SaveMigrator(), services.DataRegistry, services.GridMap, services.PopulationService, services);
-            _ = new SaveAutosaveService(services);
+            _ = new SaveAutosaveService(
+                services.EventBus,
+                services.SaveService,
+                services.WorldState,
+                services.RunClock,
+                services.NotificationService);
         }
     }
 }

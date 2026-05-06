@@ -317,7 +317,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã tách path/policy helpers ra `SaveService.Paths.cs`.
 - [x] Đã tách các JsonUtility disk models ra `SaveService.Models.cs`.
 - [~] `SaveService.cs` hiện đã nhẹ hơn ở phần path/model ownership, nhưng chưa tách tiếp reader/writer/mapper.
-- [ ] Bước tiếp theo hợp lý: tách tiếp `LoadRun`/`LoadRunFromSlot` mapping hoặc `CreateImmutableRunSnapshot(...)` sang helper/facade nhỏ hơn.
+- [x] Đã tách `CreateImmutableRunSnapshot(...)` sang `SaveService.Snapshot.cs` để cô lập snapshot writer path mà chưa đổi behavior.
+- [ ] Bước tiếp theo hợp lý: tách tiếp `LoadRun`/`LoadRunFromSlot` mapping hoặc `TryReadRunFile(...)`/`AtomicWriteRunSave(...)` sang partial riêng.
 - [ ] Sau đó có thể tiếp tục giảm dependency trực tiếp vào `GameServices` ở các service mới, hoặc tách tiếp `SaveService.cs`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

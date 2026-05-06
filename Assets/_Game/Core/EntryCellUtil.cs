@@ -11,13 +11,16 @@ namespace SeasonalBastion
     public static class EntryCellUtil
     {
         public static CellPos GetApproachCellForBuilding(GameServices s, in BuildingState b, CellPos from)
+            => GetApproachCellForBuilding(s?.DataRegistry, s?.GridMap, b, from);
+
+        public static CellPos GetApproachCellForBuilding(IDataRegistry dataRegistry, IGridMap gridMap, in BuildingState b, CellPos from)
         {
             int w = 1, h = 1;
             bool isHQ = false;
 
             try
             {
-                var def = s.DataRegistry.GetBuilding(b.DefId);
+                var def = dataRegistry.GetBuilding(b.DefId);
                 w = Math.Max(1, def.SizeX);
                 h = Math.Max(1, def.SizeY);
                 isHQ = def.IsHQ;
@@ -31,19 +34,22 @@ namespace SeasonalBastion
                 var eS = ComputeEntryOutsideFootprint(b.Anchor, w, h, Dir4.S);
                 var eE = ComputeEntryOutsideFootprint(b.Anchor, w, h, Dir4.E);
                 var eW = ComputeEntryOutsideFootprint(b.Anchor, w, h, Dir4.W);
-                return PickNearestInside(s, from, b.Anchor, eN, eS, eE, eW);
+                return PickNearestInside(gridMap, from, b.Anchor, eN, eS, eE, eW);
             }
 
             var entry = ComputeEntryOutsideFootprint(b.Anchor, w, h, b.Rotation);
-            return PickNearestInside(s, from, b.Anchor, entry);
+            return PickNearestInside(gridMap, from, b.Anchor, entry);
         }
 
         public static CellPos GetApproachCellForSite(GameServices s, in BuildSiteState site, CellPos from)
+            => GetApproachCellForSite(s?.DataRegistry, s?.GridMap, site, from);
+
+        public static CellPos GetApproachCellForSite(IDataRegistry dataRegistry, IGridMap gridMap, in BuildSiteState site, CellPos from)
         {
             int w = 1, h = 1;
             bool isHQ = false;
 
-            if (s.DataRegistry.TryGetBuilding(site.BuildingDefId, out var def) && def != null)
+            if (dataRegistry != null && dataRegistry.TryGetBuilding(site.BuildingDefId, out var def) && def != null)
             {
                 w = Math.Max(1, def.SizeX);
                 h = Math.Max(1, def.SizeY);
@@ -56,14 +62,14 @@ namespace SeasonalBastion
                 var eS = ComputeEntryOutsideFootprint(site.Anchor, w, h, Dir4.S);
                 var eE = ComputeEntryOutsideFootprint(site.Anchor, w, h, Dir4.E);
                 var eW = ComputeEntryOutsideFootprint(site.Anchor, w, h, Dir4.W);
-                return PickNearestInside(s, from, site.Anchor, eN, eS, eE, eW);
+                return PickNearestInside(gridMap, from, site.Anchor, eN, eS, eE, eW);
             }
 
             var entry = ComputeEntryOutsideFootprint(site.Anchor, w, h, site.Rotation);
-            return PickNearestInside(s, from, site.Anchor, entry);
+            return PickNearestInside(gridMap, from, site.Anchor, entry);
         }
 
-        private static CellPos PickNearestInside(GameServices s, CellPos from, CellPos fallbackAnchor, params CellPos[] candidates)
+        private static CellPos PickNearestInside(IGridMap gridMap, CellPos from, CellPos fallbackAnchor, params CellPos[] candidates)
         {
             if (candidates == null || candidates.Length == 0) return fallbackAnchor;
 
@@ -75,7 +81,7 @@ namespace SeasonalBastion
                 var c = candidates[i];
 
                 // if out of bounds -> skip (fallback to anchor)
-                if (s.GridMap != null && !s.GridMap.IsInside(c))
+                if (gridMap != null && !gridMap.IsInside(c))
                     continue;
 
                 int d = Manhattan(from, c);

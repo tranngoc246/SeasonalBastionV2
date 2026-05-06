@@ -60,7 +60,15 @@ namespace SeasonalBastion
                 CancelTrackedJobsForSite,
                 RemoveAutoRoadByOrder);
             _creationService = new BuildOrderCreationService(
-                s,
+                s.DataRegistry,
+                s.WorldState,
+                s.GridMap,
+                s.EventBus,
+                s.NotificationService,
+                s.StorageService,
+                s.UnlockService,
+                s.PlacementService,
+                s.Pathfinder,
                 _orders,
                 _active,
                 _eventBridge.EnsureSubscribed,

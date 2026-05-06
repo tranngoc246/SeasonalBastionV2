@@ -330,7 +330,9 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [~] `RewardService` vẫn giữ nguyên behavior hiện tại, nhưng boundary đã rõ hơn và dễ mở rộng/refactor tiếp theo.
 - [x] Đã bóc `SaveAutosaveService` như một quick win nhỏ: constructor hiện nhận `IEventBus`, `ISaveService`, `IWorldState`, `IRunClock`, `INotificationService` thay vì `GameServices`.
 - [x] Đã bóc tiếp `BuildOrderWorkplaceResolver`: constructor hiện nhận `BalanceService`, `IWorldState`, `IDataRegistry`, `IJobWorkplacePolicy` thay vì `GameServices`.
-- [~] Đây là bước mở đầu hợp lý để sau này giảm dần phụ thuộc của cả cụm `Build*`, nhưng chưa nên nhảy thẳng vào `BuildOrderService` nếu chưa cần.
-- [ ] Bước tiếp theo hợp lý sau quick win này: chuẩn bị một pass lớn hơn cho cụm `Ammo*`, hoặc tiếp tục bóc thêm helper/service runtime nhỏ trong cụm `Build*`.
+- [x] Đã đi tiếp `BuildOrderCreationService` pass 1: bỏ dependency trực tiếp vào `GameServices`, chuyển sang tập dependency hẹp hơn gồm `IDataRegistry`, `IWorldState`, `IGridMap`, `IEventBus`, `INotificationService`, `IStorageService`, `IUnlockService`, `IPlacementService`, `IPathfinderRuntime`.
+- [x] Đã bổ sung overload hẹp cho `EntryCellUtil` và `JobReachabilityHelper` để hỗ trợ cụm `Build*` gọi theo dependency thật sự dùng thay vì container full `GameServices`.
+- [~] Cụm `Build*` hiện đã bắt đầu có dependency boundary rõ hơn ở level helper/service, nhưng `BuildOrderService` orchestration root vẫn còn là điểm gom lớn.
+- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc `BuildOrderCancellationService` hoặc `BuildOrderEventBridge` nếu muốn tiếp tục bóc nhỏ trong cụm `Build*`; nếu muốn payoff lớn hơn nhưng rủi ro cao hơn thì mới chuyển sang cụm `Ammo*`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

@@ -76,7 +76,7 @@ Sau batch này, project nên đạt:
 ### Phase E - Regression / smoke / docs
 12. `Assets/_Game/Tests/EditMode/RunStart/ResourceZoneGenerationTests.cs`
 13. `Assets/_Game/Tests/EditMode/Jobs/HarvestOpeningStabilityTests.cs`
-14. `docs/active/opening-economy/smoke-matrix.md`
+14. `docs/active/opening-economy/ma-tran-smoke-opening-economy.md`
 15. `CHANGELOG.md`
 
 ---
@@ -324,7 +324,7 @@ Retune rules sau khi đã có visibility + quality gate.
 ### Status
 - [x] đã có test patch metadata + starter preference + retarget coverage cơ bản
 
-## FILE 13 - `docs/active/opening-economy/smoke-matrix.md`
+## FILE 13 - `docs/active/opening-economy/ma-tran-smoke-opening-economy.md`
 
 ### Status
 - [x] đã tạo smoke matrix khởi tạo với seed set + acceptance criteria + update rule
@@ -395,7 +395,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 ### Đợt 4 - regression / smoke / docs
 - [x] `ResourceZoneGenerationTests.cs`
 - [x] `HarvestOpeningStabilityTests.cs`
-- [x] `docs/active/opening-economy/smoke-matrix.md`
+- [x] `docs/active/opening-economy/ma-tran-smoke-opening-economy.md`
 - [x] `CHANGELOG.md`
 
 ---
@@ -421,7 +421,8 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - 2026-05-06 09:xx GMT+7, tune `StartMapConfig_RunStart_64x64_v0.1.json` pass đầu theo quality gate mới: siết starter wood/food, ổn định stone starter, đẩy iron starter-lite ra xa hơn, và đẩy outer bonus ring ra xa để giảm cạnh tranh với opening ring.
 - 2026-05-06 10:xx GMT+7, bắt đầu phase D: thêm patch metadata `OriginKind/GenerationBucket/SourceLabel`, rebuild starter-aware patch state từ zones, thêm bias ưu tiên starter trong patch selection, chỉnh retarget sạch hơn khi patch cạn, và tạo file test `HarvestOpeningStabilityTests.cs` cho nền tảng harvest opening stability.
 - 2026-05-06 10:xx GMT+7, đóng tiếp phase D ở level test logic: thêm coverage cho `HarvestTargetSelectionHelper` ưu tiên starter patch và `HarvestExecutor` retarget sang patch khác khi patch hiện tại đã cạn.
-- 2026-05-06 10:xx GMT+7, bắt đầu phase E: thêm `docs/active/opening-economy/smoke-matrix.md` với seed set cố định + acceptance criteria, cập nhật `CHANGELOG.md` cho batch hardening opening economy, và đánh dấu scaffold regression/smoke/docs đã sẵn sàng cho runtime verification.
+- 2026-05-06 10:xx GMT+7, bắt đầu phase E: thêm `docs/active/opening-economy/ma-tran-smoke-opening-economy.md` với seed set cố định + acceptance criteria, cập nhật `CHANGELOG.md` cho batch hardening opening economy, và đánh dấu scaffold regression/smoke/docs đã sẵn sàng cho runtime verification.
+- 2026-05-06 11:xx GMT+7, đổi tên live docs opening economy sang tiếng Việt không dấu và tiếp tục giữ rule bắt buộc cập nhật checklist trong cùng lượt làm.
 - 2026-05-06 11:xx GMT+7, move opening economy live docs sang `docs/active/opening-economy/` để tách rõ active checklist khỏi task-breakdown/archive docs.
 
 ---

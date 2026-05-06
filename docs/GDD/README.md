@@ -53,3 +53,4 @@ Thư mục này giữ **working set GDD hiện tại** của Seasonal Bastion.
 - `docs/active/` giữ các implementation checklist / smoke matrix đang sống.
 - `docs/backlog/` giữ debt/task docs còn giá trị nhưng chưa phải workstream active.
 - `docs/archive/` giữ docs lịch sử hoặc đã bị superseded, không nên update tiếp trừ khi revive workstream cũ.
+- `docs/README.md` là rule chung của toàn bộ cây docs, bao gồm yêu cầu bắt buộc cập nhật docs cùng lượt làm trước khi commit khi workstream liên quan thay đổi.

@@ -6,8 +6,8 @@
 > Không nên tiếp tục update file này cho tiến độ hiện tại.
 >
 > Live docs thay thế:
-> - `docs/active/opening-economy/seed-stability-checklist.md`
-> - `docs/active/opening-economy/smoke-matrix.md`
+> - `docs/active/opening-economy/checklist-do-on-dinh-seed-opening-economy.md`
+> - `docs/active/opening-economy/ma-tran-smoke-opening-economy.md`
 >
 > Nếu revive lại breakdown-level planning, nên tạo file mới trong `docs/backlog/` thay vì dùng tiếp file này.
 
@@ -115,7 +115,7 @@ Vì vậy khi gặp một seed tệ, sẽ khó trả lời nhanh:
 
 ---
 
-## FILE 1 - TẠO MỚI `docs/active/opening-economy/smoke-matrix.md`
+## FILE 1 - TẠO MỚI `docs/active/opening-economy/ma-tran-smoke-opening-economy.md`
 
 ### Goal
 Chốt một bộ smoke matrix cố định cho QA / manual verify / future balancing.
@@ -401,7 +401,7 @@ Ghi lại đúng intent của batch tiếp theo sau khi hoàn thành.
 1. `RunStartZoneInitializer`
 2. `RunStartRuntime`
 3. `RunStartRuntimeCacheBuilder`
-4. `opening-economy-smoke-matrix.md`
+4. `ma-tran-smoke-opening-economy.md`
 
 ### Outcome cần đạt
 - biết mỗi run đang dùng generated/authored/legacy

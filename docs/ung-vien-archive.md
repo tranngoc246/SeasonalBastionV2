@@ -8,11 +8,11 @@
 
 ## Nhóm A - nên archive sớm
 
-### `docs/archive/task-breakdown-opening-economy-seed-stability.md`
+### `docs/archive/phan-ra-task-on-dinh-seed-opening-economy.md`
 **Lý do**
 - đã bị superseded bởi:
-  - `docs/active/opening-economy/seed-stability-checklist.md`
-  - `docs/active/opening-economy/smoke-matrix.md`
+  - `docs/active/opening-economy/checklist-do-on-dinh-seed-opening-economy.md`
+  - `docs/active/opening-economy/ma-tran-smoke-opening-economy.md`
 - nếu giữ ở root dễ làm team update nhầm file cũ
 
 **Khuyến nghị**
@@ -21,7 +21,7 @@
 
 ---
 
-### `docs/archive/task-breakdown-hybrid-resource-zone-generation.md`
+### `docs/archive/phan-ra-task-hybrid-resource-zone-generation.md`
 **Lý do**
 - nhiều phần intent đã bị hấp thụ vào batch hybrid/opening economy gần đây
 - dễ chồng chéo với checklist mới
@@ -34,8 +34,8 @@
 
 ## Nhóm B - archive nếu roadmap không còn active
 
-### `docs/archive/Sprint1_IslandMap_Foundation.md`
-### `docs/archive/Backlog_IslandMap_Rebuild.md`
+### `docs/archive/sprint1-nen-tang-islandmap.md`
+### `docs/archive/backlog-islandmap-rebuild.md`
 **Lý do**
 - có vẻ là một nhánh workstream riêng
 - nếu island-map không còn là active track, nên bỏ khỏi root docs
@@ -46,7 +46,7 @@
 
 ---
 
-### `docs/v3d-port-strategy.md`
+### `docs/chien-luoc-port-v3d.md`
 **Lý do**
 - cần xác nhận còn active hay chỉ là note chiến lược cũ
 
@@ -58,7 +58,7 @@
 
 ## Nhóm C - giữ nhưng cần chỉnh
 
-### `docs/active/endgame/endgame-flow-checklist.md`
+### `docs/active/endgame/checklist-luong-endgame.md`
 **Giữ vì**
 - vẫn là live implementation/history doc có giá trị
 
@@ -68,7 +68,7 @@
 
 ---
 
-### `docs/backlog/technical-debt-audit.md`
+### `docs/backlog/audit-no-ky-thuat.md`
 **Giữ vì**
 - vẫn có giá trị như debt inventory
 

@@ -2,7 +2,7 @@
 
 > Mục tiêu: có một bộ seed-smoke cố định để kiểm tra nhanh opening economy sau mỗi batch liên quan generation / harvest / tuning.
 >
-> **Rule bắt buộc:** mỗi lần chạy smoke thật, phải cập nhật lại file này trong cùng lượt làm, giống rule của `docs/active/opening-economy/seed-stability-checklist.md`.
+> **Rule bắt buộc:** mỗi lần chạy smoke thật, phải cập nhật lại file này trong cùng lượt làm, giống rule của `docs/active/opening-economy/checklist-do-on-dinh-seed-opening-economy.md`.
 
 ---
 

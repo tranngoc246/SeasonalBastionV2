@@ -91,7 +91,7 @@ SeasonalBastionV2/
 │
 └─ docs/
    └─ architecture/
-      └─ refactor-file-split-plan.md
+      └─ ke-hoach-tach-file-refactor.md
 ```
 
 ---

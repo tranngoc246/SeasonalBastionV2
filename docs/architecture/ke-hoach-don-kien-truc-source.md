@@ -1,0 +1,290 @@
+# Source Architecture Cleanup Plan
+
+> Mục tiêu: tối ưu lại cây source code theo hướng dễ mở rộng hơn, nhưng vẫn thực dụng với codebase hiện tại của `SeasonalBastionV2`.
+>
+> Trọng tâm của pass này không phải “đập đi xây lại”, mà là xác định đúng chỗ nào nên tách trước để giảm God Object, giảm coupling, và làm test / iteration đỡ đau hơn.
+
+---
+
+## 1. Ảnh chụp nhanh hiện trạng
+
+### Folder-level shape hiện tại
+`Assets/_Game/` hiện đã chia module khá ổn:
+- `Build`
+- `Combat`
+- `Core`
+- `Economy`
+- `Grid`
+- `Jobs`
+- `Population`
+- `Rewards`
+- `Save`
+- `UI`
+- `World`
+- `Debug`
+- `Tests`
+
+Đây là điểm tốt. Vấn đề lớn hiện tại không còn là thiếu module, mà là:
+- vài service/container trung tâm đang ôm quá nhiều dependency
+- một số file runtime lớn vẫn là “multi-responsibility file”
+- test/regression có vài file quá to, khó bảo trì
+- `Debug` và `UI` vẫn có chỗ có nguy cơ kéo gameplay policy vào sai lớp
+
+---
+
+## 2. Điểm nóng nên ưu tiên refactor
+
+### P0 - Composition / service boundaries
+
+#### `Assets/_Game/Core/GameServices.cs`
+**Vấn đề**
+- vẫn là God Object runtime container
+- rất nhiều system nhận cả `GameServices` dù chỉ dùng một phần nhỏ
+- làm dependency mờ và kéo coupling ngang module
+
+**Khuyến nghị**
+- chưa cần bỏ ngay `GameServices`
+- nhưng bắt đầu chia thành các interface/view hẹp hơn:
+  - `ICoreServicesView`
+  - `IWorldRuntimeView`
+  - `IEconomyRuntimeView`
+  - `ICombatRuntimeView`
+  - `ISaveRuntimeView`
+- các service mới hoặc refactor mới nên nhận interface hẹp thay vì nhận full container
+
+**Mức ưu tiên**
+- rất cao
+- vì đây là nền để các refactor khác bớt đau
+
+---
+
+#### `Assets/_Game/Core/Boot/GameServicesFactory.cs`
+**Vấn đề**
+- composition root hiện vẫn làm quá nhiều việc trong một method `Create(...)`
+- setup order khó đọc khi hệ thống lớn dần
+- khó thấy nhóm dependency theo domain
+
+**Khuyến nghị**
+- giữ `GameServicesFactory` làm entrypoint
+- tách nội bộ thành các helper nhỏ:
+  - `ComposeCore(...)`
+  - `ComposeWorldAndGrid(...)`
+  - `ComposeEconomyAndJobs(...)`
+  - `ComposeBuildAndCombat(...)`
+  - `ComposeRewardsAndSave(...)`
+- mục tiêu là readability + giảm rủi ro init order bug
+
+**Mức ưu tiên**
+- rất cao
+
+---
+
+### P1 - Large runtime classes
+
+#### `Assets/_Game/Save/SaveService.cs`
+**Vấn đề**
+- file lớn, ôm nhiều concern:
+  - save path policy
+  - snapshot creation
+  - file IO
+  - DTO mapping
+  - slot/autosave policy
+- rất dễ thành điểm nghẽn khi sửa save logic
+
+**Khuyến nghị**
+- tách thành cụm:
+  - `SavePathPolicy`
+  - `SaveWriter`
+  - `SaveReader`
+  - `RunSnapshotMapper`
+  - `SlotSavePolicy`
+- `SaveService` giữ vai trò facade
+
+**Mức ưu tiên**
+- cao
+
+---
+
+#### `Assets/_Game/Save/SaveLoadApplier.cs`
+**Vấn đề**
+- likely là file apply runtime lớn, cross-domain mạnh
+- dễ lẫn giữa deserialize, validation, rebuild runtime, và post-load sanitation
+
+**Khuyến nghị**
+- tách theo phase:
+  - `SaveLoadStateApply`
+  - `SaveLoadRuntimeRebuild`
+  - `SaveLoadPostApplySanitizer`
+- giữ API ngoài ổn định nếu có thể
+
+**Mức ưu tiên**
+- cao
+
+---
+
+#### `Assets/_Game/Grid/PlacementInputController.cs`
+**Vấn đề**
+- controller vừa làm input, UI gate, preview, validation, commit flow, notification
+- đây là kiểu file rất dễ phình tiếp
+
+**Khuyến nghị**
+- tách ít nhất thành:
+  - `PlacementInputBinding`
+  - `PlacementPreviewRenderer`
+  - `PlacementActionController`
+  - `PlacementUiGate`
+- mục tiêu: giảm risk khi sửa build mode / preview / endgame lock
+
+**Mức ưu tiên**
+- cao
+
+---
+
+#### `Assets/_Game/Combat/EnemySystem.cs`
+**Vấn đề**
+- file khá lớn, domain combat vốn dễ lan responsibility
+
+**Khuyến nghị**
+- rà xem có thể tách theo nhánh:
+  - spawn/update
+  - path/progression
+  - HQ damage / despawn / cleanup
+- nếu chưa refactor ngay, ít nhất bổ sung doc comments + internal helpers rõ hơn
+
+**Mức ưu tiên**
+- vừa đến cao
+
+---
+
+### P1 - Test architecture
+
+#### `Assets/_Game/Tests/EditMode/Regression/Regression_P0P1_Tests.cs`
+**Vấn đề**
+- file quá lớn, 169 KB
+- rất khó maintain, đọc diff khổ, khó biết test theo feature nào
+
+**Khuyến nghị**
+- tách theo feature:
+  - `Regression_SaveLoad_Tests.cs`
+  - `Regression_Endgame_Tests.cs`
+  - `Regression_Build_Tests.cs`
+  - `Regression_Jobs_Tests.cs`
+  - `Regression_RunStart_Tests.cs`
+- giữ `RegressionTestDoubles.cs` như shared fixture layer nếu hợp lý
+
+**Mức ưu tiên**
+- rất cao
+- payoff lớn, rủi ro gameplay thấp
+
+---
+
+### P2 - Debug / UI hygiene
+
+#### `Assets/_Game/Debug/HUD/DebugHUDHub.*`
+**Vấn đề**
+- đã partial rồi, đó là dấu hiệu tốt
+- nhưng cụm debug HUD vẫn khá dày, có nguy cơ trộn quick actions, inspect, logging, và gameplay mutation
+
+**Khuyến nghị**
+- tiếp tục giữ partial-by-feature
+- cân nhắc tách folder theo:
+  - `Debug/HUD/Home`
+  - `Debug/HUD/Combat`
+  - `Debug/HUD/Build`
+  - `Debug/HUD/SaveLoad`
+- tránh một “hub” quá trung tâm
+
+---
+
+#### `Assets/_Game/UI/Runtime/Scripts/Presenters/AssignNpcModalPresenter.cs`
+#### `Assets/_Game/UI/Runtime/Scripts/Presenters/InspectPanelPresenter.cs`
+**Vấn đề**
+- presenter khá to, dễ ôm policy thay vì chỉ bind/render/intents
+
+**Khuyến nghị**
+- nếu tiếp tục phình, tách thêm helper/model builder:
+  - `InspectPanelViewModelBuilder`
+  - `AssignNpcListBuilder`
+  - `WorkforceActionPolicy`
+- presenter nên thiên về glue hơn là gameplay reasoning
+
+**Mức ưu tiên**
+- vừa
+
+---
+
+## 3. Thứ tự refactor thực dụng nhất
+
+### Wave A - ít rủi ro, payoff cao
+1. Tách `Regression_P0P1_Tests.cs`
+2. Tách `GameServicesFactory.Create(...)` thành helper composition methods
+3. Viết doc ngắn cho dependency boundaries quanh `GameServices`
+
+### Wave B - giảm God file runtime
+4. Tách `SaveService.cs`
+5. Tách `PlacementInputController.cs`
+6. Rà `SaveLoadApplier.cs`
+
+### Wave C - cleanup sâu hơn theo domain
+7. Tách thêm `EnemySystem.cs`
+8. Tách presenter/helpers ở UI nếu còn phình
+9. Dọn `DebugHUDHub` theo feature folders
+
+---
+
+## 4. Những chỗ chưa nên đụng mạnh ngay
+
+### `RunStart` cluster
+Hiện `Core/RunStart` có nhiều file nhưng nhìn chung đã được tách khá ổn cho batch gần đây.
+- chưa phải vùng xấu nhất lúc này
+- chỉ nên đụng tiếp nếu có feature mới hoặc test regression lộ pain thật
+
+### `Build` cluster
+`Build` hiện đã có dấu hiệu được split tốt:
+- `BuildOrderCreationService`
+- `BuildOrderTickProcessor`
+- `BuildJobPlanner`
+- `BuildOrderCancellationService`
+- ...
+
+Nghĩa là đây không phải mặt trận cần ưu tiên đầu tiên nữa.
+
+---
+
+## 5. Đề xuất file/folder có thể thêm
+
+### docs / planning side
+- `docs/architecture/ke-hoach-don-kien-truc-source.md` (file này)
+
+### code side, nếu đi tiếp wave A/B
+- `Assets/_Game/Core/Boot/GameServicesFactory.Core.cs`
+- `Assets/_Game/Core/Boot/GameServicesFactory.World.cs`
+- `Assets/_Game/Core/Boot/GameServicesFactory.EconomyJobs.cs`
+- `Assets/_Game/Core/Boot/GameServicesFactory.BuildCombat.cs`
+- `Assets/_Game/Core/Boot/GameServicesFactory.RewardsSave.cs`
+
+- `Assets/_Game/Save/SaveWriter.cs`
+- `Assets/_Game/Save/SaveReader.cs`
+- `Assets/_Game/Save/RunSnapshotMapper.cs`
+- `Assets/_Game/Save/SavePathPolicy.cs`
+
+- `Assets/_Game/Grid/Placement/PlacementPreviewRenderer.cs`
+- `Assets/_Game/Grid/Placement/PlacementActionController.cs`
+- `Assets/_Game/Grid/Placement/PlacementUiGate.cs`
+
+- `Assets/_Game/Tests/EditMode/Regression/Regression_SaveLoad_Tests.cs`
+- `Assets/_Game/Tests/EditMode/Regression/Regression_Endgame_Tests.cs`
+- `Assets/_Game/Tests/EditMode/Regression/Regression_Build_Tests.cs`
+- `Assets/_Game/Tests/EditMode/Regression/Regression_Jobs_Tests.cs`
+- `Assets/_Game/Tests/EditMode/Regression/Regression_RunStart_Tests.cs`
+
+---
+
+## 6. Kết luận ngắn
+
+Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn:
+1. tách `Regression_P0P1_Tests.cs`
+2. tách nhỏ `GameServicesFactory.Create(...)`
+3. lên kế hoạch split `SaveService.cs`
+
+Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

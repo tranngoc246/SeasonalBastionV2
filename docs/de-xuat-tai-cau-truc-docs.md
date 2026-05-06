@@ -43,29 +43,29 @@ docs/
 > Status: **đã áp dụng pass đầu** vào cây `docs/` ngày 2026-05-06. Một số file còn lại có thể tiếp tục move ở pass sau nếu cần.
 
 ### Giữ nguyên vị trí
-- `docs/architecture/module-boundaries-overview.md`
-- `docs/architecture/refactor-file-split-plan.md`
+- `docs/architecture/tong-quan-ranh-gioi-module.md`
+- `docs/architecture/ke-hoach-tach-file-refactor.md`
 - `docs/GDD/**`
 
 ### Chuyển sang `docs/active/`
-- `docs/active/stabilization/stabilization-checklist.md`
-- `docs/active/opening-economy/seed-stability-checklist.md`
-- `docs/active/opening-economy/smoke-matrix.md`
-- `docs/active/endgame/endgame-flow-checklist.md`
+- `docs/active/stabilization/checklist-on-dinh-hoa.md`
+- `docs/active/opening-economy/checklist-do-on-dinh-seed-opening-economy.md`
+- `docs/active/opening-economy/ma-tran-smoke-opening-economy.md`
+- `docs/active/endgame/checklist-luong-endgame.md`
 
 ### Chuyển sang `docs/backlog/`
-- `docs/backlog/technical-debt-audit.md`
-- `docs/task-breakdown-npc-road-aware-movement.md`
-- `docs/task-breakdown-population-food-upkeep.md`
+- `docs/backlog/audit-no-ky-thuat.md`
+- `docs/phan-ra-task-di-chuyen-npc-theo-road.md`
+- `docs/phan-ra-task-population-food-upkeep.md`
 
 ### Chuyển sang `docs/archive/`
-- `docs/archive/task-breakdown-opening-economy-seed-stability.md`
+- `docs/archive/phan-ra-task-on-dinh-seed-opening-economy.md`
   - superseded by live checklist + smoke matrix
-- `docs/archive/task-breakdown-hybrid-resource-zone-generation.md`
+- `docs/archive/phan-ra-task-hybrid-resource-zone-generation.md`
   - likely partially superseded by opening-economy hardening batch
-- `docs/archive/Sprint1_IslandMap_Foundation.md`
-- `docs/archive/Backlog_IslandMap_Rebuild.md`
-- `docs/v3d-port-strategy.md` (nếu không còn active roadmap owner)
+- `docs/archive/sprint1-nen-tang-islandmap.md`
+- `docs/archive/backlog-islandmap-rebuild.md`
+- `docs/chien-luoc-port-v3d.md` (nếu không còn active roadmap owner)
 
 ---
 

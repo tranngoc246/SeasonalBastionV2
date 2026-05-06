@@ -180,16 +180,16 @@
     "mode": "Hybrid",
     "seedOffset": 0,
     "starterRules": [
-      { "resourceType": "Wood",  "countMin": 2, "countMax": 3, "minDistanceFromHQ": 6,  "maxDistanceFromHQ": 14, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Starter wood clusters" },
-      { "resourceType": "Food",  "countMin": 2, "countMax": 3, "minDistanceFromHQ": 6,  "maxDistanceFromHQ": 14, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Starter food clusters" },
-      { "resourceType": "Stone", "countMin": 1, "countMax": 2, "minDistanceFromHQ": 8,  "maxDistanceFromHQ": 16, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Starter stone clusters" },
-      { "resourceType": "Iron",  "countMin": 1, "countMax": 1, "minDistanceFromHQ": 10, "maxDistanceFromHQ": 18, "rectWidthMin": 2, "rectWidthMax": 2, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Starter-lite iron cluster" }
+      { "resourceType": "Wood",  "countMin": 2, "countMax": 2, "minDistanceFromHQ": 6,  "maxDistanceFromHQ": 12, "rectWidthMin": 3, "rectWidthMax": 4, "rectHeightMin": 3, "rectHeightMax": 4, "notes": "Starter wood clusters, tighter and richer for reliable opener coverage" },
+      { "resourceType": "Food",  "countMin": 2, "countMax": 2, "minDistanceFromHQ": 6,  "maxDistanceFromHQ": 12, "rectWidthMin": 3, "rectWidthMax": 4, "rectHeightMin": 3, "rectHeightMax": 4, "notes": "Starter food clusters, tighter and richer for reliable opener coverage" },
+      { "resourceType": "Stone", "countMin": 1, "countMax": 1, "minDistanceFromHQ": 9,  "maxDistanceFromHQ": 15, "rectWidthMin": 3, "rectWidthMax": 3, "rectHeightMin": 3, "rectHeightMax": 3, "notes": "Single reliable starter stone cluster kept within quality gate range" },
+      { "resourceType": "Iron",  "countMin": 0, "countMax": 1, "minDistanceFromHQ": 15, "maxDistanceFromHQ": 20, "rectWidthMin": 2, "rectWidthMax": 2, "rectHeightMin": 2, "rectHeightMax": 2, "notes": "Starter-lite iron only when space allows, pushed outward to reduce opening pressure" }
     ],
     "bonusRules": [
-      { "resourceType": "Wood",  "countMin": 4, "countMax": 6, "minDistanceFromHQ": 12, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 4, "rectHeightMin": 2, "rectHeightMax": 4, "notes": "Scattered outer wood clusters" },
-      { "resourceType": "Food",  "countMin": 3, "countMax": 5, "minDistanceFromHQ": 12, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 4, "rectHeightMin": 2, "rectHeightMax": 4, "notes": "Scattered outer food clusters" },
-      { "resourceType": "Stone", "countMin": 3, "countMax": 4, "minDistanceFromHQ": 14, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Scattered outer stone clusters" },
-      { "resourceType": "Iron",  "countMin": 2, "countMax": 4, "minDistanceFromHQ": 16, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Scattered outer iron clusters" }
+      { "resourceType": "Wood",  "countMin": 4, "countMax": 5, "minDistanceFromHQ": 14, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 4, "rectHeightMin": 2, "rectHeightMax": 4, "notes": "Outer wood clusters start slightly later so they do not compete with starter picks too early" },
+      { "resourceType": "Food",  "countMin": 3, "countMax": 4, "minDistanceFromHQ": 14, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 4, "rectHeightMin": 2, "rectHeightMax": 4, "notes": "Outer food clusters spaced to avoid overpowering starter ring" },
+      { "resourceType": "Stone", "countMin": 2, "countMax": 3, "minDistanceFromHQ": 16, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Outer stone clusters pushed outward to preserve starter clarity" },
+      { "resourceType": "Iron",  "countMin": 2, "countMax": 3, "minDistanceFromHQ": 18, "maxDistanceFromHQ": 28, "rectWidthMin": 2, "rectWidthMax": 3, "rectHeightMin": 2, "rectHeightMax": 3, "notes": "Outer iron clusters shifted further out under new iron pressure heuristic" }
     ]
   },
   "initialBuildings": [

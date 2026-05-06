@@ -282,9 +282,20 @@ Xiết validator theo semantic gameplay, không chỉ schema/range.
 ### Goal
 Retune rules sau khi đã có visibility + quality gate.
 
-### Status
-- [ ] chưa rà ở pass này
-- [x] vẫn đúng nguyên tắc: chưa nên sửa file này trước
+### Trạng thái thực tế
+**Status: [~] đã rà và tune pass đầu theo quality gate mới, còn cần smoke multi-seed để khóa lại**
+
+### Đã chỉnh trong data
+- [x] siết starter `Wood/Food` về khoảng gần hơn và rect lớn hơn để opener ổn định hơn
+- [x] giảm variance starter bằng cách hạ `countMax` ở wood/food/stone về profile ổn định hơn
+- [x] giữ `Stone` starter trong range phù hợp quality gate mới
+- [x] đẩy `Iron starter-lite` xa HQ hơn và cho phép không xuất hiện ở một số seed
+- [x] đẩy `bonusRules` outer ring xa hơn để không lấn starter ring quá sớm
+
+### Còn thiếu / cần verify
+- [ ] chưa có smoke multi-seed thật để xác nhận tuning này tối ưu
+- [ ] chưa tune theo path-cost aware scoring vì scoring đó chưa có
+- [~] có thể còn phải chỉnh tiếp sau khi phase D harvest policy vào
 
 ---
 
@@ -364,7 +375,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 ### Đợt 2 - sửa generation
 - [~] `RunStartResourceZoneGenerator.cs`
 - [~] `RunStartConfigValidator.cs`
-- [ ] `StartMapConfig_RunStart_64x64_v0.1.json`
+- [~] `StartMapConfig_RunStart_64x64_v0.1.json`
 
 **Kết luận phase B hiện tại:**
 - [~] quality gate core đã có
@@ -372,7 +383,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - [x] bounded retry cấp opening đã có
 - [x] accessibility/distribution scoring cơ bản đã có
 - [ ] chưa có path-cost aware scoring thật
-- [ ] chưa tune JSON theo policy mới
+- [x] đã tune JSON pass đầu theo policy mới
 
 ### Đợt 3 - khóa harvest opening
 - [ ] `ResourcePatchState.cs`
@@ -389,7 +400,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - [x] Metadata generated zones đã tách rõ `starter-generated` và `bonus-generated` ở runtime/cache.
 - [x] `quality failure` đã được đưa vào fallback semantics ở phase B với `GeneratedQualityGate`.
 - [x] Đã có bounded retry/scoring cơ bản cho quality evaluation trong phase B.
-- [!] Chưa có path-cost aware scoring và chưa tune config JSON theo policy mới.
+- [!] Chưa có path-cost aware scoring và chưa có smoke multi-seed đủ rộng để xác nhận tuning JSON mới.
 
 ---
 
@@ -400,6 +411,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 - 2026-05-06 09:xx GMT+7, đóng nốt phase 1 ở level code/doc: thêm zone metadata `Origin/Bucket` vào `ZoneState`, preserve `starter-generated` vs `bonus-generated` qua runtime cache, thêm `ZoneRect.IsStarter`, cập nhật test để khóa starter/bonus/authored/legacy distinction. Chưa verify được test command trên máy này vì thiếu .NET SDK/runner phù hợp.
 - 2026-05-06 09:xx GMT+7, bắt đầu phase B: thêm quality gate semantics cho generated opening, cho generator trả `qualityBand/qualityScore`, reject seed thiếu starter coverage với reason rõ, map sang `GeneratedQualityGate` ở initializer, thêm semantic validation cơ bản trong `RunStartConfigValidator`, và cập nhật test/checklist tương ứng.
 - 2026-05-06 09:xx GMT+7, mở rộng phase B: thêm bounded retry ở level whole-opening candidate, thêm scoring cơ bản cho accessibility/distribution/iron pressure, cập nhật test quality score, và cập nhật checklist tiến độ theo policy mới.
+- 2026-05-06 09:xx GMT+7, tune `StartMapConfig_RunStart_64x64_v0.1.json` pass đầu theo quality gate mới: siết starter wood/food, ổn định stone starter, đẩy iron starter-lite ra xa hơn, và đẩy outer bonus ring ra xa để giảm cạnh tranh với opening ring.
 
 ---
 

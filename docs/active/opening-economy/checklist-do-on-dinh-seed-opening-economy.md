@@ -38,8 +38,8 @@ Sau batch này, project nên đạt:
 - [x] fallback chain rõ ràng: `Generated -> AuthoredFallback -> LegacyFallback`
 - [x] runtime/debug state cho biết run đã dùng mode nào và fail ở đâu
 - [x] phân biệt được zone/patch nào là `starter`, `bonus`, `authored`, `legacy`
-- [ ] harvest opening ưu tiên starter patches hợp lý
-- [ ] có regression + smoke checklist đủ để balance tiếp mà không làm vỡ opener
+- [x] harvest opening ưu tiên starter patches hợp lý ở level logic/test hiện tại
+- [x] đã có regression + smoke checklist nền đủ để balance tiếp mà không làm vỡ opener, còn thiếu verify runtime multi-seed trên máy có Unity/.NET phù hợp
 
 ---
 

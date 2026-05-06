@@ -98,6 +98,17 @@
 
 ---
 
+### `docs/SeasonalBastionV2_Bug_Checklist.docx`
+**Lý do**
+- nội dung vẫn còn giá trị như hardening/bug backlog
+- nhưng định dạng `.docx` không hợp workflow repo, khó diff, khó review
+
+**Khuyến nghị**
+- đã convert sang `docs/backlog/checklist-bug-can-fix.md`
+- nên xóa bản `.docx` sau khi xác nhận markdown đã đủ nội dung cần giữ
+
+---
+
 ## Nguyên tắc chung
 
 - Không xóa hẳn ngay nếu file còn giúp hiểu lịch sử quyết định.

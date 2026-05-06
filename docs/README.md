@@ -15,7 +15,7 @@
 - `docs/active/`
   - checklist / smoke matrix / workstream đang sống
 - `docs/backlog/`
-  - debt/task docs còn giá trị nhưng chưa active ngay
+  - debt/task docs, bug backlog còn giá trị nhưng chưa active ngay
 - `docs/archive/`
   - docs lịch sử hoặc đã bị superseded
 

@@ -296,7 +296,13 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
   - `ComposeBuild(...)`
   - `ComposeCombatAndRewards(...)`
   - `ComposeSave(...)`
-- [~] Refactor này hiện ưu tiên readability/composition clarity, chưa đổi sang partial files riêng hoặc interface views hẹp hơn.
-- [ ] Bước tiếp theo hợp lý: nếu pass này ổn, cân nhắc tách các helper composition ra file riêng hoặc bắt đầu giảm dependency trực tiếp vào `GameServices` ở các service mới.
+- [x] Đã đi tiếp bước 2: tách `GameServicesFactory` thành nhiều file `partial` theo cụm composition:
+  - `GameServicesFactory.cs`
+  - `GameServicesFactory.Core.cs`
+  - `GameServicesFactory.World.cs`
+  - `GameServicesFactory.EconomyJobs.cs`
+  - `GameServicesFactory.BuildCombatSave.cs`
+- [~] Refactor này hiện ưu tiên readability/composition clarity, chưa đổi sang interface views hẹp hơn.
+- [ ] Bước tiếp theo hợp lý: bắt đầu giảm dependency trực tiếp vào `GameServices` ở các service mới, hoặc tách tiếp `SaveService.cs` / `Regression_P0P1_Tests.cs`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

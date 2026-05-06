@@ -303,6 +303,14 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
   - `GameServicesFactory.EconomyJobs.cs`
   - `GameServicesFactory.BuildCombatSave.cs`
 - [~] Refactor này hiện ưu tiên readability/composition clarity, chưa đổi sang interface views hẹp hơn.
-- [ ] Bước tiếp theo hợp lý: bắt đầu giảm dependency trực tiếp vào `GameServices` ở các service mới, hoặc tách tiếp `SaveService.cs` / `Regression_P0P1_Tests.cs`.
+- [~] Đã bắt đầu tách `Regression_P0P1_Tests.cs` bằng cách đưa shared helper vào `RegressionTestBase.cs` để chuẩn bị chia file theo feature.
+- [~] Đã tách cụm đầu tiên sang file partial `Regression_P0P1_OutcomePlacement_Tests.cs`, gồm nhóm placement/outcome/simulation guard cơ bản.
+- [~] Đã tách tiếp cụm `Build` sang `Regression_P0P1_Build_Tests.cs`.
+- [~] Đã tách tiếp cụm `Jobs` sang `Regression_P0P1_Jobs_Tests.cs`.
+- [~] Đã tách tiếp cụm `RunStart` sang `Regression_P0P1_RunStart_Tests.cs`.
+- [x] Đã tách nốt cụm `SaveLoad` sang `Regression_P0P1_SaveLoad_Tests.cs`.
+- [x] `Regression_P0P1_Tests.cs` không còn là file gom lớn, giờ chỉ giữ shell partial class mỏng.
+- [ ] Bước tiếp theo hợp lý: nếu muốn gọn hơn nữa, có thể rename file shell hoặc gom lại naming strategy cho toàn bộ regression partials.
+- [ ] Sau đó có thể tiếp tục giảm dependency trực tiếp vào `GameServices` ở các service mới, hoặc tách tiếp `SaveService.cs`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

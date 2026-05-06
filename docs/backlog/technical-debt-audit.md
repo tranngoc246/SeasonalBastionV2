@@ -1,5 +1,13 @@
-🧠 SeasonalBastionV2 – Audit Checklist
-🔴 P0 — BẮT BUỘC LÀM NGAY (Critical)
+# Technical Debt Audit Backlog
+
+> File này hiện nên được hiểu là **debt inventory / audit backlog**, không phải checklist implementation đang được theo sát từng ngày.
+>
+> Khuyến nghị dùng:
+> - giữ làm nơi gom debt/risk lớn
+> - khi thực sự triển khai một nhánh, tách ra thành checklist/workstream riêng trong `docs/active/`
+> - không tick bừa file này như progress tracker chung của toàn project
+
+## P0 — BẮT BUỘC LÀM NGAY (Critical)
 1. Save System – Migration
  Implement migration logic trong SaveMigrator.cs
  Thêm versioning rõ ràng cho schema save

@@ -37,7 +37,9 @@ SeasonalBastionV2
 ├─ docs/
 │  ├─ architecture/            -> technical architecture notes
 │  ├─ GDD/                     -> design / roadmap / backlog / implementation docs
-│  └─ stabilization-checklist.md
+│  ├─ active/                  -> live implementation checklists / smoke matrices
+│  ├─ backlog/                 -> debt/task docs còn giá trị nhưng chưa active
+│  └─ archive/                 -> superseded / historical docs
 │
 ├─ Packages/
 ├─ ProjectSettings/

@@ -1,4 +1,15 @@
-# Task Breakdown — Opening Economy Seed Stability
+# Task Breakdown - Opening Economy Seed Stability
+
+> **Status:** Superseded as a live working doc.
+>
+> File này giữ lại để tham chiếu lịch sử breakdown ban đầu.
+> Không nên tiếp tục update file này cho tiến độ hiện tại.
+>
+> Live docs thay thế:
+> - `docs/active/opening-economy/seed-stability-checklist.md`
+> - `docs/active/opening-economy/smoke-matrix.md`
+>
+> Nếu revive lại breakdown-level planning, nên tạo file mới trong `docs/backlog/` thay vì dùng tiếp file này.
 
 ## Goal
 Khóa độ ổn định của **opening economy** khi dùng `Hybrid` resource generation, để nhiều seed khác nhau vẫn cho ra đầu game:
@@ -17,10 +28,10 @@ Codebase hiện tại đã có backbone khá tốt cho resource generation:
 - harvesting đã consume patch thật
 - overlay / inspect / highlight đã usable
 
-Nhưng rủi ro gameplay lớn nhất còn lại không phải là “có generate được không”, mà là:
+Nhưng rủi ro gameplay lớn nhất còn lại không phải là "có generate được không", mà là:
 - seed khác nhau có thể cho opener mạnh/yếu quá lệch
 - starter zones có thể đạt **distance/bounds** nhưng vẫn không thật sự thuận cho harvest/logistics
-- `Hybrid` hiện đang thiên về “generate được thì dùng”, chưa có layer **quality gate** rõ ràng cho opening
+- `Hybrid` hiện đang thiên về "generate được thì dùng", chưa có layer **quality gate** rõ ràng cho opening
 - runtime cache / debug metadata hiện phản ánh zone cuối cùng, nhưng chưa đủ để truy ra **zone nào là starter guarantee, zone nào là bonus, zone nào do fallback**
 
 Nói ngắn gọn: feature đã usable, giờ cần chuyển từ **works** sang **stable + debuggable**.
@@ -59,7 +70,7 @@ Sau batch này, project nên đạt:
 
 ## Các vấn đề cụ thể cần khóa
 
-### 1) Starter guarantee hiện mới dừng ở “có patch gần HQ”
+### 1) Starter guarantee hiện mới dừng ở "có patch gần HQ"
 Hiện test mới khóa kiểu:
 - có Wood/Food/Stone gần HQ
 - cùng seed ra cùng layout
@@ -68,7 +79,7 @@ Hiện test mới khóa kiểu:
 
 Nhưng chưa khóa các chất lượng gameplay quan trọng hơn:
 - patch có reachable path từ khu HQ hay không
-- patch có bị road/bố cục đầu game làm thành “gần mà khó dùng” hay không
+- patch có bị road/bố cục đầu game làm thành "gần mà khó dùng" hay không
 - total starter supply có đủ cho opening loop tối thiểu hay không
 - iron starter-lite có đang chen vào ring làm giảm quality cho wood/food/stone không
 
@@ -96,27 +107,27 @@ Vì vậy khi gặp một seed tệ, sẽ khó trả lời nhanh:
 - run start -> patches được build đúng
 - harvest worker có thể pick target trên starter patch
 - patch cạn thì retarget sang patch khác trong opening hợp lý
-- không bị trạng thái “starter có đó nhưng worker không dùng nổi”
+- không bị trạng thái "starter có đó nhưng worker không dùng nổi"
 
 ---
 
-# Implementation Plan — file-by-file
+# Implementation Plan - file-by-file
 
 ---
 
-## FILE 1 — TẠO MỚI `docs/opening-economy-smoke-matrix.md`
+## FILE 1 - TẠO MỚI `docs/active/opening-economy/smoke-matrix.md`
 
 ### Goal
 Chốt một bộ smoke matrix cố định cho QA / manual verify / future balancing.
 
 ### Cần làm
-- [ ] Tạo bảng seed smoke test cố định, ví dụ 12–20 seed đại diện
+- [ ] Tạo bảng seed smoke test cố định, ví dụ 12-20 seed đại diện
 - [ ] Với mỗi seed, ghi các mục phải check:
   - [ ] có đủ `Wood / Food / Stone` starter
   - [ ] `Iron` không chiếm chỗ quá hung trong vòng gần HQ
   - [ ] worker farm/lumber hiện có pick được target thật
   - [ ] patch overlay/inspect đúng với runtime state
-  - [ ] ít nhất 1–2 hướng expand có bonus patches hợp lý
+  - [ ] ít nhất 1-2 hướng expand có bonus patches hợp lý
 - [ ] Ghi rõ mức pass/fail:
   - [ ] blocker
   - [ ] playable but weak
@@ -129,7 +140,7 @@ Chốt một bộ smoke matrix cố định cho QA / manual verify / future bala
 
 ---
 
-## FILE 2 — CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartResourceZoneGenerator.cs`
+## FILE 2 - CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartResourceZoneGenerator.cs`
 
 ### Goal
 Thêm lớp **opening quality gate** thay vì chỉ dừng ở rect-level validity.
@@ -165,7 +176,7 @@ Thêm lớp **opening quality gate** thay vì chỉ dừng ở rect-level validi
 
 ---
 
-## FILE 3 — CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartZoneInitializer.cs`
+## FILE 3 - CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartZoneInitializer.cs`
 
 ### Goal
 Làm fallback policy minh bạch và có chủ đích hơn.
@@ -188,11 +199,11 @@ Làm fallback policy minh bạch và có chủ đích hơn.
 
 ### Verify
 - [ ] đọc code thấy rõ exact fallback chain
-- [ ] không còn trạng thái “fallback ngầm nhưng khó biết tại sao”
+- [ ] không còn trạng thái "fallback ngầm nhưng khó biết tại sao"
 
 ---
 
-## FILE 4 — CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartRuntime.cs`
+## FILE 4 - CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartRuntime.cs`
 
 ### Goal
 Lưu runtime metadata đủ để debug opening issues theo seed.
@@ -212,7 +223,7 @@ Lưu runtime metadata đủ để debug opening issues theo seed.
 
 ---
 
-## FILE 5 — CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartRuntimeCacheBuilder.cs`
+## FILE 5 - CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartRuntimeCacheBuilder.cs`
 
 ### Goal
 Để runtime cache phản ánh không chỉ hình dạng zone, mà còn cả **origin/debug meaning** của chúng.
@@ -231,7 +242,7 @@ Lưu runtime metadata đủ để debug opening issues theo seed.
 
 ---
 
-## FILE 6 — CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartConfigValidator.cs`
+## FILE 6 - CẬP NHẬT `Assets/_Game/Core/RunStart/RunStartConfigValidator.cs`
 
 ### Goal
 Xiết validator theo hướng bảo vệ opening quality, không chỉ syntax range.
@@ -248,11 +259,11 @@ Xiết validator theo hướng bảo vệ opening quality, không chỉ syntax r
   - [ ] `ValidateResourceGenerationGameplaySemantics(...)`
 
 ### Verify
-- [ ] config sai kiểu “compile được nhưng opener tệ” bị phát hiện sớm hơn
+- [ ] config sai kiểu "compile được nhưng opener tệ" bị phát hiện sớm hơn
 
 ---
 
-## FILE 7 — CẬP NHẬT `Assets/_Game/Resources/RunStart/StartMapConfig_RunStart_64x64_v0.1.json`
+## FILE 7 - CẬP NHẬT `Assets/_Game/Resources/RunStart/StartMapConfig_RunStart_64x64_v0.1.json`
 
 ### Goal
 Retune rules cho map chuẩn hiện tại theo tiêu chí opening ổn định.
@@ -272,7 +283,7 @@ Retune rules cho map chuẩn hiện tại theo tiêu chí opening ổn định.
 
 ---
 
-## FILE 8 — CẬP NHẬT `Assets/_Game/Core/ResourcePatchService.cs`
+## FILE 8 - CẬP NHẬT `Assets/_Game/Core/ResourcePatchService.cs`
 
 ### Goal
 Đảm bảo patch-level data đủ để support opening stability checks và debug.
@@ -293,7 +304,7 @@ Retune rules cho map chuẩn hiện tại theo tiêu chí opening ổn định.
 
 ---
 
-## FILE 9 — CẬP NHẬT `Assets/_Game/Jobs/HarvestTargetSelectionHelper.cs`
+## FILE 9 - CẬP NHẬT `Assets/_Game/Jobs/HarvestTargetSelectionHelper.cs`
 
 ### Goal
 Khóa case starter patch có nhưng worker không chọn target tốt trong opening.
@@ -306,11 +317,11 @@ Khóa case starter patch có nhưng worker không chọn target tốt trong open
 
 ### Verify
 - [ ] worker farm/lumber ở start map ưu tiên patch starter hợp lý hơn
-- [ ] patch bonus không “hút” worker quá sớm khi patch starter vẫn ổn
+- [ ] patch bonus không "hút" worker quá sớm khi patch starter vẫn ổn
 
 ---
 
-## FILE 10 — CẬP NHẬT `Assets/_Game/Jobs/Executors/HarvestExecutor.cs`
+## FILE 10 - CẬP NHẬT `Assets/_Game/Jobs/Executors/HarvestExecutor.cs`
 
 ### Goal
 Khóa flow opening harvest thật từ target selection đến depletion.
@@ -327,10 +338,10 @@ Khóa flow opening harvest thật từ target selection đến depletion.
 
 ---
 
-## FILE 11 — CẬP NHẬT `Assets/_Game/Tests/EditMode/RunStart/ResourceZoneGenerationTests.cs`
+## FILE 11 - CẬP NHẬT `Assets/_Game/Tests/EditMode/RunStart/ResourceZoneGenerationTests.cs`
 
 ### Goal
-Nâng test từ “generate được” lên “opening usable”.
+Nâng test từ "generate được" lên "opening usable".
 
 ### Cần làm
 - [ ] Thêm test cho starter accessibility:
@@ -342,7 +353,7 @@ Nâng test từ “generate được” lên “opening usable”.
   - [ ] authored unavailable -> legacy fallback
 - [ ] Thêm test cho metadata:
   - [ ] runtime biết mode applied / failure reason / zone origin
-- [ ] Thêm multi-seed regression set nhỏ (ví dụ 8–12 seed cố định)
+- [ ] Thêm multi-seed regression set nhỏ (ví dụ 8-12 seed cố định)
   - [ ] không cần assert exact snapshot toàn bộ
   - [ ] assert quality band / starter coverage / bounds / determinism
 
@@ -351,7 +362,7 @@ Nâng test từ “generate được” lên “opening usable”.
 
 ---
 
-## FILE 12 — TẠO MỚI `Assets/_Game/Tests/EditMode/Jobs/HarvestOpeningStabilityTests.cs`
+## FILE 12 - TẠO MỚI `Assets/_Game/Tests/EditMode/Jobs/HarvestOpeningStabilityTests.cs`
 
 ### Goal
 Khóa integration tối thiểu giữa run-start patches và harvest opening.
@@ -363,14 +374,14 @@ Khóa integration tối thiểu giữa run-start patches và harvest opening.
   - [ ] worker pick được target trong starter food patch
   - [ ] patch cạn thì retarget sang patch còn tài nguyên
   - [ ] patch bonus không bị ưu tiên vô lý khi starter patch còn usable
-- [ ] Nếu setup full executor quá nặng, có thể tách test helper ở level selection trước rồi thêm 1–2 integration test executor thật
+- [ ] Nếu setup full executor quá nặng, có thể tách test helper ở level selection trước rồi thêm 1-2 integration test executor thật
 
 ### Verify
 - [ ] opening harvest loop có regression coverage riêng, không chỉ dựa vào manual smoke
 
 ---
 
-## FILE 13 — CẬP NHẬT `CHANGELOG.md`
+## FILE 13 - CẬP NHẬT `CHANGELOG.md`
 
 ### Goal
 Ghi lại đúng intent của batch tiếp theo sau khi hoàn thành.
@@ -386,7 +397,7 @@ Ghi lại đúng intent của batch tiếp theo sau khi hoàn thành.
 
 # Suggested Execution Order
 
-## Phase 1 — Debug/Fallback visibility
+## Phase 1 - Debug/Fallback visibility
 1. `RunStartZoneInitializer`
 2. `RunStartRuntime`
 3. `RunStartRuntimeCacheBuilder`
@@ -399,18 +410,18 @@ Ghi lại đúng intent của batch tiếp theo sau khi hoàn thành.
 
 ---
 
-## Phase 2 — Quality gate cho generator
+## Phase 2 - Quality gate cho generator
 5. `RunStartResourceZoneGenerator`
 6. `RunStartConfigValidator`
 7. `StartMapConfig_RunStart_64x64_v0.1.json`
 
 ### Outcome cần đạt
-- generator không chỉ “spawn được” mà còn “spawn đủ tốt cho opening”
+- generator không chỉ "spawn được" mà còn "spawn đủ tốt cho opening"
 - rule config được tune theo map thật
 
 ---
 
-## Phase 3 — Harvest opening stability
+## Phase 3 - Harvest opening stability
 8. `ResourcePatchService`
 9. `HarvestTargetSelectionHelper`
 10. `HarvestExecutor`
@@ -421,7 +432,7 @@ Ghi lại đúng intent của batch tiếp theo sau khi hoàn thành.
 
 ---
 
-## Phase 4 — Regression hardening
+## Phase 4 - Regression hardening
 11. `ResourceZoneGenerationTests.cs`
 12. `HarvestOpeningStabilityTests.cs`
 13. `CHANGELOG.md`
@@ -434,7 +445,7 @@ Ghi lại đúng intent của batch tiếp theo sau khi hoàn thành.
 # Practical acceptance checklist
 
 ## Must-have
-- [ ] 8–12 seed smoke test qua được ở mức playable trở lên
+- [ ] 8-12 seed smoke test qua được ở mức playable trở lên
 - [ ] không có seed nào thiếu `Wood/Food/Stone` starter usable
 - [ ] `Hybrid` fallback chain trace được rõ ràng
 - [ ] worker opening harvest được từ starter patches ổn định

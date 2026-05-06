@@ -3,6 +3,13 @@
 > Mục tiêu: hoàn thiện flow kết thúc run cho build hiện tại, để game không chỉ có backend thắng/thua mà còn có trạng thái kết thúc rõ ràng, UI usable, và Retry / Main Menu chạy sạch.
 >
 > Checklist này bám theo codebase hiện tại của project `SeasonalBastionV2`, không phải checklist lý thuyết chung.
+>
+> **Current note (2026-05-06):** file này không còn là checklist “đang mở” theo nghĩa ban đầu. Phần lớn core flow, modal wiring, và regression nền đã có trong code. Giá trị chính của file lúc này là:
+> - ghi lại phạm vi implementation đã chốt
+> - giữ lịch sử verify/DoD
+> - chỉ ra những phần polish/policy còn có thể làm tiếp
+>
+> Khuyến nghị: nếu tiếp tục làm endgame polish, nên tách một file follow-up nhỏ hơn thay vì mở rộng tiếp file này vô hạn.
 
 ---
 

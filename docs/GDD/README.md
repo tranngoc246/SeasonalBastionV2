@@ -48,3 +48,8 @@ Thư mục này giữ **working set GDD hiện tại** của Seasonal Bastion.
 - Chỉ sửa file trong `00_Master` khi thay đổi ảnh hưởng product direction hoặc nhiều subsystem cùng lúc.
 - Các thay đổi về flow triển khai nên phản ánh ở `20_Roadmap`, `30_Backlog`, hoặc `40_Implementation` tùy mức độ.
 - Tránh tạo thêm tài liệu lớn mới nếu chưa thực sự cần; ưu tiên cập nhật bộ working set hiện tại.
+
+## Liên quan đến cây docs ngoài GDD
+- `docs/active/` giữ các implementation checklist / smoke matrix đang sống.
+- `docs/backlog/` giữ debt/task docs còn giá trị nhưng chưa phải workstream active.
+- `docs/archive/` giữ docs lịch sử hoặc đã bị superseded, không nên update tiếp trừ khi revive workstream cũ.

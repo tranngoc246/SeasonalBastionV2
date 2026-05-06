@@ -2,7 +2,7 @@
 
 > Mục tiêu: có một bộ seed-smoke cố định để kiểm tra nhanh opening economy sau mỗi batch liên quan generation / harvest / tuning.
 >
-> **Rule bắt buộc:** mỗi lần chạy smoke thật, phải cập nhật lại file này trong cùng lượt làm, giống rule của `opening-economy-seed-stability-checklist.md`.
+> **Rule bắt buộc:** mỗi lần chạy smoke thật, phải cập nhật lại file này trong cùng lượt làm, giống rule của `docs/active/opening-economy/seed-stability-checklist.md`.
 
 ---
 
@@ -86,3 +86,41 @@
    - fail ở generation hay harvest
    - blocker hay chỉ weak
 4. sau khi sửa, rerun tối thiểu seed fail + 4 seed nhanh
+
+---
+
+## 6. Checklist smoke thật, cực ngắn
+
+### Vòng 1, smoke nhanh
+Chạy theo thứ tự:
+1. `111`
+2. `222`
+3. `555`
+4. `12345`
+
+Mỗi seed chỉ cần check 5 thứ:
+- [ ] đủ `Wood / Food / Stone` starter usable
+- [ ] iron không chen opener quá mức
+- [ ] worker pick starter patch hợp lý
+- [ ] patch cạn thì retarget sạch
+- [ ] không thấy overlay/inspect bị sai nghĩa
+
+### Vòng 2, smoke full
+Nếu vòng 1 ổn, chạy tiếp:
+5. `101`
+6. `333`
+7. `777`
+8. `999`
+9. `4242`
+10. `9001`
+11. `16001`
+12. `32003`
+
+### Rule pass/fail rất ngắn
+- có 1 lỗi blocker ở bất kỳ seed nào, dừng và log ngay
+- nếu chỉ `Playable but weak`, chạy hết vòng rồi gom issue sau
+- sau khi sửa gì đó, rerun tối thiểu:
+  - seed fail
+  - `111`
+  - `555`
+  - `12345`

@@ -125,7 +125,7 @@ namespace SeasonalBastion.RunStart
                 if (z == null || z.cellsRect == null) continue;
                 if (!TryMapZoneTypeToResource(z.type, out var rt)) continue;
 
-                AddRectZone(zs, id++, rt, z.cellsRect.xMin, z.cellsRect.yMin, z.cellsRect.xMax, z.cellsRect.yMax);
+                AddRectZone(zs, id++, rt, z.cellsRect.xMin, z.cellsRect.yMin, z.cellsRect.xMax, z.cellsRect.yMax, "AuthoredFallback", "authored-fallback");
                 addedAny = true;
             }
 
@@ -138,10 +138,10 @@ namespace SeasonalBastion.RunStart
             if (zs == null)
                 return;
 
-            AddRectZone(zs, 1, ResourceType.Wood, 14, 40, 24, 50);
-            AddRectZone(zs, 2, ResourceType.Food, 40, 14, 50, 24);
-            AddRectZone(zs, 3, ResourceType.Stone, 14, 14, 24, 24);
-            AddRectZone(zs, 4, ResourceType.Iron, 40, 40, 50, 50);
+            AddRectZone(zs, 1, ResourceType.Wood, 14, 40, 24, 50, "LegacyFallback", "legacy-fallback");
+            AddRectZone(zs, 2, ResourceType.Food, 40, 14, 50, 24, "LegacyFallback", "legacy-fallback");
+            AddRectZone(zs, 3, ResourceType.Stone, 14, 14, 24, 24, "LegacyFallback", "legacy-fallback");
+            AddRectZone(zs, 4, ResourceType.Iron, 40, 40, 50, 50, "LegacyFallback", "legacy-fallback");
             RecordAppliedMode(s, AppliedLegacy, "LegacyFallback", 30);
         }
 
@@ -224,9 +224,9 @@ namespace SeasonalBastion.RunStart
             return false;
         }
 
-        private static void AddRectZone(IZoneStore zs, int id, ResourceType rt, int xMin, int yMin, int xMax, int yMax)
+        private static void AddRectZone(IZoneStore zs, int id, ResourceType rt, int xMin, int yMin, int xMax, int yMax, string origin, string bucket)
         {
-            var z = new ZoneState { Id = id, Resource = rt };
+            var z = new ZoneState { Id = id, Resource = rt, Origin = origin, Bucket = bucket };
 
             for (int y = yMin; y <= yMax; y++)
                 for (int x = xMin; x <= xMax; x++)

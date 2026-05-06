@@ -176,11 +176,26 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(services.RunStartRuntime.ResourceGenerationFailureStage, Is.Null);
             Assert.That(services.RunStartRuntime.OpeningQualityBand, Is.EqualTo("GeneratedUsable"));
             Assert.That(services.RunStartRuntime.OpeningQualityScore, Is.EqualTo(100));
+            bool sawStarter = false;
+            bool sawBonus = false;
             foreach (var pair in services.RunStartRuntime.Zones)
             {
                 Assert.That(pair.Value.Origin, Is.EqualTo("Generated"));
-                Assert.That(pair.Value.Bucket, Is.EqualTo("generated"));
+                Assert.That(pair.Value.Bucket, Does.StartWith("starter-generated").Or.StartWith("bonus-generated"));
+                if (pair.Value.Bucket == "starter-generated")
+                {
+                    sawStarter = true;
+                    Assert.That(pair.Value.IsStarter, Is.True);
+                }
+                else if (pair.Value.Bucket == "bonus-generated")
+                {
+                    sawBonus = true;
+                    Assert.That(pair.Value.IsStarter, Is.False);
+                }
             }
+
+            Assert.That(sawStarter, Is.True);
+            Assert.That(sawBonus, Is.True);
         }
 
         [Test]
@@ -265,7 +280,8 @@ namespace SeasonalBastion.Tests.EditMode
             foreach (var pair in services.RunStartRuntime.Zones)
             {
                 Assert.That(pair.Value.Origin, Is.EqualTo("AuthoredFallback"));
-                Assert.That(pair.Value.Bucket, Is.EqualTo("authored"));
+                Assert.That(pair.Value.Bucket, Is.EqualTo("authored-fallback"));
+                Assert.That(pair.Value.IsStarter, Is.False);
             }
         }
 
@@ -316,7 +332,8 @@ namespace SeasonalBastion.Tests.EditMode
             foreach (var pair in services.RunStartRuntime.Zones)
             {
                 Assert.That(pair.Value.Origin, Is.EqualTo("LegacyFallback"));
-                Assert.That(pair.Value.Bucket, Is.EqualTo("legacy"));
+                Assert.That(pair.Value.Bucket, Is.EqualTo("legacy-fallback"));
+                Assert.That(pair.Value.IsStarter, Is.False);
             }
         }
 
@@ -346,6 +363,29 @@ namespace SeasonalBastion.Tests.EditMode
             Assert.That(services.RunStartRuntime.ResourceGenerationFailureStage, Is.EqualTo("GeneratedEmpty"));
             Assert.That(services.RunStartRuntime.ResourceGenerationFailureReason, Is.EqualTo("Generated resource zone list was empty."));
             Assert.That(services.RunStartRuntime.OpeningQualityScore, Is.EqualTo(60));
+        }
+
+        [Test]
+        public void RunStartRuntimeCacheBuilder_GeneratedZones_PreserveStarterBonusDistinction()
+        {
+            var services = MakeServices();
+            AddHq(services, 30, 30);
+            services.RunStartRuntime.Seed = 4242;
+            var cfg = MakeGeneratedConfig();
+
+            RunStartZoneInitializer.ApplyZones(services, cfg);
+            RunStartRuntimeCacheBuilder.ApplyRuntimeZonesFromWorld(services);
+
+            int starterCount = 0;
+            int bonusCount = 0;
+            foreach (var pair in services.RunStartRuntime.Zones)
+            {
+                if (pair.Value.Bucket == "starter-generated") starterCount++;
+                if (pair.Value.Bucket == "bonus-generated") bonusCount++;
+            }
+
+            Assert.That(starterCount, Is.GreaterThanOrEqualTo(3));
+            Assert.That(bonusCount, Is.GreaterThanOrEqualTo(1));
         }
 
         private static int MinDistanceToZone(CellPos from, ZoneState z)

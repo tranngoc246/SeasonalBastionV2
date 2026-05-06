@@ -88,8 +88,9 @@ namespace SeasonalBastion.Contracts
         public readonly int CellCount;
         public readonly string Origin;
         public readonly string Bucket;
+        public readonly bool IsStarter;
 
-        public ZoneRect(string zoneId, string type, string ownerBuildingHint, IntRect rect, int cellCount, string origin = null, string bucket = null)
+        public ZoneRect(string zoneId, string type, string ownerBuildingHint, IntRect rect, int cellCount, string origin = null, string bucket = null, bool isStarter = false)
         {
             ZoneId = zoneId;
             Type = type;
@@ -98,6 +99,7 @@ namespace SeasonalBastion.Contracts
             CellCount = cellCount;
             Origin = origin;
             Bucket = bucket;
+            IsStarter = isStarter;
         }
     }
 }

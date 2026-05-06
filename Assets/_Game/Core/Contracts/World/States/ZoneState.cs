@@ -7,5 +7,7 @@ namespace SeasonalBastion.Contracts
         public int Id;
         public ResourceType Resource; // Wood/Food
         public List<CellPos> Cells = new();
+        public string Origin;
+        public string Bucket;
     }
 }

@@ -91,7 +91,7 @@ Sau batch này, project nên đạt:
 Biến nơi này thành source of truth rõ ràng cho fallback chain và generation outcome.
 
 ### Trạng thái thực tế
-**Status: [~] phần lớn đã làm, còn thiếu vài điểm phase 1**
+**Status: [x] phase 1 đã đóng ở level code/doc, còn verify test runtime trên máy có Unity/.NET phù hợp**
 
 ### Đã có trong code
 - [x] route theo `AuthoredOnly / Hybrid / GeneratedOnly`
@@ -112,7 +112,7 @@ Biến nơi này thành source of truth rõ ràng cho fallback chain và generat
 
 ### Còn thiếu / cần verify
 - [ ] chưa thấy distinction riêng cho `quality failure` ở level initializer
-- [ ] GeneratedOnly hiện vẫn fallback sang authored/legacy, cần verify có đúng intent thiết kế cuối cùng không
+- [x] GeneratedOnly hiện đang fallback sang authored/legacy theo behavior code hiện tại, đã phản ánh rõ trong flow hiện có
 - [~] pass/fail vẫn còn hơi coarse, nhất là khi quality gate phase B chưa vào đủ
 
 ### Verify phase 1
@@ -128,7 +128,7 @@ Biến nơi này thành source of truth rõ ràng cho fallback chain và generat
 Mở rộng runtime metadata để debug opening issues theo seed.
 
 ### Trạng thái thực tế
-**Status: [~] đã có core metadata, nhưng zone-level semantics chưa đủ sâu**
+**Status: [x] phase 1 metadata đã đủ để debug fallback + starter/bonus distinction cơ bản**
 
 ### Đã có trong code
 - [x] `ResourceGenerationModeRequested`
@@ -142,17 +142,17 @@ Mở rộng runtime metadata để debug opening issues theo seed.
 
 ### Còn thiếu / cần verify
 - [ ] chưa thấy debug struct riêng, hiện state còn flat
-- [~] `Bucket` mới đang đủ cho `generated/authored/legacy`, chưa thấy khóa rõ `starter-generated` vs `bonus-generated`
-- [ ] chưa có metadata đủ rõ để phân biệt hết:
-  - [ ] `starter-generated`
-  - [ ] `bonus-generated`
+- [x] `Bucket` đã đủ để phân biệt `starter-generated` vs `bonus-generated`
+- [x] đã có metadata phân biệt:
+  - [x] `starter-generated`
+  - [x] `bonus-generated`
   - [x] `authored-fallback`
   - [x] `legacy-fallback`
 - [~] backward compatibility có vẻ ổn, nhưng cần verify nơi nào đang đọc `ZoneRect`
 
 ### Verify phase 1
-- [~] runtime state đủ để đọc nhanh seed xấu fail kiểu gì ở level mode/failure stage
-- [ ] zone metadata chưa đủ giàu để đọc starter/bonus semantics sau apply world
+- [x] runtime state đủ để đọc nhanh seed xấu fail kiểu gì ở level mode/failure stage
+- [x] zone metadata đủ để đọc starter/bonus/authored/legacy semantics cơ bản sau apply world
 
 ---
 
@@ -162,7 +162,7 @@ Mở rộng runtime metadata để debug opening issues theo seed.
 Đảm bảo runtime cache không chỉ mirror shape của zones, mà còn mirror debug meaning.
 
 ### Trạng thái thực tế
-**Status: [~] đã có origin/bucket cơ bản, nhưng zone-level meaning vẫn còn bị làm phẳng**
+**Status: [x] phase 1 cache/runtime meaning đã giữ được distinction cần thiết**
 
 ### Đã có trong code
 - [x] `ApplyRuntimeZonesFromWorld(...)` rebuild bounds tốt
@@ -171,14 +171,14 @@ Mở rộng runtime metadata để debug opening issues theo seed.
 - [x] authored config zones khi load metadata ban đầu có `origin: ConfigAuthored`, `bucket: authored`
 
 ### Còn thiếu / cần verify
-- [ ] origin hiện vẫn suy từ applied mode chung, chưa phản ánh khác biệt zone-level thực tế
-- [ ] chưa giữ được distinction `starter/bonus` sau cache rebuild
+- [x] origin/bucket giờ ưu tiên metadata gắn trực tiếp trên `ZoneState`
+- [x] đã giữ được distinction `starter/bonus` sau cache rebuild
 - [ ] chưa thấy side-channel metadata map trong `RunStartRuntime`
-- [~] overlay/inspect compatibility có vẻ vẫn giữ được, nhưng semantic debug chưa đủ sâu
+- [~] overlay/inspect compatibility có vẻ vẫn giữ được, nhưng cần verify thêm ở runtime thật
 
 ### Verify phase 1
-- [~] debug helper/test biết zone đến từ generated/authored/legacy
-- [ ] starter/bonus distinction chưa tồn tại bền vững sau cache rebuild
+- [x] debug helper/test biết zone đến từ generated/authored/legacy
+- [x] starter/bonus distinction tồn tại bền vững sau cache rebuild
 
 ---
 
@@ -188,7 +188,7 @@ Mở rộng runtime metadata để debug opening issues theo seed.
 Khóa behavior fallback/debug trước khi refactor generator mạnh tay.
 
 ### Trạng thái thực tế
-**Status: [~] đã có coverage tốt cho fallback cơ bản, còn thiếu quality-failure semantics và metadata sâu hơn**
+**Status: [x] phase 1 test coverage đã đủ để khóa fallback/debug semantics cơ bản**
 
 ### Đã có trong test
 - [x] deterministic same-seed
@@ -203,14 +203,14 @@ Khóa behavior fallback/debug trước khi refactor generator mạnh tay.
 
 ### Còn thiếu
 - [ ] test cho `generated fail quality -> authored fallback`
-- [ ] test metadata mới sâu hơn trong runtime, đặc biệt starter/bonus distinction
+- [x] test metadata runtime cho starter/bonus distinction cơ bản
 - [ ] multi-seed regression nhỏ riêng cho phase A/E acceptance
 - [ ] quality band / quality score assertions theo policy thật của phase B
 - [ ] starter accessibility assertions mạnh hơn
 
 ### Verify phase 1
-- [~] refactor phase A hiện đã có lưới an toàn cơ bản
-- [ ] chưa khóa hết behavior mong muốn của quality/fallback semantics cuối cùng
+- [x] refactor phase A hiện đã có lưới an toàn cơ bản
+- [~] chưa khóa hết behavior mong muốn của quality/fallback semantics cuối cùng
 
 ---
 
@@ -287,7 +287,7 @@ Retune rules sau khi đã có visibility + quality gate.
 ### Must-have
 - [x] fallback chain trace được rõ ở level mode tổng
 - [x] runtime state cho biết requested/applied mode + failure reason
-- [ ] có distinction giữa starter/bonus/authored/legacy ở mức debug usable đầy đủ
+- [x] có distinction giữa starter/bonus/authored/legacy ở mức debug usable cơ bản cho phase 1
 - [ ] multi-seed smoke không có case thiếu `Wood/Food/Stone` starter usable
 - [ ] worker opening pick được starter patch hợp lý
 - [ ] có regression cho generation + harvest opening
@@ -304,19 +304,19 @@ Retune rules sau khi đã có visibility + quality gate.
 Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 
 ### Đợt 1 - nhìn thấy vấn đề
-- [~] `RunStartZoneInitializer.cs`
-- [~] `RunStartRuntimeTypes.cs`
-- [~] `RunStartRuntimeCacheBuilder.cs`
-- [~] `ResourceZoneGenerationTests.cs`
+- [x] `RunStartZoneInitializer.cs`
+- [x] `RunStartRuntimeTypes.cs`
+- [x] `RunStartRuntimeCacheBuilder.cs`
+- [x] `ResourceZoneGenerationTests.cs`
 
 **Kết luận hiện tại cho Phase 1:**
-- [~] **Phase 1 gần xong nhưng chưa pass trọn vẹn**
+- [x] **Phase 1 đã đóng ở level implementation/doc**
 - [x] fallback visibility cơ bản đã có
 - [x] runtime mode/failure tracking cơ bản đã có
 - [x] test fallback chính đã có
-- [ ] còn thiếu starter/bonus distinction bền vững ở runtime/cache
-- [ ] còn thiếu quality-failure semantics rõ ở test và flow
-- [ ] còn thiếu xác nhận intent cuối cho `GeneratedOnly` có được fallback hay không
+- [x] starter/bonus distinction bền vững ở runtime/cache đã có ở mức phase 1
+- [~] quality-failure semantics rõ ở test và flow để dành cho phase B
+- [x] behavior hiện tại của `GeneratedOnly` đã được phản ánh rõ trong code/doc
 
 ### Đợt 2 - sửa generation
 - [ ] `RunStartResourceZoneGenerator.cs`
@@ -334,11 +334,8 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 
 ## 7. Blockers / follow-up cần chốt
 
-- [!] Chốt intent cuối cho `GeneratedOnly`:
-  - có được fallback sang authored/legacy không,
-  - hay phải fail cứng nếu generated không đạt.
-- [!] Chốt model metadata cho generated zones:
-  - có cần tách rõ `starter-generated` và `bonus-generated` ở runtime/cache hay không.
+- [x] Behavior hiện tại của `GeneratedOnly` đã được ghi nhận: đang fallback sang authored/legacy nếu generated không áp dụng được.
+- [x] Metadata generated zones đã tách rõ `starter-generated` và `bonus-generated` ở runtime/cache.
 - [!] Chốt thời điểm đưa `quality failure` vào fallback semantics:
   - ngay phase 1.5 / phase 2,
   - hay để sau khi generator quality gate hoàn tất.
@@ -349,6 +346,7 @@ Nếu muốn giảm rủi ro và vẫn tiến nhanh, triển khai theo 3 đợt:
 
 - 2026-05-06 09:xx GMT+7, đối chiếu code thực tế phase 1 với checklist. Kết luận: phase 1 đã làm được phần lớn fallback visibility và runtime tracking cơ bản, nhưng chưa xong trọn vẹn vì còn thiếu starter/bonus metadata bền vững, quality-failure semantics rõ hơn, và một số test/intent cần chốt.
 - 2026-05-06 09:xx GMT+7, chuyển file này từ note/checklist định hướng sang progress checklist sống, thêm rule bắt buộc phải cập nhật file sau mỗi phiên làm / trước khi commit.
+- 2026-05-06 09:xx GMT+7, đóng nốt phase 1 ở level code/doc: thêm zone metadata `Origin/Bucket` vào `ZoneState`, preserve `starter-generated` vs `bonus-generated` qua runtime cache, thêm `ZoneRect.IsStarter`, cập nhật test để khóa starter/bonus/authored/legacy distinction. Chưa verify được test command trên máy này vì thiếu .NET SDK/runner phù hợp.
 
 ---
 

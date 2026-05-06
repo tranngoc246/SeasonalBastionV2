@@ -94,7 +94,9 @@ namespace SeasonalBastion.RunStart
                 var z = new ZoneState
                 {
                     Id = nextZoneId++,
-                    Resource = rt
+                    Resource = rt,
+                    Origin = "Generated",
+                    Bucket = isStarter ? "starter-generated" : "bonus-generated"
                 };
 
                 for (int y = yMin; y <= yMax; y++)

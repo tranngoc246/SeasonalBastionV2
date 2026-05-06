@@ -59,7 +59,7 @@ namespace SeasonalBastion.RunStart
                     var z = cfg.zones[i];
                     if (z == null || z.cellsRect == null || string.IsNullOrEmpty(z.zoneId)) continue;
                     var rect = new IntRect(z.cellsRect.xMin, z.cellsRect.yMin, z.cellsRect.xMax, z.cellsRect.yMax);
-                    s.RunStartRuntime.Zones[z.zoneId] = new ZoneRect(z.zoneId, z.type, z.ownerBuildingHint, rect, z.cellCount, origin: "ConfigAuthored", bucket: "authored");
+                    s.RunStartRuntime.Zones[z.zoneId] = new ZoneRect(z.zoneId, z.type, z.ownerBuildingHint, rect, z.cellCount, origin: "ConfigAuthored", bucket: "authored-fallback", isStarter: false);
                 }
             }
         }
@@ -82,7 +82,10 @@ namespace SeasonalBastion.RunStart
                 string zoneId = $"zone_{z.Id}";
                 string type = ResourceTypeToZoneType(z.Resource);
                 int cellCount = z.Cells.Count;
-                s.RunStartRuntime.Zones[zoneId] = new ZoneRect(zoneId, type, ownerBuildingHint: null, new IntRect(xMin, yMin, xMax, yMax), cellCount, origin, defaultBucket);
+                string zoneOrigin = string.IsNullOrWhiteSpace(z.Origin) ? origin : z.Origin;
+                string zoneBucket = string.IsNullOrWhiteSpace(z.Bucket) ? defaultBucket : z.Bucket;
+                bool isStarter = IsStarterBucket(zoneBucket);
+                s.RunStartRuntime.Zones[zoneId] = new ZoneRect(zoneId, type, ownerBuildingHint: null, new IntRect(xMin, yMin, xMax, yMax), cellCount, zoneOrigin, zoneBucket, isStarter);
             }
         }
 
@@ -155,12 +158,17 @@ namespace SeasonalBastion.RunStart
         private static string ResolveZoneBucketFromAppliedMode(string appliedMode)
         {
             if (string.Equals(appliedMode, "Generated", System.StringComparison.OrdinalIgnoreCase))
-                return "generated";
+                return "generated-unspecified";
             if (string.Equals(appliedMode, "AuthoredFallback", System.StringComparison.OrdinalIgnoreCase))
-                return "authored";
+                return "authored-fallback";
             if (string.Equals(appliedMode, "LegacyFallback", System.StringComparison.OrdinalIgnoreCase))
-                return "legacy";
+                return "legacy-fallback";
             return "unknown";
+        }
+
+        private static bool IsStarterBucket(string bucket)
+        {
+            return string.Equals(bucket, "starter-generated", System.StringComparison.OrdinalIgnoreCase);
         }
     }
 }

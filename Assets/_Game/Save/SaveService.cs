@@ -8,7 +8,7 @@ using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
-    public sealed class SaveService : ISaveService
+    public sealed partial class SaveService : ISaveService
     {
         private readonly SaveMigrator _migrator;
         private readonly IDataRegistry _data;
@@ -19,18 +19,6 @@ namespace SeasonalBastion
         public int LastLoadedOrSavedSeed { get; private set; }
 
         public int CurrentSchemaVersion => _migrator.CurrentSchemaVersion;
-
-        private string RunPath => Path.Combine(Application.persistentDataPath, "run_save.json");
-        private string RunTempPath => Path.Combine(Application.persistentDataPath, "run_save.tmp");
-        private string RunBackupPath => Path.Combine(Application.persistentDataPath, "run_save.bak");
-        private string MetaPath => Path.Combine(Application.persistentDataPath, "meta_save.json");
-
-        private string GetSlotPath(int slot) => Path.Combine(Application.persistentDataPath, $"save_{Mathf.Max(1, slot)}.json");
-        private string GetSlotTempPath(int slot) => Path.Combine(Application.persistentDataPath, $"save_{Mathf.Max(1, slot)}.tmp");
-        private string GetSlotBackupPath(int slot) => Path.Combine(Application.persistentDataPath, $"save_{Mathf.Max(1, slot)}.bak");
-        private string GetAutosavePath() => Path.Combine(Application.persistentDataPath, "save_autosave.json");
-        private string GetAutosaveTempPath() => Path.Combine(Application.persistentDataPath, "save_autosave.tmp");
-        private string GetAutosaveBackupPath() => Path.Combine(Application.persistentDataPath, "save_autosave.bak");
 
         public SaveService(SaveMigrator migrator, IDataRegistry data, IGridMap grid, IPopulationService population = null, GameServices services = null)
         {
@@ -828,152 +816,6 @@ namespace SeasonalBastion
                 info.Error = ex.Message;
                 return info;
             }
-        }
-
-        // ---------- Disk file types (JsonUtility-friendly) ----------
-
-        [Serializable]
-        private sealed class RunSaveFile
-        {
-            public int schemaVersion;
-            public int seed;
-            public string season;
-            public int dayIndex;
-            public float timeScale;
-            public int yearIndex;
-            public float dayTimer;
-            public string timestampUtc;
-            public WorldFile world;
-            public BuildFile build;
-            public CombatFile combat;
-            public RewardsFile rewards;
-            public PopulationFile population;
-            public List<CellPosI32> roads = new();
-        }
-
-        [Serializable]
-        private sealed class WorldFile
-        {
-            public List<SaveBuilding> buildings = new();
-            public List<SaveNpc> npcs = new();
-            public List<SaveTower> towers = new();
-            public List<SaveEnemy> enemies = new();
-        }
-
-        [Serializable]
-        private sealed class BuildFile
-        {
-            public List<SaveSite> sites = new();
-        }
-
-        [Serializable]
-        private struct SaveBuilding
-        {
-            public int id;
-            public string defId;
-            public int ax, ay;
-            public int rot;
-            public int level;
-            public bool isConstructed;
-            public int hp, maxHp;
-            public int wood, food, stone, iron, ammo;
-        }
-
-        [Serializable]
-        private struct SaveNpc
-        {
-            public int id;
-            public string defId;
-            public int cellX, cellY;
-            public int workplaceBuildingId;
-            public int currentJobId;
-            public bool isIdle;
-        }
-
-        [Serializable]
-        private struct SaveTower
-        {
-            public int id;
-            public int cellX, cellY;
-            public int ammo, ammoCap;
-            public int hp, hpMax;
-        }
-
-        [Serializable]
-        private struct SaveSite
-        {
-            public int id;
-            public string buildingDefId;
-            public int targetLevel;
-            public int ax, ay;
-            public int rot;
-            public bool isActive;
-            public float workDone, workTotal;
-            public int kind;
-            public int targetBuildingId;
-            public string fromDefId;
-            public string edgeId;
-            public List<SaveCost> delivered;
-            public List<SaveCost> remaining;
-        }
-
-        [Serializable]
-        private struct SaveCost
-        {
-            public int res;
-            public int amt;
-        }
-
-        [Serializable]
-        private sealed class MetaSaveFile
-        {
-            public int schemaVersion;
-            public int currency;
-            public List<string> unlockIds;
-            public List<PerkKV> perkLevels;
-        }
-
-        [Serializable]
-        private struct PerkKV
-        {
-            public string key;
-            public int value;
-        }
-
-        [Serializable]
-        private sealed class CombatFile
-        {
-            public int currentWaveIndex;
-            public bool isDefendActive;
-        }
-
-        [Serializable]
-        private sealed class RewardsFile
-        {
-            public List<string> pickedRewardDefIds = new();
-            public string offeredA;
-            public string offeredB;
-            public string offeredC;
-            public bool isSelectionActive;
-        }
-
-        [Serializable]
-        private sealed class PopulationFile
-        {
-            public float growthProgressDays;
-            public int starvationDays;
-            public bool starvedToday;
-        }
-
-        [Serializable]
-        private struct SaveEnemy
-        {
-            public int id;
-            public string defId;
-            public int cellX, cellY;
-            public int hp;
-            public int lane;
-            public float move01;
         }
     }
 }

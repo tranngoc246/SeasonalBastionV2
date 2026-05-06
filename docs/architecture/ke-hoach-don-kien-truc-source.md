@@ -311,6 +311,13 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã tách nốt cụm `SaveLoad` sang `Regression_P0P1_SaveLoad_Tests.cs`.
 - [x] `Regression_P0P1_Tests.cs` không còn là file gom lớn, giờ chỉ giữ shell partial class mỏng.
 - [ ] Bước tiếp theo hợp lý: nếu muốn gọn hơn nữa, có thể rename file shell hoặc gom lại naming strategy cho toàn bộ regression partials.
+
+### Cập nhật 2026-05-06, pass SaveService
+- [x] Đã bắt đầu tách `SaveService.cs` theo hướng structural, chưa đổi behavior.
+- [x] Đã tách path/policy helpers ra `SaveService.Paths.cs`.
+- [x] Đã tách các JsonUtility disk models ra `SaveService.Models.cs`.
+- [~] `SaveService.cs` hiện đã nhẹ hơn ở phần path/model ownership, nhưng chưa tách tiếp reader/writer/mapper.
+- [ ] Bước tiếp theo hợp lý: tách tiếp `LoadRun`/`LoadRunFromSlot` mapping hoặc `CreateImmutableRunSnapshot(...)` sang helper/facade nhỏ hơn.
 - [ ] Sau đó có thể tiếp tục giảm dependency trực tiếp vào `GameServices` ở các service mới, hoặc tách tiếp `SaveService.cs`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

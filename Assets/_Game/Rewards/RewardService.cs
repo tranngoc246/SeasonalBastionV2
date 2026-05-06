@@ -7,7 +7,8 @@ namespace SeasonalBastion
 {
     public sealed class RewardService : IRewardService
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IDataRegistry _dataRegistry;
         private readonly IEventBus _bus;
         private static readonly int[] DaysPerSeason = { 6, 6, 4, 4 };
 
@@ -36,10 +37,11 @@ namespace SeasonalBastion
         public event Action<string> OnRewardChosen;
         public event Action OnSelectionEnded;
 
-        public RewardService(GameServices s)
+        public RewardService(IWorldState worldState, IDataRegistry dataRegistry, IEventBus eventBus)
         {
-            _s = s;
-            _bus = s != null ? s.EventBus : null;
+            _worldState = worldState;
+            _dataRegistry = dataRegistry;
+            _bus = eventBus;
 
             if (_bus != null)
             {
@@ -213,7 +215,7 @@ namespace SeasonalBastion
             if (appendToHistory)
                 _pickedRewardDefIds.Add(rewardId);
 
-            ref var mods = ref _s.WorldState.RunMods;
+            ref var mods = ref _worldState.RunMods;
 
             switch (rewardId)
             {
@@ -250,38 +252,38 @@ namespace SeasonalBastion
 
         private void ApplyTowerAmmoCapacityBonus(int totalBonus)
         {
-            if (_s?.WorldState?.Towers == null)
+            if (_worldState?.Towers == null)
                 return;
 
-            foreach (var towerId in _s.WorldState.Towers.Ids)
+            foreach (var towerId in _worldState.Towers.Ids)
             {
-                if (!_s.WorldState.Towers.Exists(towerId))
+                if (!_worldState.Towers.Exists(towerId))
                     continue;
 
-                var tower = _s.WorldState.Towers.Get(towerId);
+                var tower = _worldState.Towers.Get(towerId);
                 int baseCap = ResolveBaseTowerAmmoCap(tower.Cell);
                 tower.AmmoCap = Math.Max(0, baseCap + totalBonus);
                 if (tower.Ammo > tower.AmmoCap)
                     tower.Ammo = tower.AmmoCap;
-                _s.WorldState.Towers.Set(towerId, tower);
+                _worldState.Towers.Set(towerId, tower);
             }
         }
 
         private int ResolveBaseTowerAmmoCap(CellPos towerCell)
         {
-            if (_s?.WorldState?.Buildings == null || _s?.DataRegistry == null)
+            if (_worldState?.Buildings == null || _dataRegistry == null)
                 return 0;
 
-            foreach (var buildingId in _s.WorldState.Buildings.Ids)
+            foreach (var buildingId in _worldState.Buildings.Ids)
             {
-                if (!_s.WorldState.Buildings.Exists(buildingId))
+                if (!_worldState.Buildings.Exists(buildingId))
                     continue;
 
-                var building = _s.WorldState.Buildings.Get(buildingId);
+                var building = _worldState.Buildings.Get(buildingId);
                 if (!building.IsConstructed)
                     continue;
 
-                if (!_s.DataRegistry.TryGetBuilding(building.DefId, out var buildingDef) || buildingDef == null || !buildingDef.IsTower)
+                if (!_dataRegistry.TryGetBuilding(building.DefId, out var buildingDef) || buildingDef == null || !buildingDef.IsTower)
                     continue;
 
                 int width = Math.Max(1, buildingDef.SizeX);
@@ -289,7 +291,7 @@ namespace SeasonalBastion
                 if (!FootprintContainsCell(building.Anchor, width, height, towerCell))
                     continue;
 
-                if (_s.DataRegistry.TryGetTower(building.DefId, out var towerDef) && towerDef != null)
+                if (_dataRegistry.TryGetTower(building.DefId, out var towerDef) && towerDef != null)
                     return Math.Max(0, towerDef.AmmoMax);
 
                 return 0;
@@ -300,7 +302,7 @@ namespace SeasonalBastion
 
         private void ResetRunModifiers()
         {
-            ref var mods = ref _s.WorldState.RunMods;
+            ref var mods = ref _worldState.RunMods;
             mods.BuildSpeedMultiplier = 1f;
             mods.TowerAmmoCapacityBonus = 0;
             mods.TowerReloadSpeedMultiplier = 1f;
@@ -342,3 +344,4 @@ namespace SeasonalBastion
         }
     }
 }
+

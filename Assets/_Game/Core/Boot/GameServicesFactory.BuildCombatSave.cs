@@ -19,7 +19,7 @@ namespace SeasonalBastion
             services.CombatService = new CombatService(services);
             services.WaveCalendarResolver = new WaveCalendarResolver(services.DataRegistry);
 
-            services.RewardService = new RewardService(services);
+            services.RewardService = new RewardService(services.WorldState, services.DataRegistry, services.EventBus);
             services.RunOutcomeService = new RunOutcomeService(services.EventBus, services.WorldState, services.DataRegistry);
         }
 

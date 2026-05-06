@@ -75,7 +75,15 @@ namespace SeasonalBastion.Tests.EditMode
             };
 
             services.StorageService = new StorageService(services.WorldState, services.DataRegistry, services.EventBus);
-            services.PopulationService = new PopulationService(services);
+            services.PopulationService = new PopulationService(
+                services.EventBus,
+                services.DataRegistry,
+                services.RunClock,
+                services.NotificationService,
+                services.WorldState,
+                services.GridMap,
+                services.StorageService,
+                services.RunOutcomeService);
             return services;
         }
 

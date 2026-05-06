@@ -1,3 +1,5 @@
+using SeasonalBastion.Contracts;
+
 namespace SeasonalBastion
 {
     public sealed partial class SaveService

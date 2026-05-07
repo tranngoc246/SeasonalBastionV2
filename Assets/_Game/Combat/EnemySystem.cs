@@ -52,184 +52,201 @@ namespace SeasonalBastion
 
         public void Tick(float dt)
         {
-            var w = _s.WorldState;
+            var world = _s.WorldState;
             var grid = _s.GridMap;
             var data = _s.DataRegistry;
             var clock = _s.RunClock;
 
-            if (w == null || grid == null || data == null || clock == null) return;
-            if (w.Enemies == null || w.Enemies.Count <= 0) return;
+            if (!CanTick(world, grid, data, clock, dt, out float simDt))
+                return;
 
-            // Pause/speed aware
-            float ts = clock.TimeScale;
-            if (ts <= 0f) return;
+            PrepareTick(world, grid);
 
-            float simDt = dt * ts;
-            if (simDt <= 0f) return;
+            for (int i = 0; i < _ids.Count; i++)
+                TickEnemy(world, grid, data, _ids[i], simDt);
 
-            // Ensure HQ cached (or try refresh if invalid)
+            _lifecycleResolver.PruneEnemyCaches(dt);
+        }
+
+        private bool CanTick(IWorldState world, IGridMap grid, IDataRegistry data, IRunClock clock, float dt, out float simDt)
+        {
+            simDt = 0f;
+            if (world == null || grid == null || data == null || clock == null)
+                return false;
+            if (world.Enemies == null || world.Enemies.Count <= 0)
+                return false;
+
+            float timeScale = clock.TimeScale;
+            if (timeScale <= 0f)
+                return false;
+
+            simDt = dt * timeScale;
+            return simDt > 0f;
+        }
+
+        private void PrepareTick(IWorldState world, IGridMap grid)
+        {
             _targetResolver.EnsureHqCached();
-
-            // Ensure BFS buffers
             _movementResolver.EnsureBfsBuffers(grid.Width, grid.Height);
 
-            // Deterministic iteration: enemy ids sorted asc
             _ids.Clear();
-            foreach (var id in w.Enemies.Ids) _ids.Add(id);
+            foreach (var id in world.Enemies.Ids)
+                _ids.Add(id);
             _ids.Sort((a, b) => a.Value.CompareTo(b.Value));
+        }
 
-            // Tick each enemy
-            for (int i = 0; i < _ids.Count; i++)
+        private void TickEnemy(IWorldState world, IGridMap grid, IDataRegistry data, EnemyId id, float simDt)
+        {
+            if (!world.Enemies.Exists(id))
+                return;
+
+            var state = world.Enemies.Get(id);
+            if (state.Hp <= 0)
             {
-                var id = _ids[i];
-                if (!w.Enemies.Exists(id)) continue;
-
-                var st = w.Enemies.Get(id);
-
-                // Cleanup dead
-                if (st.Hp <= 0)
-                {
-                    _lifecycleResolver.CleanupEnemy(id);
-                    continue;
-                }
-
-                EnemyDef def;
-                if (!data.TryGetEnemy(st.DefId, out def) || def == null)
-                {
-                    // fallback safe defaults
-                    def = new EnemyDef { DefId = st.DefId, MaxHp = Mathf.Max(1, st.Hp), MoveSpeed = 1f, DamageToHQ = 1, DamageToBuildings = 1, Range = 0f };
-                }
-
-                // Resolve lane dir (from SpawnGates) and compute HQ target cell
-                if (!_targetResolver.TryResolveLaneTarget(st.Lane, out var hqTargetCell, out var laneDir))
-                {
-                    // Không có lane runtime -> không biết target -> skip tick enemy (safe)
-                    // (hoặc có thể fallback target map center nếu bạn muốn)
-                    w.Enemies.Set(id, st);
-                    continue;
-                }
-
-                // Attack cooldown update
-                int key = id.Value;
-                if (_attackCd.TryGetValue(key, out float cd))
-                {
-                    cd -= simDt;
-                    _attackCd[key] = cd;
-                }
-                else
-                {
-                    _attackCd[key] = 0f;
-                    cd = 0f;
-                }
-
-                // If already at target cell: attack HQ
-                if (EnemyMovementResolver.CellsEqual(st.Cell, hqTargetCell))
-                {
-                    _attackResolver.TryAttackHQ(ref st, def, ref cd);
-                    _attackCd[key] = cd;
-                    w.Enemies.Set(id, st);
-                    continue;
-                }
-
-                // Movement: accumulate "cell steps" by MoveSpeed
-                float spd = Mathf.Max(0.01f, def.MoveSpeed);
-                float progress = st.MoveProgress01 + simDt * spd;
-
-                // Limit steps per tick to keep stable
-                int stepsLeft = 8;
-
-                while (progress >= 1f && stepsLeft-- > 0)
-                {
-                    if (!_movementResolver.TryFindNextStep(st.Cell, hqTargetCell, out var next))
-                    {
-                        // Day34: path fail streak -> fallback step (dirToHQ / local BFS radius)
-                        int streak = 0;
-                        _pathFailStreak.TryGetValue(key, out streak);
-                        streak++;
-
-                        bool recovered = false;
-
-                        // Khi fail đủ N lần: cố gắng "đẩy" enemy đi theo dirToHQ hoặc local BFS để thoát kẹt
-                        if (streak >= PathFailThreshold)
-                        {
-                            if (_movementResolver.TryFallbackNextStep(st.Cell, hqTargetCell, laneDir, out var fbNext))
-                            {
-                                next = fbNext;
-                                recovered = true;
-                                streak = 0; // reset sau khi recover
-                            }
-                        }
-
-                        _pathFailStreak[key] = streak;
-
-                        if (!recovered)
-                        {
-                            // Không recover được -> hành vi cũ: cố gắng đập công trình đang chặn
-                            _attackResolver.TryAttackAdjacentBlockingBuilding(ref st, def, ref cd);
-                            break;
-                        }
-                    }
-
-                    // If next is blocked by building: attack building instead of moving
-                    var occ = grid.Get(next);
-                    if (occ.Kind == CellOccupancyKind.Building && occ.Building.Value != 0)
-                    {
-                        int year = GetYearIndexOr1();
-                        float mul = YearScaling.EnemyDamageMul(year);
-                        int dmgB = Mathf.Max(0, Mathf.RoundToInt(def.DamageToBuildings * mul));
-                        _attackResolver.TryAttackBuilding(occ.Building, dmgB, ref cd);
-                        break;
-                    }
-
-                    // Move into next cell
-                    st = new EnemyState
-                    {
-                        Id = st.Id,
-                        DefId = st.DefId,
-                        Cell = next,
-                        Hp = st.Hp,
-                        Lane = st.Lane,
-                        MoveProgress01 = 0f,
-                        WaveId = st.WaveId,
-                        WaveYear = st.WaveYear,
-                        WaveSeason = st.WaveSeason,
-                        WaveDay = st.WaveDay,
-                    };
-
-                    // Day34: moved successfully => reset path fail streak
-                    _pathFailStreak[key] = 0;
-
-                    progress -= 1f;
-
-                    // Reached target: can attack immediately if remaining progress
-                    if (EnemyMovementResolver.CellsEqual(st.Cell, hqTargetCell))
-                    {
-                        _attackResolver.TryAttackHQ(ref st, def, ref cd);
-                        break;
-                    }
-                }
-
-                // Store leftover progress (0..1)
-                st = new EnemyState
-                {
-                    Id = st.Id,
-                    DefId = st.DefId,
-                    Cell = st.Cell,
-                    Hp = st.Hp,
-                    Lane = st.Lane,
-                    MoveProgress01 = Mathf.Clamp01(progress),
-                    WaveId = st.WaveId,
-                    WaveYear = st.WaveYear,
-                    WaveSeason = st.WaveSeason,
-                    WaveDay = st.WaveDay,
-                };
-
-                _attackCd[key] = cd;
-                w.Enemies.Set(id, st);
+                _lifecycleResolver.CleanupEnemy(id);
+                return;
             }
 
-            // Day44: prune per-enemy dictionaries to avoid unbounded growth / resize spikes
-            _lifecycleResolver.PruneEnemyCaches(dt);
+            EnemyDef def = ResolveEnemyDef(data, state);
+            if (!_targetResolver.TryResolveLaneTarget(state.Lane, out var hqTargetCell, out var laneDir))
+            {
+                world.Enemies.Set(id, state);
+                return;
+            }
+
+            int key = id.Value;
+            float cooldown = AdvanceAttackCooldown(key, simDt);
+            if (EnemyMovementResolver.CellsEqual(state.Cell, hqTargetCell))
+            {
+                _attackResolver.TryAttackHQ(ref state, def, ref cooldown);
+                _attackCd[key] = cooldown;
+                world.Enemies.Set(id, state);
+                return;
+            }
+
+            float progress = state.MoveProgress01 + (simDt * Mathf.Max(0.01f, def.MoveSpeed));
+            progress = TickMovement(grid, def, laneDir, hqTargetCell, key, ref state, ref cooldown, progress);
+
+            state = new EnemyState
+            {
+                Id = state.Id,
+                DefId = state.DefId,
+                Cell = state.Cell,
+                Hp = state.Hp,
+                Lane = state.Lane,
+                MoveProgress01 = Mathf.Clamp01(progress),
+                WaveId = state.WaveId,
+                WaveYear = state.WaveYear,
+                WaveSeason = state.WaveSeason,
+                WaveDay = state.WaveDay,
+            };
+
+            _attackCd[key] = cooldown;
+            world.Enemies.Set(id, state);
+        }
+
+        private EnemyDef ResolveEnemyDef(IDataRegistry data, EnemyState state)
+        {
+            if (data.TryGetEnemy(state.DefId, out var def) && def != null)
+                return def;
+
+            return new EnemyDef
+            {
+                DefId = state.DefId,
+                MaxHp = Mathf.Max(1, state.Hp),
+                MoveSpeed = 1f,
+                DamageToHQ = 1,
+                DamageToBuildings = 1,
+                Range = 0f,
+            };
+        }
+
+        private float AdvanceAttackCooldown(int key, float simDt)
+        {
+            if (_attackCd.TryGetValue(key, out float cooldown))
+            {
+                cooldown -= simDt;
+                _attackCd[key] = cooldown;
+                return cooldown;
+            }
+
+            _attackCd[key] = 0f;
+            return 0f;
+        }
+
+        private float TickMovement(IGridMap grid, EnemyDef def, Dir4 laneDir, CellPos hqTargetCell, int key, ref EnemyState state, ref float cooldown, float progress)
+        {
+            int stepsLeft = 8;
+            while (progress >= 1f && stepsLeft-- > 0)
+            {
+                if (!TryResolveNextStep(state, hqTargetCell, laneDir, key, def, ref cooldown, out var next))
+                    break;
+
+                var occupancy = grid.Get(next);
+                if (occupancy.Kind == CellOccupancyKind.Building && occupancy.Building.Value != 0)
+                {
+                    int year = GetYearIndexOr1();
+                    float multiplier = YearScaling.EnemyDamageMul(year);
+                    int buildingDamage = Mathf.Max(0, Mathf.RoundToInt(def.DamageToBuildings * multiplier));
+                    _attackResolver.TryAttackBuilding(occupancy.Building, buildingDamage, ref cooldown);
+                    break;
+                }
+
+                state = MoveEnemyTo(state, next);
+                _pathFailStreak[key] = 0;
+                progress -= 1f;
+
+                if (EnemyMovementResolver.CellsEqual(state.Cell, hqTargetCell))
+                {
+                    _attackResolver.TryAttackHQ(ref state, def, ref cooldown);
+                    break;
+                }
+            }
+
+            return progress;
+        }
+
+        private bool TryResolveNextStep(EnemyState state, CellPos hqTargetCell, Dir4 laneDir, int key, EnemyDef def, ref float cooldown, out CellPos next)
+        {
+            if (_movementResolver.TryFindNextStep(state.Cell, hqTargetCell, out next))
+                return true;
+
+            int streak = 0;
+            _pathFailStreak.TryGetValue(key, out streak);
+            streak++;
+
+            bool recovered = false;
+            if (streak >= PathFailThreshold && _movementResolver.TryFallbackNextStep(state.Cell, hqTargetCell, laneDir, out var fallbackNext))
+            {
+                next = fallbackNext;
+                recovered = true;
+                streak = 0;
+            }
+
+            _pathFailStreak[key] = streak;
+            if (recovered)
+                return true;
+
+            _attackResolver.TryAttackAdjacentBlockingBuilding(ref state, def, ref cooldown);
+            next = state.Cell;
+            return false;
+        }
+
+        private static EnemyState MoveEnemyTo(EnemyState state, CellPos next)
+        {
+            return new EnemyState
+            {
+                Id = state.Id,
+                DefId = state.DefId,
+                Cell = next,
+                Hp = state.Hp,
+                Lane = state.Lane,
+                MoveProgress01 = 0f,
+                WaveId = state.WaveId,
+                WaveYear = state.WaveYear,
+                WaveSeason = state.WaveSeason,
+                WaveDay = state.WaveDay,
+            };
         }
 
         private int GetYearIndexOr1()

@@ -354,7 +354,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã đi tiếp `EnemySystem` pass 2 bằng cách bóc attack/building-damage path sang `EnemyAttackResolver`, gom `TryAttackHQ`, `TryAttackBuilding`, và adjacent-blocking attack về helper riêng nhưng giữ nguyên timing/cooldown/clear-footprint behavior.
 - [x] Đã đi tiếp `EnemySystem` pass 3 bằng cách bóc cleanup/despawn/cache-prune path sang `EnemyLifecycleResolver`, gom cleanup enemy chết và prune runtime map (`_attackCd`, `_pathFailStreak`) ra khỏi flow tick chính.
 - [x] Đã đi tiếp `EnemySystem` pass 4 bằng cách bóc movement/path progression sang `EnemyMovementResolver`, gom greedy step, BFS step, fallback step, local escape và BFS buffer state ra helper riêng nhưng giữ nguyên behavior tick hiện tại.
-- [~] `EnemySystem` hiện đã nhẹ đi rõ hơn và nghiêng nhiều hơn về orchestration; nếu đi tiếp thì chủ yếu là polish nhỏ, giảm tie voi `GameServices`, hoặc review xem `CombatService` co nen wire nho dependency hon nua khong.
-- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc review/chốt lại `EnemySystem` facade hoặc chuyển sang cụm lớn kế tiếp thay vì bóc sâu hơn nếu compile/regression vẫn ổn.
+- [x] Đã review/chốt lại `EnemySystem` và `CombatService` theo hướng facade/orchestrator rõ hơn: `EnemySystem` gom `TickEnemy`, `PrepareTick`, cooldown/next-step helper để luồng tick dễ đọc hơn, còn `CombatService` tách phase/day/deferred-wave guard thành các helper nhỏ thay vì nhồi hết trong `Tick`.
+- [~] Cụm combat quanh `EnemySystem` / `CombatService` hiện đã khá sạch ở level facade + sub-resolver; nếu đi tiếp thì chủ yếu là giảm thêm tie `GameServices` hoặc chuyển sang cụm lớn khác.
+- [ ] Bước tiếp theo hợp lý sau pass này: nếu compile/regression ổn, chuyển mặt trận sang `DebugHUDHub` hoặc `PlacementInputController` sẽ có payoff tốt hơn bóc thêm combat.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

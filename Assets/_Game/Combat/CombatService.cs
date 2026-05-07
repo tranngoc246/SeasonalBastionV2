@@ -102,66 +102,75 @@ namespace SeasonalBastion
 
         public void Tick(float dt)
         {
-            if (_s.RunOutcomeService != null && _s.RunOutcomeService.Outcome != RunOutcome.Ongoing)
-            {
-                if (IsActive)
-                    LogCombatInfo($"Stop combat because run ended: {_s.RunOutcomeService.Outcome}");
-
-                IsActive = false;
-                _deferWaveStartAfterLoad = false;
+            if (ShouldStopCombatBecauseRunEnded())
                 return;
-            }
 
-            // Phase latch (defend trigger)
+            HandlePhaseLatch();
+            if (!IsActive)
+                return;
+
+            HandleDefendDayLatch();
+            TryResumeDeferredWavesAfterLoad();
+
+            _waves.Tick(dt);
+            _towers.Tick(dt);
+            _enemies.Tick(dt);
+        }
+
+        private bool ShouldStopCombatBecauseRunEnded()
+        {
+            if (_s.RunOutcomeService == null || _s.RunOutcomeService.Outcome == RunOutcome.Ongoing)
+                return false;
+
+            if (IsActive)
+                LogCombatInfo($"Stop combat because run ended: {_s.RunOutcomeService.Outcome}");
+
+            IsActive = false;
+            _deferWaveStartAfterLoad = false;
+            return true;
+        }
+
+        private void HandlePhaseLatch()
+        {
             var phase = _s.RunClock.CurrentPhase;
-            if (phase != _latchedPhase)
-            {
-                if (phase == Phase.Defend) OnDefendPhaseStarted();
-                else if (_latchedPhase == Phase.Defend) OnDefendPhaseEnded();
+            if (phase == _latchedPhase)
+                return;
 
-                _latchedPhase = phase;
-            }
+            if (phase == Phase.Defend)
+                OnDefendPhaseStarted();
+            else if (_latchedPhase == Phase.Defend)
+                OnDefendPhaseEnded();
 
-            if (!IsActive) return;
+            _latchedPhase = phase;
+        }
 
-            // Day latch: in Autumn/Winter phase stays Defend across days -> need restart wave each defend day.
+        private void HandleDefendDayLatch()
+        {
             var season = _s.RunClock.CurrentSeason;
             var day = _s.RunClock.DayIndex;
             var year = GetYearIndexOr1();
+            if (season == _latchedSeason && day == _latchedDay && year == _latchedYear)
+                return;
 
-            if (season != _latchedSeason || day != _latchedDay || year != _latchedYear)
-            {
-                _latchedSeason = season;
-                _latchedDay = day;
-                _latchedYear = year;
+            _latchedSeason = season;
+            _latchedDay = day;
+            _latchedYear = year;
 
-                // Only start waves when in Defend days
-                if (_s.RunClock.CurrentPhase == Phase.Defend)
-                    _waves.StartDayWaves(day);
-            }
+            if (_s.RunClock.CurrentPhase == Phase.Defend)
+                _waves.StartDayWaves(day);
+        }
 
-            // Day41: after load, if enemies were restored, delay starting day waves
-            // until the restored enemies are cleared (prevents double-spawn).
-            if (IsActive && _deferWaveStartAfterLoad)
-            {
-                int restoredAlive = _s.WorldState?.Enemies?.Count ?? 0;
+        private void TryResumeDeferredWavesAfterLoad()
+        {
+            if (!IsActive || !_deferWaveStartAfterLoad)
+                return;
 
-                // Only start when no restored enemies remain anywhere in world
-                // and no active wave is already running.
-                if (restoredAlive <= 0 && !_waves.HasActiveWave)
-                {
-                    _deferWaveStartAfterLoad = false;
-                    _waves.StartDayWaves(_s.RunClock.DayIndex);
-                }
-            }
+            int restoredAlive = _s.WorldState?.Enemies?.Count ?? 0;
+            if (restoredAlive > 0 || _waves.HasActiveWave)
+                return;
 
-            _waves.Tick(dt);
-
-            // Day30
-            _towers.Tick(dt);
-
-            // Day29: tick enemies (pause-aware inside EnemySystem via RunClock.TimeScale)
-            _enemies.Tick(dt);
+            _deferWaveStartAfterLoad = false;
+            _waves.StartDayWaves(_s.RunClock.DayIndex);
         }
 
         public void SpawnWave(string waveDefId)

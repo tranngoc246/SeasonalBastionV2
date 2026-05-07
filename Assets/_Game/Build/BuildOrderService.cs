@@ -27,6 +27,7 @@ namespace SeasonalBastion
         private readonly IBuildJobOrchestrator _buildJobOrchestrator;
         private readonly BuildOrderCancellationService _cancellationService;
         private readonly BuildOrderCostTracker _costTracker;
+        private readonly BuildOrderTimePolicy _timePolicy;
 
         public event Action<int> OnOrderCompleted;
 
@@ -38,6 +39,7 @@ namespace SeasonalBastion
             if (_s.BuildJobOrchestrator == null)
                 _s.BuildJobOrchestrator = _buildJobOrchestrator;
             _costTracker = new BuildOrderCostTracker();
+            _timePolicy = new BuildOrderTimePolicy(s.Balance);
             _cancellationService = new BuildOrderCancellationService(
                 s.WorldState,
                 s.GridMap,
@@ -88,9 +90,9 @@ namespace SeasonalBastion
                 _active,
                 _eventBridge.EnsureSubscribed,
                 AllocateOrderId,
-                ComputeWorkSecondsTotal,
-                ComputeWorkSecondsTotalFromChunks,
-                ComputeRepairSeconds,
+                _timePolicy.ComputeWorkSecondsTotal,
+                _timePolicy.ComputeWorkSecondsTotalFromChunks,
+                _timePolicy.ComputeRepairSeconds,
                 _costTracker.CloneCostsOrEmpty,
                 _costTracker.BuildDeliveredMirror);
             _tickProcessor = new BuildOrderTickProcessor(
@@ -171,51 +173,6 @@ namespace SeasonalBastion
 
         public int RebuildActivePlaceOrdersFromSitesAfterLoad()
             => _reloadService.RebuildActivePlaceOrdersFromSitesAfterLoad();
-
-        private float ComputeWorkSecondsTotalFromChunks(int chunks)
-        {
-            if (chunks <= 0) chunks = (_s.Balance != null ? _s.Balance.FallbackBuildChunksL1 : 2);
-
-            float chunkSec = _s.Balance != null ? _s.Balance.BuildChunkSec : 6f;
-            int builderTier = _s.Balance != null ? _s.Balance.GetBuilderTier() : 1;
-            float mult = _s.Balance != null ? _s.Balance.GetBuildSpeedMult(builderTier) : 1f;
-
-            float total = chunks * chunkSec * mult;
-            if (total < 0.1f) total = 0.1f;
-            return total;
-        }
-
-        private float ComputeRepairSeconds(int hp, int maxHp)
-        {
-            if (maxHp <= 0) return 0f;
-            int missing = maxHp - hp;
-            if (missing <= 0) return 0f;
-
-            float chunkSec = _s.Balance != null ? _s.Balance.RepairChunkSec : 4f;
-            float healPct = _s.Balance != null ? _s.Balance.RepairHealPct : 0.15f;
-
-            int perChunk = Math.Max(1, (int)Math.Ceiling(maxHp * healPct));
-            int chunks = (missing + perChunk - 1) / perChunk;
-
-            int builderTier = _s.Balance != null ? _s.Balance.GetBuilderTier() : 1;
-            float timeMult = _s.Balance != null ? _s.Balance.GetRepairTimeMult(builderTier) : 1f;
-
-            float total = chunks * chunkSec * timeMult;
-            return total < chunkSec ? chunkSec : total;
-        }
-
-        private float ComputeWorkSecondsTotal(BuildingDef def)
-        {
-            int chunks = def.BuildChunksL1 > 0 ? def.BuildChunksL1 : (_s.Balance != null ? _s.Balance.FallbackBuildChunksL1 : 2);
-
-            float chunkSec = _s.Balance != null ? _s.Balance.BuildChunkSec : 6f;
-            int builderTier = _s.Balance != null ? _s.Balance.GetBuilderTier() : 1;
-            float mult = _s.Balance != null ? _s.Balance.GetBuildSpeedMult(builderTier) : 1f;
-
-            float total = chunks * chunkSec * mult;
-            if (total < 0.1f) total = 0.1f;
-            return total;
-        }
 
         private void ResetRuntimeTracking()
         {

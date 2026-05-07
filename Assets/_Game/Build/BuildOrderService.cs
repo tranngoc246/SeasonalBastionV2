@@ -28,6 +28,7 @@ namespace SeasonalBastion
         private readonly BuildOrderCancellationService _cancellationService;
         private readonly BuildOrderCostTracker _costTracker;
         private readonly BuildOrderTimePolicy _timePolicy;
+        private readonly BuildOrderRepairService _repairService;
 
         public event Action<int> OnOrderCompleted;
 
@@ -95,6 +96,13 @@ namespace SeasonalBastion
                 _timePolicy.ComputeRepairSeconds,
                 _costTracker.CloneCostsOrEmpty,
                 _costTracker.BuildDeliveredMirror);
+            _repairService = new BuildOrderRepairService(
+                s.WorldState,
+                s.DataRegistry,
+                s.NotificationService,
+                s.JobBoard,
+                _repairJobByOrder,
+                _cancellationService.CancelRepairJob);
             _tickProcessor = new BuildOrderTickProcessor(
                 s,
                 _orders,
@@ -102,7 +110,7 @@ namespace SeasonalBastion
                 ResolveBuildWorkplace,
                 EnsureBuildJobsForSite,
                 CancelTrackedJobsForSite,
-                TickRepairOrder,
+                _repairService.TickRepairOrder,
                 CompletePlaceOrder,
                 CompleteUpgradeOrder,
                 RaiseOrderCompleted);
@@ -214,95 +222,10 @@ namespace SeasonalBastion
         private void CancelTrackedJobsForSite(SiteId siteId)
             => _buildJobOrchestrator.CancelTrackedJobsForSite(siteId);
 
-        private void TickRepairOrder(int orderId, ref BuildOrder o, BuildingId workplace)
-        {
-            if (_s.JobBoard == null) return;
-
-            if (!_s.WorldState.Buildings.Exists(o.TargetBuilding))
-            {
-                _cancellationService.CancelRepairJob(orderId);
-                o.Completed = true;
-                return;
-            }
-
-            var bs = _s.WorldState.Buildings.Get(o.TargetBuilding);
-            if (!bs.IsConstructed)
-            {
-                _cancellationService.CancelRepairJob(orderId);
-                o.Completed = true;
-                return;
-            }
-
-            if (bs.MaxHP <= 0)
-            {
-                int mhp = 100;
-                if (_s.DataRegistry.TryGetBuilding(bs.DefId, out var repairDef) && repairDef != null)
-                    mhp = Math.Max(1, repairDef.MaxHp);
-                bs.MaxHP = mhp;
-                if (bs.HP <= 0) bs.HP = bs.MaxHP;
-                _s.WorldState.Buildings.Set(o.TargetBuilding, bs);
-            }
-
-            if (bs.HP >= bs.MaxHP)
-            {
-                _cancellationService.CancelRepairJob(orderId);
-                o.Completed = true;
-                _s.NotificationService?.Push(
-                    key: $"RepairDone_{o.TargetBuilding.Value}",
-                    title: "Construction",
-                    body: $"Repair completed: {bs.DefId}",
-                    severity: NotificationSeverity.Info,
-                    payload: new NotificationPayload(o.TargetBuilding, default, bs.DefId),
-                    cooldownSeconds: 0.25f,
-                    dedupeByKey: true);
-                return;
-            }
-
-            if (_repairJobByOrder.TryGetValue(orderId, out var jid))
-            {
-                if (!_s.JobBoard.TryGet(jid, out var j) || IsTerminal(j.Status))
-                {
-                    _repairJobByOrder.Remove(orderId);
-                }
-                else
-                {
-                    // Retarget recoverable queued repair jobs when builder availability changes
-                    // (BuilderHut preferred, HQ fallback if BuilderHut has no idle worker).
-                    if (j.Status == JobStatus.Created && j.Workplace.Value != workplace.Value)
-                    {
-                        j.Workplace = workplace;
-                        _s.JobBoard.Update(j);
-                    }
-                    return;
-                }
-            }
-
-            var job = new Job
-            {
-                Archetype = JobArchetype.RepairWork,
-                Status = JobStatus.Created,
-                Workplace = workplace,
-                SourceBuilding = default,
-                DestBuilding = o.TargetBuilding,
-                Site = default,
-                Tower = default,
-                ResourceType = 0,
-                Amount = 0,
-                TargetCell = bs.Anchor,
-                CreatedAt = 0
-            };
-
-            var newId = _s.JobBoard.Enqueue(job);
-            _repairJobByOrder[orderId] = newId;
-        }
-
         private void CompletePlaceOrder(ref BuildOrder o)
             => _completionService.CompletePlace(ref o);
 
         private void CompleteUpgradeOrder(ref BuildOrder o)
             => _completionService.CompleteUpgrade(ref o);
-
-        private static bool IsTerminal(JobStatus s)
-            => s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
     }
 }

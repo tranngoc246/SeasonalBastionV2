@@ -356,6 +356,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã đi tiếp `EnemySystem` pass 4 bằng cách bóc movement/path progression sang `EnemyMovementResolver`, gom greedy step, BFS step, fallback step, local escape và BFS buffer state ra helper riêng nhưng giữ nguyên behavior tick hiện tại.
 - [x] Đã review/chốt lại `EnemySystem` và `CombatService` theo hướng facade/orchestrator rõ hơn: `EnemySystem` gom `TickEnemy`, `PrepareTick`, cooldown/next-step helper để luồng tick dễ đọc hơn, còn `CombatService` tách phase/day/deferred-wave guard thành các helper nhỏ thay vì nhồi hết trong `Tick`.
 - [~] Cụm combat quanh `EnemySystem` / `CombatService` hiện đã khá sạch ở level facade + sub-resolver; nếu đi tiếp thì chủ yếu là giảm thêm tie `GameServices` hoặc chuyển sang cụm lớn khác.
-- [ ] Bước tiếp theo hợp lý sau pass này: nếu compile/regression ổn, chuyển mặt trận sang `DebugHUDHub` hoặc `PlacementInputController` sẽ có payoff tốt hơn bóc thêm combat.
+- [x] Đã chuyển sang `PlacementInputController` pass 1 bằng cách bóc UI gate sang `PlacementUiGate`, đồng thời gom hide/reset preview state dùng chung để giảm noise trong `Update()` và giữ controller gốc tập trung hơn vào input/preview/action flow.
+- [~] `PlacementInputController` vẫn còn lớn vì đang ôm input, preview renderer, placement action, bind/reflection; các lát tiếp theo hợp lý nhất là preview renderer hoặc action/commit flow.
+- [ ] Bước tiếp theo hợp lý sau pass này: nếu tiếp tục cụm này, ưu tiên bóc preview renderer trước vì đây là phần dài nhưng tương đối độc lập và ít rủi ro hơn bind/reflection path.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

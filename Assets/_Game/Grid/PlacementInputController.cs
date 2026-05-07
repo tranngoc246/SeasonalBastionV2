@@ -69,6 +69,7 @@ namespace SeasonalBastion
         private IGridMap _gridMap;
         private IDataRegistry _data;
         private IRunClock _clock;
+        private PlacementUiGate _uiGate;
 
         private Camera _cam;
         private bool _bound;
@@ -104,6 +105,7 @@ namespace SeasonalBastion
         private void Awake()
         {
             _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
+            _uiGate = new PlacementUiGate(_hudDoc, _panelsDoc, _modalsDoc, _blockClass);
             EnsureGhost();
             EnsureFrontArrow();
         }
@@ -145,36 +147,28 @@ namespace SeasonalBastion
             }
 
             // If pointer over UI -> clear preview to avoid confusing state
-            if (IsPointerOverBlockingUi())
+            if (_uiGate.IsPointerOverBlockingUi())
             {
-                ClearPreview();
-                SetGhostVisible(false);
-                SetFrontArrowVisible(false);
+                HidePlacementPreview();
                 return;
             }
 
             if (!TryGetCellUnderMouse(out var cell))
             {
-                ClearPreview();
-                SetGhostVisible(false);
-                SetFrontArrowVisible(false);
+                HidePlacementPreview();
                 return;
             }
 
             if (_gridMap == null || !_gridMap.IsInside(cell))
             {
-                ClearPreview();
-                SetGhostVisible(false);
-                SetFrontArrowVisible(false);
+                HidePlacementPreview();
                 return;
             }
 
             // Build phase gate (optional)
             if (_clock != null && _clock.CurrentPhase != Phase.Build)
             {
-                ClearPreview();
-                SetGhostVisible(false);
-                SetFrontArrowVisible(false);
+                HidePlacementPreview();
                 return;
             }
 
@@ -257,13 +251,23 @@ namespace SeasonalBastion
         {
             string cancelledDefId = _placeDefId;
             bool wasPlacement = !string.IsNullOrEmpty(_placeDefId);
+            ResetPlacementState();
+            if (wasPlacement)
+                _bus?.Publish(new UiPlacementFinishedEvent(cancelledDefId, false));
+            HidePlacementPreview();
+        }
+
+        private void ResetPlacementState()
+        {
             _tool = UiToolMode.Select;
             _placeDefId = null;
             _rot = Dir4.N;
             _lastPlacementFailReason = PlacementFailReason.None;
             _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
-            if (wasPlacement)
-                _bus?.Publish(new UiPlacementFinishedEvent(cancelledDefId, false));
+        }
+
+        private void HidePlacementPreview()
+        {
             ClearPreview();
             SetGhostVisible(false);
             SetFrontArrowVisible(false);
@@ -737,9 +741,7 @@ namespace SeasonalBastion
             _lastPlacementFailReason = PlacementFailReason.None;
             _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
 
-            ClearPreview();
-            SetGhostVisible(false);
-            SetFrontArrowVisible(false);
+            HidePlacementPreview();
             _bus?.Publish(new UiPlacementStartedEvent(ev.DefId));
         }
 
@@ -758,9 +760,7 @@ namespace SeasonalBastion
             if (wasPlacement && ev.Mode != UiToolMode.BuildPlacement)
                 _bus?.Publish(new UiPlacementFinishedEvent(cancelledDefId, false));
 
-            ClearPreview();
-            SetGhostVisible(false);
-            SetFrontArrowVisible(false);
+            HidePlacementPreview();
         }
 
         // ---------------- Input helpers ----------------
@@ -790,41 +790,6 @@ namespace SeasonalBastion
 
             cell = new CellPos(Mathf.FloorToInt(world.x), _useXZ ? Mathf.FloorToInt(world.z) : Mathf.FloorToInt(world.y));
             return true;
-        }
-
-        private bool IsPointerOverBlockingUi()
-        {
-            if (_hudDoc == null && _panelsDoc == null && _modalsDoc == null) return false;
-
-            var mouse = Mouse.current;
-            if (mouse == null) return false;
-
-            Vector2 screen = mouse.position.ReadValue();
-
-            return IsOverBlocking(_modalsDoc, screen) || IsOverBlocking(_panelsDoc, screen) || IsOverBlocking(_hudDoc, screen);
-        }
-
-        private bool IsOverBlocking(UIDocument doc, Vector2 screen)
-        {
-            if (doc == null) return false;
-            var root = doc.rootVisualElement;
-            if (root == null) return false;
-
-            var panel = root.panel;
-            if (panel == null) return false;
-
-            Vector2 panelPos = RuntimePanelUtils.ScreenToPanel(panel, screen);
-            var picked = panel.Pick(panelPos) as VisualElement;
-            if (picked == null) return false;
-
-            var cur = picked;
-            while (cur != null)
-            {
-                if (cur.ClassListContains(_blockClass)) return true;
-                cur = cur.parent;
-            }
-
-            return false;
         }
 
         private static Dir4 TurnLeft(Dir4 d) => d switch { Dir4.N => Dir4.W, Dir4.W => Dir4.S, Dir4.S => Dir4.E, _ => Dir4.N };

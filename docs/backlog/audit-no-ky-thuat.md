@@ -44,7 +44,7 @@
  Giảm dependency trực tiếp toàn bộ GameServices
  Inject interface thay vì container lớn
 7. Refactor Large Classes
- Tách AmmoService.cs
+ [x] AmmoService.cs da duoc tach thanh facade-orchestrator mong hon, logic da duoc day ra cac lop monitor/craft/recovery/observability/planner con.
  Tách EnemySystem.cs
  Tách SaveService.cs
  Tách DebugHUDHub.cs

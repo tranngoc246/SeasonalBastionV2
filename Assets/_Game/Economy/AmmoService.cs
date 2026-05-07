@@ -6,7 +6,7 @@ namespace SeasonalBastion
 {
     public sealed class AmmoService : IAmmoService, ITickable
     {
-        private readonly GameServices _s;
+        private readonly GameServices _services;
         private readonly AmmoTopologyCache _topologyCache;
         private readonly ArmoryBufferPlanner _armoryBufferPlanner;
         private readonly TowerResupplyPlanner _towerResupplyPlanner;
@@ -24,13 +24,41 @@ namespace SeasonalBastion
         private readonly AmmoRuntimeState _runtimeState = new();
         private readonly AmmoTowerStateTracker _towerStateTracker = new();
         private readonly AmmoObservabilityState _observability = new();
+
+        private float _simTime;
+        private float _devHookTimer;
+
+        public bool DevHook_Enabled { get; set; } = false;
+        public float DevHook_ShotInterval { get; set; } = 0.50f;
+        public int DevHook_AmmoPerShot { get; set; } = 1;
+
+        public int PendingRequests => _requestQueue.PendingRequests;
+        public int Debug_InFlightResupplyJobs => _resupplyTracking.InFlightCount;
+        public int Debug_InFlightHaulAmmoJobs => HaulAmmoJobByArmory.Count;
+        public int Debug_PendingUrgent => UrgentRequests.Count;
+        public int Debug_PendingNormal => NormalRequests.Count;
+        public int Debug_TotalTowers => CurrentMetrics.TotalTowers;
+        public int Debug_TowersWithoutAmmo => CurrentMetrics.TowersWithoutAmmo;
+        public int Debug_ActiveResupplyJobs => CurrentMetrics.ActiveResupplyJobs;
+        public int Debug_ArmoryAvailableAmmo => CurrentMetrics.ArmoryAvailableAmmo;
+        public string Debug_ArmoryStatus => _observability.ArmoryStatus;
+        public string Debug_ResupplyStatus => _observability.ResupplyStatus;
+
+        internal GameServices Services => _services;
+        internal float SimTime => _simTime;
+        internal float DevHookTimer { get => _devHookTimer; set => _devHookTimer = value; }
+        internal AmmoMetricsSnapshot CurrentMetrics => _metricsReporter.LastSnapshot;
+        internal bool DebugAmmoLogsValue => DebugAmmoLogs;
+        internal int ForgeTargetCraftsValue => ForgeTargetCrafts;
+        internal float ReqCooldownLowValue => _configProvider.GetFloat("ammoMonitor", "reqCooldownLowSec", 8f);
+        internal float ReqCooldownEmptyValue => _configProvider.GetFloat("ammoMonitor", "reqCooldownEmptySec", 4f);
+
         internal List<AmmoRequest> UrgentRequests => _requestQueue.UrgentRequests;
         internal List<AmmoRequest> NormalRequests => _requestQueue.NormalRequests;
         internal AmmoRequestQueue Requests => _requestQueue;
         internal AmmoCooldownManager Cooldowns => _cooldownManager;
-
-        private float _simTime;
-        internal float SimTime => _simTime;
+        internal HashSet<int> PendingReqTower => _requestQueue.PendingReqTower;
+        internal Dictionary<int, AmmoRequestPriority> PendingPriorityByTower => _requestQueue.PendingPriorityByTower;
 
         internal Dictionary<int, int> LastAmmoByTower => _towerStateTracker.LastAmmoByTower;
         internal Dictionary<int, int> LastCapByTower => _towerStateTracker.LastCapByTower;
@@ -38,49 +66,75 @@ namespace SeasonalBastion
         internal HashSet<int> TowerNoJobLogged => _recoveryService.TowerNoJobLogged;
         internal HashSet<int> TowerDeadlockLogged => _recoveryService.TowerDeadlockLogged;
 
-        internal HashSet<int> PendingReqTower => _requestQueue.PendingReqTower;
-        internal Dictionary<int, AmmoRequestPriority> PendingPriorityByTower => _requestQueue.PendingPriorityByTower;
-
-        public bool DevHook_Enabled { get; set; } = false;
-        public float DevHook_ShotInterval { get; set; } = 0.50f;
-        public int DevHook_AmmoPerShot { get; set; } = 1;
-
-        private float _devHookTimer;
-        internal float DevHookTimer { get => _devHookTimer; set => _devHookTimer = value; }
-
         internal Dictionary<int, JobId> SupplyJobByForgeAndType => _runtimeState.SupplyJobByForgeAndType;
         internal Dictionary<int, JobId> CraftJobByForge => _runtimeState.CraftJobByForge;
         internal Dictionary<int, JobId> HaulAmmoJobByArmory => _runtimeState.HaulAmmoJobByArmory;
+        internal List<NpcId> NpcIds => _runtimeState.NpcIds;
+        internal HashSet<int> WorkplacesWithNpc => _runtimeState.WorkplacesWithNpc;
+        internal int LastNpcVersionForWorkplaces { get => _runtimeState.LastNpcVersionForWorkplaces; set => _runtimeState.LastNpcVersionForWorkplaces = value; }
 
         internal Dictionary<int, JobId> ResupplyJobByArmory => _resupplyTracking.ResupplyJobByArmory;
         internal Dictionary<int, JobId> ResupplyJobByTower => _resupplyTracking.ResupplyJobByTower;
         internal List<int> TempTowerKeys => _resupplyTracking.TempKeys;
 
-        internal List<NpcId> NpcIds => _runtimeState.NpcIds;
-        internal HashSet<int> WorkplacesWithNpc => _runtimeState.WorkplacesWithNpc;
-        internal int LastNpcVersionForWorkplaces { get => _runtimeState.LastNpcVersionForWorkplaces; set => _runtimeState.LastNpcVersionForWorkplaces = value; }
+        private int LowAmmoPercent => _configProvider.GetInt("ammoMonitor", "lowAmmoPct", 25);
+        private bool DebugAmmoLogs => _configProvider.GetBool("ammoMonitor", "debugLogs", false);
+        private float NotifyCooldownLow => _configProvider.GetFloat("ammoMonitor", "notifyCooldownLowSec", 6f);
+        private float NotifyCooldownEmpty => _configProvider.GetFloat("ammoMonitor", "notifyCooldownEmptySec", 4f);
+        private int ForgeTargetCrafts => _configProvider.GetInt("ammoSupply", "forgeTargetCrafts", 5);
+        private string AmmoRecipeId => _configProvider.GetString("crafting", "ammoRecipeId", "ForgeAmmo");
 
-        public int Debug_InFlightResupplyJobs => _resupplyTracking.InFlightCount;
-        public int Debug_InFlightHaulAmmoJobs => HaulAmmoJobByArmory.Count;
-        public int Debug_PendingUrgent => _requestQueue.UrgentRequests.Count;
-        public int Debug_PendingNormal => _requestQueue.NormalRequests.Count;
-        public int Debug_TotalTowers => _metricsReporter.LastSnapshot.TotalTowers;
-        public int Debug_TowersWithoutAmmo => _metricsReporter.LastSnapshot.TowersWithoutAmmo;
-        public int Debug_ActiveResupplyJobs => _metricsReporter.LastSnapshot.ActiveResupplyJobs;
-        public int Debug_ArmoryAvailableAmmo => _metricsReporter.LastSnapshot.ArmoryAvailableAmmo;
-        public string Debug_ArmoryStatus => _observability.ArmoryStatus;
-        public string Debug_ResupplyStatus => _observability.ResupplyStatus;
-        internal AmmoMetricsSnapshot CurrentMetrics => _metricsReporter.LastSnapshot;
-
-        public AmmoService(GameServices s)
+        public AmmoService(GameServices services)
         {
-            _s = s;
+            _services = services;
+            _requestQueue = new AmmoRequestQueue(services);
+            _resupplyTracking = new AmmoResupplyTracking(services);
+            _cooldownManager = new AmmoCooldownManager(this);
+            _metricsReporter = new AmmoMetricsReporter(services.WorldState, services.WorldIndex, services.StorageService);
+            _observabilityReporter = new AmmoObservabilityReporter(_observability, () => PendingRequests);
+            _configProvider = new AmmoConfigProvider(services);
+            _recipeProvider = new AmmoRecipeProvider(services.DataRegistry, () => AmmoRecipeId);
+            _recoveryService = new AmmoRecoveryService(
+                services.WorldState,
+                services.NotificationService,
+                _cooldownManager,
+                _requestQueue,
+                () => CurrentMetrics,
+                () => PendingRequests,
+                CountEligibleResupplyRequests,
+                () => UrgentRequests,
+                () => NormalRequests,
+                GetLowAmmoThresholdValue,
+                EnqueueRequest,
+                () => _simTime,
+                () => DebugAmmoLogs);
+            _monitorPolicy = new AmmoMonitorPolicy(
+                services.NotificationService,
+                services.CombatService,
+                _cooldownManager,
+                _towerStateTracker,
+                _recoveryService,
+                EnqueueRequest,
+                HasActiveResupplyJob,
+                () => LowAmmoPercent,
+                () => NotifyCooldownLow,
+                () => NotifyCooldownEmpty,
+                () => _simTime,
+                () => DebugAmmoLogs);
             _topologyCache = new AmmoTopologyCache(this);
+            _craftService = new AmmoCraftService(
+                services.WorldState,
+                services.StorageService,
+                services.JobBoard,
+                _recipeProvider,
+                _runtimeState.CraftJobByForge,
+                RebuildWorkplaceHasNpcSet,
+                () => _runtimeState.WorkplacesWithNpc);
             _armoryBufferPlanner = new ArmoryBufferPlanner(
-                s.WorldState,
-                s.WorldIndex,
-                s.StorageService,
-                s.JobBoard,
+                services.WorldState,
+                services.WorldIndex,
+                services.StorageService,
+                services.JobBoard,
                 _runtimeState.SupplyJobByForgeAndType,
                 _runtimeState.HaulAmmoJobByArmory,
                 () => _runtimeState.WorkplacesWithNpc,
@@ -90,11 +144,11 @@ namespace SeasonalBastion
                 PickForgeAmmoSource,
                 TryStartCraft);
             _towerResupplyPlanner = new TowerResupplyPlanner(
-                s.WorldState,
-                s.WorldIndex,
-                s.StorageService,
-                s.JobBoard,
-                s.NotificationService,
+                services.WorldState,
+                services.WorldIndex,
+                services.StorageService,
+                services.JobBoard,
+                services.NotificationService,
                 _resupplyTracking.ResupplyJobByTower,
                 _resupplyTracking.ResupplyJobByArmory,
                 _recoveryService.TowerNoSourceLogged,
@@ -120,85 +174,29 @@ namespace SeasonalBastion
                 CleanupResupplyArmoryMappings,
                 RemoveArmoryMappingByJob);
             _debugHooks = new AmmoDebugHooks(this);
-            _requestQueue = new AmmoRequestQueue(s);
-            _resupplyTracking = new AmmoResupplyTracking(s);
-            _cooldownManager = new AmmoCooldownManager(this);
-            _metricsReporter = new AmmoMetricsReporter(s.WorldState, s.WorldIndex, s.StorageService);
-            _observabilityReporter = new AmmoObservabilityReporter(_observability, () => PendingRequests);
-            _configProvider = new AmmoConfigProvider(s);
-            _recipeProvider = new AmmoRecipeProvider(s.DataRegistry, () => AmmoRecipeId);
-            _craftService = new AmmoCraftService(
-                s.WorldState,
-                s.StorageService,
-                s.JobBoard,
-                _recipeProvider,
-                _runtimeState.CraftJobByForge,
-                RebuildWorkplaceHasNpcSet,
-                () => _runtimeState.WorkplacesWithNpc);
-            _recoveryService = new AmmoRecoveryService(
-                s.WorldState,
-                s.NotificationService,
-                _cooldownManager,
-                _requestQueue,
-                () => CurrentMetrics,
-                () => PendingRequests,
-                CountEligibleResupplyRequests,
-                () => UrgentRequests,
-                () => NormalRequests,
-                GetLowAmmoThresholdValue,
-                EnqueueRequest,
-                () => _simTime,
-                () => DebugAmmoLogs);
-            _monitorPolicy = new AmmoMonitorPolicy(
-                s.NotificationService,
-                s.CombatService,
-                _cooldownManager,
-                _towerStateTracker,
-                _recoveryService,
-                EnqueueRequest,
-                HasActiveResupplyJob,
-                () => LowAmmoPercent,
-                () => NotifyCooldownLow,
-                () => NotifyCooldownEmpty,
-                () => _simTime,
-                () => DebugAmmoLogs);
         }
-
-        public int PendingRequests => _requestQueue.PendingRequests;
-        internal GameServices Services => _s;
-
-        private int LowAmmoPercent => _configProvider.GetInt("ammoMonitor", "lowAmmoPct", 25);
-        private bool DebugAmmoLogs => _configProvider.GetBool("ammoMonitor", "debugLogs", false);
-        internal bool DebugAmmoLogsValue => DebugAmmoLogs;
-
-        internal float ReqCooldownLowValue => _configProvider.GetFloat("ammoMonitor", "reqCooldownLowSec", 8f);
-        internal float ReqCooldownEmptyValue => _configProvider.GetFloat("ammoMonitor", "reqCooldownEmptySec", 4f);
-
-        private float NotifyCooldownLow => _configProvider.GetFloat("ammoMonitor", "notifyCooldownLowSec", 6f);
-        private float NotifyCooldownEmpty => _configProvider.GetFloat("ammoMonitor", "notifyCooldownEmptySec", 4f);
-
-        private int ForgeTargetCrafts => _configProvider.GetInt("ammoSupply", "forgeTargetCrafts", 5);
-        internal int ForgeTargetCraftsValue => ForgeTargetCrafts;
-
-        private string AmmoRecipeId => _configProvider.GetString("crafting", "ammoRecipeId", "ForgeAmmo");
-        internal string AmmoRecipeIdValue => AmmoRecipeId;
 
         public void NotifyTowerAmmoChanged(TowerId tower, int current, int max)
         {
-            JobId? inflight = null;
+            JobId? inFlight = null;
             if (tower.Value != 0 && ResupplyJobByTower.TryGetValue(tower.Value, out var activeJob))
-                inflight = activeJob;
+                inFlight = activeJob;
 
-            _monitorPolicy.NotifyTowerAmmoChanged(tower, current, max, inflight);
+            _monitorPolicy.NotifyTowerAmmoChanged(tower, current, max, inFlight);
         }
 
-        public void EnqueueRequest(AmmoRequest req) => _requestQueue.Enqueue(req);
-        public bool TryDequeueNext(out AmmoRequest req) => _requestQueue.TryDequeueNext(out req);
-        public bool TryStartCraft(BuildingId forge) => _craftService.TryStartCraft(forge);
+        public void EnqueueRequest(AmmoRequest req)
+            => _requestQueue.Enqueue(req);
+
+        public bool TryDequeueNext(out AmmoRequest req)
+            => _requestQueue.TryDequeueNext(out req);
+
+        public bool TryStartCraft(BuildingId forge)
+            => _craftService.TryStartCraft(forge);
 
         public void Tick(float dt)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.JobBoard == null || _s.WorldIndex == null || _s.DataRegistry == null)
+            if (!HasRequiredServices())
                 return;
 
             RebuildInFlightResupplyFromJobBoardAfterLoad();
@@ -209,17 +207,15 @@ namespace SeasonalBastion
             ExecuteAmmoFlow();
         }
 
-        public void RebuildInFlightResupplyFromJobBoardAfterLoad() => _resupplyTracking.RebuildFromJobBoard();
+        public void RebuildInFlightResupplyFromJobBoardAfterLoad()
+            => _resupplyTracking.RebuildFromJobBoard();
 
         public void ClearAll()
         {
             _requestQueue.Clear();
-
             _simTime = 0f;
             _devHookTimer = 0f;
-
             _towerStateTracker.Clear();
-
             _recoveryService.ClearAll();
             _cooldownManager.ClearAll();
             _runtimeState.Clear();
@@ -229,7 +225,7 @@ namespace SeasonalBastion
         }
 
         internal bool HasActiveResupplyJob(JobId jobId)
-            => _s.JobBoard != null && _s.JobBoard.TryGet(jobId, out var job) && !IsTerminal(job.Status);
+            => _services.JobBoard != null && _services.JobBoard.TryGet(jobId, out var job) && !IsTerminal(job.Status);
 
         internal BuildingId PickPreferredHaulerWorkplace(CellPos forgeAnchor)
         {
@@ -252,62 +248,75 @@ namespace SeasonalBastion
             return (false, null, -1, default, default);
         }
 
-        internal void CleanupResupplyArmoryMappings() => _resupplyTracking.CleanupArmoryMappings();
-        internal void RemoveArmoryMappingByJob(JobId jobId) => _resupplyTracking.RemoveArmoryMappingByJob(jobId);
-        internal int CountEligibleResupplyRequests() => _requestQueue.CountEligibleRequests();
-        internal void PruneInvalidResupplyRequests() => _requestQueue.PruneInvalidRequests(TowerNoJobLogged, TowerDeadlockLogged);
-        internal bool TryPickBestRequest(out List<AmmoRequest> list, out int index, out AmmoRequest req, out TowerState towerState)
-            => _requestQueue.TryPickBestRequest(ResupplyJobByTower, out list, out index, out req, out towerState);
-        internal void ConsumeRequestAt(List<AmmoRequest> list, int index) => _requestQueue.ConsumeRequestAt(list, index);
-        internal void RotateRequestToBack(List<AmmoRequest> list, int index, AmmoRequest req) => _requestQueue.RotateRequestToBack(list, index, req);
-        internal bool TryPickPreferredHaulerWorkplace(CellPos forgeAnchor, out BuildingId workplace) => _topologyCache.TryPickPreferredHaulerWorkplace(forgeAnchor, out workplace);
-        internal void RebuildWorkplaceHasNpcSet() => _topologyCache.RebuildWorkplaceHasNpcSet();
+        internal void CleanupResupplyArmoryMappings()
+            => _resupplyTracking.CleanupArmoryMappings();
 
-        internal static bool IsTerminal(JobStatus s)
+        internal void RemoveArmoryMappingByJob(JobId jobId)
+            => _resupplyTracking.RemoveArmoryMappingByJob(jobId);
+
+        internal int CountEligibleResupplyRequests()
+            => _requestQueue.CountEligibleRequests();
+
+        internal void PruneInvalidResupplyRequests()
+            => _requestQueue.PruneInvalidRequests(TowerNoJobLogged, TowerDeadlockLogged);
+
+        internal void ConsumeRequestAt(List<AmmoRequest> list, int index)
+            => _requestQueue.ConsumeRequestAt(list, index);
+
+        internal void RotateRequestToBack(List<AmmoRequest> list, int index, AmmoRequest req)
+            => _requestQueue.RotateRequestToBack(list, index, req);
+
+        internal void RebuildWorkplaceHasNpcSet()
+            => _topologyCache.RebuildWorkplaceHasNpcSet();
+
+        internal void RecordTowerSnapshot(TowerId towerId, int ammo, int cap)
+            => _towerStateTracker.RecordSnapshot(towerId, ammo, cap);
+
+        internal bool MatchesTowerSnapshot(TowerId towerId, int ammo, int cap)
+            => _towerStateTracker.MatchesSnapshot(towerId, ammo, cap);
+
+        internal void MaybeRequeueTowerAmmoRequest(TowerId tower)
+            => _recoveryService.MaybeRequeueTowerAmmoRequest(tower);
+
+        internal int GetLowAmmoThresholdValue(int max)
+            => _monitorPolicy.GetLowAmmoThreshold(max);
+
+        internal void ResetRequestStateForTower(int towerId)
+            => _recoveryService.ResetRequestStateForTower(towerId);
+
+        internal void RemoveTowerCacheState(int towerId)
         {
-            return s == JobStatus.Completed || s == JobStatus.Failed || s == JobStatus.Cancelled;
+            _towerStateTracker.RemoveTower(towerId);
+            _recoveryService.ClearTowerLogs(towerId);
+            _cooldownManager.ClearTower(towerId);
+            _requestQueue.RemovePendingForTower(towerId);
+            _resupplyTracking.RemoveTower(towerId);
         }
+
+        internal int GetArmoryChunkByLevel_Value(int level)
+            => GetArmoryChunkByLevel(level);
+
+        internal int GetArmoryResupplyTripByLevel_Value(int level)
+            => GetArmoryResupplyTripByLevel(level);
+
+        internal static bool IsTerminal(JobStatus status)
+            => status == JobStatus.Completed || status == JobStatus.Failed || status == JobStatus.Cancelled;
 
         internal static int Manhattan(CellPos a, CellPos b)
         {
-            int dx = a.X - b.X; if (dx < 0) dx = -dx;
-            int dy = a.Y - b.Y; if (dy < 0) dy = -dy;
+            int dx = a.X - b.X;
+            if (dx < 0) dx = -dx;
+            int dy = a.Y - b.Y;
+            if (dy < 0) dy = -dy;
             return dx + dy;
         }
 
-        internal void RemoveTowerCacheState(int tid)
-        {
-            _towerStateTracker.RemoveTower(tid);
-            _recoveryService.ClearTowerLogs(tid);
-            _cooldownManager.ClearTower(tid);
-            _requestQueue.RemovePendingForTower(tid);
-            _resupplyTracking.RemoveTower(tid);
-        }
-
-        internal int GetArmoryChunkByLevel_Value(int level) => GetArmoryChunkByLevel(level);
-
-        private static int GetArmoryChunkByLevel(int level)
-        {
-            int lvl = level <= 0 ? 1 : (level > 3 ? 3 : level);
-            return lvl == 1 ? 40 : (lvl == 2 ? 60 : 80);
-        }
-
-        internal int GetArmoryResupplyTripByLevel_Value(int level) => GetArmoryResupplyTripByLevel(level);
-
-        private static int GetArmoryResupplyTripByLevel(int level)
-        {
-            int lvl = level <= 0 ? 1 : (level > 3 ? 3 : level);
-            return lvl == 1 ? 20 : (lvl == 2 ? 30 : 40);
-        }
-
-        private int GetLowAmmoThreshold(int max)
-            => _monitorPolicy.GetLowAmmoThreshold(max);
-
-        internal void RecordTowerSnapshot(TowerId towerId, int ammo, int cap) => _towerStateTracker.RecordSnapshot(towerId, ammo, cap);
-        internal bool MatchesTowerSnapshot(TowerId towerId, int ammo, int cap) => _towerStateTracker.MatchesSnapshot(towerId, ammo, cap);
-        internal void MaybeRequeueTowerAmmoRequest(TowerId tower) => _recoveryService.MaybeRequeueTowerAmmoRequest(tower);
-        internal int GetLowAmmoThresholdValue(int max) => GetLowAmmoThreshold(max);
-        internal void ResetRequestStateForTower(int towerId) => _recoveryService.ResetRequestStateForTower(towerId);
+        private bool HasRequiredServices()
+            => _services.WorldState != null
+                && _services.StorageService != null
+                && _services.JobBoard != null
+                && _services.WorldIndex != null
+                && _services.DataRegistry != null;
 
         private void CollectAmmoRuntimeState(float dt)
         {
@@ -329,32 +338,45 @@ namespace SeasonalBastion
         private void ExecuteAmmoFlow()
         {
             bool hasRecipe = _recipeProvider.TryGetAmmoRecipe(out var recipe);
+            TickForgeAmmoLoop(hasRecipe, recipe);
+            _armoryBufferPlanner.EnsureArmoryAmmoBuffer();
+            _metricsReporter.UpdateDebugMetrics(_resupplyTracking.CountTrackedActiveJobs());
+            _observabilityReporter.Update(CurrentMetrics);
+            _recoveryService.LogPotentialResupplyDeadlock();
+        }
 
-            var forges = _s.WorldIndex.Forges;
+        private void TickForgeAmmoLoop(bool hasRecipe, RecipeDef recipe)
+        {
+            var forges = _services.WorldIndex.Forges;
             for (int i = 0; i < forges.Count; i++)
             {
                 var forge = forges[i];
-                if (!_s.WorldState.Buildings.Exists(forge)) continue;
+                if (!_services.WorldState.Buildings.Exists(forge))
+                    continue;
 
-                var bs = _s.WorldState.Buildings.Get(forge);
-                if (!bs.IsConstructed) continue;
-
-                bool forgeHasNpc = WorkplacesWithNpc.Contains(forge.Value);
-                if (!hasRecipe)
+                var building = _services.WorldState.Buildings.Get(forge);
+                if (!building.IsConstructed || !hasRecipe)
                     continue;
 
                 if (!_armoryBufferPlanner.HasCapForForgeInputs(forge, recipe))
                     continue;
 
-                _armoryBufferPlanner.EnsureForgeSupplyByRecipe(forge, bs.Anchor, recipe);
-                if (forgeHasNpc)
+                _armoryBufferPlanner.EnsureForgeSupplyByRecipe(forge, building.Anchor, recipe);
+                if (WorkplacesWithNpc.Contains(forge.Value))
                     _armoryBufferPlanner.TryStartCraft(forge);
             }
+        }
 
-            _armoryBufferPlanner.EnsureArmoryAmmoBuffer();
-            _metricsReporter.UpdateDebugMetrics(_resupplyTracking.CountTrackedActiveJobs());
-            _observabilityReporter.Update(CurrentMetrics);
-            _recoveryService.LogPotentialResupplyDeadlock();
+        private static int GetArmoryChunkByLevel(int level)
+        {
+            int clamped = level <= 0 ? 1 : (level > 3 ? 3 : level);
+            return clamped == 1 ? 40 : (clamped == 2 ? 60 : 80);
+        }
+
+        private static int GetArmoryResupplyTripByLevel(int level)
+        {
+            int clamped = level <= 0 ? 1 : (level > 3 ? 3 : level);
+            return clamped == 1 ? 20 : (clamped == 2 ? 30 : 40);
         }
     }
 }

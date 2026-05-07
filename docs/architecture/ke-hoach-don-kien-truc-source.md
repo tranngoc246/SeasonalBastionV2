@@ -345,7 +345,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã bóc tiếp recovery/observability path: `AmmoMetricsReporter` và `AmmoRecoveryService` giờ nhận dependency hẹp hơn thay vì giữ owner full `AmmoService`, đồng thời status aggregation được tách sang `AmmoObservabilityReporter`.
 - [x] Đã đi tiếp planner path quanh armory buffer: `ArmoryBufferPlanner` không còn bám owner/service full, thay vào đó nhận các dependency hẹp hơn (`IWorldState`, `IWorldIndex`, `IStorageService`, `IJobBoard`, runtime maps, topology callbacks, craft callback).
 - [x] Đã bóc tiếp tower resupply flow: `TowerResupplyPlanner` giờ nhận dependency hẹp hơn thay vì giữ owner/service full, còn `AmmoService` chủ yếu wire request/job/state callbacks cho planner này.
-- [~] `AmmoService` vẫn là orchestration root của cụm ammo, nhưng phần planner side nay đã sáng boundary hơn đáng kể; phần còn lại nếu đi tiếp sẽ thiên về polish/facade hơn là bóc mảng logic lớn mới.
-- [ ] Bước tiếp theo hợp lý sau pass này: review/chốt lại `AmmoService` như facade-orchestrator, hoặc chỉ bóc thêm các helper nhỏ nếu diff/compile cho thấy còn hotspot rõ ràng.
+- [x] Đã review/chốt lại `AmmoService` theo vai trò facade-orchestrator: sửa lại thứ tự khởi tạo constructor để tránh dùng `_recoveryService` trước khi tạo xong, gom lại các facade helper/read-model nhỏ, và giữ service gốc tập trung vào `Tick / Notify / Rebuild / Clear` cùng orchestration cấp cao.
+- [~] Cụm `Ammo*` hiện đã có boundary rõ hơn đáng kể ở monitor, craft-start, recovery, observability, armory buffer, và tower resupply; nếu đi tiếp thì chủ yếu là polish nhỏ hoặc giảm thêm `GameServices` ở các lớp phụ còn lại.
+- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc chạy compile/regression để bắt wiring issues sau chuỗi refactor, rồi mới quyết định có tiếp tục bóc các helper phụ hay chuyển mặt trận khác.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

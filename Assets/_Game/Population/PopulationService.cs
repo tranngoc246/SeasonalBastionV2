@@ -12,12 +12,13 @@ namespace SeasonalBastion
 
         private readonly IEventBus _eventBus;
         private readonly IDataRegistry _dataRegistry;
-        private readonly IRunClock _runClock;
         private readonly INotificationService _notificationService;
         private readonly IWorldState _worldState;
         private readonly IGridMap _gridMap;
         private readonly IStorageService _storageService;
         private readonly IRunOutcomeService _runOutcomeService;
+        private readonly PopulationHousingPolicy _housingPolicy;
+        private readonly PopulationGrowthPolicy _growthPolicy;
         private PopulationState _state;
         private bool _ignoreNextDayStartedEvent;
         private bool _loadingSnapshot;
@@ -36,12 +37,13 @@ namespace SeasonalBastion
         {
             _eventBus = eventBus;
             _dataRegistry = dataRegistry;
-            _runClock = runClock;
             _notificationService = notificationService;
             _worldState = worldState;
             _gridMap = gridMap;
             _storageService = storageService;
             _runOutcomeService = runOutcomeService;
+            _housingPolicy = new PopulationHousingPolicy(dataRegistry);
+            _growthPolicy = new PopulationGrowthPolicy(runClock, FoodReserveDaysRequiredForGrowth);
             _eventBus?.Subscribe<DayStartedEvent>(OnDayStartedEvent);
             _eventBus?.Subscribe<BuildingPlacedEvent>(OnBuildingPlaced);
             _eventBus?.Subscribe<BuildingUpgradedEvent>(OnBuildingUpgraded);
@@ -59,7 +61,7 @@ namespace SeasonalBastion
         public void RebuildDerivedState()
         {
             _state.PopulationCurrent = CountPopulationCurrent();
-            _state.PopulationCap = CountPopulationCap();
+            _state.PopulationCap = _housingPolicy.CountPopulationCap(_worldState);
             _state.DailyFoodNeed = _state.PopulationCurrent * FoodPerNpcPerDay;
         }
 
@@ -100,8 +102,7 @@ namespace SeasonalBastion
             }
 
             RebuildDerivedState();
-
-            if (!CanGrowToday(available))
+            if (!_growthPolicy.CanGrowToday(_state, available))
                 return;
 
             _state.GrowthProgressDays += 1f;
@@ -122,7 +123,7 @@ namespace SeasonalBastion
                     cooldownSeconds: 5f,
                     dedupeByKey: true);
 
-                if (!CanGrowToday(_storageService?.GetTotal(ResourceType.Food) ?? 0))
+                if (!_growthPolicy.CanGrowToday(_state, _storageService?.GetTotal(ResourceType.Food) ?? 0))
                     break;
             }
         }
@@ -149,7 +150,7 @@ namespace SeasonalBastion
 
         private void OnBuildingPlaced(BuildingPlacedEvent ev)
         {
-            if (!ShouldRebuildPopulationForPlaced(ev.DefId))
+            if (!_housingPolicy.ShouldRebuildForPlaced(ev.DefId))
                 return;
 
             RebuildDerivedState();
@@ -157,54 +158,10 @@ namespace SeasonalBastion
 
         private void OnBuildingUpgraded(BuildingUpgradedEvent ev)
         {
-            if (!ShouldRebuildPopulationForUpgrade(ev.FromDefId, ev.ToDefId))
+            if (!_housingPolicy.ShouldRebuildForUpgrade(ev.FromDefId, ev.ToDefId))
                 return;
 
             RebuildDerivedState();
-        }
-
-        private bool ShouldRebuildPopulationForPlaced(string defId)
-        {
-            if (_dataRegistry == null || string.IsNullOrWhiteSpace(defId))
-                return true;
-
-            return _dataRegistry.TryGetBuilding(defId, out var def) && def != null && def.IsHouse;
-        }
-
-        private bool ShouldRebuildPopulationForUpgrade(string fromDefId, string toDefId)
-        {
-            if (_dataRegistry == null)
-                return true;
-
-            bool fromIsHouse = !string.IsNullOrWhiteSpace(fromDefId)
-                && _dataRegistry.TryGetBuilding(fromDefId, out var fromDef)
-                && fromDef != null
-                && fromDef.IsHouse;
-
-            bool toIsHouse = !string.IsNullOrWhiteSpace(toDefId)
-                && _dataRegistry.TryGetBuilding(toDefId, out var toDef)
-                && toDef != null
-                && toDef.IsHouse;
-
-            return fromIsHouse || toIsHouse;
-        }
-
-        private bool CanGrowToday(int availableFoodBeforeConsume)
-        {
-            if (_runClock != null && _runClock.CurrentPhase == Phase.Defend)
-                return false;
-
-            if (_state.StarvedToday)
-                return false;
-
-            if (_state.PopulationCurrent >= _state.PopulationCap)
-                return false;
-
-            int reserveRequired = _state.DailyFoodNeed * FoodReserveDaysRequiredForGrowth;
-            if (availableFoodBeforeConsume < reserveRequired)
-                return false;
-
-            return true;
         }
 
         private int ConsumeFoodDeterministic(int need)
@@ -226,12 +183,12 @@ namespace SeasonalBastion
                 if (!_storageService.CanStore(bid, ResourceType.Food))
                     continue;
 
-                int rem = _storageService.Remove(bid, ResourceType.Food, left);
-                if (rem <= 0)
+                int removed = _storageService.Remove(bid, ResourceType.Food, left);
+                if (removed <= 0)
                     continue;
 
-                consumed += rem;
-                left -= rem;
+                consumed += removed;
+                left -= removed;
             }
 
             return consumed;
@@ -251,37 +208,6 @@ namespace SeasonalBastion
             return count;
         }
 
-        private int CountPopulationCap()
-        {
-            if (_worldState?.Buildings == null || _dataRegistry == null)
-                return 0;
-
-            int cap = 0;
-            foreach (var id in _worldState.Buildings.Ids)
-            {
-                if (!_worldState.Buildings.Exists(id)) continue;
-                var bs = _worldState.Buildings.Get(id);
-                if (!bs.IsConstructed) continue;
-
-                var def = _dataRegistry.GetBuilding(bs.DefId);
-                if (def == null || !def.IsHouse) continue;
-
-                int level = bs.Level;
-                if (level < 1) level = 1;
-                if (level > 3) level = 3;
-
-                cap += level switch
-                {
-                    1 => 2,
-                    2 => 4,
-                    3 => 6,
-                    _ => 2
-                };
-            }
-
-            return cap;
-        }
-
         private bool TrySpawnNewVillager()
         {
             if (_worldState?.Npcs == null)
@@ -289,7 +215,7 @@ namespace SeasonalBastion
 
             var spawn = ResolveSpawnCellNearHq();
             string npcDefId = ResolveDefaultPopulationNpcDefId();
-            var st = new NpcState
+            var state = new NpcState
             {
                 DefId = npcDefId,
                 Cell = spawn,
@@ -298,9 +224,9 @@ namespace SeasonalBastion
                 IsIdle = true
             };
 
-            var id = _worldState.Npcs.Create(st);
-            st.Id = id;
-            _worldState.Npcs.Set(id, st);
+            var id = _worldState.Npcs.Create(state);
+            state.Id = id;
+            _worldState.Npcs.Set(id, state);
             return true;
         }
 
@@ -421,4 +347,3 @@ namespace SeasonalBastion
         }
     }
 }
-

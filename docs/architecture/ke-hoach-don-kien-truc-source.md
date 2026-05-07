@@ -326,9 +326,9 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [~] Cụm `SaveService*` hiện đã khá rõ boundary theo trách nhiệm; nếu đi tiếp thì chủ yếu là polish naming hoặc giảm thêm phụ thuộc `GameServices`/service reach-through ở snapshot path.
 - [x] Đã bắt đầu wave giảm phụ thuộc trực tiếp vào `GameServices` bằng `PopulationService` pass 1.
 - [x] `PopulationService` không còn nhận full `GameServices`; hiện constructor nhận tập dependency hẹp hơn: `IEventBus`, `IDataRegistry`, `IRunClock`, `INotificationService`, `IWorldState`, `IGridMap`, `IStorageService`, `IRunOutcomeService`.
-- [~] Pass này giữ nguyên behavior, chủ yếu làm rõ dependency boundary và mở đường cho các service khác áp dụng pattern tương tự.
+- [x] Đã đi tiếp `PopulationService` wave 2 bằng cách bóc `PopulationHousingPolicy` và `PopulationGrowthPolicy`, để service gốc tập trung hơn vào event flow / consume food / spawn orchestration thay vì giữ toàn bộ housing-growth rule cục bộ.
 - [x] Đã đi tiếp `RewardService` pass 1 theo cùng hướng: bỏ constructor nhận `GameServices`, chuyển sang `IWorldState`, `IDataRegistry`, `IEventBus`.
-- [~] `RewardService` vẫn giữ nguyên behavior hiện tại, nhưng boundary đã rõ hơn và dễ mở rộng/refactor tiếp theo.
+- [~] `RewardService` vẫn giữ nguyên behavior hiện tại, nhưng boundary đã rõ hơn và dễ mở rộng/refactor tiếp theo; nếu đi wave 2 thì nên cân nhắc tách reward application/modifier policy.
 - [x] Đã bóc `SaveAutosaveService` như một quick win nhỏ: constructor hiện nhận `IEventBus`, `ISaveService`, `IWorldState`, `IRunClock`, `INotificationService` thay vì `GameServices`.
 - [x] Đã bóc tiếp `BuildOrderWorkplaceResolver`: constructor hiện nhận `BalanceService`, `IWorldState`, `IDataRegistry`, `IJobWorkplacePolicy` thay vì `GameServices`.
 - [x] Đã đi tiếp `BuildOrderCreationService` pass 1: bỏ dependency trực tiếp vào `GameServices`, chuyển sang tập dependency hẹp hơn gồm `IDataRegistry`, `IWorldState`, `IGridMap`, `IEventBus`, `INotificationService`, `IStorageService`, `IUnlockService`, `IPlacementService`, `IPathfinderRuntime`.

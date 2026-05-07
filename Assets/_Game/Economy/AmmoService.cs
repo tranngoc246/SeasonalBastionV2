@@ -89,7 +89,36 @@ namespace SeasonalBastion
                 PickPreferredHaulerWorkplace,
                 PickForgeAmmoSource,
                 TryStartCraft);
-            _towerResupplyPlanner = new TowerResupplyPlanner(this);
+            _towerResupplyPlanner = new TowerResupplyPlanner(
+                s.WorldState,
+                s.WorldIndex,
+                s.StorageService,
+                s.JobBoard,
+                s.NotificationService,
+                _resupplyTracking.ResupplyJobByTower,
+                _resupplyTracking.ResupplyJobByArmory,
+                _recoveryService.TowerNoSourceLogged,
+                _recoveryService.TowerNoJobLogged,
+                _recoveryService.TowerDeadlockLogged,
+                _resupplyTracking.TempKeys,
+                () => UrgentRequests,
+                () => NormalRequests,
+                () => PendingRequests,
+                () => Debug_TotalTowers,
+                () => Debug_TowersWithoutAmmo,
+                () => Debug_ActiveResupplyJobs,
+                () => Debug_ArmoryAvailableAmmo,
+                () => DebugAmmoLogsValue,
+                () => WorkplacesWithNpc,
+                GetArmoryResupplyTripByLevel_Value,
+                CountEligibleResupplyRequests,
+                PruneInvalidResupplyRequests,
+                PickBestRequest,
+                ConsumeRequestAt,
+                RotateRequestToBack,
+                MaybeRequeueTowerAmmoRequest,
+                CleanupResupplyArmoryMappings,
+                RemoveArmoryMappingByJob);
             _debugHooks = new AmmoDebugHooks(this);
             _requestQueue = new AmmoRequestQueue(s);
             _resupplyTracking = new AmmoResupplyTracking(s);
@@ -214,6 +243,13 @@ namespace SeasonalBastion
             if (_topologyCache.TryPickForgeAmmoSource(refPos, out var forge, out var takeable))
                 return (true, forge, takeable);
             return (false, default, 0);
+        }
+
+        internal (bool found, List<AmmoRequest> list, int index, AmmoRequest req, TowerState towerState) PickBestRequest(Dictionary<int, JobId> resupplyJobByTower)
+        {
+            if (_requestQueue.TryPickBestRequest(resupplyJobByTower, out var list, out var index, out var req, out var towerState))
+                return (true, list, index, req, towerState);
+            return (false, null, -1, default, default);
         }
 
         internal void CleanupResupplyArmoryMappings() => _resupplyTracking.CleanupArmoryMappings();

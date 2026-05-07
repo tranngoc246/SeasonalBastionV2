@@ -338,7 +338,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã refactor `BuildOrderCompletionService` để bỏ dependency trực tiếp vào `GameServices`, chuyển sang các dependency hẹp hơn: `IWorldState`, `IGridMap`, `IDataRegistry`, `IWorldIndex`, `IEventBus`, `INotificationService`, `ISaveService`, `IRunClock`.
 - [x] Đã tách compute/time policy khỏi `BuildOrderService` sang `BuildOrderTimePolicy`, gom các helper `ComputeWorkSecondsTotal(...)`, `ComputeWorkSecondsTotalFromChunks(...)`, `ComputeRepairSeconds(...)` quanh `BalanceService` mà không làm đổi behavior.
 - [x] Đã bóc `TickRepairOrder(...)` khỏi `BuildOrderService` sang `BuildOrderRepairService`, gom repair-order lifecycle, queued-job retarget, và complete/cancel handling về một chỗ.
-- [~] Cụm `Build*` hiện đã có dependency boundary rõ hơn ở level helper/service, nhưng `BuildOrderService` orchestration root vẫn còn là điểm gom lớn, chủ yếu ở wiring/facade và một phần fallback workplace policy.
-- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc review lại `BuildOrderService` như facade mỏng để chốt checkpoint của cụm `Build*`, hoặc chuyển sang cụm `Ammo*` nếu muốn payoff lớn hơn nhưng rủi ro cao hơn.
+- [x] Đã review/chốt lại `BuildOrderService` theo vai trò facade mỏng hơn: chủ yếu giữ state nhỏ, wiring các service con, và các entrypoint `Create/Cancel/Tick/Rebuild`.
+- [~] Cụm `Build*` hiện đã có dependency boundary rõ hơn rõ rệt; phần còn lại đáng cân nhắc chủ yếu là polish tiếp `BuildOrderTickProcessor` hoặc dừng cụm này ở checkpoint hiện tại để chuyển mặt trận.
+- [ ] Bước tiếp theo hợp lý sau pass này: hoặc dừng cụm `Build*` ở checkpoint hiện tại và chuyển sang `Ammo*`, hoặc bóc tiếp `BuildOrderTickProcessor` nếu muốn đi nốt theo hướng purity/facade.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

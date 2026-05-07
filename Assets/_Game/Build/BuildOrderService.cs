@@ -6,14 +6,9 @@ namespace SeasonalBastion
 {
     public sealed class BuildOrderService : IBuildOrderService, ITickable
     {
-        private readonly GameServices _s;
-        private int _nextOrderId = 1;
-
+        private readonly GameServices _services;
         private readonly List<int> _active = new();
         private readonly Dictionary<int, BuildOrder> _orders = new();
-
-        private readonly bool _destroyPlaceholderOnCancel = true;
-
         private readonly Dictionary<int, List<JobId>> _deliverJobsBySite = new();
         private readonly Dictionary<int, JobId> _workJobBySite = new();
         private readonly Dictionary<int, JobId> _repairJobByOrder = new();
@@ -30,33 +25,38 @@ namespace SeasonalBastion
         private readonly BuildOrderTimePolicy _timePolicy;
         private readonly BuildOrderRepairService _repairService;
 
+        private int _nextOrderId = 1;
+
         public event Action<int> OnOrderCompleted;
 
-        public BuildOrderService(GameServices s)
+        public BuildOrderService(GameServices services)
         {
-            _s = s;
-            _eventBridge = new BuildOrderEventBridge(s.EventBus, _autoRoadByOrder);
-            _buildJobOrchestrator = s.BuildJobOrchestrator ?? new BuildJobPlanner(s, _deliverJobsBySite, _workJobBySite);
-            if (_s.BuildJobOrchestrator == null)
-                _s.BuildJobOrchestrator = _buildJobOrchestrator;
+            _services = services;
+            _eventBridge = new BuildOrderEventBridge(services.EventBus, _autoRoadByOrder);
+            _buildJobOrchestrator = services.BuildJobOrchestrator ?? new BuildJobPlanner(services, _deliverJobsBySite, _workJobBySite);
+            if (_services.BuildJobOrchestrator == null)
+                _services.BuildJobOrchestrator = _buildJobOrchestrator;
+
             _costTracker = new BuildOrderCostTracker();
-            _timePolicy = new BuildOrderTimePolicy(s.Balance);
+            _timePolicy = new BuildOrderTimePolicy(services.Balance);
+
             _cancellationService = new BuildOrderCancellationService(
-                s.WorldState,
-                s.GridMap,
-                s.WorldIndex,
-                s.StorageService,
-                s.DataRegistry,
-                s.EventBus,
-                s.NotificationService,
-                s.JobBoard,
-                _destroyPlaceholderOnCancel,
+                services.WorldState,
+                services.GridMap,
+                services.WorldIndex,
+                services.StorageService,
+                services.DataRegistry,
+                services.EventBus,
+                services.NotificationService,
+                services.JobBoard,
+                destroyPlaceholderOnCancel: true,
                 _autoRoadByOrder,
                 _repairJobByOrder,
                 CancelTrackedJobsForSite);
+
             _reloadService = new BuildOrderReloadService(
-                s.WorldState,
-                s.NotificationService,
+                services.WorldState,
+                services.NotificationService,
                 _orders,
                 _active,
                 _deliverJobsBySite,
@@ -66,27 +66,29 @@ namespace SeasonalBastion
                 _eventBridge.EnsureSubscribed,
                 ResetRuntimeTracking,
                 AllocateOrderId);
+
             _completionService = new BuildOrderCompletionService(
-                s.WorldState,
-                s.GridMap,
-                s.DataRegistry,
-                s.WorldIndex,
-                s.EventBus,
-                s.NotificationService,
-                s.SaveService,
-                s.RunClock,
+                services.WorldState,
+                services.GridMap,
+                services.DataRegistry,
+                services.WorldIndex,
+                services.EventBus,
+                services.NotificationService,
+                services.SaveService,
+                services.RunClock,
                 CancelTrackedJobsForSite,
                 RemoveAutoRoadByOrder);
+
             _creationService = new BuildOrderCreationService(
-                s.DataRegistry,
-                s.WorldState,
-                s.GridMap,
-                s.EventBus,
-                s.NotificationService,
-                s.StorageService,
-                s.UnlockService,
-                s.PlacementService,
-                s.Pathfinder,
+                services.DataRegistry,
+                services.WorldState,
+                services.GridMap,
+                services.EventBus,
+                services.NotificationService,
+                services.StorageService,
+                services.UnlockService,
+                services.PlacementService,
+                services.Pathfinder,
                 _orders,
                 _active,
                 _eventBridge.EnsureSubscribed,
@@ -96,15 +98,17 @@ namespace SeasonalBastion
                 _timePolicy.ComputeRepairSeconds,
                 _costTracker.CloneCostsOrEmpty,
                 _costTracker.BuildDeliveredMirror);
+
             _repairService = new BuildOrderRepairService(
-                s.WorldState,
-                s.DataRegistry,
-                s.NotificationService,
-                s.JobBoard,
+                services.WorldState,
+                services.DataRegistry,
+                services.NotificationService,
+                services.JobBoard,
                 _repairJobByOrder,
                 _cancellationService.CancelRepairJob);
+
             _tickProcessor = new BuildOrderTickProcessor(
-                s,
+                services,
                 _orders,
                 _active,
                 ResolveBuildWorkplace,
@@ -129,43 +133,19 @@ namespace SeasonalBastion
 
         public void Cancel(int orderId)
         {
-            if (!_orders.TryGetValue(orderId, out var o)) return;
-            if (o.Completed) return;
+            if (!_orders.TryGetValue(orderId, out var order) || order.Completed)
+                return;
 
-            _cancellationService.Cancel(ref o);
+            _cancellationService.Cancel(ref order);
             _orders.Remove(orderId);
             _active.Remove(orderId);
         }
 
         public bool CancelBySite(SiteId siteId)
-        {
-            if (siteId.Value == 0) return false;
-            for (int i = 0; i < _active.Count; i++)
-            {
-                int id = _active[i];
-                if (!_orders.TryGetValue(id, out var o)) continue;
-                if (o.Completed) continue;
-                if (o.Site.Value != siteId.Value) continue;
-                Cancel(id);
-                return true;
-            }
-            return false;
-        }
+            => TryCancelMatchingOrder(siteId, default, matchBySite: true);
 
         public bool CancelByBuilding(BuildingId buildingId)
-        {
-            if (buildingId.Value == 0) return false;
-            for (int i = 0; i < _active.Count; i++)
-            {
-                int id = _active[i];
-                if (!_orders.TryGetValue(id, out var o)) continue;
-                if (o.Completed) continue;
-                if (o.TargetBuilding.Value != buildingId.Value) continue;
-                Cancel(id);
-                return true;
-            }
-            return false;
-        }
+            => TryCancelMatchingOrder(default, buildingId, matchBySite: false);
 
         public void Tick(float dt)
         {
@@ -182,6 +162,28 @@ namespace SeasonalBastion
         public int RebuildActivePlaceOrdersFromSitesAfterLoad()
             => _reloadService.RebuildActivePlaceOrdersFromSitesAfterLoad();
 
+        private bool TryCancelMatchingOrder(SiteId siteId, BuildingId buildingId, bool matchBySite)
+        {
+            int targetValue = matchBySite ? siteId.Value : buildingId.Value;
+            if (targetValue == 0) return false;
+
+            for (int i = 0; i < _active.Count; i++)
+            {
+                int id = _active[i];
+                if (!_orders.TryGetValue(id, out var order) || order.Completed)
+                    continue;
+
+                int candidate = matchBySite ? order.Site.Value : order.TargetBuilding.Value;
+                if (candidate != targetValue)
+                    continue;
+
+                Cancel(id);
+                return true;
+            }
+
+            return false;
+        }
+
         private void ResetRuntimeTracking()
         {
             _nextOrderId = 1;
@@ -196,22 +198,18 @@ namespace SeasonalBastion
         private int AllocateOrderId() => _nextOrderId++;
 
         private void RemoveAutoRoadByOrder(int orderId)
-        {
-            _autoRoadByOrder.Remove(orderId);
-        }
+            => _autoRoadByOrder.Remove(orderId);
 
         private void RaiseOrderCompleted(int orderId)
-        {
-            OnOrderCompleted?.Invoke(orderId);
-        }
+            => OnOrderCompleted?.Invoke(orderId);
 
         private BuildingId ResolveBuildWorkplace()
         {
-            if (_s.BuildWorkplaceResolver != null)
-                return _s.BuildWorkplaceResolver.ResolveBuildWorkplace();
+            if (_services.BuildWorkplaceResolver != null)
+                return _services.BuildWorkplaceResolver.ResolveBuildWorkplace();
 
-            if (_s.Balance != null)
-                return _s.Balance.ResolveBuilderWorkplace();
+            if (_services.Balance != null)
+                return _services.Balance.ResolveBuilderWorkplace();
 
             return default;
         }
@@ -222,10 +220,10 @@ namespace SeasonalBastion
         private void CancelTrackedJobsForSite(SiteId siteId)
             => _buildJobOrchestrator.CancelTrackedJobsForSite(siteId);
 
-        private void CompletePlaceOrder(ref BuildOrder o)
-            => _completionService.CompletePlace(ref o);
+        private void CompletePlaceOrder(ref BuildOrder order)
+            => _completionService.CompletePlace(ref order);
 
-        private void CompleteUpgradeOrder(ref BuildOrder o)
-            => _completionService.CompleteUpgrade(ref o);
+        private void CompleteUpgradeOrder(ref BuildOrder order)
+            => _completionService.CompleteUpgrade(ref order);
     }
 }

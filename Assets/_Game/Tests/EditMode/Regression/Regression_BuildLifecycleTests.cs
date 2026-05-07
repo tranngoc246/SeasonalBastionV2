@@ -90,7 +90,7 @@ namespace SeasonalBastion.Tests.EditMode
             world.Sites.Set(siteId, site);
             grid.SetSite(new CellPos(4, 4), siteId);
 
-            var completion = new BuildOrderCompletionService(services, _ => { }, _ => { });
+            var completion = new BuildOrderCompletionService(services.WorldState, services.GridMap, services.DataRegistry, services.WorldIndex, services.EventBus, services.NotificationService, services.SaveService, services.RunClock, _ => { }, _ => { });
             var order = new BuildOrder
             {
                 OrderId = 1,
@@ -182,7 +182,7 @@ namespace SeasonalBastion.Tests.EditMode
             grid.SetSite(new CellPos(3, 4), siteId);
             grid.SetSite(new CellPos(4, 4), siteId);
 
-            var completion = new BuildOrderCompletionService(services, _ => { }, _ => { });
+            var completion = new BuildOrderCompletionService(services.WorldState, services.GridMap, services.DataRegistry, services.WorldIndex, services.EventBus, services.NotificationService, services.SaveService, services.RunClock, _ => { }, _ => { });
             var order = new BuildOrder
             {
                 OrderId = 2,
@@ -380,7 +380,7 @@ namespace SeasonalBastion.Tests.EditMode
             grid.SetSite(new CellPos(3, 4), siteId);
             grid.SetSite(new CellPos(4, 4), siteId);
 
-            var completion = new BuildOrderCompletionService(services, _ => { }, _ => { });
+            var completion = new BuildOrderCompletionService(services.WorldState, services.GridMap, services.DataRegistry, services.WorldIndex, services.EventBus, services.NotificationService, services.SaveService, services.RunClock, _ => { }, _ => { });
             var order = new BuildOrder
             {
                 OrderId = 3,

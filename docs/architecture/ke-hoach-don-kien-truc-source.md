@@ -335,7 +335,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã refactor `BuildOrderEventBridge` để chỉ nhận `IEventBus` thay vì giữ dependency vào full `GameServices`.
 - [x] Đã refactor `BuildOrderCancellationService` để bỏ dependency trực tiếp vào `GameServices`, chuyển sang các dependency hẹp hơn: `IWorldState`, `IGridMap`, `IWorldIndex`, `IStorageService`, `IDataRegistry`, `IEventBus`, `INotificationService`, `IJobBoard`.
 - [x] Đã refactor `BuildOrderReloadService` để bỏ dependency trực tiếp vào `GameServices`, hiện chỉ nhận `IWorldState` và `INotificationService` cùng state/callback nội bộ cần cho rebuild-after-load.
-- [~] Cụm `Build*` hiện đã có dependency boundary rõ hơn ở level helper/service, nhưng `BuildOrderService` orchestration root vẫn còn là điểm gom lớn.
-- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc bóc tiếp `BuildOrderCompletionService` hoặc tách helper tính thời gian/build balance khỏi `BuildOrderService`; nếu muốn payoff lớn hơn nhưng rủi ro cao hơn thì mới chuyển sang cụm `Ammo*`.
+- [x] Đã refactor `BuildOrderCompletionService` để bỏ dependency trực tiếp vào `GameServices`, chuyển sang các dependency hẹp hơn: `IWorldState`, `IGridMap`, `IDataRegistry`, `IWorldIndex`, `IEventBus`, `INotificationService`, `ISaveService`, `IRunClock`.
+- [~] Cụm `Build*` hiện đã có dependency boundary rõ hơn ở level helper/service, nhưng `BuildOrderService` orchestration root vẫn còn là điểm gom lớn, nhất là phần compute/time policy và repair tick path.
+- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc tách helper tính thời gian/build balance khỏi `BuildOrderService`, hoặc bóc tiếp phần repair-order handling; nếu muốn payoff lớn hơn nhưng rủi ro cao hơn thì mới chuyển sang cụm `Ammo*`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

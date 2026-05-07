@@ -64,7 +64,14 @@ namespace SeasonalBastion
                 ResetRuntimeTracking,
                 AllocateOrderId);
             _completionService = new BuildOrderCompletionService(
-                s,
+                s.WorldState,
+                s.GridMap,
+                s.DataRegistry,
+                s.WorldIndex,
+                s.EventBus,
+                s.NotificationService,
+                s.SaveService,
+                s.RunClock,
                 CancelTrackedJobsForSite,
                 RemoveAutoRoadByOrder);
             _creationService = new BuildOrderCreationService(

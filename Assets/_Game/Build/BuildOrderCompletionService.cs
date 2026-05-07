@@ -5,16 +5,37 @@ namespace SeasonalBastion
 {
     internal sealed class BuildOrderCompletionService
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IGridMap _gridMap;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IWorldIndex _worldIndex;
+        private readonly IEventBus _eventBus;
+        private readonly INotificationService _notificationService;
+        private readonly ISaveService _saveService;
+        private readonly IRunClock _runClock;
         private readonly Action<SiteId> _cancelTrackedJobsForSite;
         private readonly Action<int> _removeAutoRoadByOrder;
 
         public BuildOrderCompletionService(
-            GameServices s,
+            IWorldState worldState,
+            IGridMap gridMap,
+            IDataRegistry dataRegistry,
+            IWorldIndex worldIndex,
+            IEventBus eventBus,
+            INotificationService notificationService,
+            ISaveService saveService,
+            IRunClock runClock,
             Action<SiteId> cancelTrackedJobsForSite,
             Action<int> removeAutoRoadByOrder)
         {
-            _s = s;
+            _worldState = worldState;
+            _gridMap = gridMap;
+            _dataRegistry = dataRegistry;
+            _worldIndex = worldIndex;
+            _eventBus = eventBus;
+            _notificationService = notificationService;
+            _saveService = saveService;
+            _runClock = runClock;
             _cancelTrackedJobsForSite = cancelTrackedJobsForSite;
             _removeAutoRoadByOrder = removeAutoRoadByOrder;
         }
@@ -71,13 +92,13 @@ namespace SeasonalBastion
 
         private bool FinalizePlacedBuilding(ref BuildOrder o, in BuildSiteState site)
         {
-            if (!_s.WorldState.Buildings.Exists(o.TargetBuilding))
+            if (!_worldState.Buildings.Exists(o.TargetBuilding))
             {
                 UnityEngine.Debug.LogError($"[BuildOrderCompletionService] Site removed but building missing during place finalize: site={site.Id.Value}, building={o.TargetBuilding.Value}.");
                 return false;
             }
 
-            var b = _s.WorldState.Buildings.Get(o.TargetBuilding);
+            var b = _worldState.Buildings.Get(o.TargetBuilding);
             if (b.IsConstructed)
             {
                 EnsureConstructedBuildingIndexedAndOccupying(o.TargetBuilding, b, publishPlacedEvent: false, rebuildIndex: true);
@@ -89,7 +110,7 @@ namespace SeasonalBastion
             if (b.MaxHP <= 0)
             {
                 int mhp = 100;
-                if (_s.DataRegistry.TryGetBuilding(b.DefId, out var placedDef) && placedDef != null)
+                if (_dataRegistry.TryGetBuilding(b.DefId, out var placedDef) && placedDef != null)
                     mhp = Math.Max(1, placedDef.MaxHp);
                 b.MaxHP = mhp;
             }
@@ -97,10 +118,10 @@ namespace SeasonalBastion
             if (b.HP <= 0)
                 b.HP = b.MaxHP;
 
-            _s.WorldState.Buildings.Set(o.TargetBuilding, b);
+            _worldState.Buildings.Set(o.TargetBuilding, b);
             EnsureConstructedBuildingIndexedAndOccupying(o.TargetBuilding, b, publishPlacedEvent: true, rebuildIndex: true);
 
-            _s.NotificationService?.Push(
+            _notificationService?.Push(
                 key: $"BuildComplete_{o.TargetBuilding.Value}",
                 title: "Hoàn thành xây dựng",
                 body: "Một công trình đã hoàn tất và sẵn sàng hoạt động.",
@@ -116,13 +137,13 @@ namespace SeasonalBastion
 
         private bool FinalizeUpgrade(ref BuildOrder o, in BuildSiteState site)
         {
-            if (!_s.WorldState.Buildings.Exists(o.TargetBuilding))
+            if (!_worldState.Buildings.Exists(o.TargetBuilding))
             {
                 UnityEngine.Debug.LogError($"[BuildOrderCompletionService] Site removed but building missing during upgrade finalize: site={site.Id.Value}, building={o.TargetBuilding.Value}.");
                 return false;
             }
 
-            var b = _s.WorldState.Buildings.Get(o.TargetBuilding);
+            var b = _worldState.Buildings.Get(o.TargetBuilding);
             string fromId = string.IsNullOrWhiteSpace(site.FromDefId) ? b.DefId : site.FromDefId;
             string toId = o.BuildingDefId;
 
@@ -137,12 +158,12 @@ namespace SeasonalBastion
                 b.IsConstructed = true;
 
                 int mhp = 100;
-                if (_s.DataRegistry.TryGetBuilding(toId, out var upgradedDef) && upgradedDef != null)
+                if (_dataRegistry.TryGetBuilding(toId, out var upgradedDef) && upgradedDef != null)
                     mhp = Math.Max(1, upgradedDef.MaxHp);
                 b.MaxHP = mhp;
                 b.HP = mhp;
 
-                _s.WorldState.Buildings.Set(o.TargetBuilding, b);
+                _worldState.Buildings.Set(o.TargetBuilding, b);
             }
 
             SyncUpgradeTowerState(o.TargetBuilding, ref b);
@@ -150,9 +171,9 @@ namespace SeasonalBastion
 
             if (!alreadyFinalized)
             {
-                _s.EventBus.Publish(new BuildingUpgradedEvent(fromId, toId, o.TargetBuilding));
+                _eventBus.Publish(new BuildingUpgradedEvent(fromId, toId, o.TargetBuilding));
 
-                _s.NotificationService?.Push(
+                _notificationService?.Push(
                     key: $"UpgradeComplete_{o.TargetBuilding.Value}",
                     title: "Nâng cấp hoàn tất",
                     body: "Công trình đã được nâng cấp thành công.",
@@ -175,11 +196,11 @@ namespace SeasonalBastion
 
         private void DestroyBuildSite(SiteId siteId, bool publishEvent)
         {
-            if (_s.WorldState.Sites.Exists(siteId))
-                _s.WorldState.Sites.Destroy(siteId);
+            if (_worldState.Sites.Exists(siteId))
+                _worldState.Sites.Destroy(siteId);
 
             if (publishEvent)
-                _s.EventBus?.Publish(new WorldStateChangedEvent("BuildSite", siteId.Value));
+                _eventBus?.Publish(new WorldStateChangedEvent("BuildSite", siteId.Value));
         }
 
         private void ClearSiteFootprint(in BuildSiteState site)
@@ -190,7 +211,7 @@ namespace SeasonalBastion
 
             for (int dy = 0; dy < h; dy++)
             for (int dx = 0; dx < w; dx++)
-                _s.GridMap?.ClearSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy));
+                _gridMap?.ClearSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy));
         }
 
         private void EnsureConstructedBuildingIndexedAndOccupying(BuildingId buildingId, in BuildingState building, bool publishPlacedEvent, bool rebuildIndex = false)
@@ -201,15 +222,15 @@ namespace SeasonalBastion
 
             for (int dy = 0; dy < h; dy++)
             for (int dx = 0; dx < w; dx++)
-                _s.GridMap?.SetBuilding(new CellPos(building.Anchor.X + dx, building.Anchor.Y + dy), buildingId);
+                _gridMap?.SetBuilding(new CellPos(building.Anchor.X + dx, building.Anchor.Y + dy), buildingId);
 
             SyncTowerStateForConstructedBuilding(buildingId, building, def, w, h);
 
             try
             {
                 if (rebuildIndex)
-                    _s.WorldIndex?.OnBuildingDestroyed(buildingId);
-                _s.WorldIndex?.OnBuildingCreated(buildingId);
+                    _worldIndex?.OnBuildingDestroyed(buildingId);
+                _worldIndex?.OnBuildingCreated(buildingId);
             }
             catch (Exception ex)
             {
@@ -217,9 +238,9 @@ namespace SeasonalBastion
             }
 
             if (publishPlacedEvent)
-                _s.EventBus?.Publish(new BuildingPlacedEvent(building.DefId, buildingId));
-            _s.EventBus?.Publish(new WorldStateChangedEvent("Building", buildingId.Value));
-            _s.EventBus?.Publish(new RoadsDirtyEvent());
+                _eventBus?.Publish(new BuildingPlacedEvent(building.DefId, buildingId));
+            _eventBus?.Publish(new WorldStateChangedEvent("Building", buildingId.Value));
+            _eventBus?.Publish(new RoadsDirtyEvent());
         }
 
         private void ValidateFinalizedState(BuildingId buildingId)
@@ -227,17 +248,17 @@ namespace SeasonalBastion
             if (buildingId.Value == 0)
                 return;
 
-            if (_s.WorldState?.Buildings == null || !_s.WorldState.Buildings.Exists(buildingId))
+            if (_worldState?.Buildings == null || !_worldState.Buildings.Exists(buildingId))
             {
                 UnityEngine.Debug.LogError($"[BuildOrderCompletionService] Site removed but building missing: {buildingId.Value}.");
                 return;
             }
 
-            var building = _s.WorldState.Buildings.Get(buildingId);
+            var building = _worldState.Buildings.Get(buildingId);
             if (!building.IsConstructed)
                 UnityEngine.Debug.LogError($"[BuildOrderCompletionService] Building exists but not constructed: {buildingId.Value} ({building.DefId}).");
 
-            BuildOrderInvariantHelper.AssertBuildInvariant(_s.WorldState, _s.GridMap, _s.DataRegistry, _s.WorldIndex, buildingId);
+            BuildOrderInvariantHelper.AssertBuildInvariant(_worldState, _gridMap, _dataRegistry, _worldIndex, buildingId);
         }
 
         private void SyncUpgradeTowerState(BuildingId buildingId, ref BuildingState building)
@@ -245,7 +266,7 @@ namespace SeasonalBastion
             try
             {
                 var def = SafeGetBuildingDef(building.DefId);
-                if (def == null || _s.WorldState?.Towers == null)
+                if (def == null || _worldState?.Towers == null)
                     return;
 
                 int w = Math.Max(1, def.SizeX);
@@ -253,10 +274,10 @@ namespace SeasonalBastion
                 var towerCell = new CellPos(building.Anchor.X + (w / 2), building.Anchor.Y + (h / 2));
 
                 TowerId found = default;
-                foreach (var tid in _s.WorldState.Towers.Ids)
+                foreach (var tid in _worldState.Towers.Ids)
                 {
-                    if (!_s.WorldState.Towers.Exists(tid)) continue;
-                    var ts0 = _s.WorldState.Towers.Get(tid);
+                    if (!_worldState.Towers.Exists(tid)) continue;
+                    var ts0 = _worldState.Towers.Get(tid);
                     if (ts0.Cell.X == towerCell.X && ts0.Cell.Y == towerCell.Y)
                     {
                         found = tid;
@@ -268,17 +289,17 @@ namespace SeasonalBastion
                 {
                     if (found.Value != 0)
                     {
-                        _s.WorldState.Towers.Destroy(found);
-                        _s.EventBus?.Publish(new WorldStateChangedEvent("Tower", found.Value));
+                        _worldState.Towers.Destroy(found);
+                        _eventBus?.Publish(new WorldStateChangedEvent("Tower", found.Value));
                     }
                     building.Ammo = 0;
-                    _s.WorldState.Buildings.Set(buildingId, building);
+                    _worldState.Buildings.Set(buildingId, building);
                     return;
                 }
 
                 int hpMax = Math.Max(1, def.MaxHp);
                 int ammoMax = 0;
-                if (_s.DataRegistry.TryGetTower(building.DefId, out var tdef) && tdef != null)
+                if (_dataRegistry.TryGetTower(building.DefId, out var tdef) && tdef != null)
                 {
                     hpMax = Math.Max(1, tdef.MaxHp);
                     ammoMax = Math.Max(0, tdef.AmmoMax);
@@ -286,13 +307,13 @@ namespace SeasonalBastion
 
                 if (found.Value != 0)
                 {
-                    var ts = _s.WorldState.Towers.Get(found);
+                    var ts = _worldState.Towers.Get(found);
                     ts.HpMax = hpMax;
                     ts.Hp = hpMax;
                     ts.AmmoCap = ammoMax;
                     if (ts.Ammo > ts.AmmoCap) ts.Ammo = ts.AmmoCap;
-                    _s.WorldState.Towers.Set(found, ts);
-                    _s.EventBus?.Publish(new WorldStateChangedEvent("Tower", found.Value));
+                    _worldState.Towers.Set(found, ts);
+                    _eventBus?.Publish(new WorldStateChangedEvent("Tower", found.Value));
                     building.Ammo = ts.Ammo;
                 }
                 else
@@ -306,14 +327,14 @@ namespace SeasonalBastion
                         AmmoCap = ammoMax,
                     };
 
-                    var tid = _s.WorldState.Towers.Create(ts);
+                    var tid = _worldState.Towers.Create(ts);
                     ts.Id = tid;
-                    _s.WorldState.Towers.Set(tid, ts);
-                    _s.EventBus?.Publish(new WorldStateChangedEvent("Tower", tid.Value));
+                    _worldState.Towers.Set(tid, ts);
+                    _eventBus?.Publish(new WorldStateChangedEvent("Tower", tid.Value));
                     building.Ammo = ammoMax;
                 }
 
-                _s.WorldState.Buildings.Set(buildingId, building);
+                _worldState.Buildings.Set(buildingId, building);
             }
             catch (Exception ex)
             {
@@ -323,15 +344,15 @@ namespace SeasonalBastion
 
         private void SyncTowerStateForConstructedBuilding(BuildingId buildingId, in BuildingState building, BuildingDef def, int w, int h)
         {
-            if (def == null || !def.IsTower || _s.WorldState?.Towers == null)
+            if (def == null || !def.IsTower || _worldState?.Towers == null)
                 return;
 
             var towerCell = new CellPos(building.Anchor.X + (w / 2), building.Anchor.Y + (h / 2));
 
-            foreach (var tid0 in _s.WorldState.Towers.Ids)
+            foreach (var tid0 in _worldState.Towers.Ids)
             {
-                if (!_s.WorldState.Towers.Exists(tid0)) continue;
-                var ts0 = _s.WorldState.Towers.Get(tid0);
+                if (!_worldState.Towers.Exists(tid0)) continue;
+                var ts0 = _worldState.Towers.Get(tid0);
                 if (ts0.Cell.X == towerCell.X && ts0.Cell.Y == towerCell.Y)
                     return;
             }
@@ -339,7 +360,7 @@ namespace SeasonalBastion
             int hpMax = Math.Max(1, def.MaxHp);
             int ammoMax = 0;
 
-            if (_s.DataRegistry.TryGetTower(building.DefId, out var tdef) && tdef != null)
+            if (_dataRegistry.TryGetTower(building.DefId, out var tdef) && tdef != null)
             {
                 hpMax = Math.Max(1, tdef.MaxHp);
                 ammoMax = Math.Max(0, tdef.AmmoMax);
@@ -354,23 +375,23 @@ namespace SeasonalBastion
                 AmmoCap = ammoMax,
             };
 
-            var tid = _s.WorldState.Towers.Create(ts);
+            var tid = _worldState.Towers.Create(ts);
             ts.Id = tid;
-            _s.WorldState.Towers.Set(tid, ts);
-            _s.EventBus?.Publish(new WorldStateChangedEvent("Tower", tid.Value));
+            _worldState.Towers.Set(tid, ts);
+            _eventBus?.Publish(new WorldStateChangedEvent("Tower", tid.Value));
 
             var updated = building;
             updated.Ammo = ammoMax;
-            _s.WorldState.Buildings.Set(buildingId, updated);
+            _worldState.Buildings.Set(buildingId, updated);
         }
 
         private bool TryGetActiveSite(SiteId siteId, out BuildSiteState site)
         {
             site = default;
-            if (siteId.Value == 0 || _s.WorldState?.Sites == null || !_s.WorldState.Sites.Exists(siteId))
+            if (siteId.Value == 0 || _worldState?.Sites == null || !_worldState.Sites.Exists(siteId))
                 return false;
 
-            site = _s.WorldState.Sites.Get(siteId);
+            site = _worldState.Sites.Get(siteId);
             return true;
         }
 
@@ -379,30 +400,30 @@ namespace SeasonalBastion
 
         private void TryAutosaveOnMilestone()
         {
-            if (_s?.SaveService == null || _s?.WorldState == null || _s?.RunClock == null)
+            if (_saveService == null || _worldState == null || _runClock == null)
                 return;
 
             int constructed = 0;
-            foreach (var id in _s.WorldState.Buildings.Ids)
+            foreach (var id in _worldState.Buildings.Ids)
             {
-                if (!_s.WorldState.Buildings.Exists(id)) continue;
-                if (_s.WorldState.Buildings.Get(id).IsConstructed) constructed++;
+                if (!_worldState.Buildings.Exists(id)) continue;
+                if (_worldState.Buildings.Get(id).IsConstructed) constructed++;
             }
 
             if (constructed > 0 && constructed % 3 == 0)
             {
-                var res = _s.SaveService.SaveRunToSlot(_s.WorldState, _s.RunClock, 1, autosave: true);
+                var res = _saveService.SaveRunToSlot(_worldState, _runClock, 1, autosave: true);
                 if (res.Code == SaveResultCode.Ok)
-                    _s.NotificationService?.Push("autosave.milestone", "Tự động lưu", "Đã tự động lưu tại một mốc tiến trình quan trọng.", NotificationSeverity.Info, default, 30f, true);
+                    _notificationService?.Push("autosave.milestone", "Tự động lưu", "Đã tự động lưu tại một mốc tiến trình quan trọng.", NotificationSeverity.Info, default, 30f, true);
             }
         }
 
         private BuildingDef SafeGetBuildingDef(string defId)
         {
-            if (_s?.DataRegistry == null || string.IsNullOrWhiteSpace(defId))
+            if (_dataRegistry == null || string.IsNullOrWhiteSpace(defId))
                 return null;
 
-            try { return _s.DataRegistry.GetBuilding(defId); }
+            try { return _dataRegistry.GetBuilding(defId); }
             catch { return null; }
         }
     }

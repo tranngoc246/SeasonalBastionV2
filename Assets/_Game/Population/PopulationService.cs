@@ -9,6 +9,8 @@ namespace SeasonalBastion
         private const int FoodPerNpcPerDay = 5;
         private const float GrowthDaysPerNpc = 1f;
         private const int FoodReserveDaysRequiredForGrowth = 2;
+        private const string DefaultPopulationNpcDefId = "NPC_HQ_Worker";
+        private const string FallbackPopulationNpcDefId = "npc_villager_t1";
 
         private readonly IEventBus _eventBus;
         private readonly IDataRegistry _dataRegistry;
@@ -68,8 +70,8 @@ namespace SeasonalBastion
         public void LoadState(float growthProgressDays, int starvationDays, bool starvedToday)
         {
             _loadingSnapshot = true;
-            _state.GrowthProgressDays = growthProgressDays < 0f ? 0f : growthProgressDays;
-            _state.StarvationDays = starvationDays < 0 ? 0 : starvationDays;
+            _state.GrowthProgressDays = Math.Max(0f, growthProgressDays);
+            _state.StarvationDays = Math.Max(0, starvationDays);
             _state.StarvedToday = starvedToday;
             RebuildDerivedState();
         }
@@ -78,54 +80,16 @@ namespace SeasonalBastion
         {
             RebuildDerivedState();
 
+            int availableFood = _storageService?.GetTotal(ResourceType.Food) ?? 0;
             int need = _state.DailyFoodNeed;
-            int available = _storageService?.GetTotal(ResourceType.Food) ?? 0;
             int consumed = ConsumeFoodDeterministic(need);
-            bool starved = consumed < need;
-
-            _state.StarvedToday = starved;
-            if (starved)
-            {
-                _state.StarvationDays++;
-                _notificationService?.Push(
-                    key: "population.food.shortage",
-                    title: "Thiếu lương thực",
-                    body: $"Hôm nay cần {need} Food nhưng chỉ tiêu thụ được {consumed}. Dân số sẽ chưa thể tăng.",
-                    severity: NotificationSeverity.Warning,
-                    payload: default,
-                    cooldownSeconds: 10f,
-                    dedupeByKey: true);
-            }
-            else
-            {
-                _state.StarvationDays = 0;
-            }
+            UpdateStarvationState(need, consumed);
 
             RebuildDerivedState();
-            if (!_growthPolicy.CanGrowToday(_state, available))
+            if (!_growthPolicy.CanGrowToday(_state, availableFood))
                 return;
 
-            _state.GrowthProgressDays += 1f;
-            while (_state.GrowthProgressDays >= GrowthDaysPerNpc)
-            {
-                if (!TrySpawnNewVillager())
-                    break;
-
-                _state.GrowthProgressDays -= GrowthDaysPerNpc;
-                RebuildDerivedState();
-
-                _notificationService?.Push(
-                    key: $"population.new.npc.{_state.PopulationCurrent}",
-                    title: "Có NPC mới",
-                    body: $"Dân số đã tăng lên {_state.PopulationCurrent}/{_state.PopulationCap}. Hãy giao việc cho NPC mới khi phù hợp.",
-                    severity: NotificationSeverity.Info,
-                    payload: default,
-                    cooldownSeconds: 5f,
-                    dedupeByKey: true);
-
-                if (!_growthPolicy.CanGrowToday(_state, _storageService?.GetTotal(ResourceType.Food) ?? 0))
-                    break;
-            }
+            AdvanceGrowth();
         }
 
         private void OnDayStartedEvent(DayStartedEvent ev)
@@ -150,18 +114,65 @@ namespace SeasonalBastion
 
         private void OnBuildingPlaced(BuildingPlacedEvent ev)
         {
-            if (!_housingPolicy.ShouldRebuildForPlaced(ev.DefId))
-                return;
-
-            RebuildDerivedState();
+            if (_housingPolicy.ShouldRebuildForPlaced(ev.DefId))
+                RebuildDerivedState();
         }
 
         private void OnBuildingUpgraded(BuildingUpgradedEvent ev)
         {
-            if (!_housingPolicy.ShouldRebuildForUpgrade(ev.FromDefId, ev.ToDefId))
-                return;
+            if (_housingPolicy.ShouldRebuildForUpgrade(ev.FromDefId, ev.ToDefId))
+                RebuildDerivedState();
+        }
 
-            RebuildDerivedState();
+        private void UpdateStarvationState(int need, int consumed)
+        {
+            bool starved = consumed < need;
+            _state.StarvedToday = starved;
+            if (!starved)
+            {
+                _state.StarvationDays = 0;
+                return;
+            }
+
+            _state.StarvationDays++;
+            _notificationService?.Push(
+                key: "population.food.shortage",
+                title: "Thiếu lương thực",
+                body: $"Hôm nay cần {need} Food nhưng chỉ tiêu thụ được {consumed}. Dân số sẽ chưa thể tăng.",
+                severity: NotificationSeverity.Warning,
+                payload: default,
+                cooldownSeconds: 10f,
+                dedupeByKey: true);
+        }
+
+        private void AdvanceGrowth()
+        {
+            _state.GrowthProgressDays += 1f;
+            while (_state.GrowthProgressDays >= GrowthDaysPerNpc)
+            {
+                if (!TrySpawnNewVillager())
+                    break;
+
+                _state.GrowthProgressDays -= GrowthDaysPerNpc;
+                RebuildDerivedState();
+                NotifyPopulationGrowth();
+
+                int availableFood = _storageService?.GetTotal(ResourceType.Food) ?? 0;
+                if (!_growthPolicy.CanGrowToday(_state, availableFood))
+                    break;
+            }
+        }
+
+        private void NotifyPopulationGrowth()
+        {
+            _notificationService?.Push(
+                key: $"population.new.npc.{_state.PopulationCurrent}",
+                title: "Có NPC mới",
+                body: $"Dân số đã tăng lên {_state.PopulationCurrent}/{_state.PopulationCap}. Hãy giao việc cho NPC mới khi phù hợp.",
+                severity: NotificationSeverity.Info,
+                payload: default,
+                cooldownSeconds: 5f,
+                dedupeByKey: true);
         }
 
         private int ConsumeFoodDeterministic(int need)
@@ -179,11 +190,11 @@ namespace SeasonalBastion
 
             for (int i = 0; i < ids.Count && left > 0; i++)
             {
-                var bid = ids[i];
-                if (!_storageService.CanStore(bid, ResourceType.Food))
+                var buildingId = ids[i];
+                if (!_storageService.CanStore(buildingId, ResourceType.Food))
                     continue;
 
-                int removed = _storageService.Remove(bid, ResourceType.Food, left);
+                int removed = _storageService.Remove(buildingId, ResourceType.Food, left);
                 if (removed <= 0)
                     continue;
 
@@ -243,16 +254,21 @@ namespace SeasonalBastion
                 return null;
 
             BuildingId best = default;
-            foreach (var bid in _worldState.Buildings.Ids)
+            foreach (var buildingId in _worldState.Buildings.Ids)
             {
-                if (!_worldState.Buildings.Exists(bid)) continue;
-                var bs = _worldState.Buildings.Get(bid);
-                if (!bs.IsConstructed) continue;
-                var def = _dataRegistry.GetBuilding(bs.DefId);
-                if (def == null || !def.IsHQ) continue;
+                if (!_worldState.Buildings.Exists(buildingId))
+                    continue;
 
-                if (best.Value == 0 || bid.Value < best.Value)
-                    best = bid;
+                var building = _worldState.Buildings.Get(buildingId);
+                if (!building.IsConstructed)
+                    continue;
+
+                var def = _dataRegistry.GetBuilding(building.DefId);
+                if (def == null || !def.IsHQ)
+                    continue;
+
+                if (best.Value == 0 || buildingId.Value < best.Value)
+                    best = buildingId;
             }
 
             return best.Value != 0 ? best : null;
@@ -260,28 +276,28 @@ namespace SeasonalBastion
 
         private CellPos FindHqApproachCell(BuildingId hq)
         {
-            var bs = _worldState.Buildings.Get(hq);
-            var def = _dataRegistry.GetBuilding(bs.DefId);
+            var building = _worldState.Buildings.Get(hq);
+            var def = _dataRegistry.GetBuilding(building.DefId);
             if (def == null)
-                return bs.Anchor;
+                return building.Anchor;
 
-            int x = bs.Anchor.X + Math.Max(0, def.SizeX / 2);
-            int y = bs.Anchor.Y - 1;
+            int x = building.Anchor.X + Math.Max(0, def.SizeX / 2);
+            int y = building.Anchor.Y - 1;
             return new CellPos(x, y);
         }
 
         private string ResolveDefaultPopulationNpcDefId()
         {
             if (_dataRegistry == null)
-                return "NPC_HQ_Worker";
+                return DefaultPopulationNpcDefId;
 
-            if (_dataRegistry.TryGetNpc("NPC_HQ_Worker", out var _))
-                return "NPC_HQ_Worker";
+            if (_dataRegistry.TryGetNpc(DefaultPopulationNpcDefId, out var _))
+                return DefaultPopulationNpcDefId;
 
-            if (_dataRegistry.TryGetNpc("npc_villager_t1", out var _))
-                return "npc_villager_t1";
+            if (_dataRegistry.TryGetNpc(FallbackPopulationNpcDefId, out var _))
+                return FallbackPopulationNpcDefId;
 
-            return "NPC_HQ_Worker";
+            return DefaultPopulationNpcDefId;
         }
 
         private CellPos ResolveSpawnCell(CellPos desired)
@@ -309,19 +325,17 @@ namespace SeasonalBastion
         }
 
         private bool IsPreferredSpawnCell(CellPos cell)
-        {
-            if (!_gridMap.IsInside(cell)) return false;
-            return _gridMap.Get(cell).Kind == CellOccupancyKind.Empty;
-        }
+            => _gridMap.IsInside(cell) && _gridMap.Get(cell).Kind == CellOccupancyKind.Empty;
 
         private CellPos? FindNearbyCell(CellPos desired, CellOccupancyKind wanted)
         {
             const int maxR = 8;
 
-            bool IsMatch(CellPos c)
+            bool IsMatch(CellPos cell)
             {
-                if (!_gridMap.IsInside(c)) return false;
-                return _gridMap.Get(c).Kind == wanted;
+                if (!_gridMap.IsInside(cell))
+                    return false;
+                return _gridMap.Get(cell).Kind == wanted;
             }
 
             for (int r = 1; r <= maxR; r++)

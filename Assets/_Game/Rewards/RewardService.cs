@@ -7,9 +7,6 @@ namespace SeasonalBastion
 {
     public sealed class RewardService : IRewardService
     {
-        private readonly IWorldState _worldState;
-        private readonly IEventBus _bus;
-        private readonly RewardModifierPolicy _modifierPolicy;
         private static readonly int[] DaysPerSeason = { 6, 6, 4, 4 };
 
         internal const string RewardBuildSpeedId = "Reward_BuildSpeed";
@@ -17,6 +14,8 @@ namespace SeasonalBastion
         internal const string RewardTowerReloadId = "Reward_TowerReload";
         internal const string RewardNpcMoveSpeedId = "Reward_NpcMoveSpeed";
 
+        private readonly IEventBus _eventBus;
+        private readonly RewardModifierPolicy _modifierPolicy;
         private readonly List<string> _pickedRewardDefIds = new();
         private readonly string[] _rewardPool =
         {
@@ -39,31 +38,17 @@ namespace SeasonalBastion
 
         public RewardService(IWorldState worldState, IDataRegistry dataRegistry, IEventBus eventBus)
         {
-            _worldState = worldState;
-            _bus = eventBus;
+            _eventBus = eventBus;
             _modifierPolicy = new RewardModifierPolicy(worldState, dataRegistry);
 
-            if (_bus != null)
+            if (_eventBus != null)
             {
-                _bus.Subscribe<DayEndedEvent>(OnDayEnded);
-                _bus.Subscribe<EndSeasonRewardRequested>(OnEndSeasonRewardRequested);
+                _eventBus.Subscribe<DayEndedEvent>(OnDayEnded);
+                _eventBus.Subscribe<EndSeasonRewardRequested>(OnEndSeasonRewardRequested);
             }
 
             CurrentOffer = default;
             LastGeneratedOffer = default;
-        }
-
-        private void OnDayEnded(DayEndedEvent ev)
-        {
-            int idx = (int)ev.Season;
-            int max = (idx >= 0 && idx < DaysPerSeason.Length) ? DaysPerSeason[idx] : 1;
-            if (ev.DayIndex == max)
-                _bus?.Publish(new EndSeasonRewardRequested(ev.Season, ev.YearIndex, ev.DayIndex));
-        }
-
-        private void OnEndSeasonRewardRequested(EndSeasonRewardRequested ev)
-        {
-            TriggerSeasonEndReward(ev.Season, ev.YearIndex, ev.DayIndex);
         }
 
         public RewardOffer GenerateOffer(int dayIndex, int seed)
@@ -92,18 +77,9 @@ namespace SeasonalBastion
                 return;
             }
 
-            string chosen = slotIndex switch
-            {
-                <= 0 => CurrentOffer.A,
-                1 => CurrentOffer.B,
-                _ => CurrentOffer.C,
-            };
-
+            string chosen = ResolveChosenReward(slotIndex);
             ApplyReward(chosen, appendToHistory: true);
-            OnRewardChosen?.Invoke(chosen);
-            _bus?.Publish(new RewardPickedEvent(chosen));
-            IsSelectionActive = false;
-            OnSelectionEnded?.Invoke();
+            EndSelection(chosen);
         }
 
         public void TriggerWaveEndReward(string waveId, int year, Season season, int day, bool isBoss, bool isFinalWave)
@@ -131,20 +107,43 @@ namespace SeasonalBastion
             _pickedRewardDefIds.Clear();
             _modifierPolicy.ResetRunModifiers();
 
-            if (rewardIds == null)
-                return;
-
-            for (int i = 0; i < rewardIds.Count; i++)
+            if (rewardIds != null)
             {
-                var rewardId = rewardIds[i];
-                if (string.IsNullOrWhiteSpace(rewardId))
-                    continue;
-
-                ApplyReward(rewardId, appendToHistory: true);
+                for (int i = 0; i < rewardIds.Count; i++)
+                    ApplyReward(rewardIds[i], appendToHistory: true);
             }
 
             IsSelectionActive = false;
             CurrentOffer = default;
+        }
+
+        private void OnDayEnded(DayEndedEvent ev)
+        {
+            int idx = (int)ev.Season;
+            int max = (idx >= 0 && idx < DaysPerSeason.Length) ? DaysPerSeason[idx] : 1;
+            if (ev.DayIndex == max)
+                _eventBus?.Publish(new EndSeasonRewardRequested(ev.Season, ev.YearIndex, ev.DayIndex));
+        }
+
+        private void OnEndSeasonRewardRequested(EndSeasonRewardRequested ev)
+            => TriggerSeasonEndReward(ev.Season, ev.YearIndex, ev.DayIndex);
+
+        private string ResolveChosenReward(int slotIndex)
+        {
+            return slotIndex switch
+            {
+                <= 0 => CurrentOffer.A,
+                1 => CurrentOffer.B,
+                _ => CurrentOffer.C,
+            };
+        }
+
+        private void EndSelection(string chosenReward)
+        {
+            OnRewardChosen?.Invoke(chosenReward);
+            _eventBus?.Publish(new RewardPickedEvent(chosenReward));
+            IsSelectionActive = false;
+            OnSelectionEnded?.Invoke();
         }
 
         private RewardOffer NormalizeOffer(RewardOffer offer)
@@ -218,9 +217,7 @@ namespace SeasonalBastion
         }
 
         private int GetRunSeed()
-        {
-            return 0;
-        }
+            => 0;
 
         private static int CombineSeed(params int[] values)
         {

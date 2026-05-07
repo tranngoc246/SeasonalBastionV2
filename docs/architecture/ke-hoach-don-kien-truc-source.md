@@ -332,7 +332,9 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã bóc tiếp `BuildOrderWorkplaceResolver`: constructor hiện nhận `BalanceService`, `IWorldState`, `IDataRegistry`, `IJobWorkplacePolicy` thay vì `GameServices`.
 - [x] Đã đi tiếp `BuildOrderCreationService` pass 1: bỏ dependency trực tiếp vào `GameServices`, chuyển sang tập dependency hẹp hơn gồm `IDataRegistry`, `IWorldState`, `IGridMap`, `IEventBus`, `INotificationService`, `IStorageService`, `IUnlockService`, `IPlacementService`, `IPathfinderRuntime`.
 - [x] Đã bổ sung overload hẹp cho `EntryCellUtil` và `JobReachabilityHelper` để hỗ trợ cụm `Build*` gọi theo dependency thật sự dùng thay vì container full `GameServices`.
-- [~] Cụm `Build*` hiện đã bắt đầu có dependency boundary rõ hơn ở level helper/service, nhưng `BuildOrderService` orchestration root vẫn còn là điểm gom lớn.
-- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc `BuildOrderCancellationService` hoặc `BuildOrderEventBridge` nếu muốn tiếp tục bóc nhỏ trong cụm `Build*`; nếu muốn payoff lớn hơn nhưng rủi ro cao hơn thì mới chuyển sang cụm `Ammo*`.
+- [x] Đã refactor `BuildOrderEventBridge` để chỉ nhận `IEventBus` thay vì giữ dependency vào full `GameServices`.
+- [x] Đã refactor `BuildOrderCancellationService` để bỏ dependency trực tiếp vào `GameServices`, chuyển sang các dependency hẹp hơn: `IWorldState`, `IGridMap`, `IWorldIndex`, `IStorageService`, `IDataRegistry`, `IEventBus`, `INotificationService`, `IJobBoard`.
+- [~] Cụm `Build*` hiện đã có dependency boundary rõ hơn ở level helper/service, nhưng `BuildOrderService` orchestration root và `BuildOrderReloadService` vẫn còn là các điểm gom đáng dọn tiếp.
+- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc bóc tiếp `BuildOrderReloadService`; nếu muốn payoff lớn hơn nhưng rủi ro cao hơn thì mới chuyển sang cụm `Ammo*`.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

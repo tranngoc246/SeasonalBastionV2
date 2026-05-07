@@ -474,7 +474,7 @@ namespace SeasonalBastion.Tests.EditMode
 
             var roads = new Dictionary<int, CellPos> { [77] = new CellPos(6, 7) };
             int cancelTrackedCalls = 0;
-            var cancellation = new BuildOrderCancellationService(services, true, roads, new Dictionary<int, JobId>(), _ => cancelTrackedCalls++);
+            var cancellation = new BuildOrderCancellationService(services.WorldState, services.GridMap, services.WorldIndex, services.StorageService, services.DataRegistry, services.EventBus, services.NotificationService, services.JobBoard, true, roads, new Dictionary<int, JobId>(), _ => cancelTrackedCalls++);
             var order = new BuildOrder
             {
                 OrderId = 77,
@@ -551,7 +551,7 @@ namespace SeasonalBastion.Tests.EditMode
             grid.SetSite(new CellPos(5, 6), siteId);
             grid.SetSite(new CellPos(6, 6), siteId);
 
-            var cancellation = new BuildOrderCancellationService(services, true, new Dictionary<int, CellPos>(), new Dictionary<int, JobId>(), _ => { });
+            var cancellation = new BuildOrderCancellationService(services.WorldState, services.GridMap, services.WorldIndex, services.StorageService, services.DataRegistry, services.EventBus, services.NotificationService, services.JobBoard, true, new Dictionary<int, CellPos>(), new Dictionary<int, JobId>(), _ => { });
             var order = new BuildOrder
             {
                 OrderId = 88,

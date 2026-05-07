@@ -6,7 +6,14 @@ namespace SeasonalBastion
 {
     internal sealed class BuildOrderCancellationService
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IGridMap _gridMap;
+        private readonly IWorldIndex _worldIndex;
+        private readonly IStorageService _storageService;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IEventBus _eventBus;
+        private readonly INotificationService _notificationService;
+        private readonly IJobBoard _jobBoard;
         private readonly bool _destroyPlaceholderOnCancel;
         private readonly Dictionary<int, CellPos> _autoRoadByOrder;
         private readonly Dictionary<int, JobId> _repairJobByOrder;
@@ -14,13 +21,27 @@ namespace SeasonalBastion
         private readonly Action<SiteId> _cancelTrackedJobsForSite;
 
         public BuildOrderCancellationService(
-            GameServices s,
+            IWorldState worldState,
+            IGridMap gridMap,
+            IWorldIndex worldIndex,
+            IStorageService storageService,
+            IDataRegistry dataRegistry,
+            IEventBus eventBus,
+            INotificationService notificationService,
+            IJobBoard jobBoard,
             bool destroyPlaceholderOnCancel,
             Dictionary<int, CellPos> autoRoadByOrder,
             Dictionary<int, JobId> repairJobByOrder,
             Action<SiteId> cancelTrackedJobsForSite)
         {
-            _s = s;
+            _worldState = worldState;
+            _gridMap = gridMap;
+            _worldIndex = worldIndex;
+            _storageService = storageService;
+            _dataRegistry = dataRegistry;
+            _eventBus = eventBus;
+            _notificationService = notificationService;
+            _jobBoard = jobBoard;
             _destroyPlaceholderOnCancel = destroyPlaceholderOnCancel;
             _autoRoadByOrder = autoRoadByOrder;
             _repairJobByOrder = repairJobByOrder;
@@ -49,9 +70,15 @@ namespace SeasonalBastion
 
         public void CancelRepairJob(int orderId)
         {
+            if (_jobBoard == null)
+            {
+                _repairJobByOrder.Remove(orderId);
+                return;
+            }
+
             if (_repairJobByOrder.TryGetValue(orderId, out var jid))
             {
-                _s.JobBoard.Cancel(jid);
+                _jobBoard.Cancel(jid);
                 _repairJobByOrder.Remove(orderId);
             }
         }
@@ -71,7 +98,7 @@ namespace SeasonalBastion
             RemovePlaceholder(o.TargetBuilding);
             CleanupOrphanSiteForBuilding(o.TargetBuilding);
 
-            _s.NotificationService?.Push(
+            _notificationService?.Push(
                 key: $"BuildCancel_{o.TargetBuilding.Value}",
                 title: "Đã hủy xây dựng",
                 body: "Lệnh xây công trình đã được hủy.",
@@ -93,7 +120,7 @@ namespace SeasonalBastion
 
             CleanupOrphanSiteForBuilding(o.TargetBuilding);
 
-            _s.NotificationService?.Push(
+            _notificationService?.Push(
                 key: $"UpgradeCancel_{o.TargetBuilding.Value}",
                 title: "Đã hủy nâng cấp",
                 body: "Lệnh nâng cấp công trình đã được hủy.",
@@ -107,7 +134,7 @@ namespace SeasonalBastion
         {
             CancelRepairJob(o.OrderId);
 
-            _s.NotificationService?.Push(
+            _notificationService?.Push(
                 key: $"RepairCancel_{o.TargetBuilding.Value}",
                 title: "Đã hủy sửa chữa",
                 body: "Lệnh sửa chữa công trình đã được hủy.",
@@ -121,10 +148,10 @@ namespace SeasonalBastion
         {
             if (!_destroyPlaceholderOnCancel) return;
             if (buildingId.Value == 0) return;
-            if (_s.WorldState?.Buildings == null) return;
-            if (!_s.WorldState.Buildings.Exists(buildingId)) return;
+            if (_worldState?.Buildings == null) return;
+            if (!_worldState.Buildings.Exists(buildingId)) return;
 
-            var building = _s.WorldState.Buildings.Get(buildingId);
+            var building = _worldState.Buildings.Get(buildingId);
             if (building.IsConstructed)
                 return;
 
@@ -133,13 +160,13 @@ namespace SeasonalBastion
             int h = Math.Max(1, def?.SizeY ?? 1);
             for (int dy = 0; dy < h; dy++)
             for (int dx = 0; dx < w; dx++)
-                _s.GridMap?.ClearBuilding(new CellPos(building.Anchor.X + dx, building.Anchor.Y + dy));
+                _gridMap?.ClearBuilding(new CellPos(building.Anchor.X + dx, building.Anchor.Y + dy));
 
-            _s.WorldState.Buildings.Destroy(buildingId);
-            try { _s.WorldIndex?.OnBuildingDestroyed(buildingId); }
+            _worldState.Buildings.Destroy(buildingId);
+            try { _worldIndex?.OnBuildingDestroyed(buildingId); }
             catch (Exception ex) { UnityEngine.Debug.LogError($"[BuildOrderCancellationService] Failed to update WorldIndex after removing placeholder building {buildingId.Value}: {ex}"); }
-            _s.EventBus?.Publish(new WorldStateChangedEvent("Building", buildingId.Value));
-            _s.EventBus?.Publish(new RoadsDirtyEvent());
+            _eventBus?.Publish(new WorldStateChangedEvent("Building", buildingId.Value));
+            _eventBus?.Publish(new RoadsDirtyEvent());
         }
 
         private void CleanupBuildSite(SiteId siteId, in BuildSiteState site)
@@ -150,24 +177,24 @@ namespace SeasonalBastion
 
             for (int dy = 0; dy < h; dy++)
             for (int dx = 0; dx < w; dx++)
-                _s.GridMap?.ClearSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy));
+                _gridMap?.ClearSite(new CellPos(site.Anchor.X + dx, site.Anchor.Y + dy));
 
-            if (_s.WorldState.Sites.Exists(siteId))
-                _s.WorldState.Sites.Destroy(siteId);
+            if (_worldState.Sites.Exists(siteId))
+                _worldState.Sites.Destroy(siteId);
 
-            _s.EventBus?.Publish(new WorldStateChangedEvent("BuildSite", siteId.Value));
+            _eventBus?.Publish(new WorldStateChangedEvent("BuildSite", siteId.Value));
         }
 
         private void CleanupOrphanSiteForBuilding(BuildingId buildingId)
         {
-            if (buildingId.Value == 0 || _s.WorldState?.Sites == null)
+            if (buildingId.Value == 0 || _worldState?.Sites == null)
                 return;
 
             var stale = new List<SiteId>();
-            foreach (var siteId in _s.WorldState.Sites.Ids)
+            foreach (var siteId in _worldState.Sites.Ids)
             {
-                if (!_s.WorldState.Sites.Exists(siteId)) continue;
-                var site = _s.WorldState.Sites.Get(siteId);
+                if (!_worldState.Sites.Exists(siteId)) continue;
+                var site = _worldState.Sites.Get(siteId);
                 if (site.TargetBuilding.Value == buildingId.Value)
                     stale.Add(siteId);
             }
@@ -175,35 +202,35 @@ namespace SeasonalBastion
             for (int i = 0; i < stale.Count; i++)
             {
                 var siteId = stale[i];
-                if (!_s.WorldState.Sites.Exists(siteId)) continue;
-                var site = _s.WorldState.Sites.Get(siteId);
+                if (!_worldState.Sites.Exists(siteId)) continue;
+                var site = _worldState.Sites.Get(siteId);
                 CleanupBuildSite(siteId, site);
             }
         }
 
         private void TryRollbackAutoRoad(int orderId, in BuildOrder o)
         {
-            if (_s.GridMap == null) return;
+            if (_gridMap == null) return;
             if (!_autoRoadByOrder.TryGetValue(orderId, out var c)) return;
-            if (!_s.GridMap.IsInside(c)) return;
+            if (!_gridMap.IsInside(c)) return;
 
-            var occ = _s.GridMap.Get(c);
+            var occ = _gridMap.Get(c);
             if (occ.Kind == CellOccupancyKind.Site || occ.Kind == CellOccupancyKind.Building)
                 return;
 
-            if (_s.GridMap.IsRoad(c))
+            if (_gridMap.IsRoad(c))
             {
-                _s.GridMap.SetRoad(c, false);
-                _s.EventBus?.Publish(new RoadsDirtyEvent());
+                _gridMap.SetRoad(c, false);
+                _eventBus?.Publish(new RoadsDirtyEvent());
             }
         }
 
         private void RefundDeliveredToNearestStorage(in BuildSiteState st)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.WorldIndex == null) return;
+            if (_worldState == null || _storageService == null || _worldIndex == null) return;
             if (st.DeliveredSoFar == null || st.DeliveredSoFar.Count == 0) return;
 
-            var whs = _s.WorldIndex.Warehouses;
+            var whs = _worldIndex.Warehouses;
             if (whs == null || whs.Count == 0) return;
 
             _buildingIdsBuf.Clear();
@@ -211,9 +238,9 @@ namespace SeasonalBastion
             {
                 var bid = whs[i];
                 if (bid.Value == 0) continue;
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+                if (!_worldState.Buildings.Exists(bid)) continue;
 
-                var bs = _s.WorldState.Buildings.Get(bid);
+                var bs = _worldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
                 _buildingIdsBuf.Add(bid);
             }
@@ -223,8 +250,8 @@ namespace SeasonalBastion
             var from = st.Anchor;
             _buildingIdsBuf.Sort((a, b) =>
             {
-                var aa = _s.WorldState.Buildings.Get(a).Anchor;
-                var bb = _s.WorldState.Buildings.Get(b).Anchor;
+                var aa = _worldState.Buildings.Get(a).Anchor;
+                var bb = _worldState.Buildings.Get(b).Anchor;
                 int da = Manhattan(from, aa);
                 int db = Manhattan(from, bb);
                 if (da != db) return da.CompareTo(db);
@@ -242,8 +269,8 @@ namespace SeasonalBastion
                 for (int k = 0; k < _buildingIdsBuf.Count && left > 0; k++)
                 {
                     var dst = _buildingIdsBuf[k];
-                    if (!_s.StorageService.CanStore(dst, rt)) continue;
-                    int added = _s.StorageService.Add(dst, rt, left);
+                    if (!_storageService.CanStore(dst, rt)) continue;
+                    int added = _storageService.Add(dst, rt, left);
                     left -= added;
                 }
             }
@@ -252,19 +279,19 @@ namespace SeasonalBastion
         private bool TryGetSite(SiteId siteId, out BuildSiteState site)
         {
             site = default;
-            if (siteId.Value == 0 || _s.WorldState?.Sites == null || !_s.WorldState.Sites.Exists(siteId))
+            if (siteId.Value == 0 || _worldState?.Sites == null || !_worldState.Sites.Exists(siteId))
                 return false;
 
-            site = _s.WorldState.Sites.Get(siteId);
+            site = _worldState.Sites.Get(siteId);
             return true;
         }
 
         private BuildingDef SafeGetBuildingDef(string defId)
         {
-            if (_s?.DataRegistry == null || string.IsNullOrWhiteSpace(defId))
+            if (_dataRegistry == null || string.IsNullOrWhiteSpace(defId))
                 return null;
 
-            try { return _s.DataRegistry.GetBuilding(defId); }
+            try { return _dataRegistry.GetBuilding(defId); }
             catch { return null; }
         }
 

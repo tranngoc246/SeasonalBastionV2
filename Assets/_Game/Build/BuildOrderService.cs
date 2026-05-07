@@ -33,13 +33,20 @@ namespace SeasonalBastion
         public BuildOrderService(GameServices s)
         {
             _s = s;
-            _eventBridge = new BuildOrderEventBridge(s, _autoRoadByOrder);
+            _eventBridge = new BuildOrderEventBridge(s.EventBus, _autoRoadByOrder);
             _buildJobOrchestrator = s.BuildJobOrchestrator ?? new BuildJobPlanner(s, _deliverJobsBySite, _workJobBySite);
             if (_s.BuildJobOrchestrator == null)
                 _s.BuildJobOrchestrator = _buildJobOrchestrator;
             _costTracker = new BuildOrderCostTracker();
             _cancellationService = new BuildOrderCancellationService(
-                s,
+                s.WorldState,
+                s.GridMap,
+                s.WorldIndex,
+                s.StorageService,
+                s.DataRegistry,
+                s.EventBus,
+                s.NotificationService,
+                s.JobBoard,
                 _destroyPlaceholderOnCancel,
                 _autoRoadByOrder,
                 _repairJobByOrder,

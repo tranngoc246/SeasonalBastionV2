@@ -791,7 +791,7 @@ namespace SeasonalBastion.Tests.EditMode
             var bus = new TestEventBus();
             var roads = new Dictionary<int, CellPos>();
             var services = MakeServices(bus, new TestDataRegistry(), new NotificationService(bus), new FakeRunClock(), new FakeRunOutcomeService());
-            var bridge = new BuildOrderEventBridge(services, roads);
+            var bridge = new BuildOrderEventBridge(services.EventBus, roads);
 
             bridge.EnsureSubscribed();
             bus.Publish(new BuildOrderAutoRoadCreatedEvent(42, new CellPos(9, 11)));
@@ -898,7 +898,7 @@ namespace SeasonalBastion.Tests.EditMode
             var roads = new Dictionary<int, CellPos> { [99] = new CellPos(1, 1) };
             grid.SetRoad(new CellPos(1, 1), true);
 
-            var cancellation = new BuildOrderCancellationService(services, true, roads, new Dictionary<int, JobId>(), _ => { });
+            var cancellation = new BuildOrderCancellationService(services.WorldState, services.GridMap, services.WorldIndex, services.StorageService, services.DataRegistry, services.EventBus, services.NotificationService, services.JobBoard, true, roads, new Dictionary<int, JobId>(), _ => { });
             var order = new BuildOrder { OrderId = 99, Kind = BuildOrderKind.PlaceNew, BuildingDefId = "bld_test", TargetBuilding = target, Site = siteId, Completed = false };
 
             cancellation.Cancel(ref order);
@@ -930,7 +930,7 @@ namespace SeasonalBastion.Tests.EditMode
             // Preexisting road at the same driveway cell a placement would have used.
             grid.SetRoad(new CellPos(2, 3), true);
 
-            var cancellation = new BuildOrderCancellationService(services, true, new Dictionary<int, CellPos>(), new Dictionary<int, JobId>(), _ => { });
+            var cancellation = new BuildOrderCancellationService(services.WorldState, services.GridMap, services.WorldIndex, services.StorageService, services.DataRegistry, services.EventBus, services.NotificationService, services.JobBoard, true, new Dictionary<int, CellPos>(), new Dictionary<int, JobId>(), _ => { });
             var order = new BuildOrder { OrderId = 99, Kind = BuildOrderKind.PlaceNew, BuildingDefId = "bld_test", TargetBuilding = target, Site = siteId, Completed = false };
 
             cancellation.Cancel(ref order);
@@ -1078,7 +1078,7 @@ namespace SeasonalBastion.Tests.EditMode
             var s = world.Sites.Get(siteId); s.Id = siteId; world.Sites.Set(siteId, s);
             grid.SetSite(new CellPos(5, 5), siteId);
 
-            var cancellation = new BuildOrderCancellationService(services, true, new Dictionary<int, CellPos>(), new Dictionary<int, JobId>(), _ => { });
+            var cancellation = new BuildOrderCancellationService(services.WorldState, services.GridMap, services.WorldIndex, services.StorageService, services.DataRegistry, services.EventBus, services.NotificationService, services.JobBoard, true, new Dictionary<int, CellPos>(), new Dictionary<int, JobId>(), _ => { });
             var order = new BuildOrder { OrderId = 100, Kind = BuildOrderKind.PlaceNew, BuildingDefId = "bld_test", TargetBuilding = target, Site = siteId, Completed = false };
 
             cancellation.Cancel(ref order);
@@ -1107,7 +1107,7 @@ namespace SeasonalBastion.Tests.EditMode
             var repairJobId = services.JobBoard.Enqueue(repairJob);
             trackedRepair[77] = repairJobId;
 
-            var cancellation = new BuildOrderCancellationService(services, true, new Dictionary<int, CellPos>(), trackedRepair, _ => { });
+            var cancellation = new BuildOrderCancellationService(services.WorldState, services.GridMap, services.WorldIndex, services.StorageService, services.DataRegistry, services.EventBus, services.NotificationService, services.JobBoard, true, new Dictionary<int, CellPos>(), trackedRepair, _ => { });
             cancellation.CancelRepairJob(77);
 
             Assert.That(trackedRepair.ContainsKey(77), Is.False, "Tracked repair job entry should be removed after cancel.");

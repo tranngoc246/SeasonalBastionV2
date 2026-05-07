@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -6,30 +5,28 @@ namespace SeasonalBastion
 {
     internal sealed class BuildOrderEventBridge
     {
-        private readonly GameServices _s;
+        private readonly IEventBus _eventBus;
         private readonly Dictionary<int, CellPos> _autoRoadByOrder;
         private bool _busSubscribed;
 
-        public BuildOrderEventBridge(GameServices s, Dictionary<int, CellPos> autoRoadByOrder)
+        public BuildOrderEventBridge(IEventBus eventBus, Dictionary<int, CellPos> autoRoadByOrder)
         {
-            _s = s;
+            _eventBus = eventBus;
             _autoRoadByOrder = autoRoadByOrder;
         }
 
         public void EnsureSubscribed()
         {
-            if (_busSubscribed) return;
-            var bus = _s.EventBus;
-            if (bus == null) return;
+            if (_busSubscribed || _eventBus == null) return;
 
-            bus.Subscribe<BuildOrderAutoRoadCreatedEvent>(OnAutoRoadCreated);
+            _eventBus.Subscribe<BuildOrderAutoRoadCreatedEvent>(OnAutoRoadCreated);
             _busSubscribed = true;
         }
 
         public void Unsubscribe()
         {
-            if (!_busSubscribed || _s.EventBus == null) return;
-            _s.EventBus.Unsubscribe<BuildOrderAutoRoadCreatedEvent>(OnAutoRoadCreated);
+            if (!_busSubscribed || _eventBus == null) return;
+            _eventBus.Unsubscribe<BuildOrderAutoRoadCreatedEvent>(OnAutoRoadCreated);
             _busSubscribed = false;
         }
 

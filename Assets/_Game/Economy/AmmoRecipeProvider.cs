@@ -6,28 +6,28 @@ namespace SeasonalBastion
 {
     internal sealed class AmmoRecipeProvider
     {
-        private readonly AmmoService _owner;
-        private readonly GameServices _s;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly Func<string> _getAmmoRecipeId;
         private RecipeDef _cachedAmmoRecipe;
         private string _cachedAmmoRecipeId;
 
-        internal AmmoRecipeProvider(AmmoService owner)
+        internal AmmoRecipeProvider(IDataRegistry dataRegistry, Func<string> getAmmoRecipeId)
         {
-            _owner = owner;
-            _s = owner.Services;
+            _dataRegistry = dataRegistry;
+            _getAmmoRecipeId = getAmmoRecipeId;
         }
 
         internal bool TryGetAmmoRecipe(out RecipeDef recipe)
         {
             recipe = null;
 
-            string rid = _owner.AmmoRecipeIdValue;
-            if (string.IsNullOrEmpty(rid))
-                rid = "ForgeAmmo";
+            string recipeId = _getAmmoRecipeId?.Invoke();
+            if (string.IsNullOrEmpty(recipeId))
+                recipeId = "ForgeAmmo";
 
-            if (!string.Equals(_cachedAmmoRecipeId, rid, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(_cachedAmmoRecipeId, recipeId, StringComparison.OrdinalIgnoreCase))
             {
-                _cachedAmmoRecipeId = rid;
+                _cachedAmmoRecipeId = recipeId;
                 _cachedAmmoRecipe = null;
             }
 
@@ -37,21 +37,21 @@ namespace SeasonalBastion
                 return true;
             }
 
-            if (TryLoadRecipe(rid, out recipe))
+            if (TryLoadRecipe(recipeId, out recipe))
             {
-                _cachedAmmoRecipeId = rid;
+                _cachedAmmoRecipeId = recipeId;
                 _cachedAmmoRecipe = recipe;
                 return true;
             }
 
-            Debug.LogWarning($"[AmmoService] Missing ammo recipe '{rid}'.");
-            if (string.Equals(rid, "ForgeAmmo", StringComparison.OrdinalIgnoreCase))
+            Debug.LogWarning($"[AmmoService] Missing ammo recipe '{recipeId}'.");
+            if (string.Equals(recipeId, "ForgeAmmo", StringComparison.OrdinalIgnoreCase))
                 return false;
 
-            Debug.LogWarning($"[AmmoService] Falling back to ammo recipe 'ForgeAmmo' after '{rid}' lookup failed.");
+            Debug.LogWarning($"[AmmoService] Falling back to ammo recipe 'ForgeAmmo' after '{recipeId}' lookup failed.");
             if (!TryLoadRecipe("ForgeAmmo", out recipe))
             {
-                Debug.LogWarning($"[AmmoService] Failed to load fallback ammo recipe 'ForgeAmmo'.");
+                Debug.LogWarning("[AmmoService] Failed to load fallback ammo recipe 'ForgeAmmo'.");
                 return false;
             }
 
@@ -69,12 +69,12 @@ namespace SeasonalBastion
         private bool TryLoadRecipe(string recipeId, out RecipeDef recipe)
         {
             recipe = null;
-            if (_s?.DataRegistry == null || string.IsNullOrWhiteSpace(recipeId))
+            if (_dataRegistry == null || string.IsNullOrWhiteSpace(recipeId))
                 return false;
 
             try
             {
-                recipe = _s.DataRegistry.GetRecipe(recipeId);
+                recipe = _dataRegistry.GetRecipe(recipeId);
                 return recipe != null;
             }
             catch (Exception ex)

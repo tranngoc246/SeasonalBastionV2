@@ -84,8 +84,15 @@ namespace SeasonalBastion
             _recoveryService = new AmmoRecoveryService(this);
             _metricsReporter = new AmmoMetricsReporter(this);
             _configProvider = new AmmoConfigProvider(s);
-            _recipeProvider = new AmmoRecipeProvider(this);
-            _craftService = new AmmoCraftService(this, _recipeProvider);
+            _recipeProvider = new AmmoRecipeProvider(s.DataRegistry, () => AmmoRecipeId);
+            _craftService = new AmmoCraftService(
+                s.WorldState,
+                s.StorageService,
+                s.JobBoard,
+                _recipeProvider,
+                _runtimeState.CraftJobByForge,
+                RebuildWorkplaceHasNpcSet,
+                () => _runtimeState.WorkplacesWithNpc);
             _monitorPolicy = new AmmoMonitorPolicy(
                 s.NotificationService,
                 s.CombatService,

@@ -1,60 +1,87 @@
+using System;
+using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
     internal sealed class AmmoCraftService
     {
-        private readonly AmmoService _owner;
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IStorageService _storageService;
+        private readonly IJobBoard _jobBoard;
         private readonly AmmoRecipeProvider _recipeProvider;
+        private readonly Dictionary<int, JobId> _craftJobByForge;
+        private readonly Action _rebuildWorkplaceHasNpcSet;
+        private readonly Func<HashSet<int>> _getWorkplacesWithNpc;
 
-        internal AmmoCraftService(AmmoService owner, AmmoRecipeProvider recipeProvider)
+        internal AmmoCraftService(
+            IWorldState worldState,
+            IStorageService storageService,
+            IJobBoard jobBoard,
+            AmmoRecipeProvider recipeProvider,
+            Dictionary<int, JobId> craftJobByForge,
+            Action rebuildWorkplaceHasNpcSet,
+            Func<HashSet<int>> getWorkplacesWithNpc)
         {
-            _owner = owner;
-            _s = owner.Services;
+            _worldState = worldState;
+            _storageService = storageService;
+            _jobBoard = jobBoard;
             _recipeProvider = recipeProvider;
+            _craftJobByForge = craftJobByForge;
+            _rebuildWorkplaceHasNpcSet = rebuildWorkplaceHasNpcSet;
+            _getWorkplacesWithNpc = getWorkplacesWithNpc;
         }
 
         internal bool TryStartCraft(BuildingId forge)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.JobBoard == null || _s.DataRegistry == null) return false;
-            if (!_s.WorldState.Buildings.Exists(forge)) return false;
+            if (_worldState == null || _storageService == null || _jobBoard == null)
+                return false;
+            if (!_worldState.Buildings.Exists(forge))
+                return false;
 
-            var bs = _s.WorldState.Buildings.Get(forge);
-            if (!bs.IsConstructed) return false;
+            var building = _worldState.Buildings.Get(forge);
+            if (!building.IsConstructed)
+                return false;
 
             if (!_recipeProvider.TryGetAmmoRecipe(out var recipe))
                 return false;
 
-            _owner.RebuildWorkplaceHasNpcSet();
-            if (!_owner.WorkplacesWithNpc.Contains(forge.Value)) return false;
+            _rebuildWorkplaceHasNpcSet?.Invoke();
+            var workplacesWithNpc = _getWorkplacesWithNpc?.Invoke();
+            if (workplacesWithNpc == null || !workplacesWithNpc.Contains(forge.Value))
+                return false;
 
-            int outCap = _s.StorageService.GetCap(forge, recipe.OutputType);
-            int outCur = _s.StorageService.GetAmount(forge, recipe.OutputType);
-            if (outCap <= 0 || (outCap - outCur) < recipe.OutputAmount) return false;
+            int outputCap = _storageService.GetCap(forge, recipe.OutputType);
+            int outputCurrent = _storageService.GetAmount(forge, recipe.OutputType);
+            if (outputCap <= 0 || (outputCap - outputCurrent) < recipe.OutputAmount)
+                return false;
 
-            int inCur = _s.StorageService.GetAmount(forge, recipe.InputType);
-            if (inCur < recipe.InputAmount) return false;
+            int inputCurrent = _storageService.GetAmount(forge, recipe.InputType);
+            if (inputCurrent < recipe.InputAmount)
+                return false;
 
             var extras = recipe.ExtraInputs;
             if (extras != null && extras.Length > 0)
             {
                 for (int i = 0; i < extras.Length; i++)
                 {
-                    var c = extras[i];
-                    if (c == null || c.Amount <= 0) continue;
-                    int cur = _s.StorageService.GetAmount(forge, c.Resource);
-                    if (cur < c.Amount) return false;
+                    var cost = extras[i];
+                    if (cost == null || cost.Amount <= 0)
+                        continue;
+
+                    int current = _storageService.GetAmount(forge, cost.Resource);
+                    if (current < cost.Amount)
+                        return false;
                 }
             }
 
-            if (_owner.CraftJobByForge.TryGetValue(forge.Value, out var oldId))
+            if (_craftJobByForge.TryGetValue(forge.Value, out var existingId))
             {
-                if (_s.JobBoard.TryGet(oldId, out var old) && !AmmoService.IsTerminal(old.Status))
+                if (_jobBoard.TryGet(existingId, out var existingJob) && !AmmoService.IsTerminal(existingJob.Status))
                     return false;
             }
 
-            var j = new Job
+            var job = new Job
             {
                 Archetype = JobArchetype.CraftAmmo,
                 Status = JobStatus.Created,
@@ -63,12 +90,12 @@ namespace SeasonalBastion
                 DestBuilding = default,
                 ResourceType = recipe.OutputType,
                 Amount = recipe.OutputAmount,
-                TargetCell = bs.Anchor,
+                TargetCell = building.Anchor,
                 CreatedAt = 0
             };
 
-            var id = _s.JobBoard.Enqueue(j);
-            _owner.CraftJobByForge[forge.Value] = id;
+            var jobId = _jobBoard.Enqueue(job);
+            _craftJobByForge[forge.Value] = jobId;
             return true;
         }
     }

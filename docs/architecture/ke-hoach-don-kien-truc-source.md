@@ -322,7 +322,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã tách `LoadRun(...)`, `LoadRunFromSlot(...)`, và mapper DTO trung tâm sang `SaveService.LoadMapping.cs` để `SaveService.cs` giữ orchestration mỏng hơn.
 - [x] Đã tách `ReadSlotInfo(...)`, `ListRunSaves()`, và `GetLatestValidSlot()` sang `SaveService.Slots.cs` để gom slot policy/inspection về một chỗ.
 - [x] Đã tách `SaveMeta(...)` và `LoadMeta(...)` sang `SaveService.Meta.cs` để hoàn tất nhóm trách nhiệm meta persistence.
-- [ ] Bước tiếp theo hợp lý: review `SaveService.cs` sau cleanup này để quyết định dừng ở checkpoint hiện tại hay tách nốt các helper nhỏ còn lại.
+- [x] Đã review/chốt lại `SaveService.cs` như facade mỏng hơn: giữ entrypoint save/delete/check đơn giản, gom helper nhỏ cho save-target/delete policy, và để phần IO/load/meta/slots/snapshot tiếp tục nằm ở các partial chuyên trách.
+- [~] Cụm `SaveService*` hiện đã khá rõ boundary theo trách nhiệm; nếu đi tiếp thì chủ yếu là polish naming hoặc giảm thêm phụ thuộc `GameServices`/service reach-through ở snapshot path.
 - [x] Đã bắt đầu wave giảm phụ thuộc trực tiếp vào `GameServices` bằng `PopulationService` pass 1.
 - [x] `PopulationService` không còn nhận full `GameServices`; hiện constructor nhận tập dependency hẹp hơn: `IEventBus`, `IDataRegistry`, `IRunClock`, `INotificationService`, `IWorldState`, `IGridMap`, `IStorageService`, `IRunOutcomeService`.
 - [~] Pass này giữ nguyên behavior, chủ yếu làm rõ dependency boundary và mở đường cho các service khác áp dụng pattern tương tự.

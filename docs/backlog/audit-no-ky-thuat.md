@@ -46,7 +46,7 @@
 7. Refactor Large Classes
  [x] AmmoService.cs da duoc tach thanh facade-orchestrator mong hon, logic da duoc day ra cac lop monitor/craft/recovery/observability/planner con.
  Tách EnemySystem.cs
- Tách SaveService.cs
+ [x] SaveService.cs da duoc chia thanh cac partial theo IO/load/meta/slots/snapshot va chot lai facade mong hon o file goc.
  Tách DebugHUDHub.cs
  Tách PlacementInputController.cs
 8. UI Binding Stability

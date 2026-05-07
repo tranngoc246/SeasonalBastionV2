@@ -342,7 +342,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [~] Cụm `Build*` hiện đã có dependency boundary rõ hơn rõ rệt; phần còn lại đáng cân nhắc chủ yếu là polish tiếp `BuildOrderTickProcessor` hoặc dừng cụm này ở checkpoint hiện tại để chuyển mặt trận.
 - [x] Đã chuyển sang `Ammo*` pass 1 bằng cách bóc monitor/threshold/request-notification path khỏi `AmmoService` sang `AmmoMonitorPolicy`, giảm bớt phần state-machine cục bộ trong service gốc mà chưa đụng flow job/planner nặng.
 - [x] Đã đi tiếp recipe/craft-start path: `AmmoRecipeProvider` không còn bám `AmmoService`, và `AmmoCraftService` giờ nhận dependency hẹp hơn (`IWorldState`, `IStorageService`, `IJobBoard`, recipe provider, runtime state callbacks) thay vì giữ full owner/service container.
-- [~] `AmmoService` vẫn là orchestration root lớn của cụm ammo, nhưng monitor path và craft-start path đã có boundary rõ hơn; chỗ còn đáng bóc tiếp là recovery/observability hoặc planner/job orchestration nặng.
-- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc bóc tiếp recovery/observability path khỏi `AmmoService` trước, rồi mới xét planner/job orchestration để giữ nhịp refactor an toàn.
+- [x] Đã bóc tiếp recovery/observability path: `AmmoMetricsReporter` và `AmmoRecoveryService` giờ nhận dependency hẹp hơn thay vì giữ owner full `AmmoService`, đồng thời status aggregation được tách sang `AmmoObservabilityReporter`.
+- [~] `AmmoService` vẫn là orchestration root lớn của cụm ammo, nhưng monitor, craft-start, recovery, và observability path đã có boundary rõ hơn; phần còn lại đáng cân nhắc chủ yếu là planner/job orchestration nặng.
+- [ ] Bước tiếp theo hợp lý sau pass này: nếu tiếp tục theo hướng an toàn, cân nhắc bóc dần planner/job orchestration theo từng lát nhỏ quanh armory buffer hoặc tower resupply thay vì đụng toàn khối một lần.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

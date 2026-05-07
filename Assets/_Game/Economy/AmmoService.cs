@@ -16,6 +16,7 @@ namespace SeasonalBastion
         private readonly AmmoCooldownManager _cooldownManager;
         private readonly AmmoRecoveryService _recoveryService;
         private readonly AmmoMetricsReporter _metricsReporter;
+        private readonly AmmoObservabilityReporter _observabilityReporter;
         private readonly AmmoConfigProvider _configProvider;
         private readonly AmmoRecipeProvider _recipeProvider;
         private readonly AmmoCraftService _craftService;
@@ -81,8 +82,8 @@ namespace SeasonalBastion
             _requestQueue = new AmmoRequestQueue(s);
             _resupplyTracking = new AmmoResupplyTracking(s);
             _cooldownManager = new AmmoCooldownManager(this);
-            _recoveryService = new AmmoRecoveryService(this);
-            _metricsReporter = new AmmoMetricsReporter(this);
+            _metricsReporter = new AmmoMetricsReporter(s.WorldState, s.WorldIndex, s.StorageService);
+            _observabilityReporter = new AmmoObservabilityReporter(_observability, () => PendingRequests);
             _configProvider = new AmmoConfigProvider(s);
             _recipeProvider = new AmmoRecipeProvider(s.DataRegistry, () => AmmoRecipeId);
             _craftService = new AmmoCraftService(
@@ -93,6 +94,20 @@ namespace SeasonalBastion
                 _runtimeState.CraftJobByForge,
                 RebuildWorkplaceHasNpcSet,
                 () => _runtimeState.WorkplacesWithNpc);
+            _recoveryService = new AmmoRecoveryService(
+                s.WorldState,
+                s.NotificationService,
+                _cooldownManager,
+                _requestQueue,
+                () => CurrentMetrics,
+                () => PendingRequests,
+                CountEligibleResupplyRequests,
+                () => UrgentRequests,
+                () => NormalRequests,
+                GetLowAmmoThresholdValue,
+                EnqueueRequest,
+                () => _simTime,
+                () => DebugAmmoLogs);
             _monitorPolicy = new AmmoMonitorPolicy(
                 s.NotificationService,
                 s.CombatService,
@@ -276,29 +291,8 @@ namespace SeasonalBastion
 
             _armoryBufferPlanner.EnsureArmoryAmmoBuffer();
             _metricsReporter.UpdateDebugMetrics(_resupplyTracking.CountTrackedActiveJobs());
-            UpdateObservabilityStatus();
+            _observabilityReporter.Update(CurrentMetrics);
             _recoveryService.LogPotentialResupplyDeadlock();
-        }
-
-        private void UpdateObservabilityStatus()
-        {
-            var m = CurrentMetrics;
-
-            _observability.ArmoryStatus = m.ArmoryAvailableAmmo switch
-            {
-                <= 0 => "Empty",
-                >= 200 => "Full",
-                _ => "Available"
-            };
-
-            if (m.TowersWithoutAmmo > 0 && m.ActiveResupplyJobs <= 0 && m.ArmoryAvailableAmmo <= 0)
-                _observability.ResupplyStatus = "No ammo source available";
-            else if (m.TowersWithoutAmmo > 0 && m.ActiveResupplyJobs > 0)
-                _observability.ResupplyStatus = "Resupply job pending";
-            else if (m.TowersWithoutAmmo > 0 && PendingRequests > 0 && m.ActiveResupplyJobs <= 0 && m.ArmoryAvailableAmmo > 0)
-                _observability.ResupplyStatus = "Resupply blocked";
-            else
-                _observability.ResupplyStatus = "Stable";
         }
     }
 }

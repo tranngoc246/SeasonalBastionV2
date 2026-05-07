@@ -5,14 +5,51 @@ namespace SeasonalBastion
 {
     internal sealed class AmmoRecoveryService
     {
-        private readonly AmmoService _owner;
+        private readonly IWorldState _worldState;
+        private readonly INotificationService _notificationService;
+        private readonly AmmoCooldownManager _cooldowns;
+        private readonly AmmoRequestQueue _requestQueue;
+        private readonly System.Func<AmmoMetricsSnapshot> _getMetrics;
+        private readonly System.Func<int> _getPendingRequests;
+        private readonly System.Func<int> _countEligibleRequests;
+        private readonly System.Func<List<AmmoRequest>> _getUrgentRequests;
+        private readonly System.Func<List<AmmoRequest>> _getNormalRequests;
+        private readonly System.Func<int, int> _getLowAmmoThreshold;
+        private readonly System.Action<AmmoRequest> _enqueueRequest;
+        private readonly System.Func<float> _getSimTime;
+        private readonly System.Func<bool> _debugAmmoLogs;
         private readonly HashSet<int> _towerNoSourceLogged = new();
         private readonly HashSet<int> _towerNoJobLogged = new();
         private readonly HashSet<int> _towerDeadlockLogged = new();
 
-        internal AmmoRecoveryService(AmmoService owner)
+        internal AmmoRecoveryService(
+            IWorldState worldState,
+            INotificationService notificationService,
+            AmmoCooldownManager cooldowns,
+            AmmoRequestQueue requestQueue,
+            System.Func<AmmoMetricsSnapshot> getMetrics,
+            System.Func<int> getPendingRequests,
+            System.Func<int> countEligibleRequests,
+            System.Func<List<AmmoRequest>> getUrgentRequests,
+            System.Func<List<AmmoRequest>> getNormalRequests,
+            System.Func<int, int> getLowAmmoThreshold,
+            System.Action<AmmoRequest> enqueueRequest,
+            System.Func<float> getSimTime,
+            System.Func<bool> debugAmmoLogs)
         {
-            _owner = owner;
+            _worldState = worldState;
+            _notificationService = notificationService;
+            _cooldowns = cooldowns;
+            _requestQueue = requestQueue;
+            _getMetrics = getMetrics;
+            _getPendingRequests = getPendingRequests;
+            _countEligibleRequests = countEligibleRequests;
+            _getUrgentRequests = getUrgentRequests;
+            _getNormalRequests = getNormalRequests;
+            _getLowAmmoThreshold = getLowAmmoThreshold;
+            _enqueueRequest = enqueueRequest;
+            _getSimTime = getSimTime;
+            _debugAmmoLogs = debugAmmoLogs;
         }
 
         internal HashSet<int> TowerNoSourceLogged => _towerNoSourceLogged;
@@ -21,7 +58,7 @@ namespace SeasonalBastion
 
         internal void LogPotentialResupplyDeadlock()
         {
-            var metrics = _owner.CurrentMetrics;
+            var metrics = _getMetrics();
             if (metrics.TowersWithoutAmmo <= 0)
             {
                 _towerDeadlockLogged.Clear();
@@ -37,57 +74,61 @@ namespace SeasonalBastion
                 return;
             }
 
-            int eligibleRequests = _owner.CountEligibleResupplyRequests();
-            if (eligibleRequests <= 0)
+            if (_countEligibleRequests() <= 0)
                 return;
 
-            LogDeadlockForRequests(_owner.UrgentRequests);
-            LogDeadlockForRequests(_owner.NormalRequests);
+            LogDeadlockForRequests(_getUrgentRequests(), metrics);
+            LogDeadlockForRequests(_getNormalRequests(), metrics);
         }
 
         internal void MaybeRequeueTowerAmmoRequest(TowerId tower)
         {
-            if (tower.Value == 0) return;
-            if (_owner.Services.WorldState == null || !_owner.Services.WorldState.Towers.Exists(tower)) return;
+            if (tower.Value == 0 || _worldState == null || !_worldState.Towers.Exists(tower))
+                return;
 
-            var ts = _owner.Services.WorldState.Towers.Get(tower);
-            int cap = ts.AmmoCap;
-            if (cap <= 0) return;
+            var towerState = _worldState.Towers.Get(tower);
+            int cap = towerState.AmmoCap;
+            if (cap <= 0)
+                return;
 
-            int cur = ts.Ammo;
-            int need = cap - cur;
-            if (need <= 0) return;
+            int current = towerState.Ammo;
+            int need = cap - current;
+            if (need <= 0)
+                return;
 
             ResetRequestStateForTower(tower.Value);
 
-            int thr = _owner.GetLowAmmoThresholdValue(cap);
-            AmmoRequestPriority pri = cur <= 0 ? AmmoRequestPriority.Urgent
-                : (cur <= thr ? AmmoRequestPriority.Normal : (AmmoRequestPriority)(-1));
-            if ((int)pri < 0) return;
+            int threshold = _getLowAmmoThreshold(cap);
+            AmmoRequestPriority priority = current <= 0 ? AmmoRequestPriority.Urgent
+                : (current <= threshold ? AmmoRequestPriority.Normal : (AmmoRequestPriority)(-1));
+            if ((int)priority < 0)
+                return;
 
-            _owner.EnqueueRequest(new AmmoRequest
+            _enqueueRequest(new AmmoRequest
             {
                 Tower = tower,
                 AmountNeeded = need,
-                Priority = pri,
-                CreatedAt = _owner.SimTime
+                Priority = priority,
+                CreatedAt = _getSimTime()
             });
 
-            if (_owner.DebugAmmoLogsValue)
-                Log.E($"[Ammo] resupply requeued tower={tower.Value} ammo={cur}/{cap} priority={pri}");
+            if (_debugAmmoLogs())
+                Log.E($"[Ammo] resupply requeued tower={tower.Value} ammo={current}/{cap} priority={priority}");
         }
 
         internal void ResetRequestStateForTower(int towerId)
         {
-            _owner.Cooldowns.ResetForTower(towerId);
-            _owner.Requests.RemovePendingForTower(towerId);
+            _cooldowns.ResetForTower(towerId);
+            _requestQueue.RemovePendingForTower(towerId);
             _towerNoJobLogged.Remove(towerId);
             _towerDeadlockLogged.Remove(towerId);
         }
 
         internal void ClearTowerLogs(int towerId)
         {
-            if (towerId == 0) return;
+            if (towerId == 0)
+                return;
+
             _towerNoSourceLogged.Remove(towerId);
             _towerNoJobLogged.Remove(towerId);
             _towerDeadlockLogged.Remove(towerId);
@@ -95,7 +136,9 @@ namespace SeasonalBastion
 
         internal void ClearNeedLogs(int towerId)
         {
-            if (towerId == 0) return;
+            if (towerId == 0)
+                return;
+
             _towerNoSourceLogged.Remove(towerId);
             _towerNoJobLogged.Remove(towerId);
         }
@@ -107,20 +150,22 @@ namespace SeasonalBastion
             _towerDeadlockLogged.Clear();
         }
 
-        private void LogDeadlockForRequests(List<AmmoRequest> list)
+        private void LogDeadlockForRequests(List<AmmoRequest> list, AmmoMetricsSnapshot metrics)
         {
-            if (list == null) return;
+            if (list == null)
+                return;
 
-            var metrics = _owner.CurrentMetrics;
             for (int i = 0; i < list.Count; i++)
             {
-                int tid = list[i].Tower.Value;
-                if (tid == 0) continue;
-                if (_towerDeadlockLogged.Add(tid))
+                int towerId = list[i].Tower.Value;
+                if (towerId == 0)
+                    continue;
+
+                if (_towerDeadlockLogged.Add(towerId))
                 {
-                    Log.E($"[Ammo] Armory has ammo but no job created. tower={tid} totalTowers={metrics.TotalTowers} emptyTowers={metrics.TowersWithoutAmmo} activeResupplyJobs={metrics.ActiveResupplyJobs} armoryAmmo={metrics.ArmoryAvailableAmmo} pending={_owner.PendingRequests}");
-                    _owner.Services.NotificationService?.Push(
-                        key: $"ammo.resupply.blocked.{tid}",
+                    Log.E($"[Ammo] Armory has ammo but no job created. tower={towerId} totalTowers={metrics.TotalTowers} emptyTowers={metrics.TowersWithoutAmmo} activeResupplyJobs={metrics.ActiveResupplyJobs} armoryAmmo={metrics.ArmoryAvailableAmmo} pending={_getPendingRequests()}");
+                    _notificationService?.Push(
+                        key: $"ammo.resupply.blocked.{towerId}",
                         title: "Tiếp tế ammo đang bị kẹt",
                         body: "Một tower cần ammo nhưng lệnh tiếp tế vẫn chưa thể bắt đầu.",
                         severity: NotificationSeverity.Warning,

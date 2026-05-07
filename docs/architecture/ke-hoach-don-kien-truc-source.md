@@ -352,7 +352,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [~] Cụm `Ammo*` hiện đã có boundary rõ hơn đáng kể ở monitor, craft-start, recovery, observability, armory buffer, và tower resupply; nếu đi tiếp thì chủ yếu là polish nhỏ hoặc giảm thêm `GameServices` ở các lớp phụ còn lại.
 - [x] Đã chuyển sang `EnemySystem` pass 1 bằng cách bóc cụm HQ/target resolution sang `EnemyTargetResolver`, giữ nguyên behavior nhưng tách bớt nhánh tương đối độc lập khỏi flow tick/attack/path chính.
 - [x] Đã đi tiếp `EnemySystem` pass 2 bằng cách bóc attack/building-damage path sang `EnemyAttackResolver`, gom `TryAttackHQ`, `TryAttackBuilding`, và adjacent-blocking attack về helper riêng nhưng giữ nguyên timing/cooldown/clear-footprint behavior.
-- [~] `EnemySystem` vẫn còn là file lớn và rủi ro cao hơn các cụm trước; phần còn lại hợp lý để bóc tiếp sẽ là cleanup/despawn hoặc path/progression path theo từng lát nhỏ.
-- [ ] Bước tiếp theo hợp lý sau pass này: nếu tiếp tục `EnemySystem`, ưu tiên cleanup/despawn trước, rồi mới cân nhắc pathfinding/progression sâu hơn.
+- [x] Đã đi tiếp `EnemySystem` pass 3 bằng cách bóc cleanup/despawn/cache-prune path sang `EnemyLifecycleResolver`, gom cleanup enemy chết và prune runtime map (`_attackCd`, `_pathFailStreak`) ra khỏi flow tick chính.
+- [~] `EnemySystem` vẫn còn là file lớn và rủi ro cao hơn các cụm trước; phần còn lại hợp lý để bóc tiếp chủ yếu là path/progression path theo từng lát nhỏ.
+- [ ] Bước tiếp theo hợp lý sau pass này: nếu tiếp tục `EnemySystem`, cân nhắc bóc movement/path progression trước theo hướng helper thuần, nhưng nên giữ pass nhỏ để tránh chạm behavior BFS/fallback quá rộng.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

@@ -18,6 +18,7 @@ namespace SeasonalBastion
         private readonly GameServices _s;
         private readonly EnemyTargetResolver _targetResolver;
         private readonly EnemyAttackResolver _attackResolver;
+        private readonly EnemyLifecycleResolver _lifecycleResolver;
 
         // Attack timing (v0.1): constant, can be moved to EnemyDef later if needed
         private const float DefaultAttackIntervalSec = 1.0f;
@@ -47,13 +48,13 @@ namespace SeasonalBastion
         // Day44: reusable buffers (avoid GC alloc)
         private readonly List<BuildingId> _tmpBuildingIds = new(64);
         private readonly List<int> _tmpEnemyKeys = new(128);
-        private float _pruneAcc;
 
         public EnemySystem(GameServices s)
         {
             _s = s;
             _targetResolver = new EnemyTargetResolver(s.WorldState, s.DataRegistry, s.RunStartRuntime, _tmpBuildingIds);
             _attackResolver = new EnemyAttackResolver(s.WorldState, s.GridMap, s.DataRegistry, s.RunOutcomeService, _targetResolver, GetYearIndexOr1, DefaultAttackIntervalSec);
+            _lifecycleResolver = new EnemyLifecycleResolver(s.WorldState, _attackCd, _pathFailStreak, _tmpEnemyKeys);
         }
 
         public void Tick(float dt)
@@ -95,7 +96,7 @@ namespace SeasonalBastion
                 // Cleanup dead
                 if (st.Hp <= 0)
                 {
-                    CleanupEnemy(id);
+                    _lifecycleResolver.CleanupEnemy(id);
                     continue;
                 }
 
@@ -235,7 +236,7 @@ namespace SeasonalBastion
             }
 
             // Day44: prune per-enemy dictionaries to avoid unbounded growth / resize spikes
-            PruneEnemyCaches(w, dt);
+            _lifecycleResolver.PruneEnemyCaches(dt);
         }
 
         // -------------------------
@@ -580,66 +581,11 @@ namespace SeasonalBastion
             _ => Dir4.S
         };
 
-        private void CleanupEnemy(EnemyId id)
-        {
-            var w = _s.WorldState;
-            if (w == null || w.Enemies == null) return;
-
-            _attackCd.Remove(id.Value);
-            _pathFailStreak.Remove(id.Value); // Day34
-            w.Enemies.Destroy(id);
-        }
-
         private int GetYearIndexOr1()
         {
             if (_s.RunClock is RunClockService rc) return Mathf.Max(1, rc.YearIndex);
             return 1;
         }
 
-        private void PruneEnemyCaches(IWorldState w, float dt)
-        {
-            if (w == null || w.Enemies == null) return;
-
-            _pruneAcc += dt;
-            if (_pruneAcc < 3f) return; // prune every few seconds
-            _pruneAcc = 0f;
-
-            int alive = w.Enemies.Count;
-            if (alive <= 0)
-            {
-                _attackCd.Clear();
-                _pathFailStreak.Clear();
-                return;
-            }
-
-            // Only prune when map looks inflated
-            bool needAttack = _attackCd.Count > alive * 2;
-            bool needFail = _pathFailStreak.Count > alive * 2;
-            if (!needAttack && !needFail) return;
-
-            if (needAttack)
-            {
-                _tmpEnemyKeys.Clear();
-                foreach (var kv in _attackCd)
-                {
-                    if (!w.Enemies.Exists(new EnemyId(kv.Key)))
-                        _tmpEnemyKeys.Add(kv.Key);
-                }
-                for (int i = 0; i < _tmpEnemyKeys.Count; i++)
-                    _attackCd.Remove(_tmpEnemyKeys[i]);
-            }
-
-            if (needFail)
-            {
-                _tmpEnemyKeys.Clear();
-                foreach (var kv in _pathFailStreak)
-                {
-                    if (!w.Enemies.Exists(new EnemyId(kv.Key)))
-                        _tmpEnemyKeys.Add(kv.Key);
-                }
-                for (int i = 0; i < _tmpEnemyKeys.Count; i++)
-                    _pathFailStreak.Remove(_tmpEnemyKeys[i]);
-            }
-        }
     }
 }

@@ -328,7 +328,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] `PopulationService` không còn nhận full `GameServices`; hiện constructor nhận tập dependency hẹp hơn: `IEventBus`, `IDataRegistry`, `IRunClock`, `INotificationService`, `IWorldState`, `IGridMap`, `IStorageService`, `IRunOutcomeService`.
 - [x] Đã đi tiếp `PopulationService` wave 2 bằng cách bóc `PopulationHousingPolicy` và `PopulationGrowthPolicy`, để service gốc tập trung hơn vào event flow / consume food / spawn orchestration thay vì giữ toàn bộ housing-growth rule cục bộ.
 - [x] Đã đi tiếp `RewardService` pass 1 theo cùng hướng: bỏ constructor nhận `GameServices`, chuyển sang `IWorldState`, `IDataRegistry`, `IEventBus`.
-- [~] `RewardService` vẫn giữ nguyên behavior hiện tại, nhưng boundary đã rõ hơn và dễ mở rộng/refactor tiếp theo; nếu đi wave 2 thì nên cân nhắc tách reward application/modifier policy.
+- [x] Đã đi tiếp `RewardService` wave 2 bằng cách bóc `RewardModifierPolicy`, chuyển reward application/modifier logic và tower-ammo-cap apply path ra khỏi service gốc để `RewardService` nghiêng hơn về selection/event orchestration.
+- [~] `PopulationService` và `RewardService` hiện đã có boundary tốt hơn ở rule/policy layer; nếu đi tiếp thì hợp lý nhất là review/chốt lại facade hoặc chỉ bóc các helper phụ nhỏ còn hotspot rõ ràng.
 - [x] Đã bóc `SaveAutosaveService` như một quick win nhỏ: constructor hiện nhận `IEventBus`, `ISaveService`, `IWorldState`, `IRunClock`, `INotificationService` thay vì `GameServices`.
 - [x] Đã bóc tiếp `BuildOrderWorkplaceResolver`: constructor hiện nhận `BalanceService`, `IWorldState`, `IDataRegistry`, `IJobWorkplacePolicy` thay vì `GameServices`.
 - [x] Đã đi tiếp `BuildOrderCreationService` pass 1: bỏ dependency trực tiếp vào `GameServices`, chuyển sang tập dependency hẹp hơn gồm `IDataRegistry`, `IWorldState`, `IGridMap`, `IEventBus`, `INotificationService`, `IStorageService`, `IUnlockService`, `IPlacementService`, `IPathfinderRuntime`.

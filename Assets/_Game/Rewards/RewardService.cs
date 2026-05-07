@@ -8,22 +8,22 @@ namespace SeasonalBastion
     public sealed class RewardService : IRewardService
     {
         private readonly IWorldState _worldState;
-        private readonly IDataRegistry _dataRegistry;
         private readonly IEventBus _bus;
+        private readonly RewardModifierPolicy _modifierPolicy;
         private static readonly int[] DaysPerSeason = { 6, 6, 4, 4 };
 
-        private const string RewardBuildSpeed = "Reward_BuildSpeed";
-        private const string RewardAmmoCapacity = "Reward_AmmoCapacity";
-        private const string RewardTowerReload = "Reward_TowerReload";
-        private const string RewardNpcMoveSpeed = "Reward_NpcMoveSpeed";
+        internal const string RewardBuildSpeedId = "Reward_BuildSpeed";
+        internal const string RewardAmmoCapacityId = "Reward_AmmoCapacity";
+        internal const string RewardTowerReloadId = "Reward_TowerReload";
+        internal const string RewardNpcMoveSpeedId = "Reward_NpcMoveSpeed";
 
         private readonly List<string> _pickedRewardDefIds = new();
         private readonly string[] _rewardPool =
         {
-            RewardBuildSpeed,
-            RewardAmmoCapacity,
-            RewardTowerReload,
-            RewardNpcMoveSpeed,
+            RewardBuildSpeedId,
+            RewardAmmoCapacityId,
+            RewardTowerReloadId,
+            RewardNpcMoveSpeedId,
         };
 
         private int _offerSequence;
@@ -40,8 +40,8 @@ namespace SeasonalBastion
         public RewardService(IWorldState worldState, IDataRegistry dataRegistry, IEventBus eventBus)
         {
             _worldState = worldState;
-            _dataRegistry = dataRegistry;
             _bus = eventBus;
+            _modifierPolicy = new RewardModifierPolicy(worldState, dataRegistry);
 
             if (_bus != null)
             {
@@ -100,10 +100,8 @@ namespace SeasonalBastion
             };
 
             ApplyReward(chosen, appendToHistory: true);
-
             OnRewardChosen?.Invoke(chosen);
             _bus?.Publish(new RewardPickedEvent(chosen));
-
             IsSelectionActive = false;
             OnSelectionEnded?.Invoke();
         }
@@ -131,7 +129,7 @@ namespace SeasonalBastion
         public void LoadPickedRewards(IReadOnlyList<string> rewardIds)
         {
             _pickedRewardDefIds.Clear();
-            ResetRunModifiers();
+            _modifierPolicy.ResetRunModifiers();
 
             if (rewardIds == null)
                 return;
@@ -163,7 +161,7 @@ namespace SeasonalBastion
                 return rewardId;
 
             if (_rewardPool.Length == 0)
-                return RewardBuildSpeed;
+                return RewardBuildSpeedId;
 
             int idx = fallbackOffset % _rewardPool.Length;
             if (idx < 0) idx += _rewardPool.Length;
@@ -215,109 +213,13 @@ namespace SeasonalBastion
             if (appendToHistory)
                 _pickedRewardDefIds.Add(rewardId);
 
-            ref var mods = ref _worldState.RunMods;
-
-            switch (rewardId)
-            {
-                case RewardBuildSpeed:
-                    mods.BuildSpeedMultiplier = MaxOrDefault(mods.BuildSpeedMultiplier, 1f) * 1.15f;
-                    Debug.Log($"[RewardService] Chosen reward: {rewardId}");
-                    Debug.Log($"[RewardService] Applied modifier: BuildSpeedMultiplier={mods.BuildSpeedMultiplier:0.###}");
-                    break;
-
-                case RewardAmmoCapacity:
-                    mods.TowerAmmoCapacityBonus += 5;
-                    ApplyTowerAmmoCapacityBonus(mods.TowerAmmoCapacityBonus);
-                    Debug.Log($"[RewardService] Chosen reward: {rewardId}");
-                    Debug.Log($"[RewardService] Applied modifier: TowerAmmoCapacityBonus={mods.TowerAmmoCapacityBonus}");
-                    break;
-
-                case RewardTowerReload:
-                    mods.TowerReloadSpeedMultiplier = MaxOrDefault(mods.TowerReloadSpeedMultiplier, 1f) * 1.12f;
-                    Debug.Log($"[RewardService] Chosen reward: {rewardId}");
-                    Debug.Log($"[RewardService] Applied modifier: TowerReloadSpeedMultiplier={mods.TowerReloadSpeedMultiplier:0.###}");
-                    break;
-
-                case RewardNpcMoveSpeed:
-                    mods.NpcMoveSpeedMultiplier = MaxOrDefault(mods.NpcMoveSpeedMultiplier, 1f) * 1.10f;
-                    Debug.Log($"[RewardService] Chosen reward: {rewardId}");
-                    Debug.Log($"[RewardService] Applied modifier: NpcMoveSpeedMultiplier={mods.NpcMoveSpeedMultiplier:0.###}");
-                    break;
-
-                default:
-                    Debug.LogWarning($"[RewardService] Unknown reward id '{rewardId}' ignored.");
-                    break;
-            }
-        }
-
-        private void ApplyTowerAmmoCapacityBonus(int totalBonus)
-        {
-            if (_worldState?.Towers == null)
-                return;
-
-            foreach (var towerId in _worldState.Towers.Ids)
-            {
-                if (!_worldState.Towers.Exists(towerId))
-                    continue;
-
-                var tower = _worldState.Towers.Get(towerId);
-                int baseCap = ResolveBaseTowerAmmoCap(tower.Cell);
-                tower.AmmoCap = Math.Max(0, baseCap + totalBonus);
-                if (tower.Ammo > tower.AmmoCap)
-                    tower.Ammo = tower.AmmoCap;
-                _worldState.Towers.Set(towerId, tower);
-            }
-        }
-
-        private int ResolveBaseTowerAmmoCap(CellPos towerCell)
-        {
-            if (_worldState?.Buildings == null || _dataRegistry == null)
-                return 0;
-
-            foreach (var buildingId in _worldState.Buildings.Ids)
-            {
-                if (!_worldState.Buildings.Exists(buildingId))
-                    continue;
-
-                var building = _worldState.Buildings.Get(buildingId);
-                if (!building.IsConstructed)
-                    continue;
-
-                if (!_dataRegistry.TryGetBuilding(building.DefId, out var buildingDef) || buildingDef == null || !buildingDef.IsTower)
-                    continue;
-
-                int width = Math.Max(1, buildingDef.SizeX);
-                int height = Math.Max(1, buildingDef.SizeY);
-                if (!FootprintContainsCell(building.Anchor, width, height, towerCell))
-                    continue;
-
-                if (_dataRegistry.TryGetTower(building.DefId, out var towerDef) && towerDef != null)
-                    return Math.Max(0, towerDef.AmmoMax);
-
-                return 0;
-            }
-
-            return 0;
-        }
-
-        private void ResetRunModifiers()
-        {
-            ref var mods = ref _worldState.RunMods;
-            mods.BuildSpeedMultiplier = 1f;
-            mods.TowerAmmoCapacityBonus = 0;
-            mods.TowerReloadSpeedMultiplier = 1f;
-            mods.NpcMoveSpeedMultiplier = 1f;
-            ApplyTowerAmmoCapacityBonus(mods.TowerAmmoCapacityBonus);
+            Debug.Log($"[RewardService] Chosen reward: {rewardId}");
+            _modifierPolicy.ApplyReward(rewardId);
         }
 
         private int GetRunSeed()
         {
             return 0;
-        }
-
-        private static float MaxOrDefault(float value, float fallback)
-        {
-            return value > 0f ? value : fallback;
         }
 
         private static int CombineSeed(params int[] values)
@@ -333,15 +235,5 @@ namespace SeasonalBastion
                 return hash;
             }
         }
-
-        private static bool FootprintContainsCell(CellPos anchor, int sizeX, int sizeY, CellPos c)
-        {
-            int w = sizeX <= 0 ? 1 : sizeX;
-            int h = sizeY <= 0 ? 1 : sizeY;
-
-            return c.X >= anchor.X && c.X < (anchor.X + w)
-                && c.Y >= anchor.Y && c.Y < (anchor.Y + h);
-        }
     }
 }
-

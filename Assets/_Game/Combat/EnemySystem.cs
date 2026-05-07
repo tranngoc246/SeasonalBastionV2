@@ -16,6 +16,7 @@ namespace SeasonalBastion
     public sealed class EnemySystem
     {
         private readonly GameServices _s;
+        private readonly EnemyTargetResolver _targetResolver;
 
         // Attack timing (v0.1): constant, can be moved to EnemyDef later if needed
         private const float DefaultAttackIntervalSec = 1.0f;
@@ -32,10 +33,6 @@ namespace SeasonalBastion
         private const int LocalSide = LocalBfsRadius * 2 + 1;
         private const int LocalMaxNodes = LocalSide * LocalSide;
 
-        // Cached HQ building id (smallest id that matches HQ)
-        private BuildingId _hqId;
-        private bool _hqCached;
-
         // BFS buffers (lazy allocated)
         private int _gridW, _gridH, _gridN;
         private int[] _bfsQueue;
@@ -51,7 +48,11 @@ namespace SeasonalBastion
         private readonly List<int> _tmpEnemyKeys = new(128);
         private float _pruneAcc;
 
-        public EnemySystem(GameServices s) { _s = s; }
+        public EnemySystem(GameServices s)
+        {
+            _s = s;
+            _targetResolver = new EnemyTargetResolver(s.WorldState, s.DataRegistry, s.RunStartRuntime, _tmpBuildingIds);
+        }
 
         public void Tick(float dt)
         {
@@ -71,7 +72,7 @@ namespace SeasonalBastion
             if (simDt <= 0f) return;
 
             // Ensure HQ cached (or try refresh if invalid)
-            EnsureHqCached();
+            _targetResolver.EnsureHqCached();
 
             // Ensure BFS buffers
             EnsureBfsBuffers(grid.Width, grid.Height);
@@ -104,7 +105,7 @@ namespace SeasonalBastion
                 }
 
                 // Resolve lane dir (from SpawnGates) and compute HQ target cell
-                if (!TryResolveLaneTarget(st.Lane, out var hqTargetCell, out var laneDir))
+                if (!_targetResolver.TryResolveLaneTarget(st.Lane, out var hqTargetCell, out var laneDir))
                 {
                     // Không có lane runtime -> không biết target -> skip tick enemy (safe)
                     // (hoặc có thể fallback target map center nếu bạn muốn)
@@ -236,81 +237,8 @@ namespace SeasonalBastion
         }
 
         // -------------------------
-        // HQ / Target resolution
+        // Attack
         // -------------------------
-
-        private void EnsureHqCached()
-        {
-            var w = _s.WorldState;
-            var data = _s.DataRegistry;
-            if (w == null || w.Buildings == null || data == null) return;
-
-            if (_hqCached && _hqId.Value != 0 && w.Buildings.Exists(_hqId))
-                return;
-
-            _hqCached = true;
-            _hqId = default;
-
-            // Deterministic: pick smallest buildingId that is HQ (no alloc)
-            _tmpBuildingIds.Clear();
-            foreach (var bid in w.Buildings.Ids) _tmpBuildingIds.Add(bid);
-            _tmpBuildingIds.Sort((a, b) => a.Value.CompareTo(b.Value));
-
-            for (int i = 0; i < _tmpBuildingIds.Count; i++)
-            {
-                var id = _tmpBuildingIds[i];
-                if (!w.Buildings.Exists(id)) continue;
-                var st = w.Buildings.Get(id);
-
-                if (!st.IsConstructed) continue;
-
-                bool isHQ = DefIdTierUtil.IsBase(st.DefId, "bld_hq");
-                if (!isHQ && data.TryGetBuilding(st.DefId, out var def) && def != null)
-                {
-                    // If defs use tags, try them (safe)
-                    isHQ = def.IsHQ;
-                }
-
-                if (isHQ)
-                {
-                    _hqId = id;
-                    return;
-                }
-            }
-        }
-
-        private bool TryResolveLaneTarget(int laneId, out CellPos target, out Dir4 dirToHQ)
-        {
-            target = default;
-            dirToHQ = Dir4.S;
-
-            var rs = _s.RunStartRuntime;
-            if (rs == null) return false;
-
-            // Ưu tiên Lanes table (Day27 single source)
-            if (rs.Lanes != null && rs.Lanes.TryGetValue(laneId, out var lane))
-            {
-                target = lane.TargetHQ;
-                dirToHQ = lane.DirToHQ;
-                return true;
-            }
-
-            // Fallback: nếu thiếu lane runtime thì dùng gate dir + tự tính (tạm)
-            // (Có thể bỏ fallback nếu bạn muốn strict)
-            if (rs.SpawnGates != null)
-            {
-                for (int i = 0; i < rs.SpawnGates.Count; i++)
-                {
-                    var g = rs.SpawnGates[i];
-                    if (g.Lane != laneId) continue;
-                    dirToHQ = g.DirToHQ;
-                    break;
-                }
-            }
-
-            // Không còn tự tính target theo footprint HQ nữa -> fail
-            return false;
-        }
 
         // -------------------------
         // Attack
@@ -323,19 +251,20 @@ namespace SeasonalBastion
             var w = _s.WorldState;
             if (w == null || w.Buildings == null) return;
 
-            EnsureHqCached();
-            if (_hqId.Value == 0 || !w.Buildings.Exists(_hqId)) return;
+            _targetResolver.EnsureHqCached();
+            var hqId = _targetResolver.GetCachedHqId();
+            if (hqId.Value == 0 || !w.Buildings.Exists(hqId)) return;
 
             int year = GetYearIndexOr1();
             float mul = YearScaling.EnemyDamageMul(year);
             int dmg = Mathf.Max(0, Mathf.RoundToInt(def.DamageToHQ * mul));
             if (dmg <= 0) { cd = DefaultAttackIntervalSec; return; }
 
-            var hq = w.Buildings.Get(_hqId);
+            var hq = w.Buildings.Get(hqId);
             int hp = Mathf.Max(0, hq.HP - dmg);
 
             hq.HP = hp;
-            w.Buildings.Set(_hqId, hq);
+            w.Buildings.Set(hqId, hq);
 
             // Defeat
             if (hp <= 0)

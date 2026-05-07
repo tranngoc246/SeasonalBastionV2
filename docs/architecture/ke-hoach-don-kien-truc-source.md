@@ -350,6 +350,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã bóc tiếp tower resupply flow: `TowerResupplyPlanner` giờ nhận dependency hẹp hơn thay vì giữ owner/service full, còn `AmmoService` chủ yếu wire request/job/state callbacks cho planner này.
 - [x] Đã review/chốt lại `AmmoService` theo vai trò facade-orchestrator: sửa lại thứ tự khởi tạo constructor để tránh dùng `_recoveryService` trước khi tạo xong, gom lại các facade helper/read-model nhỏ, và giữ service gốc tập trung vào `Tick / Notify / Rebuild / Clear` cùng orchestration cấp cao.
 - [~] Cụm `Ammo*` hiện đã có boundary rõ hơn đáng kể ở monitor, craft-start, recovery, observability, armory buffer, và tower resupply; nếu đi tiếp thì chủ yếu là polish nhỏ hoặc giảm thêm `GameServices` ở các lớp phụ còn lại.
-- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc chạy compile/regression để bắt wiring issues sau chuỗi refactor, rồi mới quyết định có tiếp tục bóc các helper phụ hay chuyển mặt trận khác.
+- [x] Đã chuyển sang `EnemySystem` pass 1 bằng cách bóc cụm HQ/target resolution sang `EnemyTargetResolver`, giữ nguyên behavior nhưng tách bớt nhánh tương đối độc lập khỏi flow tick/attack/path chính.
+- [~] `EnemySystem` vẫn còn là file lớn và rủi ro cao hơn các cụm trước; phần còn lại hợp lý để bóc tiếp sẽ là attack/building-damage path hoặc path/progression path theo từng lát nhỏ.
+- [ ] Bước tiếp theo hợp lý sau pass này: nếu tiếp tục `EnemySystem`, ưu tiên bóc `TryAttackHQ/TryAttackBuilding` và cleanup/despawn trước khi động tới pathfinding/progression sâu hơn.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

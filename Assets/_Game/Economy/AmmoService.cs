@@ -19,6 +19,7 @@ namespace SeasonalBastion
         private readonly AmmoConfigProvider _configProvider;
         private readonly AmmoRecipeProvider _recipeProvider;
         private readonly AmmoCraftService _craftService;
+        private readonly AmmoMonitorPolicy _monitorPolicy;
         private readonly AmmoRuntimeState _runtimeState = new();
         private readonly AmmoTowerStateTracker _towerStateTracker = new();
         private readonly AmmoObservabilityState _observability = new();
@@ -85,6 +86,19 @@ namespace SeasonalBastion
             _configProvider = new AmmoConfigProvider(s);
             _recipeProvider = new AmmoRecipeProvider(this);
             _craftService = new AmmoCraftService(this, _recipeProvider);
+            _monitorPolicy = new AmmoMonitorPolicy(
+                s.NotificationService,
+                s.CombatService,
+                _cooldownManager,
+                _towerStateTracker,
+                _recoveryService,
+                EnqueueRequest,
+                HasActiveResupplyJob,
+                () => LowAmmoPercent,
+                () => NotifyCooldownLow,
+                () => NotifyCooldownEmpty,
+                () => _simTime,
+                () => DebugAmmoLogs);
         }
 
         public int PendingRequests => _requestQueue.PendingRequests;
@@ -108,90 +122,11 @@ namespace SeasonalBastion
 
         public void NotifyTowerAmmoChanged(TowerId tower, int current, int max)
         {
-            if (tower.Value == 0) return;
-            if (max <= 0) return;
+            JobId? inflight = null;
+            if (tower.Value != 0 && ResupplyJobByTower.TryGetValue(tower.Value, out var activeJob))
+                inflight = activeJob;
 
-            int tid = tower.Value;
-
-            if (ResupplyJobByTower.TryGetValue(tid, out var inflight))
-            {
-                if (_s.JobBoard != null && _s.JobBoard.TryGet(inflight, out var jj) && !IsTerminal(jj.Status))
-                    return;
-            }
-
-            int thr = GetLowAmmoThreshold(max);
-
-            byte stateNow;
-            if (current <= 0) stateNow = 2;
-            else if (current <= thr) stateNow = 1;
-            else stateNow = 0;
-
-            _towerStateTracker.SetState(tid, stateNow);
-
-            if (_s.NotificationService != null && stateNow != 0)
-            {
-                bool combatActive = false;
-                if (_s.CombatService != null)
-                    combatActive = _s.CombatService.IsActive;
-
-                if (stateNow == 2)
-                {
-                    _s.NotificationService.Push(
-                        key: $"TowerAmmo_Empty_{tid}",
-                        title: "Tower hết ammo",
-                        body: combatActive
-                            ? "Một tower đã hết ammo trong lúc đang phòng thủ. Cần tiếp tế ngay."
-                            : "Một tower đã hết ammo. Hãy chuẩn bị tiếp tế trước đợt tiếp theo.",
-                        severity: combatActive ? NotificationSeverity.Error : NotificationSeverity.Warning,
-                        payload: default,
-                        cooldownSeconds: NotifyCooldownEmpty,
-                        dedupeByKey: true
-                    );
-                }
-                else
-                {
-                    _s.NotificationService.Push(
-                        key: $"TowerAmmo_Low_{tid}",
-                        title: "Tower sắp cạn ammo",
-                        body: combatActive
-                            ? "Một tower đang gần hết ammo trong lúc phòng thủ. Hãy chuẩn bị tiếp tế."
-                            : "Một tower đang gần hết ammo. Nên bổ sung trước khi wave tới.",
-                        severity: combatActive ? NotificationSeverity.Warning : NotificationSeverity.Info,
-                        payload: default,
-                        cooldownSeconds: NotifyCooldownLow,
-                        dedupeByKey: true
-                    );
-                }
-            }
-
-            if (DebugAmmoLogs && stateNow != 0 && _towerStateTracker.TryMarkNeedLogged(tid))
-            {
-                Log.E($"[Ammo] tower {tid} requests resupply ammo={current}/{max} state={(stateNow == 2 ? "empty" : "low")} thr={thr}");
-                _recoveryService.ClearNeedLogs(tid);
-            }
-
-            if (stateNow == 0)
-            {
-                _towerStateTracker.ClearNeedLogged(tid);
-                _recoveryService.ClearNeedLogs(tid);
-                return;
-            }
-
-            var pri = (stateNow == 2) ? AmmoRequestPriority.Urgent : AmmoRequestPriority.Normal;
-
-            if (!_cooldownManager.TryConsumeRequestCooldown(tower, pri))
-                return;
-
-            int need = max - current;
-            if (need <= 0) return;
-
-            EnqueueRequest(new AmmoRequest
-            {
-                Tower = tower,
-                AmountNeeded = need,
-                Priority = pri,
-                CreatedAt = _simTime
-            });
+            _monitorPolicy.NotifyTowerAmmoChanged(tower, current, max, inflight);
         }
 
         public void EnqueueRequest(AmmoRequest req) => _requestQueue.Enqueue(req);
@@ -229,6 +164,9 @@ namespace SeasonalBastion
             _recipeProvider.Clear();
             _metricsReporter.Clear();
         }
+
+        internal bool HasActiveResupplyJob(JobId jobId)
+            => _s.JobBoard != null && _s.JobBoard.TryGet(jobId, out var job) && !IsTerminal(job.Status);
 
         internal void CleanupResupplyArmoryMappings() => _resupplyTracking.CleanupArmoryMappings();
         internal void RemoveArmoryMappingByJob(JobId jobId) => _resupplyTracking.RemoveArmoryMappingByJob(jobId);
@@ -279,11 +217,7 @@ namespace SeasonalBastion
         }
 
         private int GetLowAmmoThreshold(int max)
-        {
-            int thr = (max * LowAmmoPercent + 99) / 100;
-            if (thr < 1) thr = 1;
-            return thr;
-        }
+            => _monitorPolicy.GetLowAmmoThreshold(max);
 
         internal void RecordTowerSnapshot(TowerId towerId, int ammo, int cap) => _towerStateTracker.RecordSnapshot(towerId, ammo, cap);
         internal bool MatchesTowerSnapshot(TowerId towerId, int ammo, int cap) => _towerStateTracker.MatchesSnapshot(towerId, ammo, cap);

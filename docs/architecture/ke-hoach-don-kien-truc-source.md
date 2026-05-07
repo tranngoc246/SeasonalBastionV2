@@ -340,6 +340,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã bóc `TickRepairOrder(...)` khỏi `BuildOrderService` sang `BuildOrderRepairService`, gom repair-order lifecycle, queued-job retarget, và complete/cancel handling về một chỗ.
 - [x] Đã review/chốt lại `BuildOrderService` theo vai trò facade mỏng hơn: chủ yếu giữ state nhỏ, wiring các service con, và các entrypoint `Create/Cancel/Tick/Rebuild`.
 - [~] Cụm `Build*` hiện đã có dependency boundary rõ hơn rõ rệt; phần còn lại đáng cân nhắc chủ yếu là polish tiếp `BuildOrderTickProcessor` hoặc dừng cụm này ở checkpoint hiện tại để chuyển mặt trận.
-- [ ] Bước tiếp theo hợp lý sau pass này: hoặc dừng cụm `Build*` ở checkpoint hiện tại và chuyển sang `Ammo*`, hoặc bóc tiếp `BuildOrderTickProcessor` nếu muốn đi nốt theo hướng purity/facade.
+- [x] Đã chuyển sang `Ammo*` pass 1 bằng cách bóc monitor/threshold/request-notification path khỏi `AmmoService` sang `AmmoMonitorPolicy`, giảm bớt phần state-machine cục bộ trong service gốc mà chưa đụng flow job/planner nặng.
+- [~] `AmmoService` vẫn là orchestration root lớn của cụm ammo, nhưng điểm nóng notify + threshold + enqueue request đã có boundary rõ hơn, an toàn để đi tiếp từng pass.
+- [ ] Bước tiếp theo hợp lý sau pass này: cân nhắc bóc tiếp recipe/craft start path hoặc recovery/observability path khỏi `AmmoService` trước khi động tới planner/job orchestration nặng.
 
 Đây là bộ 3 có tỷ lệ **giảm đau / rủi ro thấp / hiệu quả dài hạn** tốt nhất cho codebase hiện tại.

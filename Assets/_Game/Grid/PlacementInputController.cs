@@ -70,6 +70,7 @@ namespace SeasonalBastion
         private IDataRegistry _data;
         private IRunClock _clock;
         private PlacementUiGate _uiGate;
+        private PlacementPreviewRenderer _previewRenderer;
 
         private Camera _cam;
         private bool _bound;
@@ -87,27 +88,11 @@ namespace SeasonalBastion
         private PlacementFailReason _lastPlacementFailReason = PlacementFailReason.None;
         private CellPos _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
 
-        // preview caching
-        private readonly List<Vector3Int> _prevCells = new(64);
-        private bool _hasPrevDriveway;
-        private Vector3Int _prevDriveway;
-        private bool _hasPrevFrontTile;
-        private Vector3Int _prevFrontTile;
-        private string _prevDef;
-        private Dir4 _prevRot;
-        private UiToolMode _prevTool;
-        private CellPos _prevCell;
-
-        // ghost / front marker sprite renderers
-        private SpriteRenderer _ghostSr;
-        private SpriteRenderer _frontArrowSr;
 
         private void Awake()
         {
             _cam = _cameraOverride != null ? _cameraOverride : Camera.main;
             _uiGate = new PlacementUiGate(_hudDoc, _panelsDoc, _modalsDoc, _blockClass);
-            EnsureGhost();
-            EnsureFrontArrow();
         }
 
         private void OnEnable()
@@ -118,9 +103,7 @@ namespace SeasonalBastion
         private void OnDisable()
         {
             Unsubscribe();
-            ClearPreview();
-            SetGhostVisible(false);
-            SetFrontArrowVisible(false);
+            _previewRenderer?.HideAll();
         }
 
         private void Update()
@@ -173,7 +156,9 @@ namespace SeasonalBastion
             }
 
             // --- PREVIEW ---
-            UpdatePreview(cell);
+            var previewResult = _previewRenderer?.UpdatePreview(cell, _placeDefId, _rot, _tool);
+            if (previewResult.HasValue)
+                MaybePushPlacementPreviewHint(previewResult.Value, cell);
 
             var mouse = Mouse.current;
             if (mouse == null) return;
@@ -213,8 +198,7 @@ namespace SeasonalBastion
                     _placeDefId = null;
                     _tool = UiToolMode.Select;
                     _bus?.Publish(new UiPlacementFinishedEvent(placedDefId, true));
-                    ClearPreview();
-                    SetGhostVisible(false);
+                    _previewRenderer?.HideAll();
                 }
                 return;
             }
@@ -268,382 +252,7 @@ namespace SeasonalBastion
 
         private void HidePlacementPreview()
         {
-            ClearPreview();
-            SetGhostVisible(false);
-            SetFrontArrowVisible(false);
-        }
-
-        // ---------------- Preview ----------------
-
-        private void UpdatePreview(CellPos cell)
-        {
-            // Only re-draw if something changed
-            if (_prevCell.X == cell.X && _prevCell.Y == cell.Y &&
-                _prevTool == _tool &&
-                _prevRot == _rot &&
-                string.Equals(_prevDef, _placeDefId, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _prevCell = cell;
-            _prevTool = _tool;
-            _prevRot = _rot;
-            _prevDef = _placeDefId;
-
-            ClearPreview(); // clear previous tiles
-
-            if (_previewTilemap == null) return;
-
-            // BUILDING preview
-            if (!string.IsNullOrEmpty(_placeDefId))
-            {
-                int w = 1, h = 1;
-                BuildingDef def = null;
-                if (_data != null)
-                    _data.TryGetBuilding(_placeDefId, out def);
-                if (def != null)
-                {
-                    w = Mathf.Max(1, def.SizeX);
-                    h = Mathf.Max(1, def.SizeY);
-                }
-
-                var vr = _placement.ValidateBuilding(_placeDefId, cell, _rot);
-                var tileFoot = vr.Ok ? _tileOk : _tileBad;
-
-                MaybePushPlacementPreviewHint(vr, cell);
-
-                // footprint tiles (anchor is bottom-left in PlacementService)
-                for (int dy = 0; dy < h; dy++)
-                {
-                    for (int dx = 0; dx < w; dx++)
-                    {
-                        var c = new CellPos(cell.X + dx, cell.Y + dy);
-                        if (_gridMap != null && !_gridMap.IsInside(c)) continue;
-
-                        var v = new Vector3Int(c.X, c.Y, 0);
-                        if (tileFoot != null)
-                        {
-                            _previewTilemap.SetTile(v, tileFoot);
-                            _prevCells.Add(v);
-                        }
-                    }
-                }
-
-                // driveway / entry (SuggestedRoadCell)
-                if (_gridMap != null && _gridMap.IsInside(vr.SuggestedRoadCell))
-                {
-                    _prevDriveway = new Vector3Int(vr.SuggestedRoadCell.X, vr.SuggestedRoadCell.Y, 0);
-                    var drivewayTile = vr.Ok
-                        ? (_tileEntryValid != null ? _tileEntryValid : _tileDriveway)
-                        : (_tileEntryInvalid != null ? _tileEntryInvalid : (_tileBad != null ? _tileBad : _tileDriveway));
-                    if (drivewayTile != null)
-                    {
-                        _previewTilemap.SetTile(_prevDriveway, drivewayTile);
-                        _hasPrevDriveway = true;
-                    }
-                }
-
-                UpdateFrontMarker(cell, w, h, _rot, vr.Ok);
-
-                // ghost sprite (optional)
-                UpdateGhost(cell, w, h, vr.Ok);
-                return;
-            }
-
-            // ROAD preview
-            if (_tool == UiToolMode.Road)
-            {
-                bool ok = _placement.CanPlaceRoad(cell);
-                var t = ok ? _tileOk : _tileBad;
-                if (t != null)
-                {
-                    var v = new Vector3Int(cell.X, cell.Y, 0);
-                    _previewTilemap.SetTile(v, t);
-                    _prevCells.Add(v);
-                }
-                SetGhostVisible(false);
-                SetFrontArrowVisible(false);
-                return;
-            }
-
-            // REMOVE ROAD preview
-            if (_tool == UiToolMode.Remove)
-            {
-                bool ok = _placement.CanRemoveRoad(cell);
-                var t = ok ? _tileOk : _tileBad;
-                if (t != null)
-                {
-                    var v = new Vector3Int(cell.X, cell.Y, 0);
-                    _previewTilemap.SetTile(v, t);
-                    _prevCells.Add(v);
-                }
-                SetGhostVisible(false);
-                SetFrontArrowVisible(false);
-                return;
-            }
-
-            // No tool
-            SetGhostVisible(false);
-            SetFrontArrowVisible(false);
-        }
-
-        private void ClearPreview()
-        {
-            if (_previewTilemap != null)
-            {
-                for (int i = 0; i < _prevCells.Count; i++)
-                    _previewTilemap.SetTile(_prevCells[i], null);
-                _prevCells.Clear();
-
-                if (_hasPrevDriveway)
-                {
-                    _previewTilemap.SetTile(_prevDriveway, null);
-                    _hasPrevDriveway = false;
-                }
-
-                if (_hasPrevFrontTile)
-                {
-                    _previewTilemap.SetTile(_prevFrontTile, null);
-                    _hasPrevFrontTile = false;
-                }
-            }
-
-            SetFrontArrowVisible(false);
-        }
-
-        private void EnsureGhost()
-        {
-            if (!_useGhostSprite) return;
-
-            var go = new GameObject("GhostBuilding");
-            go.transform.SetParent(transform, false);
-
-            _ghostSr = go.AddComponent<SpriteRenderer>();
-            _ghostSr.sortingLayerName = _ghostSortingLayer;
-            _ghostSr.sortingOrder = 9999; // will be overridden by y-sort
-            _ghostSr.sprite = _ghostSprite;
-            _ghostSr.enabled = false;
-        }
-
-        private void EnsureFrontArrow()
-        {
-            if (!_useFrontArrowSprite) return;
-
-            var go = new GameObject("PlacementFrontMarker");
-            go.transform.SetParent(transform, false);
-
-            _frontArrowSr = go.AddComponent<SpriteRenderer>();
-            _frontArrowSr.sortingLayerName = _frontArrowSortingLayer;
-            _frontArrowSr.sortingOrder = 10000;
-            _frontArrowSr.sprite = _frontArrowSprite != null ? _frontArrowSprite : _ghostSprite;
-            _frontArrowSr.enabled = false;
-        }
-
-        private void UpdateGhost(CellPos anchor, int sizeX, int sizeY, bool ok)
-        {
-            if (!_useGhostSprite || _ghostSr == null) return;
-
-            // choose sprite
-            if (_ghostSr.sprite == null) _ghostSr.sprite = _ghostSprite;
-            if (_ghostSr.sprite == null)
-            {
-                // if no sprite, just hide
-                _ghostSr.enabled = false;
-                return;
-            }
-
-            // position at center of footprint
-            Vector3 pos = FootprintCenterWorld(anchor, sizeX, sizeY);
-            _ghostSr.transform.position = pos;
-
-            // y-sort
-            _ghostSr.sortingOrder = -Mathf.RoundToInt(pos.y * 100f);
-
-            // color
-            var c = ok
-                ? new Color(0.20f, 1.00f, 0.35f, Mathf.Max(_ghostAlpha, 0.42f))
-                : new Color(1.00f, 0.16f, 0.16f, Mathf.Max(_ghostAlpha + 0.15f, 0.60f));
-            _ghostSr.color = c;
-
-            // scale to footprint; invalid uses slightly smaller fill to avoid reading as a normal highlight block
-            ApplyScaleToFootprint(_ghostSr, sizeX, sizeY, ok ? _ghostFill : Mathf.Clamp01(_ghostFill - 0.08f));
-
-            _ghostSr.enabled = true;
-        }
-
-        private void UpdateFrontMarker(CellPos anchor, int sizeX, int sizeY, Dir4 rot, bool ok)
-        {
-            if (TryDrawFrontMarkerTile(anchor, sizeX, sizeY, rot))
-            {
-                SetFrontArrowVisible(false);
-                return;
-            }
-
-            if (!_useFrontArrowSprite || _frontArrowSr == null)
-            {
-                SetFrontArrowVisible(false);
-                return;
-            }
-
-            if (_frontArrowSr.sprite == null)
-                _frontArrowSr.sprite = _frontArrowSprite != null ? _frontArrowSprite : _ghostSprite;
-            if (_frontArrowSr.sprite == null)
-            {
-                SetFrontArrowVisible(false);
-                return;
-            }
-
-            Vector3 pos = GetFrontMarkerWorld(anchor, sizeX, sizeY, rot);
-            _frontArrowSr.transform.position = pos;
-            _frontArrowSr.sortingOrder = -Mathf.RoundToInt(pos.y * 100f) + 1;
-            _frontArrowSr.transform.rotation = Quaternion.Euler(0f, 0f, GetRotationDegrees(rot));
-            _frontArrowSr.color = ok
-                ? new Color(1.00f, 0.90f, 0.15f, 0.95f)
-                : new Color(1.00f, 0.35f, 0.15f, 1.00f);
-            ApplyScaleToCellSize(_frontArrowSr, _frontArrowWidthCells, _frontArrowLengthCells);
-            _frontArrowSr.enabled = true;
-        }
-
-        private void SetGhostVisible(bool visible)
-        {
-            if (_ghostSr == null) return;
-            _ghostSr.enabled = visible;
-        }
-
-        private void SetFrontArrowVisible(bool visible)
-        {
-            if (_frontArrowSr == null) return;
-            _frontArrowSr.enabled = visible;
-        }
-
-        private Vector3 FootprintCenterWorld(CellPos anchor, int sizeX, int sizeY)
-        {
-            Vector3 cellSize = _grid != null ? _grid.cellSize : Vector3.one;
-
-            // world position of anchor cell center
-            Vector3 anchorCenter = CellToWorldCenter(anchor);
-
-            float ox = (sizeX * 0.5f - 0.5f) * cellSize.x;
-            float oy = (sizeY * 0.5f - 0.5f) * cellSize.y;
-
-            return anchorCenter + new Vector3(ox, oy, 0f);
-        }
-
-        private Vector3 GetFrontMarkerWorld(CellPos anchor, int sizeX, int sizeY, Dir4 rot)
-        {
-            Vector3 center = FootprintCenterWorld(anchor, sizeX, sizeY);
-            Vector3 cellSize = _grid != null ? _grid.cellSize : Vector3.one;
-
-            float halfW = Mathf.Max(0.5f, sizeX * 0.5f) * cellSize.x;
-            float halfH = Mathf.Max(0.5f, sizeY * 0.5f) * cellSize.y;
-            float insetX = cellSize.x * 0.32f;
-            float insetY = cellSize.y * 0.32f;
-
-            return rot switch
-            {
-                Dir4.N => center + new Vector3(0f, halfH - insetY, 0f),
-                Dir4.S => center + new Vector3(0f, -halfH + insetY, 0f),
-                Dir4.E => center + new Vector3(halfW - insetX, 0f, 0f),
-                Dir4.W => center + new Vector3(-halfW + insetX, 0f, 0f),
-                _ => center + new Vector3(0f, halfH - insetY, 0f),
-            };
-        }
-
-        private Vector3 CellToWorldCenter(CellPos c)
-        {
-            if (_grid != null)
-            {
-                var v = new Vector3Int(c.X, c.Y, 0);
-                return _grid.GetCellCenterWorld(v);
-            }
-            return new Vector3(c.X + 0.5f, c.Y + 0.5f, 0f);
-        }
-
-        private void ApplyScaleToFootprint(SpriteRenderer sr, int sizeX, int sizeY, float fill)
-        {
-            if (sr == null || sr.sprite == null) return;
-
-            Vector3 cellSize = _grid != null ? _grid.cellSize : Vector3.one;
-
-            float targetW = Mathf.Max(0.01f, sizeX * cellSize.x * fill);
-            float targetH = Mathf.Max(0.01f, sizeY * cellSize.y * fill);
-
-            Vector3 native = sr.sprite.bounds.size;
-            float nativeW = Mathf.Max(0.0001f, native.x);
-            float nativeH = Mathf.Max(0.0001f, native.y);
-
-            sr.transform.localScale = new Vector3(targetW / nativeW, targetH / nativeH, 1f);
-        }
-
-        private void ApplyScaleToCellSize(SpriteRenderer sr, float widthCells, float heightCells)
-        {
-            if (sr == null || sr.sprite == null) return;
-
-            Vector3 cellSize = _grid != null ? _grid.cellSize : Vector3.one;
-            float targetW = Mathf.Max(0.01f, widthCells * cellSize.x);
-            float targetH = Mathf.Max(0.01f, heightCells * cellSize.y);
-
-            Vector3 native = sr.sprite.bounds.size;
-            float nativeW = Mathf.Max(0.0001f, native.x);
-            float nativeH = Mathf.Max(0.0001f, native.y);
-
-            sr.transform.localScale = new Vector3(targetW / nativeW, targetH / nativeH, 1f);
-        }
-
-        private bool TryDrawFrontMarkerTile(CellPos anchor, int sizeX, int sizeY, Dir4 rot)
-        {
-            if (_previewTilemap == null) return false;
-
-            var frontTile = GetFrontTile(rot);
-            if (frontTile == null) return false;
-
-            CellPos frontCell = GetFrontMarkerCell(anchor, sizeX, sizeY, rot);
-            if (_gridMap != null && !_gridMap.IsInside(frontCell)) return false;
-
-            _prevFrontTile = new Vector3Int(frontCell.X, frontCell.Y, 0);
-            _previewTilemap.SetTile(_prevFrontTile, frontTile);
-            _hasPrevFrontTile = true;
-            return true;
-        }
-
-        private TileBase GetFrontTile(Dir4 rot)
-        {
-            return rot switch
-            {
-                Dir4.N => _tileFrontNorth,
-                Dir4.E => _tileFrontEast,
-                Dir4.S => _tileFrontSouth,
-                Dir4.W => _tileFrontWest,
-                _ => _tileFrontNorth,
-            };
-        }
-
-        private CellPos GetFrontMarkerCell(CellPos anchor, int sizeX, int sizeY, Dir4 rot)
-        {
-            int centerX = anchor.X + Mathf.Max(0, (sizeX - 1) / 2);
-            int centerY = anchor.Y + Mathf.Max(0, (sizeY - 1) / 2);
-
-            return rot switch
-            {
-                Dir4.N => new CellPos(centerX, anchor.Y + sizeY - 1),
-                Dir4.S => new CellPos(centerX, anchor.Y),
-                Dir4.E => new CellPos(anchor.X + sizeX - 1, centerY),
-                Dir4.W => new CellPos(anchor.X, centerY),
-                _ => new CellPos(centerX, anchor.Y + sizeY - 1),
-            };
-        }
-
-        private static float GetRotationDegrees(Dir4 rot)
-        {
-            return rot switch
-            {
-                Dir4.N => 0f,
-                Dir4.E => -90f,
-                Dir4.S => 180f,
-                Dir4.W => 90f,
-                _ => 0f,
-            };
+            _previewRenderer?.HideAll();
         }
 
         // ---------------- Placement actions ----------------
@@ -715,6 +324,34 @@ namespace SeasonalBastion
 
             if (_bus == null || _placement == null || _gridMap == null)
                 return;
+
+            _previewRenderer = new PlacementPreviewRenderer(
+                _grid,
+                _gridMap,
+                _data,
+                _placement,
+                _previewTilemap,
+                _tileOk,
+                _tileBad,
+                _tileDriveway,
+                _tileEntryValid,
+                _tileEntryInvalid,
+                _tileFrontNorth,
+                _tileFrontEast,
+                _tileFrontSouth,
+                _tileFrontWest,
+                _useGhostSprite,
+                _ghostSprite,
+                _ghostAlpha,
+                _ghostFill,
+                _ghostSortingLayer,
+                _useFrontArrowSprite,
+                _frontArrowSprite,
+                _frontArrowWidthCells,
+                _frontArrowLengthCells,
+                _frontArrowSortingLayer,
+                transform);
+            _previewRenderer.EnsureObjects();
 
             Subscribe();
             _bound = true;

@@ -17,6 +17,7 @@ namespace SeasonalBastion
     {
         private readonly GameServices _s;
         private readonly EnemyTargetResolver _targetResolver;
+        private readonly EnemyAttackResolver _attackResolver;
 
         // Attack timing (v0.1): constant, can be moved to EnemyDef later if needed
         private const float DefaultAttackIntervalSec = 1.0f;
@@ -52,6 +53,7 @@ namespace SeasonalBastion
         {
             _s = s;
             _targetResolver = new EnemyTargetResolver(s.WorldState, s.DataRegistry, s.RunStartRuntime, _tmpBuildingIds);
+            _attackResolver = new EnemyAttackResolver(s.WorldState, s.GridMap, s.DataRegistry, s.RunOutcomeService, _targetResolver, GetYearIndexOr1, DefaultAttackIntervalSec);
         }
 
         public void Tick(float dt)
@@ -129,7 +131,7 @@ namespace SeasonalBastion
                 // If already at target cell: attack HQ
                 if (CellsEqual(st.Cell, hqTargetCell))
                 {
-                    TryAttackHQ(ref st, def, ref cd);
+                    _attackResolver.TryAttackHQ(ref st, def, ref cd);
                     _attackCd[key] = cd;
                     w.Enemies.Set(id, st);
                     continue;
@@ -169,7 +171,7 @@ namespace SeasonalBastion
                         if (!recovered)
                         {
                             // Không recover được -> hành vi cũ: cố gắng đập công trình đang chặn
-                            TryAttackAdjacentBlockingBuilding(ref st, def, ref cd);
+                            _attackResolver.TryAttackAdjacentBlockingBuilding(ref st, def, ref cd);
                             break;
                         }
                     }
@@ -181,7 +183,7 @@ namespace SeasonalBastion
                         int year = GetYearIndexOr1();
                         float mul = YearScaling.EnemyDamageMul(year);
                         int dmgB = Mathf.Max(0, Mathf.RoundToInt(def.DamageToBuildings * mul));
-                        TryAttackBuilding(occ.Building, dmgB, ref cd);
+                        _attackResolver.TryAttackBuilding(occ.Building, dmgB, ref cd);
                         break;
                     }
 
@@ -208,7 +210,7 @@ namespace SeasonalBastion
                     // Reached target: can attack immediately if remaining progress
                     if (CellsEqual(st.Cell, hqTargetCell))
                     {
-                        TryAttackHQ(ref st, def, ref cd);
+                        _attackResolver.TryAttackHQ(ref st, def, ref cd);
                         break;
                     }
                 }
@@ -234,129 +236,6 @@ namespace SeasonalBastion
 
             // Day44: prune per-enemy dictionaries to avoid unbounded growth / resize spikes
             PruneEnemyCaches(w, dt);
-        }
-
-        // -------------------------
-        // Attack
-        // -------------------------
-
-        // -------------------------
-        // Attack
-        // -------------------------
-
-        private void TryAttackHQ(ref EnemyState enemy, EnemyDef def, ref float cd)
-        {
-            if (cd > 0f) return;
-
-            var w = _s.WorldState;
-            if (w == null || w.Buildings == null) return;
-
-            _targetResolver.EnsureHqCached();
-            var hqId = _targetResolver.GetCachedHqId();
-            if (hqId.Value == 0 || !w.Buildings.Exists(hqId)) return;
-
-            int year = GetYearIndexOr1();
-            float mul = YearScaling.EnemyDamageMul(year);
-            int dmg = Mathf.Max(0, Mathf.RoundToInt(def.DamageToHQ * mul));
-            if (dmg <= 0) { cd = DefaultAttackIntervalSec; return; }
-
-            var hq = w.Buildings.Get(hqId);
-            int hp = Mathf.Max(0, hq.HP - dmg);
-
-            hq.HP = hp;
-            w.Buildings.Set(hqId, hq);
-
-            // Defeat
-            if (hp <= 0)
-            {
-                _s.RunOutcomeService?.Defeat();
-            }
-
-            cd = DefaultAttackIntervalSec;
-        }
-
-        private void TryAttackBuilding(BuildingId bid, int dmg, ref float cd)
-        {
-            if (cd > 0f) return;
-            if (dmg <= 0) { cd = DefaultAttackIntervalSec; return; }
-
-            var w = _s.WorldState;
-            var grid = _s.GridMap;
-            var data = _s.DataRegistry;
-
-            if (w == null || w.Buildings == null || grid == null || data == null) return;
-            if (bid.Value == 0 || !w.Buildings.Exists(bid)) return;
-
-            var b = w.Buildings.Get(bid);
-            if (!b.IsConstructed) { cd = DefaultAttackIntervalSec; return; }
-
-            int hp = Mathf.Max(0, b.HP - dmg);
-            b.HP = hp;
-
-            // Day34: nếu building về 0 HP -> clear occupancy để enemy không kẹt vĩnh viễn
-            if (hp <= 0)
-            {
-                // Không tự ý destroy entity (tránh ripple), chỉ clear footprint + mark not constructed
-                b.IsConstructed = false;
-
-                if (data.TryGetBuilding(b.DefId, out var def) && def != null)
-                {
-                    int wdx = Mathf.Max(1, def.SizeX);
-                    int hdy = Mathf.Max(1, def.SizeY);
-
-                    for (int dy = 0; dy < hdy; dy++)
-                        for (int dx = 0; dx < wdx; dx++)
-                            grid.ClearBuilding(new CellPos(b.Anchor.X + dx, b.Anchor.Y + dy));
-                }
-                else
-                {
-                    // Nếu defs lỗi, vẫn cố clear đúng anchor cell (an toàn tối thiểu)
-                    grid.ClearBuilding(b.Anchor);
-                }
-            }
-
-            w.Buildings.Set(bid, b);
-
-            cd = DefaultAttackIntervalSec;
-        }
-
-        private void TryAttackAdjacentBlockingBuilding(ref EnemyState enemy, EnemyDef def, ref float cd)
-        {
-            if (cd > 0f) return;
-
-            var grid = _s.GridMap;
-            if (grid == null) return;
-
-            int dmg = Mathf.Max(0, def.DamageToBuildings);
-            if (dmg <= 0) { cd = DefaultAttackIntervalSec; return; }
-
-            // Check 4-neighbors for building
-            var c = enemy.Cell;
-
-            var n = new CellPos(c.X, c.Y + 1);
-            var e = new CellPos(c.X + 1, c.Y);
-            var s = new CellPos(c.X, c.Y - 1);
-            var w = new CellPos(c.X - 1, c.Y);
-
-            if (TryAttackIfBuildingAt(n, dmg, ref cd)) return;
-            if (TryAttackIfBuildingAt(e, dmg, ref cd)) return;
-            if (TryAttackIfBuildingAt(s, dmg, ref cd)) return;
-            if (TryAttackIfBuildingAt(w, dmg, ref cd)) return;
-
-            // nothing to hit => still consume interval to avoid hammering
-            cd = DefaultAttackIntervalSec;
-        }
-
-        private bool TryAttackIfBuildingAt(CellPos cell, int dmg, ref float cd)
-        {
-            var grid = _s.GridMap;
-            if (grid == null) return false;
-
-            var occ = grid.Get(cell);
-            if (occ.Kind != CellOccupancyKind.Building || occ.Building.Value == 0) return false;
-
-            TryAttackBuilding(occ.Building, dmg, ref cd);
-            return true;
         }
 
         // -------------------------

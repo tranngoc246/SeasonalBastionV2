@@ -52,7 +52,8 @@ namespace SeasonalBastion
                 _repairJobByOrder,
                 CancelTrackedJobsForSite);
             _reloadService = new BuildOrderReloadService(
-                s,
+                s.WorldState,
+                s.NotificationService,
                 _orders,
                 _active,
                 _deliverJobsBySite,

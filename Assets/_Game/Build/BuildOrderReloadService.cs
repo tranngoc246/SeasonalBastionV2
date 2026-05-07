@@ -6,7 +6,8 @@ namespace SeasonalBastion
 {
     internal sealed class BuildOrderReloadService
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly INotificationService _notificationService;
         private readonly Dictionary<int, BuildOrder> _orders;
         private readonly List<int> _active;
         private readonly Dictionary<int, List<JobId>> _deliverJobsBySite;
@@ -18,7 +19,8 @@ namespace SeasonalBastion
         private readonly Func<int> _allocateOrderId;
 
         public BuildOrderReloadService(
-            GameServices s,
+            IWorldState worldState,
+            INotificationService notificationService,
             Dictionary<int, BuildOrder> orders,
             List<int> active,
             Dictionary<int, List<JobId>> deliverJobsBySite,
@@ -29,7 +31,8 @@ namespace SeasonalBastion
             Action resetRuntimeTracking,
             Func<int> allocateOrderId)
         {
-            _s = s;
+            _worldState = worldState;
+            _notificationService = notificationService;
             _orders = orders;
             _active = active;
             _deliverJobsBySite = deliverJobsBySite;
@@ -46,17 +49,17 @@ namespace SeasonalBastion
             _ensureBusSubscribed?.Invoke();
             _resetRuntimeTracking?.Invoke();
 
-            if (_s?.WorldState?.Sites == null || _s.WorldState.Buildings == null)
+            if (_worldState?.Sites == null || _worldState.Buildings == null)
                 return 0;
 
             var placeholderByKey = new Dictionary<long, BuildingId>(128);
             var seenSites = new HashSet<int>();
             var seenTargetBuildings = new HashSet<int>();
 
-            foreach (var bid in _s.WorldState.Buildings.Ids)
+            foreach (var bid in _worldState.Buildings.Ids)
             {
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
-                var b = _s.WorldState.Buildings.Get(bid);
+                if (!_worldState.Buildings.Exists(bid)) continue;
+                var b = _worldState.Buildings.Get(bid);
                 if (b.IsConstructed) continue;
 
                 long k = Pack(b.Anchor.X, b.Anchor.Y, b.DefId);
@@ -65,7 +68,7 @@ namespace SeasonalBastion
             }
 
             var siteIds = new List<SiteId>(128);
-            foreach (var sid in _s.WorldState.Sites.Ids) siteIds.Add(sid);
+            foreach (var sid in _worldState.Sites.Ids) siteIds.Add(sid);
             siteIds.Sort((a, b) => a.Value.CompareTo(b.Value));
 
             int created = 0;
@@ -73,19 +76,19 @@ namespace SeasonalBastion
             for (int i = 0; i < siteIds.Count; i++)
             {
                 var sid = siteIds[i];
-                if (!_s.WorldState.Sites.Exists(sid)) continue;
+                if (!_worldState.Sites.Exists(sid)) continue;
                 if (!seenSites.Add(sid.Value)) continue;
 
-                var site = _s.WorldState.Sites.Get(sid);
+                var site = _worldState.Sites.Get(sid);
                 if (!site.IsActive) continue;
 
                 if (site.Kind == 0)
                 {
                     long key = Pack(site.Anchor.X, site.Anchor.Y, site.BuildingDefId);
 
-                    if (!placeholderByKey.TryGetValue(key, out var buildingId) || buildingId.Value == 0 || !_s.WorldState.Buildings.Exists(buildingId))
+                    if (!placeholderByKey.TryGetValue(key, out var buildingId) || buildingId.Value == 0 || !_worldState.Buildings.Exists(buildingId))
                     {
-                        _s.NotificationService?.Push(
+                        _notificationService?.Push(
                             key: $"LoadMissingPlaceholder_{sid.Value}",
                             title: "Load Warning",
                             body: $"Missing placeholder for site #{sid.Value}: {site.BuildingDefId} @ ({site.Anchor.X},{site.Anchor.Y})",
@@ -122,7 +125,7 @@ namespace SeasonalBastion
                 else
                 {
                     var buildingId = site.TargetBuilding;
-                    if (!_s.WorldState.Buildings.Exists(buildingId)) continue;
+                    if (!_worldState.Buildings.Exists(buildingId)) continue;
                     if (!seenTargetBuildings.Add(buildingId.Value)) continue;
 
                     int orderId = _allocateOrderId();

@@ -76,7 +76,19 @@ namespace SeasonalBastion
         {
             _s = s;
             _topologyCache = new AmmoTopologyCache(this);
-            _armoryBufferPlanner = new ArmoryBufferPlanner(this);
+            _armoryBufferPlanner = new ArmoryBufferPlanner(
+                s.WorldState,
+                s.WorldIndex,
+                s.StorageService,
+                s.JobBoard,
+                _runtimeState.SupplyJobByForgeAndType,
+                _runtimeState.HaulAmmoJobByArmory,
+                () => _runtimeState.WorkplacesWithNpc,
+                () => ForgeTargetCraftsValue,
+                GetArmoryChunkByLevel_Value,
+                PickPreferredHaulerWorkplace,
+                PickForgeAmmoSource,
+                TryStartCraft);
             _towerResupplyPlanner = new TowerResupplyPlanner(this);
             _debugHooks = new AmmoDebugHooks(this);
             _requestQueue = new AmmoRequestQueue(s);
@@ -189,6 +201,20 @@ namespace SeasonalBastion
 
         internal bool HasActiveResupplyJob(JobId jobId)
             => _s.JobBoard != null && _s.JobBoard.TryGet(jobId, out var job) && !IsTerminal(job.Status);
+
+        internal BuildingId PickPreferredHaulerWorkplace(CellPos forgeAnchor)
+        {
+            if (_topologyCache.TryPickPreferredHaulerWorkplace(forgeAnchor, out var workplace))
+                return workplace;
+            return default;
+        }
+
+        internal (bool found, BuildingId forge, int takeable) PickForgeAmmoSource(CellPos refPos)
+        {
+            if (_topologyCache.TryPickForgeAmmoSource(refPos, out var forge, out var takeable))
+                return (true, forge, takeable);
+            return (false, default, 0);
+        }
 
         internal void CleanupResupplyArmoryMappings() => _resupplyTracking.CleanupArmoryMappings();
         internal void RemoveArmoryMappingByJob(JobId jobId) => _resupplyTracking.RemoveArmoryMappingByJob(jobId);

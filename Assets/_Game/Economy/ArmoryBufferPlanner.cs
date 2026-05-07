@@ -1,34 +1,72 @@
+using System;
+using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
 namespace SeasonalBastion
 {
     internal sealed class ArmoryBufferPlanner
     {
-        private readonly AmmoService _owner;
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IWorldIndex _worldIndex;
+        private readonly IStorageService _storageService;
+        private readonly IJobBoard _jobBoard;
+        private readonly Dictionary<int, JobId> _supplyJobByForgeAndType;
+        private readonly Dictionary<int, JobId> _haulAmmoJobByArmory;
+        private readonly Func<HashSet<int>> _getWorkplacesWithNpc;
+        private readonly Func<int> _getForgeTargetCrafts;
+        private readonly Func<int, int> _getArmoryChunkByLevel;
+        private readonly Func<CellPos, BuildingId> _pickPreferredHaulerWorkplace;
+        private readonly Func<CellPos, (bool found, BuildingId forge, int takeable)> _pickForgeAmmoSource;
+        private readonly Func<BuildingId, bool> _tryStartCraft;
 
-        internal ArmoryBufferPlanner(AmmoService owner)
+        internal ArmoryBufferPlanner(
+            IWorldState worldState,
+            IWorldIndex worldIndex,
+            IStorageService storageService,
+            IJobBoard jobBoard,
+            Dictionary<int, JobId> supplyJobByForgeAndType,
+            Dictionary<int, JobId> haulAmmoJobByArmory,
+            Func<HashSet<int>> getWorkplacesWithNpc,
+            Func<int> getForgeTargetCrafts,
+            Func<int, int> getArmoryChunkByLevel,
+            Func<CellPos, BuildingId> pickPreferredHaulerWorkplace,
+            Func<CellPos, (bool found, BuildingId forge, int takeable)> pickForgeAmmoSource,
+            Func<BuildingId, bool> tryStartCraft)
         {
-            _owner = owner;
-            _s = owner.Services;
+            _worldState = worldState;
+            _worldIndex = worldIndex;
+            _storageService = storageService;
+            _jobBoard = jobBoard;
+            _supplyJobByForgeAndType = supplyJobByForgeAndType;
+            _haulAmmoJobByArmory = haulAmmoJobByArmory;
+            _getWorkplacesWithNpc = getWorkplacesWithNpc;
+            _getForgeTargetCrafts = getForgeTargetCrafts;
+            _getArmoryChunkByLevel = getArmoryChunkByLevel;
+            _pickPreferredHaulerWorkplace = pickPreferredHaulerWorkplace;
+            _pickForgeAmmoSource = pickForgeAmmoSource;
+            _tryStartCraft = tryStartCraft;
         }
 
-        internal bool TryStartCraft(BuildingId forge) => _owner.TryStartCraft(forge);
+        internal bool TryStartCraft(BuildingId forge) => _tryStartCraft != null && _tryStartCraft(forge);
 
         internal bool HasCapForForgeInputs(BuildingId forge, RecipeDef recipe)
         {
-            int capMain = _s.StorageService.GetCap(forge, recipe.InputType);
-            if (capMain <= 0) return false;
+            int capMain = _storageService.GetCap(forge, recipe.InputType);
+            if (capMain <= 0)
+                return false;
 
             var extras = recipe.ExtraInputs;
             if (extras != null && extras.Length > 0)
             {
                 for (int i = 0; i < extras.Length; i++)
                 {
-                    var c = extras[i];
-                    if (c == null || c.Amount <= 0) continue;
-                    int capX = _s.StorageService.GetCap(forge, c.Resource);
-                    if (capX <= 0) return false;
+                    var cost = extras[i];
+                    if (cost == null || cost.Amount <= 0)
+                        continue;
+
+                    int extraCap = _storageService.GetCap(forge, cost.Resource);
+                    if (extraCap <= 0)
+                        return false;
                 }
             }
 
@@ -37,8 +75,9 @@ namespace SeasonalBastion
 
         internal void EnsureForgeSupplyByRecipe(BuildingId forge, CellPos forgeAnchor, RecipeDef recipe)
         {
-            int crafts = _owner.ForgeTargetCraftsValue;
-            if (crafts < 1) crafts = 1;
+            int crafts = _getForgeTargetCrafts();
+            if (crafts < 1)
+                crafts = 1;
 
             EnsureSupplyJobToForgeByTarget(forge, forgeAnchor, recipe.InputType, recipe.InputAmount, crafts);
 
@@ -47,170 +86,140 @@ namespace SeasonalBastion
             {
                 for (int i = 0; i < extras.Length; i++)
                 {
-                    var c = extras[i];
-                    if (c == null || c.Amount <= 0) continue;
-                    EnsureSupplyJobToForgeByTarget(forge, forgeAnchor, c.Resource, c.Amount, crafts);
+                    var cost = extras[i];
+                    if (cost == null || cost.Amount <= 0)
+                        continue;
+
+                    EnsureSupplyJobToForgeByTarget(forge, forgeAnchor, cost.Resource, cost.Amount, crafts);
                 }
             }
         }
 
         internal void EnsureArmoryAmmoBuffer()
         {
-            var armories = _s.WorldIndex.Armories;
-            if (armories == null || armories.Count == 0) return;
+            var armories = _worldIndex.Armories;
+            if (armories == null || armories.Count == 0)
+                return;
 
+            var workplacesWithNpc = _getWorkplacesWithNpc();
             for (int i = 0; i < armories.Count; i++)
             {
-                var arm = armories[i];
-                if (!_s.WorldState.Buildings.Exists(arm)) continue;
+                var armory = armories[i];
+                if (!_worldState.Buildings.Exists(armory))
+                    continue;
 
-                var armSt = _s.WorldState.Buildings.Get(arm);
-                if (!armSt.IsConstructed) continue;
+                var armoryState = _worldState.Buildings.Get(armory);
+                if (!armoryState.IsConstructed)
+                    continue;
 
-                if (!_owner.WorkplacesWithNpc.Contains(arm.Value)) continue;
-                if (!_s.StorageService.CanStore(arm, ResourceType.Ammo)) continue;
+                if (workplacesWithNpc == null || !workplacesWithNpc.Contains(armory.Value))
+                    continue;
+                if (!_storageService.CanStore(armory, ResourceType.Ammo))
+                    continue;
 
-                int cap = _s.StorageService.GetCap(arm, ResourceType.Ammo);
-                if (cap <= 0) continue;
+                int cap = _storageService.GetCap(armory, ResourceType.Ammo);
+                if (cap <= 0)
+                    continue;
 
-                int cur = _s.StorageService.GetAmount(arm, ResourceType.Ammo);
+                int current = _storageService.GetAmount(armory, ResourceType.Ammo);
                 int target = (cap * 80) / 100;
-                if (cur >= target) continue;
+                if (current >= target)
+                    continue;
 
-                if (_owner.HaulAmmoJobByArmory.TryGetValue(arm.Value, out var oldId))
+                if (_haulAmmoJobByArmory.TryGetValue(armory.Value, out var existingId))
                 {
-                    if (_s.JobBoard.TryGet(oldId, out var old) && !AmmoService.IsTerminal(old.Status))
+                    if (_jobBoard.TryGet(existingId, out var existingJob) && !AmmoService.IsTerminal(existingJob.Status))
                         continue;
                 }
 
-                if (!TryPickForgeAmmoSource(armSt.Anchor, out var forge, out var takeable))
+                var source = _pickForgeAmmoSource(armoryState.Anchor);
+                if (!source.found)
                     continue;
 
-                int free = cap - cur;
-                if (free <= 0) continue;
+                int free = cap - current;
+                if (free <= 0)
+                    continue;
 
-                int need = target - cur;
-                int chunk = _owner.GetArmoryChunkByLevel_Value(armSt.Level);
-
-                int amount = chunk;
+                int need = target - current;
+                int amount = _getArmoryChunkByLevel(armoryState.Level);
                 if (amount > need) amount = need;
                 if (amount > free) amount = free;
-                if (amount > takeable) amount = takeable;
-                if (amount <= 0) continue;
+                if (amount > source.takeable) amount = source.takeable;
+                if (amount <= 0)
+                    continue;
 
-                var j = new Job
+                var job = new Job
                 {
                     Archetype = JobArchetype.HaulAmmoToArmory,
                     Status = JobStatus.Created,
-                    Workplace = arm,
-                    SourceBuilding = forge,
-                    DestBuilding = arm,
+                    Workplace = armory,
+                    SourceBuilding = source.forge,
+                    DestBuilding = armory,
                     ResourceType = ResourceType.Ammo,
                     Amount = amount,
                     TargetCell = default,
                     CreatedAt = 0
                 };
 
-                var id = _s.JobBoard.Enqueue(j);
-                _owner.HaulAmmoJobByArmory[arm.Value] = id;
+                var jobId = _jobBoard.Enqueue(job);
+                _haulAmmoJobByArmory[armory.Value] = jobId;
             }
         }
 
-        internal bool TryPickForgeAmmoSource(CellPos refPos, out BuildingId bestForge, out int bestTakeable)
+        private void EnsureSupplyJobToForgeByTarget(BuildingId forge, CellPos forgeAnchor, ResourceType resourceType, int perCraftAmount, int craftsTarget)
         {
-            bestForge = default;
-            bestTakeable = 0;
+            if (perCraftAmount <= 0)
+                return;
 
-            var forges = _s.WorldIndex.Forges;
-            if (forges == null || forges.Count == 0) return false;
-
-            int bestDist = int.MaxValue;
-            int bestId = int.MaxValue;
-
-            for (int i = 0; i < forges.Count; i++)
-            {
-                var f = forges[i];
-                if (!_s.WorldState.Buildings.Exists(f)) continue;
-
-                var fs = _s.WorldState.Buildings.Get(f);
-                if (!fs.IsConstructed) continue;
-                if (!_s.StorageService.CanStore(f, ResourceType.Ammo)) continue;
-
-                int cap = _s.StorageService.GetCap(f, ResourceType.Ammo);
-                if (cap <= 0) continue;
-
-                int cur = _s.StorageService.GetAmount(f, ResourceType.Ammo);
-                if (cur <= 0) continue;
-
-                int keep = (cap * 20 + 99) / 100;
-                if (keep < 1) keep = 1;
-                if (cur < keep) continue;
-
-                int takeable = cur - keep;
-                if (takeable <= 0) continue;
-
-                int d = AmmoService.Manhattan(refPos, fs.Anchor);
-                int idv = f.Value;
-
-                if (d < bestDist || (d == bestDist && idv < bestId))
-                {
-                    bestDist = d;
-                    bestId = idv;
-                    bestForge = f;
-                    bestTakeable = takeable;
-                }
-            }
-
-            return bestForge.Value != 0;
-        }
-
-        private void EnsureSupplyJobToForgeByTarget(BuildingId forge, CellPos forgeAnchor, ResourceType rt, int perCraftAmount, int craftsTarget)
-        {
-            if (perCraftAmount <= 0) return;
-
-            int cap = _s.StorageService.GetCap(forge, rt);
-            int cur = _s.StorageService.GetAmount(forge, rt);
-            if (cap <= 0) return;
-            if (cur >= cap) return;
+            int cap = _storageService.GetCap(forge, resourceType);
+            int current = _storageService.GetAmount(forge, resourceType);
+            if (cap <= 0 || current >= cap)
+                return;
 
             int target = perCraftAmount * craftsTarget;
-            if (target > cap) target = cap;
+            if (target > cap)
+                target = cap;
 
-            int want = target - cur;
-            if (want <= 0) return;
+            int want = target - current;
+            if (want <= 0)
+                return;
 
-            int free = cap - cur;
-            if (want > free) want = free;
+            int free = cap - current;
+            if (want > free)
+                want = free;
 
             const int CarryCapFallback = 10;
-            if (want > CarryCapFallback) want = CarryCapFallback;
-            if (want <= 0) return;
+            if (want > CarryCapFallback)
+                want = CarryCapFallback;
+            if (want <= 0)
+                return;
 
-            int key = forge.Value * 16 + (int)rt;
-            if (_owner.SupplyJobByForgeAndType.TryGetValue(key, out var oldId))
+            int key = forge.Value * 16 + (int)resourceType;
+            if (_supplyJobByForgeAndType.TryGetValue(key, out var existingId))
             {
-                if (_s.JobBoard.TryGet(oldId, out var old) && !AmmoService.IsTerminal(old.Status))
+                if (_jobBoard.TryGet(existingId, out var existingJob) && !AmmoService.IsTerminal(existingJob.Status))
                     return;
             }
 
-            if (!_owner.TryPickPreferredHaulerWorkplace(forgeAnchor, out var workplace))
+            var workplace = _pickPreferredHaulerWorkplace(forgeAnchor);
+            if (workplace.Value == 0)
                 return;
 
-            var j = new Job
+            var job = new Job
             {
                 Archetype = JobArchetype.HaulToForge,
                 Status = JobStatus.Created,
                 Workplace = workplace,
                 SourceBuilding = default,
                 DestBuilding = forge,
-                ResourceType = rt,
+                ResourceType = resourceType,
                 Amount = want,
                 TargetCell = default,
                 CreatedAt = 0
             };
 
-            var id = _s.JobBoard.Enqueue(j);
-            _owner.SupplyJobByForgeAndType[key] = id;
+            var jobId = _jobBoard.Enqueue(job);
+            _supplyJobByForgeAndType[key] = jobId;
         }
     }
 }

@@ -125,6 +125,53 @@ namespace SeasonalBastion
             return best.Value != 0;
         }
 
+        internal bool TryPickForgeAmmoSource(CellPos refPos, out BuildingId bestForge, out int bestTakeable)
+        {
+            bestForge = default;
+            bestTakeable = 0;
+
+            var forges = _s.WorldIndex.Forges;
+            if (forges == null || forges.Count == 0) return false;
+
+            int bestDist = int.MaxValue;
+            int bestId = int.MaxValue;
+
+            for (int i = 0; i < forges.Count; i++)
+            {
+                var forge = forges[i];
+                if (!_s.WorldState.Buildings.Exists(forge)) continue;
+
+                var state = _s.WorldState.Buildings.Get(forge);
+                if (!state.IsConstructed) continue;
+                if (!_s.StorageService.CanStore(forge, ResourceType.Ammo)) continue;
+
+                int cap = _s.StorageService.GetCap(forge, ResourceType.Ammo);
+                if (cap <= 0) continue;
+
+                int current = _s.StorageService.GetAmount(forge, ResourceType.Ammo);
+                if (current <= 0) continue;
+
+                int keep = (cap * 20 + 99) / 100;
+                if (keep < 1) keep = 1;
+                if (current < keep) continue;
+
+                int takeable = current - keep;
+                if (takeable <= 0) continue;
+
+                int dist = AmmoService.Manhattan(refPos, state.Anchor);
+                int idValue = forge.Value;
+                if (dist < bestDist || (dist == bestDist && idValue < bestId))
+                {
+                    bestDist = dist;
+                    bestId = idValue;
+                    bestForge = forge;
+                    bestTakeable = takeable;
+                }
+            }
+
+            return bestForge.Value != 0;
+        }
+
         internal bool ContainsRequestForTower(List<AmmoRequest> list, TowerId tower)
         {
             if (list == null) return false;

@@ -5,7 +5,8 @@ namespace SeasonalBastion
     internal sealed class DefaultHarvestTargetSelector : IHarvestTargetSelector
     {
         public bool TryPickBestHarvestTarget(
-            GameServices services,
+            ResourcePatchService resourcePatchService,
+            IPathfinderRuntime pathfinder,
             IWorldState world,
             ResourceType resourceType,
             CellPos origin,
@@ -14,7 +15,8 @@ namespace SeasonalBastion
             out CellPos zoneCell)
         {
             return HarvestTargetSelectionHelper.TryPickBestHarvestTarget(
-                services,
+                resourcePatchService,
+                pathfinder,
                 world,
                 resourceType,
                 origin,

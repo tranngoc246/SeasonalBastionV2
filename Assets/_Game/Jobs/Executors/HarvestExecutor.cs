@@ -215,7 +215,7 @@ namespace SeasonalBastion
             {
                 if (hasClaimKey) _s.ClaimService.Release(claimKey, npc);
 
-                if (HarvestTargetSelectionHelper.TryPickBestHarvestTarget(_s, _s.WorldState, rt, bs.Anchor, producer.Value, slot: 0, out var nextTarget))
+                if (HarvestTargetSelectionHelper.TryPickBestHarvestTarget(_s.ResourcePatchService, _s.Pathfinder, _s.WorldState, rt, bs.Anchor, producer.Value, slot: 0, out var nextTarget))
                 {
                     job.TargetCell = nextTarget;
                     job.Amount = 0;

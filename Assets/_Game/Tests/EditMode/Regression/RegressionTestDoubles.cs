@@ -509,7 +509,7 @@ namespace SeasonalBastion.Tests.EditMode
             }
         }
 
-        public bool TryPickBestHarvestTarget(GameServices services, IWorldState world, ResourceType resourceType, CellPos origin, int workplaceId, int slot, out CellPos zoneCell)
+        public bool TryPickBestHarvestTarget(ResourcePatchService resourcePatchService, IPathfinderRuntime pathfinder, IWorldState world, ResourceType resourceType, CellPos origin, int workplaceId, int slot, out CellPos zoneCell)
         {
             Calls++;
             _calls.Add(new HarvestTargetSelectorCall(resourceType, origin, workplaceId, slot));

@@ -6,7 +6,11 @@ namespace SeasonalBastion
 {
     internal sealed class JobEnqueueService
     {
-        private readonly GameServices _s;
+        private readonly ResourcePatchService _resourcePatchService;
+        private readonly IPathfinderRuntime _pathfinder;
+        private readonly IResourceFlowService _resourceFlowService;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IGridMap _gridMap;
         private readonly IWorldState _w;
         private readonly IJobBoard _board;
         private readonly IJobWorkplacePolicy _workplacePolicy;
@@ -15,7 +19,11 @@ namespace SeasonalBastion
         private readonly IHarvestTargetSelector _harvestTargetSelector;
 
         internal JobEnqueueService(
-            GameServices s,
+            ResourcePatchService resourcePatchService,
+            IPathfinderRuntime pathfinder,
+            IResourceFlowService resourceFlowService,
+            IDataRegistry dataRegistry,
+            IGridMap gridMap,
             IWorldState w,
             IJobBoard board,
             IJobWorkplacePolicy workplacePolicy,
@@ -23,7 +31,11 @@ namespace SeasonalBastion
             JobStateCleanupService cleanupService,
             IHarvestTargetSelector harvestTargetSelector)
         {
-            _s = s;
+            _resourcePatchService = resourcePatchService;
+            _pathfinder = pathfinder;
+            _resourceFlowService = resourceFlowService;
+            _dataRegistry = dataRegistry;
+            _gridMap = gridMap;
             _w = w;
             _board = board;
             _workplacePolicy = workplacePolicy;
@@ -62,7 +74,7 @@ namespace SeasonalBastion
 
                 for (int slot = 0; slot < slots; slot++)
                 {
-                    if (!_harvestTargetSelector.TryPickBestHarvestTarget(_s, _w, rt, bs.Anchor, bid.Value, slot, out var zoneCell))
+                    if (!_harvestTargetSelector.TryPickBestHarvestTarget(_resourcePatchService, _pathfinder, _w, rt, bs.Anchor, bid.Value, slot, out var zoneCell))
                         continue;
 
                     if (zoneCell.X == 0 && zoneCell.Y == 0)
@@ -136,10 +148,10 @@ namespace SeasonalBastion
             int cur = _resourcePolicy.GetAmountFromBuilding(destState, rt);
             if (cur >= cap) return;
 
-            if (_s.ResourceFlowService != null)
+            if (_resourceFlowService != null)
             {
-                var workplaceEntry = EntryCellUtil.GetApproachCellForBuilding(_s, destState, destState.Anchor);
-                if (!_s.ResourceFlowService.TryPickSource(workplaceEntry, rt, 1, out _))
+                var workplaceEntry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, destState, destState.Anchor);
+                if (!_resourceFlowService.TryPickSource(workplaceEntry, rt, 1, out _))
                     return;
             }
 

@@ -5,7 +5,8 @@ namespace SeasonalBastion
     public interface IHarvestTargetSelector
     {
         bool TryPickBestHarvestTarget(
-            GameServices services,
+            ResourcePatchService resourcePatchService,
+            IPathfinderRuntime pathfinder,
             IWorldState world,
             ResourceType resourceType,
             CellPos origin,

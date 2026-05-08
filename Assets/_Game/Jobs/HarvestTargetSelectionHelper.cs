@@ -5,7 +5,8 @@ namespace SeasonalBastion
     internal static class HarvestTargetSelectionHelper
     {
         internal static bool TryPickBestHarvestTarget(
-            GameServices s,
+            ResourcePatchService resourcePatchService,
+            IPathfinderRuntime pathfinder,
             IWorldState w,
             ResourceType rt,
             CellPos origin,
@@ -15,23 +16,22 @@ namespace SeasonalBastion
         {
             zoneCell = default;
 
-            if (s?.ResourcePatchService == null || s.Pathfinder == null)
+            if (resourcePatchService == null || pathfinder == null)
                 return false;
 
-            var pathfinder = s.Pathfinder;
             CellPos bestCell = default;
             bool found = false;
             int bestScore = int.MaxValue;
-            int patchCount = s.ResourcePatchService.Patches.Count;
+            int patchCount = resourcePatchService.Patches.Count;
 
             for (int i = 0; i < patchCount; i++)
             {
-                var patch = s.ResourcePatchService.Patches[i];
+                var patch = resourcePatchService.Patches[i];
                 if (patch.Resource != rt || patch.RemainingAmount <= 0)
                     continue;
 
                 int variationSeed = workplaceId * 37 + slot * 101 + (int)rt * 13 + patch.Id * 17;
-                if (!s.ResourcePatchService.TryPickCellInPatch(patch.Id, origin, variationSeed, out var candidateCell))
+                if (!resourcePatchService.TryPickCellInPatch(patch.Id, origin, variationSeed, out var candidateCell))
                     candidateCell = patch.Anchor;
 
                 if (!pathfinder.TryEstimateCost(origin, candidateCell, out int cost))
@@ -55,12 +55,12 @@ namespace SeasonalBastion
             {
                 for (int i = 0; i < patchCount; i++)
                 {
-                    var patch = s.ResourcePatchService.Patches[i];
+                    var patch = resourcePatchService.Patches[i];
                     if (patch.Resource != rt || patch.RemainingAmount <= 0)
                         continue;
 
                     int variationSeed = workplaceId * 37 + slot * 101 + (int)rt * 13 + patch.Id * 17;
-                    if (!s.ResourcePatchService.TryPickCellInPatch(patch.Id, origin, variationSeed, out var relaxedCell))
+                    if (!resourcePatchService.TryPickCellInPatch(patch.Id, origin, variationSeed, out var relaxedCell))
                         relaxedCell = patch.Anchor;
 
                     if (patch.IsStarterLike)

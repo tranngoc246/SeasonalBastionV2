@@ -122,7 +122,7 @@ namespace SeasonalBastion.Tests.EditMode.Jobs
                 MakeZone(2, ResourceType.Wood, 13, 10, 15, 12, "Generated", "bonus-generated")
             });
 
-            bool ok = HarvestTargetSelectionHelper.TryPickBestHarvestTarget(services, services.WorldState, ResourceType.Wood, new CellPos(9, 9), 1, 0, out var zoneCell);
+            bool ok = HarvestTargetSelectionHelper.TryPickBestHarvestTarget(services.ResourcePatchService, services.Pathfinder, services.WorldState, ResourceType.Wood, new CellPos(9, 9), 1, 0, out var zoneCell);
 
             Assert.That(ok, Is.True);
             Assert.That(services.ResourcePatchService.TryGetPatchAtCell(zoneCell, out var chosenPatch), Is.True);

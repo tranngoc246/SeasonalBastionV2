@@ -312,7 +312,9 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] `Regression_P0P1_Tests.cs` không còn là file gom lớn, giờ chỉ giữ shell partial class mỏng.
 - [ ] Bước tiếp theo hợp lý: nếu muốn gọn hơn nữa, có thể rename file shell hoặc gom lại naming strategy cho toàn bộ regression partials.
 - [x] Đã đi tiếp cụm `PlacementInputController` bằng cách bóc action/commit flow sang `PlacementActionController`, để controller gốc tập trung hơn vào input/update state + preview orchestration.
-- [~] `PlacementInputController` hiện đã có các lát cắt chính gồm `PlacementUiGate`, `PlacementPreviewRenderer`, và `PlacementActionController`; phần còn lại đáng cân nhắc nếu đi tiếp là bind/reflection path hoặc tiếp tục giảm state/reset duplication.
+- [x] Đã giảm bind/reflection path trong `PlacementInputController` bằng cách bóc service resolution sang `PlacementServicesBinder` và ưu tiên `IUiServicesProvider`/`GameServices` path thay vì giữ reflection helper cục bộ trong controller.
+- [x] Đã dọn tiếp duplication state/reset trong `PlacementInputController` bằng cách gom enter/exit placement state transition về helper riêng, giảm lặp giữa `CancelAll`, `OnBeginPlaceBuilding`, và `OnToolModeRequested`.
+- [~] `PlacementInputController` hiện đã có các lát cắt chính gồm `PlacementUiGate`, `PlacementPreviewRenderer`, `PlacementActionController`, và `PlacementServicesBinder`; phần còn lại đáng cân nhắc nếu đi tiếp là chuẩn hoá service-binding pattern dùng chung với các controller/view khác hoặc cân nhắc move các state-transition helper sang lớp nhỏ riêng nếu cụm placement còn nở tiếp.
 
 ### Cập nhật 2026-05-06, pass SaveService
 - [x] Đã bắt đầu tách `SaveService.cs` theo hướng structural, chưa đổi behavior.

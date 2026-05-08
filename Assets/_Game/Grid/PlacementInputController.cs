@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using SeasonalBastion.Contracts;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -72,6 +71,7 @@ namespace SeasonalBastion
         private PlacementUiGate _uiGate;
         private PlacementPreviewRenderer _previewRenderer;
         private PlacementActionController _actionController;
+        private readonly PlacementServicesBinder _servicesBinder = new();
 
         private Camera _cam;
         private bool _bound;
@@ -203,21 +203,39 @@ namespace SeasonalBastion
 
         private void CancelAll()
         {
-            string cancelledDefId = _placeDefId;
-            bool wasPlacement = !string.IsNullOrEmpty(_placeDefId);
-            ResetPlacementState();
-            if (wasPlacement)
-                _bus?.Publish(new UiPlacementFinishedEvent(cancelledDefId, false));
-            HidePlacementPreview();
+            ExitPlacementMode(UiToolMode.Select, notifyCancelled: true);
         }
 
-        private void ResetPlacementState()
+        private void ResetPlacementTransientState()
         {
-            _tool = UiToolMode.Select;
-            _placeDefId = null;
             _rot = Dir4.N;
             _lastPlacementFailReason = PlacementFailReason.None;
             _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
+        }
+
+        private void EnterPlacementMode(string defId)
+        {
+            _placeDefId = defId;
+            _tool = UiToolMode.BuildPlacement;
+            ResetPlacementTransientState();
+            HidePlacementPreview();
+        }
+
+        private void ExitPlacementMode(UiToolMode nextTool, bool notifyCancelled)
+        {
+            bool wasPlacement = !string.IsNullOrEmpty(_placeDefId);
+            string cancelledDefId = _placeDefId;
+
+            _tool = nextTool;
+            if (nextTool != UiToolMode.BuildPlacement)
+                _placeDefId = null;
+
+            ResetPlacementTransientState();
+
+            if (notifyCancelled && wasPlacement && nextTool != UiToolMode.BuildPlacement)
+                _bus?.Publish(new UiPlacementFinishedEvent(cancelledDefId, false));
+
+            HidePlacementPreview();
         }
 
         private void HidePlacementPreview()
@@ -273,15 +291,16 @@ namespace SeasonalBastion
         {
             if (_bound) return;
 
-            object services = ResolveServicesObject();
-            if (services == null) return;
+            if (!_servicesBinder.TryBind(_servicesSource, out var services, out var resolvedSource))
+                return;
 
-            _bus = ReadMember<IEventBus>(services, "EventBus");
-            _placement = ReadMember<IPlacementService>(services, "PlacementService");
-            _noti = ReadMember<INotificationService>(services, "NotificationService");
-            _gridMap = ReadMember<IGridMap>(services, "GridMap");
-            _data = ReadMember<IDataRegistry>(services, "DataRegistry");
-            _clock = ReadMember<IRunClock>(services, "RunClock");
+            _servicesSource = resolvedSource;
+            _bus = services.EventBus;
+            _placement = services.PlacementService;
+            _noti = services.NotificationService;
+            _gridMap = services.GridMap;
+            _data = services.DataRegistry;
+            _clock = services.RunClock;
 
             if (_bus == null || _placement == null || _gridMap == null)
                 return;
@@ -334,32 +353,13 @@ namespace SeasonalBastion
 
         private void OnBeginPlaceBuilding(UiBeginPlaceBuildingEvent ev)
         {
-            _placeDefId = ev.DefId;
-            _tool = UiToolMode.BuildPlacement;
-            _rot = Dir4.N;
-            _lastPlacementFailReason = PlacementFailReason.None;
-            _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
-
-            HidePlacementPreview();
+            EnterPlacementMode(ev.DefId);
             _bus?.Publish(new UiPlacementStartedEvent(ev.DefId));
         }
 
         private void OnToolModeRequested(UiToolModeRequestedEvent ev)
         {
-            bool wasPlacement = !string.IsNullOrEmpty(_placeDefId);
-            string cancelledDefId = _placeDefId;
-
-            _tool = ev.Mode;
-            if (ev.Mode != UiToolMode.BuildPlacement)
-                _placeDefId = null;
-            _rot = Dir4.N;
-            _lastPlacementFailReason = PlacementFailReason.None;
-            _lastPlacementFailCell = new CellPos(int.MinValue, int.MinValue);
-
-            if (wasPlacement && ev.Mode != UiToolMode.BuildPlacement)
-                _bus?.Publish(new UiPlacementFinishedEvent(cancelledDefId, false));
-
-            HidePlacementPreview();
+            ExitPlacementMode(ev.Mode, notifyCancelled: true);
         }
 
         // ---------------- Input helpers ----------------
@@ -393,72 +393,5 @@ namespace SeasonalBastion
 
         private static Dir4 TurnLeft(Dir4 d) => d switch { Dir4.N => Dir4.W, Dir4.W => Dir4.S, Dir4.S => Dir4.E, _ => Dir4.N };
         private static Dir4 TurnRight(Dir4 d) => d switch { Dir4.N => Dir4.E, Dir4.E => Dir4.S, Dir4.S => Dir4.W, _ => Dir4.N };
-
-        // ---------------- reflection helpers ----------------
-
-        private object ResolveServicesObject()
-        {
-            if (_servicesSource != null)
-            {
-                var s = TryExtractServicesFromMono(_servicesSource);
-                if (s != null) return s;
-            }
-
-            var all = FindObjectsOfType<MonoBehaviour>();
-            for (int i = 0; i < all.Length; i++)
-            {
-                var mb = all[i];
-                if (mb == null) continue;
-
-                var s = TryExtractServicesFromMono(mb);
-                if (s != null)
-                {
-                    _servicesSource = mb;
-                    return s;
-                }
-            }
-
-            return null;
-        }
-
-        private static object TryExtractServicesFromMono(MonoBehaviour mb)
-        {
-            var t = mb.GetType();
-
-            var prop = t.GetProperty("Services", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (prop != null)
-            {
-                try { var v = prop.GetValue(mb); if (v != null) return v; } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[PlacementInputController] Failed to read Services property from {t.Name}: {ex}"); }
-            }
-
-            var m = t.GetMethod("GetServices", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (m != null && m.GetParameters().Length == 0)
-            {
-                try { var v = m.Invoke(mb, null); if (v != null) return v; } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[PlacementInputController] Failed to invoke GetServices on {t.Name}: {ex}"); }
-            }
-
-            return null;
-        }
-
-        private static T ReadMember<T>(object obj, string name) where T : class
-        {
-            if (obj == null) return null;
-
-            var t = obj.GetType();
-
-            var p = t.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (p != null)
-            {
-                try { var v = p.GetValue(obj) as T; if (v != null) return v; } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[PlacementInputController] Failed to read member '{name}' from {t.Name}: {ex}"); }
-            }
-
-            var f = t.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (f != null)
-            {
-                try { var v = f.GetValue(obj) as T; if (v != null) return v; } catch (Exception ex) { UnityEngine.Debug.LogWarning($"[PlacementInputController] Failed to read field '{name}' from {t.Name}: {ex}"); }
-            }
-
-            return null;
-        }
     }
 }

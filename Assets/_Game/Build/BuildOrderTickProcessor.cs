@@ -9,7 +9,7 @@ namespace SeasonalBastion
         internal delegate void TickRepairOrderDelegate(int orderId, ref BuildOrder order, BuildingId workplace);
         internal delegate void CompleteOrderDelegate(ref BuildOrder order);
 
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
         private readonly Dictionary<int, BuildOrder> _orders;
         private readonly List<int> _active;
         private readonly Func<BuildingId> _resolveBuildWorkplace;
@@ -21,7 +21,7 @@ namespace SeasonalBastion
         private readonly Action<int> _onOrderCompleted;
 
         public BuildOrderTickProcessor(
-            GameServices s,
+            IWorldState worldState,
             Dictionary<int, BuildOrder> orders,
             List<int> active,
             Func<BuildingId> resolveBuildWorkplace,
@@ -32,7 +32,7 @@ namespace SeasonalBastion
             CompleteOrderDelegate completeUpgradeOrder,
             Action<int> onOrderCompleted)
         {
-            _s = s;
+            _worldState = worldState;
             _orders = orders;
             _active = active;
             _resolveBuildWorkplace = resolveBuildWorkplace;
@@ -72,7 +72,7 @@ namespace SeasonalBastion
                 if (o.Kind != BuildOrderKind.PlaceNew && o.Kind != BuildOrderKind.Upgrade)
                     continue;
 
-                if (!_s.WorldState.Sites.Exists(o.Site))
+                if (!_worldState.Sites.Exists(o.Site))
                 {
                     _cancelTrackedJobsForSite?.Invoke(o.Site);
                     o.Completed = true;
@@ -80,7 +80,7 @@ namespace SeasonalBastion
                     continue;
                 }
 
-                var site = _s.WorldState.Sites.Get(o.Site);
+                var site = _worldState.Sites.Get(o.Site);
                 _ensureBuildJobsForSite?.Invoke(o.Site, site, workplace);
 
                 if (IsReadyToWork(site) && dt > 0f && site.WorkSecondsDone < site.WorkSecondsTotal)
@@ -88,7 +88,7 @@ namespace SeasonalBastion
                     site.WorkSecondsDone += dt;
                     if (site.WorkSecondsDone > site.WorkSecondsTotal)
                         site.WorkSecondsDone = site.WorkSecondsTotal;
-                    _s.WorldState.Sites.Set(o.Site, site);
+                    _worldState.Sites.Set(o.Site, site);
                 }
 
                 o.WorkSecondsDone = site.WorkSecondsDone;

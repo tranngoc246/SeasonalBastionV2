@@ -5,28 +5,34 @@ namespace SeasonalBastion
 {
     public sealed class BuildJobPlanner : IBuildJobOrchestrator
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IJobBoard _jobBoard;
+        private readonly IPathfinderRuntime _pathfinder;
         private readonly Dictionary<int, List<JobId>> _deliverJobsBySite;
         private readonly Dictionary<int, JobId> _workJobBySite;
 
         public BuildJobPlanner(
-            GameServices s,
+            IWorldState worldState,
+            IJobBoard jobBoard,
+            IPathfinderRuntime pathfinder,
             Dictionary<int, List<JobId>> deliverJobsBySite,
             Dictionary<int, JobId> workJobBySite)
         {
-            _s = s;
+            _worldState = worldState;
+            _jobBoard = jobBoard;
+            _pathfinder = pathfinder;
             _deliverJobsBySite = deliverJobsBySite;
             _workJobBySite = workJobBySite;
         }
 
         public void EnsureBuildJobsForSite(SiteId siteId, BuildSiteState site, BuildingId workplace)
         {
-            if (_s.JobBoard == null) return;
-            if (_s.WorldState == null || !_s.WorldState.Buildings.Exists(workplace)) return;
+            if (_jobBoard == null) return;
+            if (_worldState == null || !_worldState.Buildings.Exists(workplace)) return;
 
-            var workplaceState = _s.WorldState.Buildings.Get(workplace);
-            var workplaceEntry = EntryCellUtil.GetApproachCellForBuilding(_s, workplaceState, site.Anchor);
-            if (!JobReachabilityHelper.IsSiteEntryReachable(_s, site, workplaceEntry))
+            var workplaceState = _worldState.Buildings.Get(workplace);
+            var workplaceEntry = EntryCellUtil.GetApproachCellForBuilding(_worldState, workplaceState, site.Anchor);
+            if (!JobReachabilityHelper.IsSiteEntryReachable(_pathfinder, site, workplaceEntry))
             {
                 CancelTrackedJobsForSite(siteId);
                 return;
@@ -37,7 +43,7 @@ namespace SeasonalBastion
 
             if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
             {
-                if (!_s.JobBoard.TryGet(wid, out var wj) || IsTerminal(wj.Status))
+                if (!_jobBoard.TryGet(wid, out var wj) || IsTerminal(wj.Status))
                 {
                     _workJobBySite.Remove(siteId.Value);
                 }
@@ -47,7 +53,7 @@ namespace SeasonalBastion
                     if (wj.Status == JobStatus.Created && wj.Workplace.Value != workplace.Value)
                     {
                         wj.Workplace = workplace;
-                        _s.JobBoard.Update(wj);
+                        _jobBoard.Update(wj);
                     }
                 }
             }
@@ -72,7 +78,7 @@ namespace SeasonalBastion
                 CreatedAt = 0
             };
 
-            var newId = _s.JobBoard.Enqueue(j);
+            var newId = _jobBoard.Enqueue(j);
             _workJobBySite[siteId.Value] = newId;
         }
 
@@ -82,7 +88,7 @@ namespace SeasonalBastion
 
             if (_workJobBySite.TryGetValue(siteId.Value, out var wid))
             {
-                _s.JobBoard.Cancel(wid);
+                _jobBoard.Cancel(wid);
                 _workJobBySite.Remove(siteId.Value);
             }
         }
@@ -92,7 +98,7 @@ namespace SeasonalBastion
             if (_deliverJobsBySite.TryGetValue(siteId.Value, out var list))
             {
                 for (int i = 0; i < list.Count; i++)
-                    _s.JobBoard.Cancel(list[i]);
+                    _jobBoard.Cancel(list[i]);
                 list.Clear();
                 _deliverJobsBySite.Remove(siteId.Value);
             }
@@ -103,7 +109,7 @@ namespace SeasonalBastion
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var id = list[i];
-                if (!_s.JobBoard.TryGet(id, out var j) || IsTerminal(j.Status))
+                if (!_jobBoard.TryGet(id, out var j) || IsTerminal(j.Status))
                     list.RemoveAt(i);
             }
         }

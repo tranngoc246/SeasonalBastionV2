@@ -95,7 +95,13 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
 
 ## Còn actionable nếu muốn làm tiếp
 
-- [ ] Review lại boundary giữa Jobs / Build / RunStart services sau refactor
+- [x] Đã review lại boundary giữa Jobs / Build / RunStart services sau refactor
+- [~] Kết luận review: `RunStart` hiện là cụm có boundary sạch nhất trong 3 cụm vì flow đã tách khá tuyến tính theo phase/helpers; nếu đi tiếp thì chủ yếu là giảm dần phụ thuộc `GameServices` bằng context/view hẹp, chưa cần mổ thêm theo responsibility.
+- [~] Kết luận review: `Build` vẫn còn bleed-through `GameServices` ở `BuildOrderService` facade và đặc biệt là `BuildOrderTickProcessor`; đây là target đáng làm tiếp nhất cho pass boundary tightening.
+- [~] Kết luận review: `Jobs` vẫn còn owner/container bleed-through trong `JobScheduler` và một số service con (`JobEnqueueService`, `JobExecutionService`, `NpcIdleRoamService`); sau `Build` thì đây là mặt trận hợp lý kế tiếp.
+- [x] Đã bóc nốt dependency full-container khỏi `BuildOrderTickProcessor` và siết tiếp boundary ở `BuildJobPlanner`.
+- [~] Trong cụm `Build`, phần còn lại đáng chú ý chủ yếu là các helper/executor còn giữ `GameServices` vì path/build interaction; cần cân nhắc tách tiếp theo quick-win nhỏ thay vì đại phẫu.
+- [ ] Sau cụm `Build`, review/giảm tiếp dependency full `GameServices` trong `JobScheduler` và các service con ưu tiên dễ tách trước.
 - [ ] Mở rộng thêm regression save/load cho tracked runtime state khác nếu thấy cần
 - [ ] Polish thêm smoke coverage nếu có case manual nào còn thấy rủi ro
 

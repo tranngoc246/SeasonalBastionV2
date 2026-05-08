@@ -33,7 +33,7 @@ namespace SeasonalBastion
         {
             _services = services;
             _eventBridge = new BuildOrderEventBridge(services.EventBus, _autoRoadByOrder);
-            _buildJobOrchestrator = services.BuildJobOrchestrator ?? new BuildJobPlanner(services, _deliverJobsBySite, _workJobBySite);
+            _buildJobOrchestrator = services.BuildJobOrchestrator ?? new BuildJobPlanner(services.WorldState, services.JobBoard, services.Pathfinder, _deliverJobsBySite, _workJobBySite);
             if (_services.BuildJobOrchestrator == null)
                 _services.BuildJobOrchestrator = _buildJobOrchestrator;
 
@@ -108,7 +108,7 @@ namespace SeasonalBastion
                 _cancellationService.CancelRepairJob);
 
             _tickProcessor = new BuildOrderTickProcessor(
-                services,
+                services.WorldState,
                 _orders,
                 _active,
                 ResolveBuildWorkplace,

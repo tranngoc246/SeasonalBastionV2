@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
+﻿using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 using UnityEngine;
 using UnityEngine.Tilemaps;
@@ -13,8 +11,7 @@ namespace SeasonalBastion.View2D
     /// - Building/NPC/Enemy: SpriteRenderer
     ///
     /// IMPORTANT:
-    /// - No compile-time dependency to GameBootstrap/GameServices (avoid asmdef cycles).
-    /// - Services resolved via reflection from a MonoBehaviour that exposes `Services` (GameBootstrap) or `GetServices()`.
+    /// - Service resolution is funneled through UI service-provider binding instead of local reflection helpers.
     /// </summary>
     public sealed class WorldViewRoot2D : MonoBehaviour
     {
@@ -57,6 +54,7 @@ namespace SeasonalBastion.View2D
         private ResourcePatchService _resourcePatches;
 
         private bool _warnedMissing;
+        private readonly WorldViewServicesBinder _servicesBinder = new();
 
         // View roots
         private Transform _buildingsRoot;
@@ -109,14 +107,15 @@ namespace SeasonalBastion.View2D
         {
             if (_bound) return;
 
-            object services = ResolveServicesObject();
-            if (services == null) return;
+            if (!_servicesBinder.TryBind(_servicesSource, _autoFindIfNull, out var services, out var resolvedSource))
+                return;
 
-            _bus = ReadMember<IEventBus>(services, "EventBus", "_eventBus", "Bus");
-            _gridMap = ReadMember<IGridMap>(services, "GridMap", "_gridMap", "Grid");
-            _world = ReadMember<IWorldState>(services, "WorldState", "_world", "World");
-            _data = ReadMember<IDataRegistry>(services, "DataRegistry", "_dataRegistry", "Registry", "Data");
-            _resourcePatches = ReadMember<ResourcePatchService>(services, "ResourcePatchService");
+            _servicesSource = resolvedSource;
+            _bus = services.EventBus;
+            _gridMap = services.GridMap;
+            _world = services.WorldState;
+            _data = services.DataRegistry;
+            _resourcePatches = services.ResourcePatchService;
 
             if (_gridMap == null || _world == null)
             {
@@ -124,7 +123,7 @@ namespace SeasonalBastion.View2D
                 {
                     _warnedMissing = true;
                     Debug.LogWarning($"[View2D] Services resolved but missing GridMap/WorldState. " +
-                                     $"servicesType={services.GetType().FullName} " +
+                                     $"servicesType={services.ServicesTypeName} " +
                                      $"GridMapNull={_gridMap == null} WorldStateNull={_world == null}");
                 }
                 return;
@@ -137,134 +136,6 @@ namespace SeasonalBastion.View2D
             if (_rebuildRoadOnStart) RebuildRoad();
             RebuildResourceZones();
             if (_rebuildEntitiesOnStart) SyncEntities();
-        }
-
-        private object ResolveServicesObject()
-        {
-            // 1) try assigned
-            if (_servicesSource != null)
-            {
-                var s = TryExtractServicesFromMono(_servicesSource);
-                if (s != null) return s;
-            }
-
-            if (!_autoFindIfNull) return null;
-
-            // 2) auto-find any MonoBehaviour that has Services/GetServices
-            var all = FindObjectsOfType<MonoBehaviour>();
-            for (int i = 0; i < all.Length; i++)
-            {
-                var mb = all[i];
-                if (mb == null) continue;
-
-                var s = TryExtractServicesFromMono(mb);
-                if (s != null)
-                {
-                    _servicesSource = mb;
-                    return s;
-                }
-            }
-
-            return null;
-        }
-
-        private static object TryExtractServicesFromMono(MonoBehaviour mb)
-        {
-            if (mb == null) return null;
-
-            var t = mb.GetType();
-
-            // (A) public property Services
-            var prop = t.GetProperty("Services", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (prop != null)
-            {
-                try
-                {
-                    var v = prop.GetValue(mb);
-                    if (v != null) return v;
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[WorldViewRoot2D] Failed to read Services property from {t.Name}: {ex}");
-                }
-            }
-
-            // (B) method GetServices()
-            var m = t.GetMethod("GetServices", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (m != null && m.GetParameters().Length == 0)
-            {
-                try
-                {
-                    var v = m.Invoke(mb, null);
-                    if (v != null) return v;
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[WorldViewRoot2D] Failed to invoke GetServices on {t.Name}: {ex}");
-                }
-            }
-
-            return null;
-        }
-
-        private static T ReadMember<T>(object obj, params string[] names) where T : class
-        {
-            if (obj == null || names == null || names.Length == 0) return null;
-
-            var t = obj.GetType();
-
-            for (int i = 0; i < names.Length; i++)
-            {
-                string n = names[i];
-                if (string.IsNullOrEmpty(n)) continue;
-
-                // 1) Property
-                var p = t.GetProperty(n, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (p != null)
-                {
-                    try
-                    {
-                        var v = p.GetValue(obj) as T;
-                        if (v != null) return v;
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[WorldViewRoot2D] Failed to read property '{n}' from {t.Name}: {ex}");
-                    }
-                }
-
-                // 2) Field
-                var f = t.GetField(n, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (f != null)
-                {
-                    try
-                    {
-                        var v = f.GetValue(obj) as T;
-                        if (v != null) return v;
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[WorldViewRoot2D] Failed to read field '{n}' from {t.Name}: {ex}");
-                    }
-                }
-
-                // 3) Method (optional): GetGridMap(), GetWorldState()...
-                var m = t.GetMethod(n, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (m != null && m.GetParameters().Length == 0)
-                {
-                    try
-                    {
-                        var v = m.Invoke(obj, null) as T;
-                        if (v != null) return v;
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[WorldViewRoot2D] Failed to invoke method '{n}' on {t.Name}: {ex}");
-                    }
-                }
-            }
-
-            return null;
         }
 
         // ---------------- Events ----------------

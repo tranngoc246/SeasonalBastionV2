@@ -314,7 +314,9 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã đi tiếp cụm `PlacementInputController` bằng cách bóc action/commit flow sang `PlacementActionController`, để controller gốc tập trung hơn vào input/update state + preview orchestration.
 - [x] Đã giảm bind/reflection path trong `PlacementInputController` bằng cách bóc service resolution sang `PlacementServicesBinder` và ưu tiên `IUiServicesProvider`/`GameServices` path thay vì giữ reflection helper cục bộ trong controller.
 - [x] Đã dọn tiếp duplication state/reset trong `PlacementInputController` bằng cách gom enter/exit placement state transition về helper riêng, giảm lặp giữa `CancelAll`, `OnBeginPlaceBuilding`, và `OnToolModeRequested`.
-- [~] `PlacementInputController` hiện đã có các lát cắt chính gồm `PlacementUiGate`, `PlacementPreviewRenderer`, `PlacementActionController`, và `PlacementServicesBinder`; phần còn lại đáng cân nhắc nếu đi tiếp là chuẩn hoá service-binding pattern dùng chung với các controller/view khác hoặc cân nhắc move các state-transition helper sang lớp nhỏ riêng nếu cụm placement còn nở tiếp.
+- [x] Đã bắt đầu chuẩn hoá service-binding pattern sang cụm khác bằng cách áp dụng binder riêng cho `WorldViewRoot2D`, bỏ reflection helper cục bộ và chuyển sang `WorldViewServicesBinder` dùng cùng hướng `IUiServicesProvider`/`GameServices`.
+- [x] Đã đi tiếp `WorldSelectionController` bằng binder nhỏ `WorldSelectionServicesBinder`, gom `UiSystem.Ctx.Services` fallback + `IUiServicesProvider` fallback về một chỗ thay vì để controller tự resolve trực tiếp.
+- [~] `PlacementInputController` hiện đã có các lát cắt chính gồm `PlacementUiGate`, `PlacementPreviewRenderer`, `PlacementActionController`, và `PlacementServicesBinder`; phần còn lại đáng cân nhắc nếu đi tiếp là chuẩn hoá tiếp service-binding pattern cho các controller/view khác hoặc cân nhắc move các state-transition helper sang lớp nhỏ riêng nếu cụm placement còn nở tiếp.
 
 ### Cập nhật 2026-05-06, pass SaveService
 - [x] Đã bắt đầu tách `SaveService.cs` theo hướng structural, chưa đổi behavior.

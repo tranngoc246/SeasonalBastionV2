@@ -1,5 +1,4 @@
 ﻿using SeasonalBastion.Contracts;
-using SeasonalBastion.UI.Services;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
@@ -45,6 +44,7 @@ namespace SeasonalBastion.UI.Input
         private bool _bound;
         private bool _warned;
         private bool _pointerDownStartedInsideInspectPanel;
+        private readonly WorldSelectionServicesBinder _servicesBinder = new();
 
         private void Awake()
         {
@@ -200,13 +200,7 @@ namespace SeasonalBastion.UI.Input
             _store = ctx.Store;
             _gate = ctx.InputGate;
 
-            // Resolve services
-            object servicesObj = ctx.Services;
-            if (servicesObj == null)
-                servicesObj = UiServicesProviderUtil.TryGetServicesFrom(_servicesProvider);
-
-            var s = servicesObj as GameServices;
-            if (s == null)
+            if (!_servicesBinder.TryResolve(_uiSystem, _servicesProvider, out var s))
             {
                 if (!_warned)
                 {

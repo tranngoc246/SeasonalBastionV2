@@ -8,7 +8,7 @@ namespace SeasonalBastion.UI
         private readonly UIStateStore _store;
         private readonly PanelRegistry _panels;
         private readonly ModalStackController _modals;
-        private readonly GameServices _services;
+        private readonly UiServicesAccessor _services;
 
         private string _pendingPlacementDefId;
 
@@ -17,9 +17,9 @@ namespace SeasonalBastion.UI
             _store = store;
             _panels = panels;
             _modals = modals;
-            _services = services as GameServices;
+            _services = new UiServicesAccessor(services);
 
-            var bus = _services?.EventBus;
+            var bus = _services.EventBus;
             if (bus == null) return;
 
             bus.Subscribe<UiOpenBuildPanelRequestedEvent>(OnOpenBuildPanelRequested);
@@ -36,7 +36,7 @@ namespace SeasonalBastion.UI
 
         public void Dispose()
         {
-            var bus = _services?.EventBus;
+            var bus = _services.EventBus;
             if (bus == null) return;
 
             bus.Unsubscribe<UiOpenBuildPanelRequestedEvent>(OnOpenBuildPanelRequested);
@@ -155,25 +155,26 @@ namespace SeasonalBastion.UI
 
         private void OnInspectActionRequested(UiInspectActionRequestedEvent ev)
         {
-            if (_services == null || ev.TargetId <= 0) return;
+            var gameServices = _services.GameServices;
+            if (gameServices == null || ev.TargetId <= 0) return;
 
             var bid = new BuildingId(ev.TargetId);
             switch (ev.Action)
             {
                 case "Upgrade":
-                    if (_services.BuildOrderService != null)
-                        _services.BuildOrderService.CreateUpgradeOrder(bid);
+                    if (gameServices.BuildOrderService != null)
+                        gameServices.BuildOrderService.CreateUpgradeOrder(bid);
                     break;
                 case "Repair":
-                    if (_services.BuildOrderService != null)
-                        _services.BuildOrderService.CreateRepairOrder(bid);
+                    if (gameServices.BuildOrderService != null)
+                        gameServices.BuildOrderService.CreateRepairOrder(bid);
                     break;
                 case "AssignNpc":
                     _modals.Push(UiKeys.Modal_AssignNpc);
                     break;
                 case "CancelConstruction":
-                    if (_services.BuildOrderService != null)
-                        _services.BuildOrderService.CancelByBuilding(bid);
+                    if (gameServices.BuildOrderService != null)
+                        gameServices.BuildOrderService.CancelByBuilding(bid);
                     break;
             }
         }

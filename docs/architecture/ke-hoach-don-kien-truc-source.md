@@ -316,6 +316,15 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã dọn tiếp duplication state/reset trong `PlacementInputController` bằng cách gom enter/exit placement state transition về helper riêng, giảm lặp giữa `CancelAll`, `OnBeginPlaceBuilding`, và `OnToolModeRequested`.
 - [x] Đã bắt đầu chuẩn hoá service-binding pattern sang cụm khác bằng cách áp dụng binder riêng cho `WorldViewRoot2D`, bỏ reflection helper cục bộ và chuyển sang `WorldViewServicesBinder` dùng cùng hướng `IUiServicesProvider`/`GameServices`.
 - [x] Đã đi tiếp `WorldSelectionController` bằng binder nhỏ `WorldSelectionServicesBinder`, gom `UiSystem.Ctx.Services` fallback + `IUiServicesProvider` fallback về một chỗ thay vì để controller tự resolve trực tiếp.
+- [x] Đã review nhanh các controller/view còn lại trong `UI/World/Grid` để tìm chỗ còn dùng `GameServices` theo kiểu ad-hoc.
+- [x] Đã fix lỗi asmdef boundary ở `WorldViewServicesBinder`: binder này không còn phụ thuộc namespace UI, giữ được hướng binder riêng cho `World/View2D` mà không kéo `SeasonalBastion.UI` sang assembly không phù hợp.
+- [x] Đã dọn nốt các ad-hoc path nổi bật đã review trước đó:
+  - `UiSystem`: gom `GameServices` access qua `UiServicesAccessor` thay vì rải `Ctx.Services as GameServices` ở nhiều call-site
+  - `UiGameplayFlowController`: bỏ constructor-cast trực tiếp, chuyển qua `UiServicesAccessor`
+  - `GameServicesUiBridge`: bỏ lặp `GetServices() as GameServices` trong pause/resume path, gom về `EnsureServices()`
+- [x] Đã dọn warning deprecate mới phát sinh trong binder pass bằng cách chuyển `PlacementServicesBinder` và `WorldViewServicesBinder` từ `FindObjectsOfType(...)` sang overload mới `FindObjectsByType(FindObjectsInactive.Exclude)`.
+- [~] Sau pass này, các ad-hoc resolve/binding path lớn trong cụm `UI/World/Grid` đã được dọn đáng kể; phần còn lại chủ yếu là dependency runtime trực tiếp của một số presenter/binder vào `GameServices`, và một cụm debt Unity deprecated API cũ hơn (`FindObjectOfType`, TMP wrapping API, một số debug tools/core boot call-site), nên nên tách riêng workstream cleanup deprecated API thay vì trộn tiếp vào binder cleanup.
+- [~] Các presenter/binder như `InspectPanelPresenter`, `AssignNpcModalPresenter`, `RewardSelectionModalPresenter`, `RunEndedModalPresenter`, `SettingsModalPresenter`, `HudRuntimeBinder`, `BuildPanelRuntimeBinder` vẫn dùng `GameServices` trực tiếp, nhưng đây hiện là dependency runtime tường minh của UI layer hơn là service-resolution ad-hoc; nếu muốn đi tiếp nên tách riêng một workstream giảm phụ thuộc `GameServices` trong UI thay vì trộn với pass binder hiện tại.
 - [~] `PlacementInputController` hiện đã có các lát cắt chính gồm `PlacementUiGate`, `PlacementPreviewRenderer`, `PlacementActionController`, và `PlacementServicesBinder`; phần còn lại đáng cân nhắc nếu đi tiếp là chuẩn hoá tiếp service-binding pattern cho các controller/view khác hoặc cân nhắc move các state-transition helper sang lớp nhỏ riêng nếu cụm placement còn nở tiếp.
 
 ### Cập nhật 2026-05-06, pass SaveService

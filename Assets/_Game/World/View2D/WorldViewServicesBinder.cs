@@ -1,5 +1,6 @@
+using System;
+using System.Reflection;
 using SeasonalBastion.Contracts;
-using SeasonalBastion.UI.Services;
 using UnityEngine;
 
 namespace SeasonalBastion.View2D
@@ -17,7 +18,7 @@ namespace SeasonalBastion.View2D
             if (!autoFindIfNull)
                 return false;
 
-            var all = Object.FindObjectsOfType<MonoBehaviour>();
+            var all = UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude);
             for (int i = 0; i < all.Length; i++)
             {
                 var mb = all[i];
@@ -40,7 +41,7 @@ namespace SeasonalBastion.View2D
             if (source == null)
                 return false;
 
-            object services = UiServicesProviderUtil.TryGetServicesFrom(source);
+            object services = TryExtractServicesFromMono(source);
             if (services is not GameServices gameServices)
                 return false;
 
@@ -52,6 +53,43 @@ namespace SeasonalBastion.View2D
                 gameServices.ResourcePatchService,
                 gameServices.GetType().FullName ?? "GameServices");
             return true;
+        }
+
+        private static object TryExtractServicesFromMono(MonoBehaviour mb)
+        {
+            var type = mb.GetType();
+
+            var prop = type.GetProperty("Services", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (prop != null)
+            {
+                try
+                {
+                    var value = prop.GetValue(mb);
+                    if (value != null)
+                        return value;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[WorldViewServicesBinder] Failed to read Services property from {type.Name}: {ex}");
+                }
+            }
+
+            var method = type.GetMethod("GetServices", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (method != null && method.GetParameters().Length == 0)
+            {
+                try
+                {
+                    var value = method.Invoke(mb, null);
+                    if (value != null)
+                        return value;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[WorldViewServicesBinder] Failed to invoke GetServices on {type.Name}: {ex}");
+                }
+            }
+
+            return null;
         }
     }
 

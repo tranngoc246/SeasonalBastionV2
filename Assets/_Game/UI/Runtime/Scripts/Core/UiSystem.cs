@@ -32,6 +32,7 @@ namespace SeasonalBastion.UI
 
         private ToastController _toasts;
         private TooltipController _tooltips;
+        private UiServicesAccessor _servicesAccessor;
 
         private HudPresenter _hudPresenter;
         private HudRuntimeBinder _hudRuntimeBinder;
@@ -76,6 +77,7 @@ namespace SeasonalBastion.UI
 
             _toasts = new ToastController();
             _tooltips = new TooltipController();
+            _servicesAccessor = new UiServicesAccessor(services);
 
             Ctx = new UIContext(
                 services,
@@ -130,7 +132,7 @@ namespace SeasonalBastion.UI
             _rewardSelectionModal = new RewardSelectionModalPresenter();
 
             _hudPresenter.Bind(Ctx, hudRoot);
-            _hudRuntimeBinder = new HudRuntimeBinder(_hudPresenter, Ctx?.Services as GameServices);
+            _hudRuntimeBinder = new HudRuntimeBinder(_hudPresenter, _servicesAccessor?.GameServices);
             _hudRuntimeBinder.Bind();
 
             var buildRoot = UiElementUtil.GetOrCreateChild(leftDock, "BuildPanel");
@@ -139,7 +141,7 @@ namespace SeasonalBastion.UI
             BindPanelsBackgroundDismiss(panelsRoot, buildRoot, inspectRoot);
 
             _buildPresenter.Bind(Ctx, buildRoot);
-            _buildRuntimeBinder = new BuildPanelRuntimeBinder(_buildPresenter, Ctx?.Services as GameServices);
+            _buildRuntimeBinder = new BuildPanelRuntimeBinder(_buildPresenter, _servicesAccessor?.GameServices);
             _buildRuntimeBinder.Bind();
             _inspectPresenter.Bind(Ctx, inspectRoot);
 
@@ -196,7 +198,7 @@ namespace SeasonalBastion.UI
                     && !inspectRoot.worldBound.Contains(evt.position)
                     && !inspectRoot.Contains(target))
                 {
-                    (Ctx.Services as GameServices)?.EventBus?.Publish(new UiClearInspectRequestedEvent());
+                    _servicesAccessor?.EventBus?.Publish(new UiClearInspectRequestedEvent());
                     evt.StopPropagation();
                     return;
                 }
@@ -207,7 +209,7 @@ namespace SeasonalBastion.UI
                     && !buildRoot.worldBound.Contains(evt.position)
                     && !buildRoot.Contains(target))
                 {
-                    (Ctx.Services as GameServices)?.EventBus?.Publish(new UiCloseBuildPanelRequestedEvent());
+                    _servicesAccessor?.EventBus?.Publish(new UiCloseBuildPanelRequestedEvent());
                     evt.StopPropagation();
                 }
             }, TrickleDown.TrickleDown);

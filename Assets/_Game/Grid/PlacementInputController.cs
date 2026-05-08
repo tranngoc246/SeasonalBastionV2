@@ -71,6 +71,7 @@ namespace SeasonalBastion
         private IRunClock _clock;
         private PlacementUiGate _uiGate;
         private PlacementPreviewRenderer _previewRenderer;
+        private PlacementActionController _actionController;
 
         private Camera _cam;
         private bool _bound;
@@ -166,38 +167,10 @@ namespace SeasonalBastion
             // --- ACTION ---
             if (!string.IsNullOrEmpty(_placeDefId))
             {
-                if (mouse.leftButton.wasPressedThisFrame)
+                if (mouse.leftButton.wasPressedThisFrame && _actionController != null && _actionController.TryCommitBuilding(_placeDefId, cell, _rot))
                 {
-                    var vr = _placement.ValidateBuilding(_placeDefId, cell, _rot);
-                    if (!vr.Ok)
-                    {
-                        _noti?.Push(
-                            key: "place.fail",
-                            title: "Place failed",
-                            body: $"{vr.FailReason}",
-                            severity: NotificationSeverity.Warning,
-                            payload: new NotificationPayload(default, default, _placeDefId),
-                            cooldownSeconds: 0.2f,
-                            dedupeByKey: false);
-                        return;
-                    }
-
-                    var bid = _placement.CommitBuilding(_placeDefId, cell, _rot);
-                    if (bid.Value == 0)
-                    {
-                        _noti?.Push("place.commit.fail", "Place failed", "Commit returned default.",
-                            NotificationSeverity.Error, new NotificationPayload(default, default, _placeDefId), 0.2f, false);
-                        return;
-                    }
-
-                    // exit placement after success
-                    _noti?.Push("place.ok", "Building placed", $"Id={bid.Value}", NotificationSeverity.Info,
-                        new NotificationPayload(default, default, ""), 0.2f, false);
-
-                    string placedDefId = _placeDefId;
                     _placeDefId = null;
                     _tool = UiToolMode.Select;
-                    _bus?.Publish(new UiPlacementFinishedEvent(placedDefId, true));
                     _previewRenderer?.HideAll();
                 }
                 return;
@@ -210,13 +183,13 @@ namespace SeasonalBastion
                     if (_lastPaint.X != cell.X || _lastPaint.Y != cell.Y)
                     {
                         _lastPaint = cell;
-                        TryPlaceRoad(cell);
+                        _actionController?.TryPlaceRoad(cell);
                     }
                 }
                 else if (mouse.leftButton.wasPressedThisFrame)
                 {
                     _lastPaint = cell;
-                    TryPlaceRoad(cell);
+                    _actionController?.TryPlaceRoad(cell);
                 }
                 return;
             }
@@ -224,10 +197,7 @@ namespace SeasonalBastion
             if (_tool == UiToolMode.Remove)
             {
                 if (mouse.leftButton.wasPressedThisFrame)
-                {
-                    if (_placement.CanRemoveRoad(cell))
-                        _placement.RemoveRoad(cell);
-                }
+                    _actionController?.TryRemoveRoad(cell);
             }
         }
 
@@ -256,15 +226,6 @@ namespace SeasonalBastion
         }
 
         // ---------------- Placement actions ----------------
-
-        private void TryPlaceRoad(CellPos cell)
-        {
-            if (_placement.CanPlaceRoad(cell))
-                _placement.PlaceRoad(cell);
-            else
-                _noti?.Push("road.fail", "Road", "Cannot place road here (must connect to existing road).",
-                    NotificationSeverity.Warning, new NotificationPayload(default, default, ""), 0.15f, true);
-        }
 
         private void MaybePushPlacementPreviewHint(PlacementResult vr, CellPos cell)
         {
@@ -352,6 +313,7 @@ namespace SeasonalBastion
                 _frontArrowSortingLayer,
                 transform);
             _previewRenderer.EnsureObjects();
+            _actionController = new PlacementActionController(_placement, _noti, _bus);
 
             Subscribe();
             _bound = true;

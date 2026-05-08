@@ -268,9 +268,9 @@ Nghĩa là đây không phải mặt trận cần ưu tiên đầu tiên nữa.
 - `Assets/_Game/Save/RunSnapshotMapper.cs`
 - `Assets/_Game/Save/SavePathPolicy.cs`
 
-- `Assets/_Game/Grid/Placement/PlacementPreviewRenderer.cs`
-- `Assets/_Game/Grid/Placement/PlacementActionController.cs`
-- `Assets/_Game/Grid/Placement/PlacementUiGate.cs`
+- `Assets/_Game/Grid/PlacementPreviewRenderer.cs`
+- `Assets/_Game/Grid/PlacementActionController.cs`
+- `Assets/_Game/Grid/PlacementUiGate.cs`
 
 - `Assets/_Game/Tests/EditMode/Regression/Regression_SaveLoad_Tests.cs`
 - `Assets/_Game/Tests/EditMode/Regression/Regression_Endgame_Tests.cs`
@@ -311,6 +311,8 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
 - [x] Đã tách nốt cụm `SaveLoad` sang `Regression_P0P1_SaveLoad_Tests.cs`.
 - [x] `Regression_P0P1_Tests.cs` không còn là file gom lớn, giờ chỉ giữ shell partial class mỏng.
 - [ ] Bước tiếp theo hợp lý: nếu muốn gọn hơn nữa, có thể rename file shell hoặc gom lại naming strategy cho toàn bộ regression partials.
+- [x] Đã đi tiếp cụm `PlacementInputController` bằng cách bóc action/commit flow sang `PlacementActionController`, để controller gốc tập trung hơn vào input/update state + preview orchestration.
+- [~] `PlacementInputController` hiện đã có các lát cắt chính gồm `PlacementUiGate`, `PlacementPreviewRenderer`, và `PlacementActionController`; phần còn lại đáng cân nhắc nếu đi tiếp là bind/reflection path hoặc tiếp tục giảm state/reset duplication.
 
 ### Cập nhật 2026-05-06, pass SaveService
 - [x] Đã bắt đầu tách `SaveService.cs` theo hướng structural, chưa đổi behavior.

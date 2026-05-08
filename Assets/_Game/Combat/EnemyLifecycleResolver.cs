@@ -66,7 +66,7 @@ namespace SeasonalBastion
                 PruneMissingEnemyKeys(_pathFailStreaks, enemies);
         }
 
-        private void PruneMissingEnemyKeys<TValue>(Dictionary<int, TValue> map, EnemyStateCollection enemies)
+        private void PruneMissingEnemyKeys<TValue>(Dictionary<int, TValue> map, IEnemyStore enemies)
         {
             _tmpEnemyKeys.Clear();
             foreach (var kv in map)

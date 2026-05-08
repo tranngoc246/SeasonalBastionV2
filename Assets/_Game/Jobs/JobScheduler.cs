@@ -60,7 +60,7 @@ namespace SeasonalBastion
             _assignmentService = new JobAssignmentService(w, board, workplacePolicy, notificationPolicy);
             _enqueueService = new JobEnqueueService(s.ResourcePatchService, s.Pathfinder, s.ResourceFlowService, data, s.GridMap, w, board, workplacePolicy, resourcePolicy, _cleanupService, harvestTargetSelector);
             _executionService = new JobExecutionService(s, w, board, exec, _cleanupService);
-            _idleRoamService = new NpcIdleRoamService(s, w);
+            _idleRoamService = new NpcIdleRoamService(s.AgentMover, data, s.GridMap, w);
         }
 
         public void Tick(float dt)

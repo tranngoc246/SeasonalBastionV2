@@ -13,7 +13,9 @@ namespace SeasonalBastion
             public bool HasTarget;
         }
 
-        private readonly GameServices _s;
+        private readonly IAgentMover _agentMover;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IGridMap _gridMap;
         private readonly IWorldState _w;
         private readonly Dictionary<int, IdleRoamState> _stateByNpc = new();
 
@@ -24,15 +26,17 @@ namespace SeasonalBastion
         private const int BuilderIdleRadiusMin = 4;
         private const int BuilderIdleRadiusMax = 8;
 
-        internal NpcIdleRoamService(GameServices s, IWorldState w)
+        internal NpcIdleRoamService(IAgentMover agentMover, IDataRegistry dataRegistry, IGridMap gridMap, IWorldState w)
         {
-            _s = s;
+            _agentMover = agentMover;
+            _dataRegistry = dataRegistry;
+            _gridMap = gridMap;
             _w = w;
         }
 
         internal void TickIdleNpc(NpcId npc, ref NpcState ns, float dt)
         {
-            if (_s?.AgentMover == null || _s.GridMap == null)
+            if (_agentMover == null || _gridMap == null)
                 return;
 
             var st = GetOrCreateState(npc, ns);
@@ -60,7 +64,7 @@ namespace SeasonalBastion
                 st.HasTarget = true;
             }
 
-            bool arrived = _s.AgentMover.StepToward(ref ns, st.Target, dt);
+            bool arrived = _agentMover.StepToward(ref ns, st.Target, dt);
             if (arrived || Same(ns.Cell, st.Target))
             {
                 st.HasTarget = false;
@@ -176,16 +180,16 @@ namespace SeasonalBastion
 
         private bool IsValidIdleCell(in NpcState ns, CellPos c, CellPos anchor)
         {
-            if (_s?.GridMap == null)
+            if (_gridMap == null)
                 return false;
 
-            if (!_s.GridMap.IsInside(c))
+            if (!_gridMap.IsInside(c))
                 return false;
 
-            if (_s.GridMap.IsBlocked(c))
+            if (_gridMap.IsBlocked(c))
                 return false;
 
-            var occ = _s.GridMap.Get(c).Kind;
+            var occ = _gridMap.Get(c).Kind;
             if (occ != CellOccupancyKind.Empty && occ != CellOccupancyKind.Road)
                 return false;
 
@@ -214,7 +218,7 @@ namespace SeasonalBastion
                 var bs = _w.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
-                var entry = EntryCellUtil.GetApproachCellForBuilding(_s, bs, c);
+                var entry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, bs, c);
                 if (Same(entry, c))
                     return true;
             }
@@ -226,7 +230,7 @@ namespace SeasonalBastion
                 var site = _w.Sites.Get(sid);
                 if (!site.IsActive) continue;
 
-                var entry = EntryCellUtil.GetApproachCellForSite(_s, site, c);
+                var entry = EntryCellUtil.GetApproachCellForSite(_dataRegistry, _gridMap, site, c);
                 if (Same(entry, c))
                     return true;
             }
@@ -250,7 +254,7 @@ namespace SeasonalBastion
             score += System.Math.Abs(distFrom - 5) * 6;
             score += System.Math.Abs(distAnchor - 4) * 5;
 
-            if (_s.GridMap.IsRoad(c))
+            if (_gridMap.IsRoad(c))
                 score += 10;
 
             if (IsNearInteractionCell(c))

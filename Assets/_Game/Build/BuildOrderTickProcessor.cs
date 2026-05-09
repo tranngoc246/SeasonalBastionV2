@@ -44,6 +44,31 @@ namespace SeasonalBastion
             _onOrderCompleted = onOrderCompleted;
         }
 
+        public BuildOrderTickProcessor(
+            GameServices services,
+            Dictionary<int, BuildOrder> orders,
+            List<int> active,
+            Func<BuildingId> resolveBuildWorkplace,
+            Action<SiteId, BuildSiteState, BuildingId> ensureBuildJobsForSite,
+            Action<SiteId> cancelTrackedJobsForSite,
+            TickRepairOrderDelegate tickRepairOrder,
+            CompleteOrderDelegate completePlaceOrder,
+            CompleteOrderDelegate completeUpgradeOrder,
+            Action<int> onOrderCompleted)
+            : this(
+                services?.WorldState,
+                orders,
+                active,
+                resolveBuildWorkplace,
+                ensureBuildJobsForSite,
+                cancelTrackedJobsForSite,
+                tickRepairOrder,
+                completePlaceOrder,
+                completeUpgradeOrder,
+                onOrderCompleted)
+        {
+        }
+
         public void Tick(float dt)
         {
             if (dt <= 0f) return;

@@ -44,6 +44,29 @@ namespace SeasonalBastion
             _harvestTargetSelector = harvestTargetSelector ?? throw new ArgumentNullException(nameof(harvestTargetSelector));
         }
 
+        internal JobEnqueueService(
+            GameServices services,
+            IWorldState w,
+            IJobBoard board,
+            IJobWorkplacePolicy workplacePolicy,
+            ResourceLogisticsPolicy resourcePolicy,
+            JobStateCleanupService cleanupService,
+            IHarvestTargetSelector harvestTargetSelector)
+            : this(
+                services?.ResourcePatchService,
+                services?.Pathfinder,
+                services?.ResourceFlowService,
+                services?.DataRegistry,
+                services?.GridMap,
+                w,
+                board,
+                workplacePolicy,
+                resourcePolicy,
+                cleanupService,
+                harvestTargetSelector)
+        {
+        }
+
         internal void EnqueueHarvestJobsIfNeeded(
             IReadOnlyList<BuildingId> buildingIds,
             HashSet<int> workplacesWithNpc,

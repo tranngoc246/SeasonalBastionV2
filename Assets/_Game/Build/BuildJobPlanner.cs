@@ -8,6 +8,8 @@ namespace SeasonalBastion
         private readonly IWorldState _worldState;
         private readonly IJobBoard _jobBoard;
         private readonly IPathfinderRuntime _pathfinder;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IGridMap _gridMap;
         private readonly Dictionary<int, List<JobId>> _deliverJobsBySite;
         private readonly Dictionary<int, JobId> _workJobBySite;
 
@@ -15,14 +17,26 @@ namespace SeasonalBastion
             IWorldState worldState,
             IJobBoard jobBoard,
             IPathfinderRuntime pathfinder,
+            IDataRegistry dataRegistry,
+            IGridMap gridMap,
             Dictionary<int, List<JobId>> deliverJobsBySite,
             Dictionary<int, JobId> workJobBySite)
         {
             _worldState = worldState;
             _jobBoard = jobBoard;
             _pathfinder = pathfinder;
+            _dataRegistry = dataRegistry;
+            _gridMap = gridMap;
             _deliverJobsBySite = deliverJobsBySite;
             _workJobBySite = workJobBySite;
+        }
+
+        public BuildJobPlanner(
+            GameServices services,
+            Dictionary<int, List<JobId>> deliverJobsBySite,
+            Dictionary<int, JobId> workJobBySite)
+            : this(services?.WorldState, services?.JobBoard, services?.Pathfinder, services?.DataRegistry, services?.GridMap, deliverJobsBySite, workJobBySite)
+        {
         }
 
         public void EnsureBuildJobsForSite(SiteId siteId, BuildSiteState site, BuildingId workplace)
@@ -31,8 +45,8 @@ namespace SeasonalBastion
             if (_worldState == null || !_worldState.Buildings.Exists(workplace)) return;
 
             var workplaceState = _worldState.Buildings.Get(workplace);
-            var workplaceEntry = EntryCellUtil.GetApproachCellForBuilding(_worldState, workplaceState, site.Anchor);
-            if (!JobReachabilityHelper.IsSiteEntryReachable(_pathfinder, site, workplaceEntry))
+            var workplaceEntry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, workplaceState, site.Anchor);
+            if (!JobReachabilityHelper.IsSiteEntryReachable(_dataRegistry, _gridMap, _pathfinder, site, workplaceEntry))
             {
                 CancelTrackedJobsForSite(siteId);
                 return;

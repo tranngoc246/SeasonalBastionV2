@@ -13,7 +13,7 @@ namespace SeasonalBastion
             public bool HasTarget;
         }
 
-        private readonly IAgentMover _agentMover;
+        private readonly IAgentMoverRuntime _agentMover;
         private readonly IDataRegistry _dataRegistry;
         private readonly IGridMap _gridMap;
         private readonly IWorldState _w;
@@ -26,7 +26,7 @@ namespace SeasonalBastion
         private const int BuilderIdleRadiusMin = 4;
         private const int BuilderIdleRadiusMax = 8;
 
-        internal NpcIdleRoamService(IAgentMover agentMover, IDataRegistry dataRegistry, IGridMap gridMap, IWorldState w)
+        internal NpcIdleRoamService(IAgentMoverRuntime agentMover, IDataRegistry dataRegistry, IGridMap gridMap, IWorldState w)
         {
             _agentMover = agentMover;
             _dataRegistry = dataRegistry;

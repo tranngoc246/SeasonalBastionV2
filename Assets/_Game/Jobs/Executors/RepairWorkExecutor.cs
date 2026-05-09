@@ -10,7 +10,13 @@ namespace SeasonalBastion
     /// </summary>
     public sealed class RepairWorkExecutor : IJobExecutor
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IAgentMoverRuntime _agentMover;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IStorageService _storageService;
+        private readonly IWorldIndex _worldIndex;
+        private readonly BalanceService _balance;
+        private readonly IGridMap _gridMap;
 
         // jobId -> whether we've already paid repair cost (upfront)
         private readonly Dictionary<int, byte> _paid = new();
@@ -22,8 +28,29 @@ namespace SeasonalBastion
         // jobId -> remaining settle seconds at entry before starting repair
         private readonly Dictionary<int, float> _settle = new();
         private const float RepairSettleSec = 1.5f;
-        
-        public RepairWorkExecutor(GameServices s) { _s = s; }
+
+        public RepairWorkExecutor(
+            IWorldState worldState,
+            IAgentMoverRuntime agentMover,
+            IDataRegistry dataRegistry,
+            IStorageService storageService,
+            IWorldIndex worldIndex,
+            BalanceService balance,
+            IGridMap gridMap)
+        {
+            _worldState = worldState;
+            _agentMover = agentMover;
+            _dataRegistry = dataRegistry;
+            _storageService = storageService;
+            _worldIndex = worldIndex;
+            _balance = balance;
+            _gridMap = gridMap;
+        }
+
+        public RepairWorkExecutor(GameServices s)
+            : this(s?.WorldState, s?.AgentMover, s?.DataRegistry, s?.StorageService, s?.WorldIndex, s?.Balance, s?.GridMap)
+        {
+        }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
@@ -38,7 +65,7 @@ namespace SeasonalBastion
                 return true;
             }
 
-            if (_s.WorldState == null || _s.AgentMover == null)
+            if (_worldState == null || _agentMover == null)
             {
                 job.Status = JobStatus.Failed;
                 _acc.Remove(jid);
@@ -47,7 +74,7 @@ namespace SeasonalBastion
                 return true;
             }
 
-            var w = _s.WorldState;
+            var w = _worldState;
 
             if (job.DestBuilding.Value == 0 || !w.Buildings.Exists(job.DestBuilding))
             {
@@ -72,7 +99,7 @@ namespace SeasonalBastion
             if (bs.MaxHP <= 0)
             {
                 int mhp = 100;
-                if (_s.DataRegistry.TryGetBuilding(bs.DefId, out var repairDef) && repairDef != null)
+                if (_dataRegistry != null && _dataRegistry.TryGetBuilding(bs.DefId, out var repairDef) && repairDef != null)
                     mhp = Math.Max(1, repairDef.MaxHp);
                 bs.MaxHP = mhp;
                 if (bs.HP <= 0) bs.HP = bs.MaxHP;
@@ -81,7 +108,7 @@ namespace SeasonalBastion
 
             if (bs.HP >= bs.MaxHP)
             {
-                InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
+                InteractionCellExitHelper.TryStepOffBuildingEntry(_dataRegistry, _gridMap, _agentMover, ref npcState, bs, dt);
                 job.Status = JobStatus.Completed;
                 _acc.Remove(jid);
                 _settle.Remove(jid);
@@ -90,14 +117,14 @@ namespace SeasonalBastion
             }
 
             // Move to building ENTRY (driveway) instead of anchor
-            var entry = EntryCellUtil.GetApproachCellForBuilding(_s, bs, npcState.Cell);
+            var entry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, bs, npcState.Cell);
 
             if (npcState.Cell.X != entry.X || npcState.Cell.Y != entry.Y)
             {
                 job.TargetCell = entry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrived = _s.AgentMover.StepToward(ref npcState, entry, dt);
+                bool arrived = _agentMover.StepToward(ref npcState, entry, dt);
                 if (!arrived)
                     return true;
                 // arrived this tick -> continue below
@@ -119,7 +146,7 @@ namespace SeasonalBastion
             // Pay repair cost ONCE (upfront) when starting actual repair work
             if (!_paid.TryGetValue(jid, out var paid) || paid == 0)
             {
-                if (_s.StorageService == null || _s.WorldIndex == null)
+                if (_storageService == null || _worldIndex == null || _dataRegistry == null)
                 {
                     job.Status = JobStatus.Failed;
                     _acc.Remove(jid);
@@ -128,7 +155,7 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                var def = _s.DataRegistry.GetBuilding(bs.DefId);
+                var def = _dataRegistry.GetBuilding(bs.DefId);
                 var costs = def.BuildCostsL1;
 
                 if (costs != null && costs.Length > 0)
@@ -138,14 +165,14 @@ namespace SeasonalBastion
                     if (missingRatio > 1f) missingRatio = 1f;
 
                     int builderTier = 1;
-                    if (_s.Balance != null && job.Workplace.Value != 0 && w.Buildings.Exists(job.Workplace))
+                    if (_balance != null && job.Workplace.Value != 0 && w.Buildings.Exists(job.Workplace))
                     {
                         var wp = w.Buildings.Get(job.Workplace);
-                        builderTier = _s.Balance.GetTierFromLevel(wp.Level);
+                        builderTier = _balance.GetTierFromLevel(wp.Level);
                     }
 
-                    float factor = (_s.Balance != null ? _s.Balance.RepairCostFactor : 0.30f);
-                    float costMult = (_s.Balance != null ? _s.Balance.GetRepairCostMult(builderTier) : 1f);
+                    float factor = (_balance != null ? _balance.RepairCostFactor : 0.30f);
+                    float costMult = (_balance != null ? _balance.GetRepairCostMult(builderTier) : 1f);
 
                     // Pre-check totals to avoid partial deduct
                     int needWood = 0, needStone = 0, needIron = 0, needFood = 0;
@@ -168,10 +195,10 @@ namespace SeasonalBastion
                     }
 
                     bool ok =
-                        (needWood <= 0 || _s.StorageService.GetTotal(ResourceType.Wood) >= needWood) &&
-                        (needStone <= 0 || _s.StorageService.GetTotal(ResourceType.Stone) >= needStone) &&
-                        (needIron <= 0 || _s.StorageService.GetTotal(ResourceType.Iron) >= needIron) &&
-                        (needFood <= 0 || _s.StorageService.GetTotal(ResourceType.Food) >= needFood);
+                        (needWood <= 0 || _storageService.GetTotal(ResourceType.Wood) >= needWood) &&
+                        (needStone <= 0 || _storageService.GetTotal(ResourceType.Stone) >= needStone) &&
+                        (needIron <= 0 || _storageService.GetTotal(ResourceType.Iron) >= needIron) &&
+                        (needFood <= 0 || _storageService.GetTotal(ResourceType.Food) >= needFood);
 
                     if (!ok)
                     {
@@ -196,16 +223,16 @@ namespace SeasonalBastion
             // Keep the same overall pacing by converting chunk settings into heal-per-second.
             if (!_acc.TryGetValue(jid, out var hpFrac)) hpFrac = 0f;
 
-            float chunkSec = _s.Balance != null ? _s.Balance.RepairChunkSec : 4f;
-            float healPct = _s.Balance != null ? _s.Balance.RepairHealPct : 0.15f;
+            float chunkSec = _balance != null ? _balance.RepairChunkSec : 4f;
+            float healPct = _balance != null ? _balance.RepairHealPct : 0.15f;
 
             int builderTier2 = 1;
-            if (_s.Balance != null && job.Workplace.Value != 0 && w.Buildings.Exists(job.Workplace))
+            if (_balance != null && job.Workplace.Value != 0 && w.Buildings.Exists(job.Workplace))
             {
                 var wp = w.Buildings.Get(job.Workplace);
-                builderTier2 = _s.Balance.GetTierFromLevel(wp.Level);
+                builderTier2 = _balance.GetTierFromLevel(wp.Level);
             }
-            float timeMult = _s.Balance != null ? _s.Balance.GetRepairTimeMult(builderTier2) : 1f;
+            float timeMult = _balance != null ? _balance.GetRepairTimeMult(builderTier2) : 1f;
             if (timeMult < 0.1f) timeMult = 0.1f;
 
             float effChunkSec = chunkSec * timeMult;
@@ -227,7 +254,7 @@ namespace SeasonalBastion
 
             if (bs.HP >= bs.MaxHP)
             {
-                InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
+                InteractionCellExitHelper.TryStepOffBuildingEntry(_dataRegistry, _gridMap, _agentMover, ref npcState, bs, dt);
                 job.Status = JobStatus.Completed;
                 _acc.Remove(jid);
                 _settle.Remove(jid);
@@ -247,22 +274,22 @@ namespace SeasonalBastion
             _payBuf.Clear();
 
             // Use WorldIndex.Warehouses (includes HQ in your v0.1 index)
-            var list = _s.WorldIndex.Warehouses;
+            var list = _worldIndex.Warehouses;
             for (int i = 0; i < list.Count; i++)
             {
                 var bid = list[i];
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
-                var bs = _s.WorldState.Buildings.Get(bid);
+                if (!_worldState.Buildings.Exists(bid)) continue;
+                var bs = _worldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
-                if (!_s.StorageService.CanStore(bid, rt)) continue;
+                if (!_storageService.CanStore(bid, rt)) continue;
                 _payBuf.Add(bid);
             }
 
             // sort by distance then id (deterministic)
             _payBuf.Sort((a, b) =>
             {
-                var aa = _s.WorldState.Buildings.Get(a).Anchor;
-                var bb = _s.WorldState.Buildings.Get(b).Anchor;
+                var aa = _worldState.Buildings.Get(a).Anchor;
+                var bb = _worldState.Buildings.Get(b).Anchor;
                 int da = System.Math.Abs(refPos.X - aa.X) + System.Math.Abs(refPos.Y - aa.Y);
                 int db = System.Math.Abs(refPos.X - bb.X) + System.Math.Abs(refPos.Y - bb.Y);
                 if (da != db) return da.CompareTo(db);
@@ -273,7 +300,7 @@ namespace SeasonalBastion
             for (int i = 0; i < _payBuf.Count && left > 0; i++)
             {
                 var dst = _payBuf[i];
-                int removed = _s.StorageService.Remove(dst, rt, left);
+                int removed = _storageService.Remove(dst, rt, left);
                 left -= removed;
             }
         }

@@ -6,7 +6,14 @@ namespace SeasonalBastion
 {
     public sealed class HaulBasicExecutor : IJobExecutor
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IStorageService _storageService;
+        private readonly IAgentMoverRuntime _agentMover;
+        private readonly IWorldIndex _worldIndex;
+        private readonly IPathfinderRuntime _pathfinder;
+        private readonly BalanceService _balance;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IGridMap _gridMap;
 
         private static bool IsWarehouseOnly(string defId) => DefIdTierUtil.IsBase(defId, "bld_warehouse");
         private static bool IsHQOnly(string defId) => DefIdTierUtil.IsBase(defId, "bld_hq");
@@ -19,11 +26,34 @@ namespace SeasonalBastion
         private readonly Dictionary<int, float> _settle = new();
         private const float HaulSettleSec = 1.0f;
 
-        public HaulBasicExecutor(GameServices s) { _s = s; }
+        public HaulBasicExecutor(
+            IWorldState worldState,
+            IStorageService storageService,
+            IAgentMoverRuntime agentMover,
+            IWorldIndex worldIndex,
+            IPathfinderRuntime pathfinder,
+            BalanceService balance,
+            IDataRegistry dataRegistry,
+            IGridMap gridMap)
+        {
+            _worldState = worldState;
+            _storageService = storageService;
+            _agentMover = agentMover;
+            _worldIndex = worldIndex;
+            _pathfinder = pathfinder;
+            _balance = balance;
+            _dataRegistry = dataRegistry;
+            _gridMap = gridMap;
+        }
+
+        public HaulBasicExecutor(GameServices s)
+            : this(s?.WorldState, s?.StorageService, s?.AgentMover, s?.WorldIndex, s?.Pathfinder, s?.Balance, s?.DataRegistry, s?.GridMap)
+        {
+        }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null)
+            if (_worldState == null || _storageService == null || _agentMover == null)
             {
                 job.Status = JobStatus.Failed;
                 return true;
@@ -45,9 +75,9 @@ namespace SeasonalBastion
             // - Fallback to HQ (bld_hq_t1) if no warehouse has space
             // NOTE: Use source anchor if we already have a source, otherwise use npc cell.
             var refPos = npcState.Cell;
-            if (job.SourceBuilding.Value != 0 && _s.WorldState.Buildings.Exists(job.SourceBuilding))
+            if (job.SourceBuilding.Value != 0 && _worldState.Buildings.Exists(job.SourceBuilding))
             {
-                var ss = _s.WorldState.Buildings.Get(job.SourceBuilding);
+                var ss = _worldState.Buildings.Get(job.SourceBuilding);
                 if (ss.IsConstructed) refPos = ss.Anchor;
             }
 
@@ -55,14 +85,14 @@ namespace SeasonalBastion
                 job.DestBuilding = bestDest;
 
             var dest = job.DestBuilding;
-            if (dest.Value == 0 || !_s.WorldState.Buildings.Exists(dest))
+            if (dest.Value == 0 || !_worldState.Buildings.Exists(dest))
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(jid);
                 return true;
             }
 
-            var dstState = _s.WorldState.Buildings.Get(dest);
+            var dstState = _worldState.Buildings.Get(dest);
             if (!dstState.IsConstructed || !IsWarehouseWorkplace(dstState.DefId))
             {
                 job.Status = JobStatus.Failed;
@@ -80,7 +110,7 @@ namespace SeasonalBastion
                 if (_source.TryGetValue(jid, out var srcInt) && srcInt != 0)
                     srcId = new BuildingId(srcInt);
 
-                if (srcId.Value == 0 || !_s.WorldState.Buildings.Exists(srcId))
+                if (srcId.Value == 0 || !_worldState.Buildings.Exists(srcId))
                 {
                     // Choose by: higher fill -> nearer to NPC -> smaller id
                     if (!TryPickBestHarvestProducerSource(npcState.Cell, rt, 1, out srcId))
@@ -92,7 +122,7 @@ namespace SeasonalBastion
                     _source[jid] = srcId.Value;
                 }
 
-                var srcState = _s.WorldState.Buildings.Get(srcId);
+                var srcState = _worldState.Buildings.Get(srcId);
                 if (!srcState.IsConstructed)
                 {
                     job.Status = JobStatus.Cancelled;
@@ -105,17 +135,17 @@ namespace SeasonalBastion
                 {
                     job.DestBuilding = bestDestFromSource;
                     dest = job.DestBuilding;
-                    dstState = _s.WorldState.Buildings.Get(dest);
+                    dstState = _worldState.Buildings.Get(dest);
                 }
 
                 // Move to source ENTRY
-                var srcEntry = EntryCellUtil.GetApproachCellForBuilding(_s, srcState, npcState.Cell);
+                var srcEntry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, srcState, npcState.Cell);
 
                 job.SourceBuilding = srcId;
                 job.TargetCell = srcEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrived = _s.AgentMover.StepToward(ref npcState, srcEntry, dt);
+                bool arrived = _agentMover.StepToward(ref npcState, srcEntry, dt);
                 if (!arrived) return true;
 
                 // Stand still before pickup
@@ -130,12 +160,12 @@ namespace SeasonalBastion
                 }
                 _settle.Remove(jid);
 
-                int whTier = _s.Balance != null ? _s.Balance.GetWarehouseTier() : 1;
-                int cap = _s.Balance != null ? _s.Balance.GetCarryHaulBasic(whTier) : 10;
+                int whTier = _balance != null ? _balance.GetWarehouseTier() : 1;
+                int cap = _balance != null ? _balance.GetCarryHaulBasic(whTier) : 10;
 
                 int want = cap;
 
-                int taken = _s.StorageService.Remove(srcId, rt, want);
+                int taken = _storageService.Remove(srcId, rt, want);
                 if (taken <= 0)
                 {
                     job.Status = JobStatus.Cancelled;
@@ -161,12 +191,12 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                var dstEntry = EntryCellUtil.GetApproachCellForBuilding(_s, dstState, npcState.Cell);
+                var dstEntry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, dstState, npcState.Cell);
 
                 job.TargetCell = dstEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrived = _s.AgentMover.StepToward(ref npcState, dstEntry, dt);
+                bool arrived = _agentMover.StepToward(ref npcState, dstEntry, dt);
                 if (!arrived) return true;
 
                 // Stand still before deposit
@@ -181,7 +211,7 @@ namespace SeasonalBastion
                 }
                 _settle.Remove(jid);
 
-                int added = _s.StorageService.Add(dest, rt, carried);
+                int added = _storageService.Add(dest, rt, carried);
 
                 if (added < carried)
                 {
@@ -205,7 +235,7 @@ namespace SeasonalBastion
                     if (_source.TryGetValue(jid, out var srcInt) && srcInt != 0)
                     {
                         var srcId = new BuildingId(srcInt);
-                        _s.StorageService.Add(srcId, rt, left);
+                        _storageService.Add(srcId, rt, left);
                     }
                 }
 
@@ -223,8 +253,8 @@ namespace SeasonalBastion
                 if (_source.TryGetValue(jid, out var srcInt) && srcInt != 0)
                 {
                     var src = new BuildingId(srcInt);
-                    if (_s.WorldState.Buildings.Exists(src))
-                        _s.StorageService.Add(src, rt, carried);
+                    if (_worldState.Buildings.Exists(src))
+                        _storageService.Add(src, rt, carried);
                 }
             }
         }
@@ -260,13 +290,13 @@ namespace SeasonalBastion
         {
             best = default;
 
-            var whs = _s.WorldIndex.Warehouses; // includes HQ
+            var whs = _worldIndex.Warehouses; // includes HQ
             if (whs == null || whs.Count == 0) return false;
 
             // 0) Preferred workplace: ONLY hard-prefer if it is a Warehouse (not HQ) and has space
-            if (preferredWorkplace.Value != 0 && _s.WorldState.Buildings.Exists(preferredWorkplace))
+            if (preferredWorkplace.Value != 0 && _worldState.Buildings.Exists(preferredWorkplace))
             {
-                var ps = _s.WorldState.Buildings.Get(preferredWorkplace);
+                var ps = _worldState.Buildings.Get(preferredWorkplace);
                 if (ps.IsConstructed && IsWarehouseOnly(ps.DefId) && GetDestFree(ps, rt) > 0)
                 {
                     best = preferredWorkplace;
@@ -281,9 +311,9 @@ namespace SeasonalBastion
             for (int i = 0; i < whs.Count; i++)
             {
                 var bid = whs[i];
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+                if (!_worldState.Buildings.Exists(bid)) continue;
 
-                var bs = _s.WorldState.Buildings.Get(bid);
+                var bs = _worldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
                 if (!IsWarehouseWorkplace(bs.DefId)) continue;
 
@@ -321,7 +351,7 @@ namespace SeasonalBastion
         {
             best = default;
 
-            var producers = _s.WorldIndex.Producers;
+            var producers = _worldIndex.Producers;
             if (producers == null || producers.Count == 0) return false;
 
             int bestFill = int.MinValue;   // fill per-mille (0..1000)
@@ -332,9 +362,9 @@ namespace SeasonalBastion
             for (int i = 0; i < producers.Count; i++)
             {
                 var bid = producers[i];
-                if (!_s.WorldState.Buildings.Exists(bid)) continue;
+                if (!_worldState.Buildings.Exists(bid)) continue;
 
-                var bs = _s.WorldState.Buildings.Get(bid);
+                var bs = _worldState.Buildings.Get(bid);
                 if (!bs.IsConstructed) continue;
 
                 if (!IsHarvestProducer(bs.DefId)) continue;
@@ -372,9 +402,9 @@ namespace SeasonalBastion
             if (!_carry.TryGetValue(jobId, out var carried) || carried <= 0) return;
 
             var src = job.SourceBuilding;
-            if (src.Value != 0 && _s.WorldState != null && _s.WorldState.Buildings.Exists(src))
+            if (src.Value != 0 && _worldState != null && _worldState.Buildings.Exists(src))
             {
-                _s.StorageService.Add(src, rt, carried);
+                _storageService.Add(src, rt, carried);
             }
 
             _carry.Remove(jobId);
@@ -384,8 +414,8 @@ namespace SeasonalBastion
         private bool TryEstimateTravelCost(CellPos from, CellPos to, out int cost)
         {
             cost = 0;
-            if (_s?.Pathfinder == null) return false;
-            return _s.Pathfinder.TryEstimateCost(from, to, out cost);
+            if (_pathfinder == null) return false;
+            return _pathfinder.TryEstimateCost(from, to, out cost);
         }
 
         private static int Manhattan(CellPos a, CellPos b)

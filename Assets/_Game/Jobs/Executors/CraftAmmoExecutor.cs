@@ -13,7 +13,13 @@ namespace SeasonalBastion
     /// </summary>
     public sealed class CraftAmmoExecutor : IJobExecutor
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IStorageService _storageService;
+        private readonly IAgentMoverRuntime _agentMover;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IEventBus _eventBus;
+        private readonly BalanceService _balance;
+        private readonly IGridMap _gridMap;
 
         // jobId -> remaining craft time
         private readonly Dictionary<int, float> _remain = new();
@@ -21,15 +27,33 @@ namespace SeasonalBastion
         private const string DefaultAmmoRecipeId = "ForgeAmmo";
         private string _ammoRecipeId;
 
-        public CraftAmmoExecutor(GameServices s)
+        public CraftAmmoExecutor(
+            IWorldState worldState,
+            IStorageService storageService,
+            IAgentMoverRuntime agentMover,
+            IDataRegistry dataRegistry,
+            IEventBus eventBus,
+            BalanceService balance,
+            IGridMap gridMap)
         {
-            _s = s;
+            _worldState = worldState;
+            _storageService = storageService;
+            _agentMover = agentMover;
+            _dataRegistry = dataRegistry;
+            _eventBus = eventBus;
+            _balance = balance;
+            _gridMap = gridMap;
             _ammoRecipeId = ResolveAmmoRecipeIdOrDefault();
+        }
+
+        public CraftAmmoExecutor(GameServices s)
+            : this(s?.WorldState, s?.StorageService, s?.AgentMover, s?.DataRegistry, s?.EventBus, s?.Balance, s?.GridMap)
+        {
         }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null || _s.DataRegistry == null)
+            if (_worldState == null || _storageService == null || _agentMover == null || _dataRegistry == null)
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(job.Id.Value);
@@ -37,24 +61,24 @@ namespace SeasonalBastion
             }
 
             var forge = job.Workplace;
-            if (forge.Value == 0 || !_s.WorldState.Buildings.Exists(forge))
+            if (forge.Value == 0 || !_worldState.Buildings.Exists(forge))
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(job.Id.Value);
                 return true;
             }
 
-            var bs = _s.WorldState.Buildings.Get(forge);
+            var bs = _worldState.Buildings.Get(forge);
             if (!bs.IsConstructed)
                 return false;
 
             // Move to Forge ENTRY (driveway)
-            var entry = EntryCellUtil.GetApproachCellForBuilding(_s, bs, npcState.Cell);
+            var entry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, bs, npcState.Cell);
 
             job.TargetCell = entry;
             job.Status = JobStatus.InProgress;
 
-            bool arrived = _s.AgentMover.StepToward(ref npcState, entry, dt);
+            bool arrived = _agentMover.StepToward(ref npcState, entry, dt);
             if (!arrived)
                 return true;
 
@@ -81,8 +105,8 @@ namespace SeasonalBastion
                 }
 
                 // Need local output space IN FORGE
-                int outCap = _s.StorageService.GetCap(forge, recipe.OutputType);
-                int outCur = _s.StorageService.GetAmount(forge, recipe.OutputType);
+                int outCap = _storageService.GetCap(forge, recipe.OutputType);
+                int outCur = _storageService.GetAmount(forge, recipe.OutputType);
                 if (outCap <= 0 || (outCap - outCur) < recipe.OutputAmount)
                 {
                     // Not enough output space -> cancel, AmmoService should retry later.
@@ -92,7 +116,7 @@ namespace SeasonalBastion
                 }
 
                 // Need local inputs IN FORGE
-                int inCur = _s.StorageService.GetAmount(forge, recipe.InputType);
+                int inCur = _storageService.GetAmount(forge, recipe.InputType);
                 if (inCur < recipe.InputAmount)
                 {
                     job.Status = JobStatus.Cancelled;
@@ -108,7 +132,7 @@ namespace SeasonalBastion
                         var c = extras[i];
                         if (c == null || c.Amount <= 0) continue;
 
-                        int cur = _s.StorageService.GetAmount(forge, c.Resource);
+                        int cur = _storageService.GetAmount(forge, c.Resource);
                         if (cur < c.Amount)
                         {
                             job.Status = JobStatus.Cancelled;
@@ -119,9 +143,9 @@ namespace SeasonalBastion
                 }
 
                 // Consume main input
-                int remIn = _s.StorageService.Remove(forge, recipe.InputType, recipe.InputAmount);
+                int remIn = _storageService.Remove(forge, recipe.InputType, recipe.InputAmount);
                 if (remIn > 0)
-                    _s.EventBus?.Publish(new ResourceSpentEvent(recipe.InputType, remIn, forge));
+                    _eventBus?.Publish(new ResourceSpentEvent(recipe.InputType, remIn, forge));
 
                 // Consume extra inputs
                 if (extras != null && extras.Length > 0)
@@ -131,9 +155,9 @@ namespace SeasonalBastion
                         var c = extras[i];
                         if (c == null || c.Amount <= 0) continue;
 
-                        int remX = _s.StorageService.Remove(forge, c.Resource, c.Amount);
+                        int remX = _storageService.Remove(forge, c.Resource, c.Amount);
                         if (remX > 0)
-                            _s.EventBus?.Publish(new ResourceSpentEvent(c.Resource, remX, forge));
+                            _eventBus?.Publish(new ResourceSpentEvent(c.Resource, remX, forge));
                     }
                 }
 
@@ -158,8 +182,8 @@ namespace SeasonalBastion
             }
 
             // Deposit
-            _s.StorageService.Add(forge, recipeFinish.OutputType, recipeFinish.OutputAmount);
-            InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
+            _storageService.Add(forge, recipeFinish.OutputType, recipeFinish.OutputAmount);
+            InteractionCellExitHelper.TryStepOffBuildingEntry(_dataRegistry, _gridMap, _agentMover, ref npcState, bs, dt);
 
             job.ResourceType = recipeFinish.OutputType;
             job.Amount = recipeFinish.OutputAmount;
@@ -183,7 +207,7 @@ namespace SeasonalBastion
 
             try
             {
-                recipe = _s.DataRegistry.GetRecipe(rid);
+                recipe = _dataRegistry.GetRecipe(rid);
                 return recipe != null;
             }
             catch
@@ -193,7 +217,7 @@ namespace SeasonalBastion
                 {
                     try
                     {
-                        recipe = _s.DataRegistry.GetRecipe(DefaultAmmoRecipeId);
+                        recipe = _dataRegistry.GetRecipe(DefaultAmmoRecipeId);
                         return recipe != null;
                     }
                     catch (Exception ex)
@@ -208,7 +232,7 @@ namespace SeasonalBastion
 
         private string ResolveAmmoRecipeIdOrDefault()
         {
-            var rid = _s?.Balance?.AmmoRecipeId;
+            var rid = _balance?.AmmoRecipeId;
             if (!string.IsNullOrWhiteSpace(rid))
                 return rid.Trim();
 

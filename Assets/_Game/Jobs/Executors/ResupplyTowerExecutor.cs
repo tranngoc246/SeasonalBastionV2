@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using SeasonalBastion.Contracts;
 
@@ -15,7 +15,12 @@ namespace SeasonalBastion
     /// </summary>
     public sealed class ResupplyTowerExecutor : IJobExecutor
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IStorageService _storageService;
+        private readonly IAgentMoverRuntime _agentMover;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IGridMap _gridMap;
+        private readonly IAmmoService _ammoService;
 
         // jobId -> phase (0 pickup, 1 deliver)
         private readonly Dictionary<int, byte> _phase = new();
@@ -25,13 +30,32 @@ namespace SeasonalBastion
         private readonly Dictionary<int, float> _settle = new();
         private const float ResupplySettleSec = 1.0f;
 
-        public ResupplyTowerExecutor(GameServices s) { _s = s; }
+        public ResupplyTowerExecutor(
+            IWorldState worldState,
+            IStorageService storageService,
+            IAgentMoverRuntime agentMover,
+            IDataRegistry dataRegistry,
+            IGridMap gridMap,
+            IAmmoService ammoService)
+        {
+            _worldState = worldState;
+            _storageService = storageService;
+            _agentMover = agentMover;
+            _dataRegistry = dataRegistry;
+            _gridMap = gridMap;
+            _ammoService = ammoService;
+        }
+
+        public ResupplyTowerExecutor(GameServices s)
+            : this(s?.WorldState, s?.StorageService, s?.AgentMover, s?.DataRegistry, s?.GridMap, s?.AmmoService)
+        {
+        }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
             int jid = job.Id.Value;
 
-            if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null)
+            if (_worldState == null || _storageService == null || _agentMover == null)
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(jid);
@@ -56,7 +80,7 @@ namespace SeasonalBastion
                 return true;
             }
 
-            int carriedAmmo = 0; // <-- IMPORTANT: chỉ khai báo 1 lần, tránh CS0136
+            int carriedAmmo = 0;
 
             // Hardening: external cancel -> refund carry to armory (best-effort) + cleanup
             if (job.Status == JobStatus.Cancelled)
@@ -66,14 +90,14 @@ namespace SeasonalBastion
                 return true;
             }
 
-            if (!_s.WorldState.Buildings.Exists(armoryBld))
+            if (!_worldState.Buildings.Exists(armoryBld))
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(jid);
                 return true;
             }
 
-            var armSt = _s.WorldState.Buildings.Get(armoryBld);
+            var armSt = _worldState.Buildings.Get(armoryBld);
 
             if (!armSt.IsConstructed)
             {
@@ -83,7 +107,7 @@ namespace SeasonalBastion
                 return true;
             }
 
-            if (!_s.StorageService.CanStore(armoryBld, ResourceType.Ammo))
+            if (!_storageService.CanStore(armoryBld, ResourceType.Ammo))
             {
                 job.Status = JobStatus.Cancelled;
                 RefundCarryBestEffort(jid, armoryBld);
@@ -98,7 +122,7 @@ namespace SeasonalBastion
             {
                 int want = job.Amount > 0 ? job.Amount : 1;
 
-                int avail = _s.StorageService.GetAmount(armoryBld, ResourceType.Ammo);
+                int avail = _storageService.GetAmount(armoryBld, ResourceType.Ammo);
                 if (avail <= 0)
                 {
                     job.Status = JobStatus.Cancelled;
@@ -106,6 +130,24 @@ namespace SeasonalBastion
                     return true;
                 }
 
+                // Tower free should be checked before pickup so we don't carry useless ammo.
+                if (!_worldState.Towers.Exists(towerId))
+                {
+                    job.Status = JobStatus.Cancelled;
+                    Cleanup(jid);
+                    return true;
+                }
+
+                var ts = _worldState.Towers.Get(towerId);
+                int towerFree = ts.AmmoCap - ts.Ammo;
+                if (towerFree <= 0)
+                {
+                    job.Status = JobStatus.Cancelled;
+                    Cleanup(jid);
+                    return true;
+                }
+
+                if (want > towerFree) want = towerFree;
                 if (want > avail) want = avail;
                 if (want <= 0)
                 {
@@ -114,12 +156,12 @@ namespace SeasonalBastion
                     return true;
                 }
 
-                var armEntry = EntryCellUtil.GetApproachCellForBuilding(_s, armSt, npcState.Cell);
+                var armEntry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, armSt, npcState.Cell);
 
                 job.TargetCell = armEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrived = _s.AgentMover.StepToward(ref npcState, armEntry, dt);
+                bool arrived = _agentMover.StepToward(ref npcState, armEntry, dt);
                 if (!arrived) return true;
 
                 // Stand still before pickup
@@ -134,7 +176,7 @@ namespace SeasonalBastion
                 }
                 _settle.Remove(jid);
 
-                int removed = _s.StorageService.Remove(armoryBld, ResourceType.Ammo, want);
+                int removed = _storageService.Remove(armoryBld, ResourceType.Ammo, want);
 
                 if (removed <= 0)
                 {
@@ -145,7 +187,7 @@ namespace SeasonalBastion
 
                 _carry[jid] = removed;
                 _phase[jid] = 1;
-                job.Amount = removed; // actual carry
+                job.Amount = removed;
                 return true;
             }
 
@@ -157,24 +199,21 @@ namespace SeasonalBastion
                 return true;
             }
 
-            // Move tới tower trước khi deliver (đảm bảo giống pattern executor khác)
-            // (Nếu project bạn đang có StepToward theo cell target)
-            var tsPeekOk = _s.WorldState.Towers.Exists(towerId);
+            var tsPeekOk = _worldState.Towers.Exists(towerId);
             if (!tsPeekOk)
             {
-                // tower vanished -> refund to armory
-                _s.StorageService.Add(armoryBld, ResourceType.Ammo, carriedAmmo);
+                _storageService.Add(armoryBld, ResourceType.Ammo, carriedAmmo);
                 job.Status = JobStatus.Cancelled;
                 Cleanup(jid);
                 return true;
             }
 
-            var tsForMove = _s.WorldState.Towers.Get(towerId);
+            var tsForMove = _worldState.Towers.Get(towerId);
             var towerApproach = ResolveTowerApproachCell(tsForMove.Cell, npcState.Cell);
 
             job.TargetCell = towerApproach;
 
-            bool arrivedTower = _s.AgentMover.StepToward(ref npcState, towerApproach, dt);
+            bool arrivedTower = _agentMover.StepToward(ref npcState, towerApproach, dt);
             if (!arrivedTower) return true;
 
             // Stand still before deliver
@@ -189,8 +228,7 @@ namespace SeasonalBastion
             }
             _settle.Remove(jid);
 
-            // Re-fetch newest tower state to avoid stale overwrite if multiple deliveries happen.
-            var tsNow = _s.WorldState.Towers.Get(towerId);
+            var tsNow = _worldState.Towers.Get(towerId);
 
             int free = tsNow.AmmoCap - tsNow.Ammo;
             if (free < 0) free = 0;
@@ -201,17 +239,16 @@ namespace SeasonalBastion
             if (add > 0)
             {
                 tsNow.Ammo += add;
-                _s.WorldState.Towers.Set(towerId, tsNow);
+                _worldState.Towers.Set(towerId, tsNow);
 
                 TryMirrorTowerAmmoToBuilding(tsNow.Cell, tsNow.Ammo);
 
-                // optional: update monitor/UI
-                _s.AmmoService?.NotifyTowerAmmoChanged(towerId, tsNow.Ammo, tsNow.AmmoCap);
+                _ammoService?.NotifyTowerAmmoChanged(towerId, tsNow.Ammo, tsNow.AmmoCap);
             }
 
             int refund = carriedAmmo - add;
             if (refund > 0)
-                _s.StorageService.Add(armoryBld, ResourceType.Ammo, refund);
+                _storageService.Add(armoryBld, ResourceType.Ammo, refund);
 
             job.Status = JobStatus.Completed;
             Cleanup(jid);
@@ -220,9 +257,8 @@ namespace SeasonalBastion
 
         private CellPos ResolveTowerApproachCell(CellPos towerCell, CellPos from)
         {
-            // Prefer matching tower-building footprint (if exists), else fallback to tower cell
             if (TryFindTowerBuildingByCell(towerCell, out var tbid, out var tbs))
-                return EntryCellUtil.GetApproachCellForBuilding(_s, tbs, from);
+                return EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, tbs, from);
 
             return towerCell;
         }
@@ -232,8 +268,8 @@ namespace SeasonalBastion
             bid = default;
             bs = default;
 
-            var w = _s.WorldState;
-            var data = _s.DataRegistry;
+            var w = _worldState;
+            var data = _dataRegistry;
             if (w == null || w.Buildings == null || data == null) return false;
 
             foreach (var id in w.Buildings.Ids)
@@ -266,8 +302,8 @@ namespace SeasonalBastion
 
         private void TryMirrorTowerAmmoToBuilding(CellPos towerCell, int ammo)
         {
-            var w = _s.WorldState;
-            var data = _s.DataRegistry;
+            var w = _worldState;
+            var data = _dataRegistry;
             if (w == null || w.Buildings == null || data == null) return;
 
             foreach (var bid in w.Buildings.Ids)
@@ -296,12 +332,12 @@ namespace SeasonalBastion
 
         private void RefundCarryBestEffort(int jobId, BuildingId armoryBld)
         {
-            if (_s.WorldState == null || _s.StorageService == null) return;
+            if (_worldState == null || _storageService == null) return;
             if (armoryBld.Value == 0) return;
-            if (!_s.WorldState.Buildings.Exists(armoryBld)) return;
+            if (!_worldState.Buildings.Exists(armoryBld)) return;
 
             if (_carry.TryGetValue(jobId, out int carried) && carried > 0)
-                _s.StorageService.Add(armoryBld, ResourceType.Ammo, carried);
+                _storageService.Add(armoryBld, ResourceType.Ammo, carried);
         }
 
         private void Cleanup(int jobId)

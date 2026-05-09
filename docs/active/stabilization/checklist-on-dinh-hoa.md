@@ -106,8 +106,21 @@ _Trạng thái thực tế sau vòng smoke test + save/load pass đầu tiên._
   - `NpcIdleRoamService` đổi hẳn sang contract runtime hiện hành `IAgentMoverRuntime` thay vì tên cũ `IAgentMover`.
   - `BuildJobPlanner` được siết lại để gọi đúng overload dependency hẹp của `EntryCellUtil` và `JobReachabilityHelper` (`IDataRegistry`, `IGridMap`, `IPathfinderRuntime`) thay vì lẫn call-site kiểu `GameServices`/signature cũ.
   - Đã bổ sung constructor compatibility cho `BuildJobPlanner`, `BuildOrderTickProcessor`, và `JobEnqueueService` để giữ regression tests cũ compile được trong khi production path tiếp tục dùng constructor dependency-hẹp.
-- [~] Sau pass này, phần còn lại đáng chú ý chủ yếu là `JobExecutionService` và các helper movement/reachability còn overload theo `GameServices`; nên tiếp tục bằng các pass nhỏ thay vì đại phẫu.
-- [ ] Sau cụm `Build`, review/giảm tiếp dependency full `GameServices` trong `JobScheduler` và các service con ưu tiên dễ tách trước.
+- [x] Đã bóc tiếp `JobExecutionService`: service này không còn giữ full `GameServices`, mà nhận dependency hẹp hơn (`IWorldState`, `IJobBoard`, `JobExecutorRegistry`, `JobStateCleanupService`, `IAgentMoverRuntime`, `IGridMap`) và vẫn giữ constructor compatibility cho call-site/test cũ.
+- [x] Đã bóc `InteractionCellExitHelper` sang overload dependency hẹp (`IDataRegistry`, `IGridMap`, `IAgentMoverRuntime`) cho các path step-off building/site/cell, trong khi overload `GameServices` cũ vẫn giữ như forwarding shim để tránh làm nổ call-site hàng loạt.
+- [x] Đã cập nhật `JobScheduler` sang wiring constructor hẹp cho `JobExecutionService`.
+- [x] Đã bóc tiếp cụm executor low-risk trong `Jobs/Executors` khỏi full `GameServices`, đồng thời giữ constructor compatibility cho path cũ:
+  - `HarvestExecutor`
+  - `CraftAmmoExecutor`
+  - `RepairWorkExecutor`
+  - `HaulBasicExecutor`
+  - `HaulAmmoToArmoryExecutor`
+  - `ResupplyTowerExecutor`
+  - `HaulToForgeExecutor`
+  - `BuildDeliverExecutor`
+- [x] `JobExecutorRegistry` hiện đã instantiate các executor trên bằng constructor dependency-hẹp, giảm owner/container bleed-through trong production wiring mà chưa cần churn test/call-site cũ.
+- [~] Sau pass này, phần `Jobs` còn lại dùng full container chủ yếu co lại quanh một vài executor/service chưa đụng tới như `BuildWorkExecutor`; nên tiếp tục bằng các pass nhỏ thay vì đại phẫu.
+- [~] Sau cụm `Build`, pass giảm dependency full `GameServices` trong `JobScheduler` và nhóm service/executor chính đã tiến được thêm một đoạn rõ rệt; phần còn lại nên ưu tiên theo executor/service còn giữ full container thay vì mổ ngang toàn cụm.
 - [ ] Mở rộng thêm regression save/load cho tracked runtime state khác nếu thấy cần
 - [ ] Polish thêm smoke coverage nếu có case manual nào còn thấy rủi ro
 

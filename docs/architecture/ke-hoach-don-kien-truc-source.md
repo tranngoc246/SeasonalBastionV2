@@ -366,7 +366,20 @@ Nếu chỉ chọn **3 việc đáng làm nhất ngay bây giờ**, mình chọn
   - thống nhất contract runtime movement về `IAgentMoverRuntime` ở cụm `Jobs`, tránh còn sót tên cũ `IAgentMover`.
   - `BuildJobPlanner` hiện đã nhận đủ dependency hẹp (`IWorldState`, `IJobBoard`, `IPathfinderRuntime`, `IDataRegistry`, `IGridMap`) để không phải gọi nhầm overload helper theo container/full service.
   - đã bổ sung compatibility overload/constructor cho một số lớp vừa refactor (`BuildJobPlanner`, `BuildOrderTickProcessor`, `JobEnqueueService`) để giữ test cũ chạy qua trong giai đoạn chuyển tiếp, thay vì phải sửa hàng loạt call-site ngay lập tức.
-- [~] Sau hai quick-win này, phần `Jobs*` còn lại đáng cân nhắc chủ yếu là `JobExecutionService` và các helper movement/reachability/step-off còn overload theo `GameServices` như `InteractionCellExitHelper`.
+- [x] Đã bóc tiếp `JobExecutionService`: service này giờ nhận dependency hẹp hơn (`IWorldState`, `IJobBoard`, `JobExecutorRegistry`, `JobStateCleanupService`, `IAgentMoverRuntime`, `IGridMap`) thay vì giữ full `GameServices`, đồng thời vẫn giữ constructor compatibility để không phải sửa hàng loạt test/call-site cũ.
+- [x] Đã refactor `InteractionCellExitHelper` theo hướng dual-overload: thêm bản dependency-hẹp (`IDataRegistry`, `IGridMap`, `IAgentMoverRuntime`) cho `TryStepOffBuildingEntry`, `TryStepOffSiteEntry`, `TryStepOffCell`, `ContinuePendingStepOff`; còn overload `GameServices` cũ giữ vai trò forwarding shim để giảm churn.
+- [x] Đã cập nhật `JobScheduler` sang wiring constructor hẹp cho `JobExecutionService`, để production path không còn phải chuyền full container vào execution loop.
+- [x] Đã bóc tiếp batch executor low-risk trong `Assets/_Game/Jobs/Executors` khỏi full `GameServices`, giữ nguyên behavior/job flow và bổ sung constructor compatibility cho path cũ:
+  - `HarvestExecutor`
+  - `CraftAmmoExecutor`
+  - `RepairWorkExecutor`
+  - `HaulBasicExecutor`
+  - `HaulAmmoToArmoryExecutor`
+  - `ResupplyTowerExecutor`
+  - `HaulToForgeExecutor`
+  - `BuildDeliverExecutor`
+- [x] `JobExecutorRegistry` hiện instantiate batch executor trên bằng constructor dependency-hẹp, giảm coupling ở composition/runtime wiring mà chưa cần ép test suite đổi hết call-site cùng lúc.
+- [~] Sau batch này, phần `Jobs*` còn giữ full `GameServices` thu hẹp đáng kể; phần còn lại hợp lý hơn nếu tiếp tục theo từng executor/service riêng lẻ (ví dụ `BuildWorkExecutor`) thay vì mở thêm một pass đại phẫu.
 - [x] Đã chuyển sang `Ammo*` pass 1 bằng cách bóc monitor/threshold/request-notification path khỏi `AmmoService` sang `AmmoMonitorPolicy`, giảm bớt phần state-machine cục bộ trong service gốc mà chưa đụng flow job/planner nặng.
 - [x] Đã đi tiếp recipe/craft-start path: `AmmoRecipeProvider` không còn bám `AmmoService`, và `AmmoCraftService` giờ nhận dependency hẹp hơn (`IWorldState`, `IStorageService`, `IJobBoard`, recipe provider, runtime state callbacks) thay vì giữ full owner/service container.
 - [x] Đã bóc tiếp recovery/observability path: `AmmoMetricsReporter` và `AmmoRecoveryService` giờ nhận dependency hẹp hơn thay vì giữ owner full `AmmoService`, đồng thời status aggregation được tách sang `AmmoObservabilityReporter`.

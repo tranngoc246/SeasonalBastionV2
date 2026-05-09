@@ -19,12 +19,24 @@ namespace SeasonalBastion
             float dt,
             CellPos? preferredFrom = null)
         {
-            if (s == null)
+            return TryStepOffBuildingEntry(s?.DataRegistry, s?.GridMap, s?.AgentMover, ref npcState, building, dt, preferredFrom);
+        }
+
+        public static bool TryStepOffBuildingEntry(
+            IDataRegistry dataRegistry,
+            IGridMap gridMap,
+            IAgentMoverRuntime agentMover,
+            ref NpcState npcState,
+            in BuildingState building,
+            float dt,
+            CellPos? preferredFrom = null)
+        {
+            if (dataRegistry == null || gridMap == null || agentMover == null)
                 return false;
 
             var from = preferredFrom ?? npcState.Cell;
-            var entry = EntryCellUtil.GetApproachCellForBuilding(s, building, from);
-            return TryStepOffCell(s, ref npcState, entry, dt, from);
+            var entry = EntryCellUtil.GetApproachCellForBuilding(dataRegistry, gridMap, building, from);
+            return TryStepOffCell(gridMap, agentMover, ref npcState, entry, dt, from);
         }
 
         public static bool TryStepOffSiteEntry(
@@ -34,12 +46,24 @@ namespace SeasonalBastion
             float dt,
             CellPos? preferredFrom = null)
         {
-            if (s == null)
+            return TryStepOffSiteEntry(s?.DataRegistry, s?.GridMap, s?.AgentMover, ref npcState, site, dt, preferredFrom);
+        }
+
+        public static bool TryStepOffSiteEntry(
+            IDataRegistry dataRegistry,
+            IGridMap gridMap,
+            IAgentMoverRuntime agentMover,
+            ref NpcState npcState,
+            in BuildSiteState site,
+            float dt,
+            CellPos? preferredFrom = null)
+        {
+            if (dataRegistry == null || gridMap == null || agentMover == null)
                 return false;
 
             var from = preferredFrom ?? npcState.Cell;
-            var entry = EntryCellUtil.GetApproachCellForSite(s, site, from);
-            return TryStepOffCell(s, ref npcState, entry, dt, from);
+            var entry = EntryCellUtil.GetApproachCellForSite(dataRegistry, gridMap, site, from);
+            return TryStepOffCell(gridMap, agentMover, ref npcState, entry, dt, from);
         }
 
         public static bool TryStepOffCell(
@@ -49,14 +73,25 @@ namespace SeasonalBastion
             float dt,
             CellPos? preferredBias = null)
         {
-            if (s?.AgentMover == null || s.GridMap == null)
+            return TryStepOffCell(s?.GridMap, s?.AgentMover, ref npcState, interactionCell, dt, preferredBias);
+        }
+
+        public static bool TryStepOffCell(
+            IGridMap gridMap,
+            IAgentMoverRuntime agentMover,
+            ref NpcState npcState,
+            CellPos interactionCell,
+            float dt,
+            CellPos? preferredBias = null)
+        {
+            if (agentMover == null || gridMap == null)
                 return false;
 
             if (npcState.Cell.X != interactionCell.X || npcState.Cell.Y != interactionCell.Y)
                 return false;
 
             var bias = preferredBias ?? npcState.Cell;
-            if (!TryFindNearbyWaitCell(s, interactionCell, bias, out var waitCell))
+            if (!TryFindNearbyWaitCell(gridMap, interactionCell, bias, out var waitCell))
                 return false;
 
             _pendingByNpc[npcState.Id.Value] = new PendingStepOff
@@ -64,12 +99,17 @@ namespace SeasonalBastion
                 OriginCell = interactionCell,
                 WaitCell = waitCell
             };
-            return ContinuePendingStepOff(s, ref npcState, dt);
+            return ContinuePendingStepOff(agentMover, gridMap, ref npcState, dt);
         }
 
         public static bool ContinuePendingStepOff(GameServices s, ref NpcState npcState, float dt)
         {
-            if (s?.AgentMover == null || s.GridMap == null)
+            return ContinuePendingStepOff(s?.AgentMover, s?.GridMap, ref npcState, dt);
+        }
+
+        public static bool ContinuePendingStepOff(IAgentMoverRuntime agentMover, IGridMap gridMap, ref NpcState npcState, float dt)
+        {
+            if (agentMover == null || gridMap == null)
                 return false;
 
             if (!_pendingByNpc.TryGetValue(npcState.Id.Value, out var pending))
@@ -82,9 +122,9 @@ namespace SeasonalBastion
             }
 
             var waitCell = pending.WaitCell;
-            if (!IsWalkableWaitCell(s, waitCell))
+            if (!IsWalkableWaitCell(gridMap, waitCell))
             {
-                if (!TryFindNearbyWaitCell(s, pending.OriginCell, npcState.Cell, out waitCell))
+                if (!TryFindNearbyWaitCell(gridMap, pending.OriginCell, npcState.Cell, out waitCell))
                 {
                     _pendingByNpc.Remove(npcState.Id.Value);
                     return false;
@@ -102,7 +142,7 @@ namespace SeasonalBastion
                 return true;
             }
 
-            bool arrived = s.AgentMover.StepToward(ref npcState, waitCell, dt);
+            bool arrived = agentMover.StepToward(ref npcState, waitCell, dt);
             if (npcState.Cell.X != pending.OriginCell.X || npcState.Cell.Y != pending.OriginCell.Y)
             {
                 _pendingByNpc.Remove(npcState.Id.Value);
@@ -115,7 +155,7 @@ namespace SeasonalBastion
                 return true;
             }
 
-            if (!TryFindNearbyWaitCell(s, pending.OriginCell, npcState.Cell, out waitCell))
+            if (!TryFindNearbyWaitCell(gridMap, pending.OriginCell, npcState.Cell, out waitCell))
                 return true;
 
             pending.WaitCell = waitCell;
@@ -139,6 +179,15 @@ namespace SeasonalBastion
             CellPos biasFrom,
             out CellPos waitCell)
         {
+            return TryFindNearbyWaitCell(s?.GridMap, interactionCell, biasFrom, out waitCell);
+        }
+
+        private static bool TryFindNearbyWaitCell(
+            IGridMap gridMap,
+            CellPos interactionCell,
+            CellPos biasFrom,
+            out CellPos waitCell)
+        {
             waitCell = default;
             int bestScore = int.MaxValue;
             bool found = false;
@@ -152,12 +201,12 @@ namespace SeasonalBastion
                     int dx2 = ax;
 
                     var c1 = new CellPos(interactionCell.X + dx1, interactionCell.Y + dy);
-                    TryConsiderCandidate(s, c1, interactionCell, biasFrom, ref found, ref bestScore, ref waitCell);
+                    TryConsiderCandidate(gridMap, c1, interactionCell, biasFrom, ref found, ref bestScore, ref waitCell);
 
                     if (dx2 != dx1)
                     {
                         var c2 = new CellPos(interactionCell.X + dx2, interactionCell.Y + dy);
-                        TryConsiderCandidate(s, c2, interactionCell, biasFrom, ref found, ref bestScore, ref waitCell);
+                        TryConsiderCandidate(gridMap, c2, interactionCell, biasFrom, ref found, ref bestScore, ref waitCell);
                     }
                 }
 
@@ -169,7 +218,7 @@ namespace SeasonalBastion
         }
 
         private static void TryConsiderCandidate(
-            GameServices s,
+            IGridMap gridMap,
             CellPos candidate,
             CellPos interactionCell,
             CellPos biasFrom,
@@ -177,7 +226,7 @@ namespace SeasonalBastion
             ref int bestScore,
             ref CellPos best)
         {
-            if (!IsWalkableWaitCell(s, candidate))
+            if (!IsWalkableWaitCell(gridMap, candidate))
                 return;
 
             if (candidate.X == interactionCell.X && candidate.Y == interactionCell.Y)
@@ -194,10 +243,15 @@ namespace SeasonalBastion
 
         private static bool IsWalkableWaitCell(GameServices s, CellPos cell)
         {
-            if (s?.GridMap == null || !s.GridMap.IsInside(cell))
+            return IsWalkableWaitCell(s?.GridMap, cell);
+        }
+
+        private static bool IsWalkableWaitCell(IGridMap gridMap, CellPos cell)
+        {
+            if (gridMap == null || !gridMap.IsInside(cell))
                 return false;
 
-            var kind = s.GridMap.Get(cell).Kind;
+            var kind = gridMap.Get(cell).Kind;
             return kind == CellOccupancyKind.Empty || kind == CellOccupancyKind.Road;
         }
 

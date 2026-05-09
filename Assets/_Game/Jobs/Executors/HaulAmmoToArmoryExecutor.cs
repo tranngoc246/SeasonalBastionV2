@@ -14,7 +14,12 @@ namespace SeasonalBastion
     /// </summary>
     public sealed class HaulAmmoToArmoryExecutor : IJobExecutor
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IStorageService _storageService;
+        private readonly IAgentMoverRuntime _agentMover;
+        private readonly BalanceService _balance;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IGridMap _gridMap;
 
         // jobId -> phase (0 pickup, 1 deliver)
         private readonly Dictionary<int, byte> _phase = new();
@@ -23,11 +28,30 @@ namespace SeasonalBastion
         private readonly Dictionary<int, float> _settle = new();
         private const float AmmoHaulSettleSec = 1.0f;
 
-        public HaulAmmoToArmoryExecutor(GameServices s) { _s = s; }
+        public HaulAmmoToArmoryExecutor(
+            IWorldState worldState,
+            IStorageService storageService,
+            IAgentMoverRuntime agentMover,
+            BalanceService balance,
+            IDataRegistry dataRegistry,
+            IGridMap gridMap)
+        {
+            _worldState = worldState;
+            _storageService = storageService;
+            _agentMover = agentMover;
+            _balance = balance;
+            _dataRegistry = dataRegistry;
+            _gridMap = gridMap;
+        }
+
+        public HaulAmmoToArmoryExecutor(GameServices s)
+            : this(s?.WorldState, s?.StorageService, s?.AgentMover, s?.Balance, s?.DataRegistry, s?.GridMap)
+        {
+        }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
-            if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null)
+            if (_worldState == null || _storageService == null || _agentMover == null)
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(job.Id.Value);
@@ -51,15 +75,15 @@ namespace SeasonalBastion
                 return true;
             }
 
-            if (!_s.WorldState.Buildings.Exists(src) || !_s.WorldState.Buildings.Exists(dst))
+            if (!_worldState.Buildings.Exists(src) || !_worldState.Buildings.Exists(dst))
             {
                 job.Status = JobStatus.Failed;
                 Cleanup(job.Id.Value);
                 return true;
             }
 
-            var srcState = _s.WorldState.Buildings.Get(src);
-            var dstState = _s.WorldState.Buildings.Get(dst);
+            var srcState = _worldState.Buildings.Get(src);
+            var dstState = _worldState.Buildings.Get(dst);
 
             if (!srcState.IsConstructed || !dstState.IsConstructed)
             {
@@ -69,14 +93,14 @@ namespace SeasonalBastion
             }
 
             // Hard gate: must be able to store ammo at both ends (StorageService enforces ammo only Forge/Armory)
-            if (!_s.StorageService.CanStore(src, ResourceType.Ammo) || !_s.StorageService.CanStore(dst, ResourceType.Ammo))
+            if (!_storageService.CanStore(src, ResourceType.Ammo) || !_storageService.CanStore(dst, ResourceType.Ammo))
             {
                 job.Status = JobStatus.Cancelled;
                 Cleanup(job.Id.Value);
                 return true;
             }
 
-            int dstFree = _s.StorageService.GetCap(dst, ResourceType.Ammo) - _s.StorageService.GetAmount(dst, ResourceType.Ammo);
+            int dstFree = _storageService.GetCap(dst, ResourceType.Ammo) - _storageService.GetAmount(dst, ResourceType.Ammo);
             if (dstFree <= 0)
             {
                 job.Status = JobStatus.Cancelled;
@@ -89,12 +113,12 @@ namespace SeasonalBastion
             // Hardening: external cancel -> refund ammo back to source (best-effort) + cleanup
             if (job.Status == JobStatus.Cancelled)
             {
-                if (_s.WorldState != null && _s.StorageService != null)
+                if (_worldState != null && _storageService != null)
                 {
                     if (_carry.TryGetValue(jid, out int carried) && carried > 0 && job.SourceBuilding.Value != 0
-                        && _s.WorldState.Buildings.Exists(job.SourceBuilding))
+                        && _worldState.Buildings.Exists(job.SourceBuilding))
                     {
-                        _s.StorageService.Add(job.SourceBuilding, ResourceType.Ammo, carried);
+                        _storageService.Add(job.SourceBuilding, ResourceType.Ammo, carried);
                     }
                 }
 
@@ -108,24 +132,24 @@ namespace SeasonalBastion
             {
                 int want = job.Amount > 0 ? job.Amount : 1;
 
-                int tier = _s.Balance != null ? _s.Balance.GetTierFromLevel(dstState.Level) : 1;
-                int cap = _s.Balance != null ? _s.Balance.GetArmoryAmmoCarry(tier) : 80;
+                int tier = _balance != null ? _balance.GetTierFromLevel(dstState.Level) : 1;
+                int cap = _balance != null ? _balance.GetArmoryAmmoCarry(tier) : 80;
                 if (want > cap) want = cap;
 
                 if (want > dstFree) want = dstFree;
 
-                int srcAvail = _s.StorageService.GetAmount(src, ResourceType.Ammo);
+                int srcAvail = _storageService.GetAmount(src, ResourceType.Ammo);
                 if (srcAvail <= 0) return false;
                 if (want > srcAvail) want = srcAvail;
                 if (want <= 0) return false;
 
                 // Move to source ENTRY
-                var srcEntry = EntryCellUtil.GetApproachCellForBuilding(_s, srcState, npcState.Cell);
+                var srcEntry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, srcState, npcState.Cell);
 
                 job.TargetCell = srcEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedSrc = _s.AgentMover.StepToward(ref npcState, srcEntry, dt);
+                bool arrivedSrc = _agentMover.StepToward(ref npcState, srcEntry, dt);
                 if (!arrivedSrc) return true;
 
                 // Stand still before pickup
@@ -140,7 +164,7 @@ namespace SeasonalBastion
                 }
                 _settle.Remove(jid);
 
-                int removed = _s.StorageService.Remove(src, ResourceType.Ammo, want);
+                int removed = _storageService.Remove(src, ResourceType.Ammo, want);
 
                 if (removed <= 0) return false;
 
@@ -159,12 +183,12 @@ namespace SeasonalBastion
                 }
 
                 // Move to dest ENTRY
-                var dstEntry = EntryCellUtil.GetApproachCellForBuilding(_s, dstState, npcState.Cell);
+                var dstEntry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, dstState, npcState.Cell);
 
                 job.TargetCell = dstEntry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedDst = _s.AgentMover.StepToward(ref npcState, dstEntry, dt);
+                bool arrivedDst = _agentMover.StepToward(ref npcState, dstEntry, dt);
                 if (!arrivedDst) return true;
 
                 // Stand still before deposit
@@ -179,12 +203,12 @@ namespace SeasonalBastion
                 }
                 _settle.Remove(jid);
 
-                int added = _s.StorageService.Add(dst, ResourceType.Ammo, carried);
+                int added = _storageService.Add(dst, ResourceType.Ammo, carried);
 
                 // Refund remainder back to source (best-effort)
                 int refund = carried - added;
-                if (refund > 0 && _s.WorldState.Buildings.Exists(src))
-                    _s.StorageService.Add(src, ResourceType.Ammo, refund);
+                if (refund > 0 && _worldState.Buildings.Exists(src))
+                    _storageService.Add(src, ResourceType.Ammo, refund);
 
                 job.Status = JobStatus.Completed;
                 Cleanup(jid);

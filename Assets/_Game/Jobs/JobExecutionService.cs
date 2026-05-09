@@ -5,24 +5,37 @@ namespace SeasonalBastion
 {
     internal sealed class JobExecutionService
     {
-        private readonly GameServices _s;
         private readonly IWorldState _w;
         private readonly IJobBoard _board;
         private readonly JobExecutorRegistry _exec;
         private readonly JobStateCleanupService _cleanupService;
+        private readonly IAgentMoverRuntime _agentMover;
+        private readonly IGridMap _gridMap;
 
         internal JobExecutionService(
-            GameServices s,
             IWorldState w,
             IJobBoard board,
             JobExecutorRegistry exec,
-            JobStateCleanupService cleanupService)
+            JobStateCleanupService cleanupService,
+            IAgentMoverRuntime agentMover,
+            IGridMap gridMap)
         {
-            _s = s;
             _w = w;
             _board = board;
             _exec = exec;
             _cleanupService = cleanupService;
+            _agentMover = agentMover;
+            _gridMap = gridMap;
+        }
+
+        internal JobExecutionService(
+            GameServices services,
+            IWorldState w,
+            IJobBoard board,
+            JobExecutorRegistry exec,
+            JobStateCleanupService cleanupService)
+            : this(w, board, exec, cleanupService, services?.AgentMover, services?.GridMap)
+        {
         }
 
         internal void TickCurrentJobs(IReadOnlyList<NpcId> npcIds, float dt)
@@ -35,7 +48,7 @@ namespace SeasonalBastion
                 var ns = _w.Npcs.Get(nid);
                 if (ns.CurrentJob.Value == 0)
                 {
-                    InteractionCellExitHelper.ContinuePendingStepOff(_s, ref ns, dt);
+                    InteractionCellExitHelper.ContinuePendingStepOff(_agentMover, _gridMap, ref ns, dt);
                     _w.Npcs.Set(nid, ns);
                     continue;
                 }

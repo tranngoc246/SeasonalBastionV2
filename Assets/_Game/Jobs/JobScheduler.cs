@@ -59,7 +59,7 @@ namespace SeasonalBastion
             _cacheService = new JobSchedulerCache(w);
             _assignmentService = new JobAssignmentService(w, board, workplacePolicy, notificationPolicy);
             _enqueueService = new JobEnqueueService(s.ResourcePatchService, s.Pathfinder, s.ResourceFlowService, data, s.GridMap, w, board, workplacePolicy, resourcePolicy, _cleanupService, harvestTargetSelector);
-            _executionService = new JobExecutionService(s, w, board, exec, _cleanupService);
+            _executionService = new JobExecutionService(w, board, exec, _cleanupService, s.AgentMover, s.GridMap);
             _idleRoamService = new NpcIdleRoamService(s.AgentMover, data, s.GridMap, w);
         }
 

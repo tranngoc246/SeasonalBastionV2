@@ -7,7 +7,15 @@ namespace SeasonalBastion
 {
     public sealed class HarvestExecutor : IJobExecutor
     {
-        private readonly GameServices _s;
+        private readonly IWorldState _worldState;
+        private readonly IStorageService _storageService;
+        private readonly IAgentMoverRuntime _agentMover;
+        private readonly INotificationService _notificationService;
+        private readonly IClaimService _claimService;
+        private readonly ResourcePatchService _resourcePatchService;
+        private readonly IPathfinderRuntime _pathfinder;
+        private readonly IDataRegistry _dataRegistry;
+        private readonly IGridMap _gridMap;
 
         // jobId -> remaining work seconds
         private readonly Dictionary<int, float> _remaining = new();
@@ -16,8 +24,32 @@ namespace SeasonalBastion
         private readonly Dictionary<int, float> _depositSettle = new();
         private const float HarvestDepositSettleSec = 1.0f;
 
-        public HarvestExecutor(GameServices s) { _s = s; }
+        public HarvestExecutor(
+            IWorldState worldState,
+            IStorageService storageService,
+            IAgentMoverRuntime agentMover,
+            INotificationService notificationService,
+            IClaimService claimService,
+            ResourcePatchService resourcePatchService,
+            IPathfinderRuntime pathfinder,
+            IDataRegistry dataRegistry,
+            IGridMap gridMap)
+        {
+            _worldState = worldState;
+            _storageService = storageService;
+            _agentMover = agentMover;
+            _notificationService = notificationService;
+            _claimService = claimService;
+            _resourcePatchService = resourcePatchService;
+            _pathfinder = pathfinder;
+            _dataRegistry = dataRegistry;
+            _gridMap = gridMap;
+        }
 
+        public HarvestExecutor(GameServices s)
+            : this(s?.WorldState, s?.StorageService, s?.AgentMover, s?.NotificationService, s?.ClaimService, s?.ResourcePatchService, s?.Pathfinder, s?.DataRegistry, s?.GridMap)
+        {
+        }
 
         public bool Tick(NpcId npc, ref NpcState npcState, ref Job job, float dt)
         {
@@ -31,20 +63,20 @@ namespace SeasonalBastion
                 return true;
             }
 
-            if (_s.WorldState == null || _s.StorageService == null || _s.AgentMover == null)
+            if (_worldState == null || _storageService == null || _agentMover == null)
             {
                 job.Status = JobStatus.Failed;
                 return true;
             }
 
             var producer = job.Workplace;
-            if (producer.Value == 0 || !_s.WorldState.Buildings.Exists(producer))
+            if (producer.Value == 0 || !_worldState.Buildings.Exists(producer))
             {
                 job.Status = JobStatus.Failed;
                 return true;
             }
 
-            var bs = _s.WorldState.Buildings.Get(producer);
+            var bs = _worldState.Buildings.Get(producer);
             if (!bs.IsConstructed)
             {
                 job.Status = JobStatus.Failed;
@@ -62,13 +94,13 @@ namespace SeasonalBastion
             GetHarvestParams(bs.DefId, NormalizeLevel(bs.Level), out float workSec, out int yield);
 
             // Day36: nếu local storage full thì cancel job để tránh loop fail/spam
-            int cap = _s.StorageService.GetCap(producer, rt);
-            int cur = _s.StorageService.GetAmount(producer, rt);
+            int cap = _storageService.GetCap(producer, rt);
+            int cur = _storageService.GetAmount(producer, rt);
             if (cap > 0 && cur >= cap)
             {
-                if (_s.NotificationService != null)
+                if (_notificationService != null)
                 {
-                    _s.NotificationService.Push(
+                    _notificationService.Push(
                         key: "producer.local.full",
                         title: "Kho nội bộ đã đầy",
                         body: "Công trình này đang đầy hàng, nên tạm thời chưa thể sản xuất thêm.",
@@ -78,7 +110,7 @@ namespace SeasonalBastion
                         dedupeByKey: true);
                 }
 
-                InteractionCellExitHelper.TryStepOffBuildingEntry(_s, ref npcState, bs, dt);
+                InteractionCellExitHelper.TryStepOffBuildingEntry(_dataRegistry, _gridMap, _agentMover, ref npcState, bs, dt);
                 job.Status = JobStatus.Cancelled;
                 return true;
             }
@@ -90,12 +122,12 @@ namespace SeasonalBastion
             // Phase B: delivering carried resource to producer local
             if (job.Amount > 0)
             {
-                var entry = EntryCellUtil.GetApproachCellForBuilding(_s, bs, npcState.Cell);
+                var entry = EntryCellUtil.GetApproachCellForBuilding(_dataRegistry, _gridMap, bs, npcState.Cell);
 
                 job.TargetCell = entry;
                 job.Status = JobStatus.InProgress;
 
-                bool arrivedEntry = _s.AgentMover.StepToward(ref npcState, entry, dt);
+                bool arrivedEntry = _agentMover.StepToward(ref npcState, entry, dt);
                 if (!arrivedEntry)
                 {
                     int dx = npcState.Cell.X - entry.X; if (dx < 0) dx = -dx;
@@ -118,7 +150,7 @@ namespace SeasonalBastion
                 _depositSettle.Remove(jid);
 
                 int carried = job.Amount;
-                int added = _s.StorageService.Add(producer, rt, carried);
+                int added = _storageService.Add(producer, rt, carried);
 
                 job.Amount = 0; // reset carry
 
@@ -139,7 +171,7 @@ namespace SeasonalBastion
             }
 
             // OPTIONAL: if you want extra safety and you have grid bounds
-            if (_s.GridMap != null && !_s.GridMap.IsInside(target))
+            if (_gridMap != null && !_gridMap.IsInside(target))
             {
                 job.Status = JobStatus.Cancelled;
                 _remaining.Remove(jid);
@@ -151,12 +183,12 @@ namespace SeasonalBastion
             ClaimKey claimKey = default;
             bool hasClaimKey = false;
 
-            if (_s.ClaimService != null)
+            if (_claimService != null)
             {
                 claimKey = new ClaimKey(ClaimKind.ProducerNode, producer.Value, (int)rt);
                 hasClaimKey = true;
 
-                if (!_s.ClaimService.TryAcquire(claimKey, npc))
+                if (!_claimService.TryAcquire(claimKey, npc))
                     return false; // waiting
             }
 
@@ -164,7 +196,7 @@ namespace SeasonalBastion
             job.ResourceType = rt;
             job.Status = JobStatus.InProgress;
 
-            bool arrived = _s.AgentMover.StepToward(ref npcState, target, dt);
+            bool arrived = _agentMover.StepToward(ref npcState, target, dt);
 
             if (!arrived)
                 return true;
@@ -184,14 +216,14 @@ namespace SeasonalBastion
             _depositSettle.Remove(jid);
 
             // Work done => compute carry (CLAMP by free local cap to avoid overflow races)
-            int cap2 = _s.StorageService.GetCap(producer, rt);
-            int cur2 = _s.StorageService.GetAmount(producer, rt);
+            int cap2 = _storageService.GetCap(producer, rt);
+            int cur2 = _storageService.GetAmount(producer, rt);
             int free = (cap2 > 0) ? (cap2 - cur2) : 0;
 
             if (free <= 0)
             {
                 // local became full due to parallel deliveries; stop safely
-                if (hasClaimKey) _s.ClaimService.Release(claimKey, npc);
+                if (hasClaimKey) _claimService.Release(claimKey, npc);
                 job.Status = JobStatus.Cancelled;
                 return true;
             }
@@ -199,11 +231,11 @@ namespace SeasonalBastion
             int carry = yield;
             if (carry > free) carry = free;
 
-            if (_s.ResourcePatchService != null)
+            if (_resourcePatchService != null)
             {
-                if (_s.ResourcePatchService.TryGetPatchAtCell(target, out var patch))
+                if (_resourcePatchService.TryGetPatchAtCell(target, out var patch))
                 {
-                    carry = _s.ResourcePatchService.Consume(patch.Id, carry);
+                    carry = _resourcePatchService.Consume(patch.Id, carry);
                 }
                 else
                 {
@@ -213,16 +245,16 @@ namespace SeasonalBastion
 
             if (carry <= 0)
             {
-                if (hasClaimKey) _s.ClaimService.Release(claimKey, npc);
+                if (hasClaimKey) _claimService.Release(claimKey, npc);
 
-                if (HarvestTargetSelectionHelper.TryPickBestHarvestTarget(_s.ResourcePatchService, _s.Pathfinder, _s.WorldState, rt, bs.Anchor, producer.Value, slot: 0, out var nextTarget))
+                if (HarvestTargetSelectionHelper.TryPickBestHarvestTarget(_resourcePatchService, _pathfinder, _worldState, rt, bs.Anchor, producer.Value, slot: 0, out var nextTarget))
                 {
                     job.TargetCell = nextTarget;
                     job.Amount = 0;
                     job.Status = JobStatus.InProgress;
                     _remaining.Remove(jid);
                     _depositSettle.Remove(jid);
-                    _s.AgentMover.StepToward(ref npcState, nextTarget, 0f);
+                    _agentMover.StepToward(ref npcState, nextTarget, 0f);
                     return true;
                 }
 
@@ -231,7 +263,7 @@ namespace SeasonalBastion
             }
 
             // Release claim after producing carry so other workers can continue
-            if (hasClaimKey) _s.ClaimService.Release(claimKey, npc);
+            if (hasClaimKey) _claimService.Release(claimKey, npc);
 
             // Switch to Phase B: deliver to anchor
             job.Amount = carry;
